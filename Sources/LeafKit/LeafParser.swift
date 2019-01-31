@@ -1,4 +1,4 @@
-enum LeafSyntax: CustomStringConvertible {
+indirect enum LeafSyntax: CustomStringConvertible {
     struct Variable: CustomStringConvertible {
         var name: String
         
@@ -23,10 +23,25 @@ enum LeafSyntax: CustomStringConvertible {
         }
     }
     
+    struct Conditional: CustomStringConvertible {
+        var condition: LeafSyntax
+        var body: [LeafSyntax]
+        var next: LeafSyntax?
+        
+        var description: String {
+            let b = body.map { $0.description }.joined(separator: ", ")
+            if let next = self.next {
+                return "#if(\(self.condition)) { \(b) } \(next.description)"
+            } else {
+                return "#if(\(self.condition)) { \(b) }"
+            }
+        }
+    }
+    
     case raw(ByteBuffer)
     case tag(Tag)
+    case conditional(Conditional)
     case variable(Variable)
-    case endTag(String)
     
     var description: String {
         switch self {
@@ -37,8 +52,8 @@ enum LeafSyntax: CustomStringConvertible {
             return tag.description
         case .variable(let variable):
             return variable.description
-        case .endTag(let name):
-            return "#end\(name)"
+        case .conditional(let conditional):
+            return conditional.description
         }
     }
 }
@@ -71,13 +86,12 @@ struct LeafParser {
         case .tag(let name):
             self.pop()
             return self.nextTag(named: name)
-                .map { .tag($0) }
         default:
             fatalError("unexpected token: \(peek)")
         }
     }
     
-    mutating func nextTag(named name: String) -> LeafSyntax.Tag? {
+    mutating func nextTag(named name: String) -> LeafSyntax? {
         guard let peek = self.peek() else {
             return nil
         }
@@ -94,20 +108,73 @@ struct LeafParser {
         default: fatalError("unexpected token: \(peek)")
         }
         
+        let hasBody: Bool
         if self.peek() == .tagBodyIndicator {
             self.pop()
-            var body: [LeafSyntax] = []
-            while let next = self.nextTagBody(named: name) {
-                body.append(next)
-            }
-            return .init(name: name, parameters: parameters, body: body)
+            hasBody = true
         } else {
-            return .init(name: name, parameters: parameters, body: nil)
+            hasBody = false
         }
         
+        switch name {
+        case "if", "elseif", "else":
+            return self.nextConditional(
+                named: name,
+                parameters: parameters
+            )
+        default:
+            return self.nextCustomTag(
+                named: name,
+                parameters: parameters,
+                hasBody: hasBody
+            )
+        }
     }
     
-    mutating func nextTagBody(named parentName: String) -> LeafSyntax? {
+    mutating func nextConditional(named name: String, parameters: [LeafSyntax]) -> LeafSyntax? {
+        var body: [LeafSyntax] = []
+        while let next = self.nextConditionalBody() {
+            body.append(next)
+        }
+        let next: LeafSyntax?
+        if let p = self.peek(), case .tag(let a) = p, (a == "else" || a == "elseif") {
+            self.pop()
+            next = self.nextTag(named: a)
+        } else if let p = self.peek(), case .tag(let a) = p, a == "endif" {
+            self.pop()
+            next = nil
+        } else {
+            next = nil
+        }
+        let parameter: LeafSyntax
+        switch name {
+        case "else":
+            parameter = .variable(.init(name: "true"))
+        default:
+            parameter = parameters[0]
+        }
+        return .conditional(.init(
+            condition: parameter,
+            body: body,
+            next: next
+        ))
+    }
+    
+    mutating func nextCustomTag(named name: String, parameters: [LeafSyntax], hasBody: Bool) -> LeafSyntax? {
+        let body: [LeafSyntax]?
+        if hasBody {
+            var b: [LeafSyntax] = []
+            while let next = self.nextTagBody(endToken: "end" + name) {
+                b.append(next)
+            }
+            body = b
+        } else {
+            body = nil
+        }
+        return .tag(.init(name: name, parameters: parameters, body: body))
+    }
+    
+    mutating func nextConditionalBody() -> LeafSyntax? {
         guard let peek = self.peek() else {
             return nil
         }
@@ -116,13 +183,33 @@ struct LeafParser {
         case .raw(let raw):
             self.pop()
             return .raw(raw)
-        case .tag(let subName):
+        case .tag(let name):
+            switch name {
+            case "else", "elseif", "endif":
+                return nil
+            default:
+                self.pop()
+                return self.nextTag(named: name)
+            }
+        default: fatalError("unexpected token: \(peek)")
+        }
+    }
+    
+    mutating func nextTagBody(endToken: String) -> LeafSyntax? {
+        guard let peek = self.peek() else {
+            return nil
+        }
+        
+        switch peek {
+        case .raw(let raw):
             self.pop()
-            if subName == "end" + parentName {
+            return .raw(raw)
+        case .tag(let n):
+            self.pop()
+            if n == endToken {
                 return nil
             } else {
-                return self.nextTag(named: subName)
-                    .map { .tag($0) }
+                return self.nextTag(named: n)
             }
         default: fatalError("unexpected token: \(peek)")
         }
@@ -155,6 +242,7 @@ struct LeafParser {
     }
     
     mutating func pop() {
+        print("pop: \(self.peek()!)")
         self.offset += 1
     }
 }

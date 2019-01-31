@@ -10,10 +10,14 @@ final class LeafKitTests: XCTestCase {
             Hello #(name)
         #endset!
 
+        #if(a):b#endif
+
         #if(foo):
         123
+        #elseif(bar):
+        456
         #else:
-        321
+        789
         #endif
         """
 //
