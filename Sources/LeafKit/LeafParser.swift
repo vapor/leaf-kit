@@ -1,63 +1,3 @@
-indirect enum LeafSyntax: CustomStringConvertible {
-    struct Variable: CustomStringConvertible {
-        var name: String
-        
-        var description: String {
-            return self.name
-        }
-    }
-    
-    struct Tag: CustomStringConvertible {
-        var name: String
-        var parameters: [LeafSyntax]
-        var body: [LeafSyntax]?
-        
-        var description: String {
-            let params = self.parameters.map { $0.description }.joined(separator: ", ")
-            if let body = body {
-                let b = body.map { $0.description }.joined(separator: ", ")
-                return "#\(self.name)(\(params)) { \(b) }"
-            } else {
-                return "#\(self.name)(\(params))"
-            }
-        }
-    }
-    
-    struct Conditional: CustomStringConvertible {
-        var condition: LeafSyntax
-        var body: [LeafSyntax]
-        var next: LeafSyntax?
-        
-        var description: String {
-            let b = body.map { $0.description }.joined(separator: ", ")
-            if let next = self.next {
-                return "#if(\(self.condition)) { \(b) } \(next.description)"
-            } else {
-                return "#if(\(self.condition)) { \(b) }"
-            }
-        }
-    }
-    
-    case raw(ByteBuffer)
-    case tag(Tag)
-    case conditional(Conditional)
-    case variable(Variable)
-    
-    var description: String {
-        switch self {
-        case .raw(var byteBuffer):
-            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-            return string.debugDescription
-        case .tag(let tag):
-            return tag.description
-        case .variable(let variable):
-            return variable.description
-        case .conditional(let conditional):
-            return conditional.description
-        }
-    }
-}
-
 struct LeafParser {
     private let tokens: [LeafToken]
     private var offset: Int
@@ -117,6 +57,8 @@ struct LeafParser {
         }
         
         switch name {
+        case "", "get":
+            return parameters[0]
         case "if", "elseif", "else":
             return self.nextConditional(
                 named: name,
@@ -149,7 +91,7 @@ struct LeafParser {
         let parameter: LeafSyntax
         switch name {
         case "else":
-            parameter = .variable(.init(name: "true"))
+            parameter = .constant(.bool(true))
         default:
             parameter = parameters[0]
         }
@@ -229,6 +171,9 @@ struct LeafParser {
         case .parametersEnd:
             self.pop()
             return nil
+        case .stringLiteral(let string):
+            self.pop()
+            return LeafSyntax.constant(.string(string))
         default:
             fatalError("unexpected token: \(peek)")
         }
@@ -242,7 +187,6 @@ struct LeafParser {
     }
     
     mutating func pop() {
-        print("pop: \(self.peek()!)")
         self.offset += 1
     }
 }

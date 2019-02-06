@@ -4,6 +4,8 @@ import XCTest
 final class LeafKitTests: XCTestCase {
     func testParser() throws {
         let template = """
+        Hello #(name)!
+
         Hello #get(name)!
 
         #set(name):
@@ -19,10 +21,20 @@ final class LeafKitTests: XCTestCase {
         #else:
         789
         #endif
+
+        #import("title")
+
+        #import("body")
+
+        #extend("base"):
+            #export("title", "Welcome")
+            #export("body"):
+                Hello, #(name)!
+            #endexport
+        #endextend
+
+        More stuff here!
         """
-//
-//        More stuff here!
-//        """
         var buffer = ByteBufferAllocator().buffer(capacity: 0)
         buffer.write(string: template)
         
@@ -37,6 +49,17 @@ final class LeafKitTests: XCTestCase {
         let ast = try parser.parse()
         print("AST:")
         ast.forEach { print($0) }
+        print()
+        
+        var serializer = LeafSerializer(ast: ast, context: [
+            "name": "Tanner",
+            "a": true,
+            "bar": true
+        ])
+        var view = try serializer.serialize()
+        let string = view.readString(length: view.readableBytes)!
+        print("View:")
+        print(string)
         print()
     }
 

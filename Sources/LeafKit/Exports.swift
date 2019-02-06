@@ -1,6 +1,8 @@
 @_exported import NIO
 
 extension UInt8 {
+    static let newLine: UInt8 = 0xA
+    static let quote: UInt8 = 0x22
     static let octothorpe: UInt8 = 0x23
     static let leftParenthesis: UInt8 = 0x28
     static let rightParenthesis: UInt8 = 0x29

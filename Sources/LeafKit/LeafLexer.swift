@@ -1,36 +1,3 @@
-enum LeafToken: CustomStringConvertible, Equatable  {
-    case raw(ByteBuffer)
-    
-    case tag(name: String)
-    case tagBodyIndicator
-    
-    case parametersStart
-    case parameterDelimiter
-    case parametersEnd
-    
-    case variable(name: String)
-    
-    var description: String {
-        switch self {
-        case .raw(var byteBuffer):
-            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-            return "raw(\(string.debugDescription))"
-        case .tag(let name):
-            return "tag(name: \(name.debugDescription))"
-        case .tagBodyIndicator:
-            return "tagBodyIndicator"
-        case .parametersStart:
-            return "parametersStart"
-        case .parametersEnd:
-            return "parametersEnd"
-        case .parameterDelimiter:
-            return "parameterDelimiter"
-        case .variable(let name):
-            return "varaible(name: \(name.debugDescription))"
-        }
-    }
-}
-
 struct LeafLexer {
     private var buffer: ByteBuffer
     
@@ -111,9 +78,33 @@ struct LeafLexer {
             case .comma:
                 self.buffer.moveReaderIndex(forwardBy: 1)
                 return .parameterDelimiter
+            case .quote:
+                let source = LeafSource.start(at: self.buffer)
+                // consume first quote
+                self.buffer.moveReaderIndex(forwardBy: 1)
+                guard let length = self.countMatching(check: { $0 != .quote && $0 != .newLine }) else {
+                    return nil
+                }
+                guard let string = self.buffer.readString(length: length) else {
+                    return nil
+                }
+                guard self.peek() == .quote else {
+                    throw LeafError(.unterminatedStringLiteral, source: source.end(at: self.buffer))
+                }
+                // consume final quote
+                self.buffer.moveReaderIndex(forwardBy: 1)
+                return .stringLiteral(string)
+            case .space:
+                // skip space
+                self.buffer.moveReaderIndex(forwardBy: 1)
+                return try self.next()
             default:
                 guard let length = self.countMatching(check: { $0.isAllowedInVariable }) else {
                     return nil
+                }
+                if length == 0 {
+                    let source = LeafSource.start(at: self.buffer).end(at: self.buffer)
+                    throw LeafError(.unexpectedToken, source: source)
                 }
                 guard let name = self.buffer.readString(length: length) else {
                     return nil
