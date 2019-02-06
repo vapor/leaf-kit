@@ -50,11 +50,30 @@ indirect enum LeafSyntax: CustomStringConvertible {
         }
     }
     
+    struct Import: CustomStringConvertible {
+        var key: String
+        
+        var description: String {
+            return "#import(\(self.key.debugDescription))"
+        }
+    }
+    
+    struct Extend: CustomStringConvertible {
+        var exports: [String: [LeafSyntax]]
+        
+        var description: String {
+            let k = self.exports.keys.map { $0.debugDescription }.joined(separator: ", ")
+            return "#extend(\(k))"
+        }
+    }
+    
     case raw(ByteBuffer)
     case tag(Tag)
     case conditional(Conditional)
     case variable(Variable)
     case constant(Constant)
+    case `import`(Import)
+    case extend(Extend)
     
     var description: String {
         switch self {
@@ -69,6 +88,10 @@ indirect enum LeafSyntax: CustomStringConvertible {
             return conditional.description
         case .constant(let constant):
             return constant.description
+        case .import(let `import`):
+            return `import`.description
+        case .extend(let extend):
+            return extend.description
         }
     }
 }

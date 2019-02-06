@@ -62,8 +62,28 @@ final class LeafKitTests: XCTestCase {
         print(string)
         print()
     }
+    
+    func testRenderer() throws {
+        let threadPool = BlockingIOThreadPool(numberOfThreads: 1)
+        threadPool.start()
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let config = LeafConfig(rootDirectory: templateFolder)
+        let renderer = LeafRenderer(config: config, threadPool: threadPool, eventLoop: group.next())
+        
+        var buffer = try! renderer.render(path: "test", context: [:]).wait()
+        let string = buffer.readString(length: buffer.readableBytes)!
+        print(string)
+        
+        try threadPool.syncShutdownGracefully()
+        try group.syncShutdownGracefully()
+    }
 
     static var allTests = [
         ("testParser", testParser),
     ]
+}
+
+var templateFolder: String {
+    let folder = #file.split(separator: "/").dropLast().joined(separator: "/")
+    return "/" + folder + "/Templates/"
 }

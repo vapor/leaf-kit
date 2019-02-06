@@ -1,0 +1,30 @@
+Hello #(name)!
+
+Hello #get(name)!
+
+#set(name):
+Hello #(name)
+#endset!
+
+#if(a):b#endif
+
+#if(foo):
+123
+#elseif(bar):
+456
+#else:
+789
+#endif
+
+#import("title")
+
+#import("body")
+
+#extend("base"):
+#export("title", "Welcome")
+#export("body"):
+Hello, #(name)!
+#endexport
+#endextend
+
+More stuff here!

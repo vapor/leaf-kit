@@ -1,16 +1,16 @@
-enum LeafData {
+public enum LeafData {
     case bool(Bool)
     case string(String)
 }
 
 extension LeafData: ExpressibleByStringLiteral {
-    init(stringLiteral value: String) {
+    public init(stringLiteral value: String) {
         self = .string(value)
     }
 }
 
 extension LeafData: ExpressibleByBooleanLiteral {
-    init(booleanLiteral value: Bool) {
+    public init(booleanLiteral value: Bool) {
         self = .bool(value)
     }
 }
@@ -49,6 +49,9 @@ struct LeafSerializer {
             self.serialize(variable)
         case .constant(let constant):
             self.serialize(constant)
+        case .import, .extend:
+            #warning("TODO: error when serializing import / extend tags")
+            break
         }
     }
     

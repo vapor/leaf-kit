@@ -58,7 +58,54 @@ struct LeafParser {
         
         switch name {
         case "", "get":
+            #warning("TODO: verify param count")
             return parameters[0]
+        case "import":
+            guard
+                let parameter = parameters.first,
+                case .constant(let constant) = parameter,
+                case .string(let string) = constant
+            else {
+                fatalError("unexpected import parameter")
+            }
+            return .import(.init(key: string))
+        case "extend":
+            guard hasBody else {
+                fatalError("extend must have body")
+            }
+            var exports: [String: [LeafSyntax]] = [:]
+            while let next = self.nextTagBody(endToken: "endextend") {
+                switch next {
+                case .raw:
+                    // ignore any raw segments
+                    break
+                case .tag(let tag):
+                    switch tag.name {
+                    case "export":
+                        guard
+                            let parameter = tag.parameters.first,
+                            case .constant(let constant) = parameter,
+                            case .string(let string) = constant
+                        else {
+                            fatalError("unexpected export parameter")
+                        }
+                        switch tag.parameters.count {
+                        case 1:
+                            exports[string] = tag.body!
+                        case 2:
+                            assert(tag.body == nil)
+                            exports[string] = [tag.parameters[1]]
+                        default:
+                            fatalError()
+                        }
+                    default:
+                        fatalError("Unexpected tag \(tag.name) in extend")
+                    }
+                default:
+                    fatalError("unexpected extend syntax: \(next)")
+                }
+            }
+            return .extend(.init(exports: exports))
         case "if", "elseif", "else":
             return self.nextConditional(
                 named: name,
