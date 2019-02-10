@@ -1,3 +1,1 @@
-# leaf-kit
-
-A description of this package.
+# Leaf Kit
