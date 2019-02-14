@@ -42,7 +42,7 @@ struct LeafSerializer {
         case .conditional(let conditional):
             self.serialize(conditional)
         case .raw(var raw):
-            self.buffer.write(buffer: &raw)
+            self.buffer.writeBuffer(&raw)
         case .tag(let tag):
             self.serialize(tag)
         case .variable(let variable):
@@ -89,11 +89,11 @@ struct LeafSerializer {
         switch constant {
         case .bool(let bool):
             switch bool {
-            case true: self.buffer.write(string: "true")
-            case false: self.buffer.write(string: "false")
+            case true: self.buffer.writeString( "true")
+            case false: self.buffer.writeString( "false")
             }
         case .string(let string):
-            self.buffer.write(string: string)
+            self.buffer.writeString( string)
         }
     }
     
@@ -101,10 +101,10 @@ struct LeafSerializer {
         switch data {
         case .bool(let bool):
             switch bool {
-            case true: self.buffer.write(string: "true")
-            case false: self.buffer.write(string: "false")
+            case true: self.buffer.writeString( "true")
+            case false: self.buffer.writeString( "false")
             }
-        case .string(let string): self.buffer.write(string: string)
+        case .string(let string): self.buffer.writeString( string)
         }
     }
     

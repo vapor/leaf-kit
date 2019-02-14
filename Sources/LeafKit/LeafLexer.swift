@@ -3,7 +3,7 @@ struct LeafLexer {
     
     init(string: String) {
         var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.write(string: string)
+        buffer.writeString(string)
         self.init(template: buffer)
     }
     
