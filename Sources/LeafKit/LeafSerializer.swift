@@ -89,11 +89,11 @@ struct LeafSerializer {
         switch constant {
         case .bool(let bool):
             switch bool {
-            case true: self.buffer.writeString( "true")
-            case false: self.buffer.writeString( "false")
+            case true: self.buffer.writeString("true")
+            case false: self.buffer.writeString("false")
             }
         case .string(let string):
-            self.buffer.writeString( string)
+            self.buffer.writeString(string)
         }
     }
     
@@ -101,10 +101,10 @@ struct LeafSerializer {
         switch data {
         case .bool(let bool):
             switch bool {
-            case true: self.buffer.writeString( "true")
-            case false: self.buffer.writeString( "false")
+            case true: self.buffer.writeString("true")
+            case false: self.buffer.writeString("false")
             }
-        case .string(let string): self.buffer.writeString( string)
+        case .string(let string): self.buffer.writeString(string)
         }
     }
     

@@ -36,7 +36,7 @@ final class LeafKitTests: XCTestCase {
         More stuff here!
         """
         var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.write(string: template)
+        buffer.writeString(template)
         
         var lexer = LeafLexer(template: buffer)
         let tokens = try lexer.lex()
