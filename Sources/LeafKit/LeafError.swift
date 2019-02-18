@@ -29,14 +29,14 @@ public struct LeafError: Error, CustomStringConvertible {
         if let source = self.source {
             let start = source.buffer.previousNewlineIndex ?? 0
             let offset = source.buffer.readerIndex - start
-            let end = source.buffer.nextNewlineIndex ?? source.buffer.readerIndex
+            let end = source.buffer.nextNewlineIndex ?? source.buffer.readerIndex + 1
             let string = source.buffer.getString(
                 at: start,
                 length: end - start
             )
             desc.append(string ?? "n/a")
             var pointer = ""
-            pointer += String(repeating: " ", count: offset - 1)
+            pointer += String(repeating: " ", count: offset)
             pointer += "^"
             pointer += String(repeating: "~", count: source.length)
             desc.append(pointer)
@@ -53,7 +53,8 @@ public struct LeafError: Error, CustomStringConvertible {
 extension ByteBuffer {
     var previousNewlineIndex: Int? {
         var i = self.readerIndex
-        while let check = self.getInteger(at: i, as: UInt8.self) {
+        
+        while i >= 0, let check = self.getInteger(at: i, as: UInt8.self) {
             if check == .newLine {
                 return i
             }
