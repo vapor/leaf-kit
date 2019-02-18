@@ -15,6 +15,9 @@ enum LeafToken: CustomStringConvertible, Equatable  {
         case minus = "-"
         case plusEquals = "+="
         case minusEquals = "-="
+        
+        case and = "&&"
+        case or = "||"
     }
     
     enum Constant: CustomStringConvertible, Equatable {

@@ -26,6 +26,8 @@ extension UInt8 {
     static let exclamation: UInt8 = "!".utf8.first!
     static let lessThan: UInt8 = "<".utf8.first!
     static let greaterThan: UInt8 = ">".utf8.first!
+    static let ampersand: UInt8 = "&".utf8.first!
+    static let vertical: UInt8 = "|".utf8.first!
     
     var scalar: Unicode.Scalar {
         return Unicode.Scalar(self)

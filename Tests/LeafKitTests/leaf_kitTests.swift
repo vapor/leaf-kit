@@ -44,7 +44,7 @@ class LeafTests { //: XCTestCase {
 }
 
 final class LexerTests: XCTestCase {
-
+    
     func testParamNesting() throws {
         let input = """
         #if(lowercase(first(name == "admin")) == "welcome"):
