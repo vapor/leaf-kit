@@ -1,4 +1,22 @@
 enum LeafToken: CustomStringConvertible, Equatable  {
+    enum Keyword: String {
+        case `in`
+    }
+    
+    enum Operator: String {
+        case equals = "=="
+        case notEquals = "!="
+        case greaterThan = ">"
+        case greaterThanOrEquals = ">="
+        case lessThan = "<"
+        case lessThanOrEquals = "<="
+        
+        case plus = "+"
+        case minus = "-"
+        case plusEquals = "+="
+        case minusEquals = "-="
+    }
+    
     case raw(ByteBuffer)
     
     case tagIndicator
@@ -10,6 +28,8 @@ enum LeafToken: CustomStringConvertible, Equatable  {
     case parametersEnd
     
     case variable(name: String)
+    case keyword(Keyword)
+    case `operator`(Operator)
     
     case stringLiteral(String)
     
@@ -32,6 +52,10 @@ enum LeafToken: CustomStringConvertible, Equatable  {
             return "parameterDelimiter"
         case .variable(let name):
             return "variable(name: \(name.debugDescription))"
+        case .keyword(let key):
+            return "keyword(\(key.rawValue))"
+        case .operator(let op):
+            return "operator(\(op.rawValue))"
         case .stringLiteral(let string):
             return "stringLiteral(\(string.debugDescription))"
         }

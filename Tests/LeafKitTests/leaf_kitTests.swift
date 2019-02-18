@@ -97,7 +97,6 @@ final class LexerTests: XCTestCase {
 
         """
         
-        
         let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
         XCTAssertEqual(output, expectation)
     }

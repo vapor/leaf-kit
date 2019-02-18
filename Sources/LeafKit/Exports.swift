@@ -15,6 +15,18 @@ extension UInt8 {
     static let a: UInt8 = 0x61
     static let z: UInt8 = 0x7A
     
+    static let zero: UInt8 = "0".utf8.first!
+    static let nine: UInt8 = "9".utf8.first!
+    
+    static let plus: UInt8 = "+".utf8.first!
+    static let minus: UInt8 = "-".utf8.first!
+    static let star: UInt8 = "*".utf8.first!
+    static let forwardSlash: UInt8 = "/".utf8.first!
+    static let equals: UInt8 = "=".utf8.first!
+    static let exclamation: UInt8 = "!".utf8.first!
+    static let lessThan: UInt8 = "<".utf8.first!
+    static let greaterThan: UInt8 = ">".utf8.first!
+    
     var scalar: Unicode.Scalar {
         return Unicode.Scalar(self)
     }

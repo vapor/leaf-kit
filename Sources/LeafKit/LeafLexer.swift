@@ -16,6 +16,11 @@ enum Parameter {
         case greaterThanOrEquals = ">="
         case lessThan = "<"
         case lessThanOrEquals = "<="
+        
+        case plus = "+"
+        case minus = "-"
+        case plusEquals = "+="
+        case minusEquals = "-="
     }
     
     enum Constant {
@@ -50,49 +55,27 @@ extension Parameter: CustomStringConvertible {
     }
 }
 
-enum _LeafToken: CustomStringConvertible { //}, Equatable  {
-    case raw(ByteBuffer)
-    
-    case tag(name: String)
-    case tagBodyIndicator
-    
-    case parametersStart
-    case parameterDelimiter
-    case parameter(Parameter)
-    case parametersEnd
-    
-    var description: String {
-        return "todododod also this 12309fh"
-//        switch self {
-//        case .raw(var byteBuffer):
-//            let string = byteBuffer.stringify() ?? ""
-//            return "raw(\(string.debugDescription))"
-//        case .tag(let name):
-//            return "tag(name: \(name.debugDescription))"
-//        case .tagBodyIndicator:
-//            return "tagBodyIndicator"
-//        case .parametersStart:
-//            return "parametersStart"
-//        case .parametersEnd:
-//            return "parametersEnd"
-//        case .parameterDelimiter:
-//            return "parameterDelimiter"
-//        case .variable(let name):
-//            return "variable(name: \(name.debugDescription))"
-//        case .stringLiteral(let string):
-//            return "stringLiteral(\(string.debugDescription))"
-//        }
-    }
-    
-    static func makeVariable(with val: String) -> _LeafToken {
-        if let keyword = Parameter.Keyword(rawValue: val) { fatalError() }
-        fatalError()
-    }
-}
-
 extension UInt8 {
-    var isValidInTagName: Bool { return isLowercaseLetter || isUppercaseLetter }
-    var isValidInParemeter: Bool { return isLowercaseLetter || isUppercaseLetter }
+    var isValidInTagName: Bool {
+        return isLowercaseLetter
+            || isUppercaseLetter
+    }
+    
+    var isValidInParameter: Bool {
+        return isLowercaseLetter
+            || isUppercaseLetter
+            || isValidOperator
+            || (.zero ... .nine) ~= self
+    }
+    
+    var isValidOperator: Bool {
+        switch self {
+        case .plus, .minus, .star, .forwardSlash, .equals, .exclamation, .lessThan, .greaterThan:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 /*
@@ -210,9 +193,12 @@ struct _LeafLexer {
                 // skip space
                 pop()
                 return try self.nextToken()
-            case let x where x.isValidInParemeter:
-                let read = readWhile { $0.isValidInParemeter }
+            case let x where x.isValidInParameter:
+                let read = readWhile { $0.isValidInParameter }
                 guard let name = read else { fatalError("switch case should disallow this") }
+                if let keyword = LeafToken.Keyword(rawValue: name) { return .keyword(keyword) }
+                else if let op = LeafToken.Operator(rawValue: name) { return .operator(op) }
+//                else if let double = Double(name) { return }
                 return .variable(name: name)
             default:
                 fatalError("unable to process")
