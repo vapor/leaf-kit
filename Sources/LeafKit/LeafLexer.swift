@@ -1,4 +1,17 @@
+struct _LeafLexer {
+    
+}
+
 struct LeafLexer {
+    enum State {
+        case normal
+        case tag
+        case parameters
+        case escaping
+    }
+    
+    var state: State
+    
     private var buffer: ByteBuffer
     
     init(string: String) {
@@ -6,14 +19,6 @@ struct LeafLexer {
         buffer.writeString(string)
         self.init(template: buffer)
     }
-    
-    enum State {
-        case normal
-        case tag
-        case parameters
-    }
-    
-    var state: State
     
     init(template buffer: ByteBuffer) {
         self.buffer = buffer
@@ -33,10 +38,15 @@ struct LeafLexer {
             // empty
             return nil
         }
-        
+        print(String.init(bytes: [next], encoding: .utf8)!)
         switch state {
         case .normal:
             switch next {
+            case .forwardSlash:
+                // consume slash
+                self.buffer.moveReaderIndex(forwardBy: 1)
+                self.state = .escaping
+                return try self.next()
             case .octothorpe:
                 self.buffer.moveReaderIndex(forwardBy: 1)
                 guard let length = self.countMatching(check: { $0.isAllowedInVariable }) else {
@@ -48,7 +58,7 @@ struct LeafLexer {
                 self.state = .tag
                 return .tag(name: name)
             default:
-                guard let length = self.countMatching(check: { $0 != .octothorpe }) else {
+                guard let length = self.countMatching(check: { $0 != .octothorpe && $0 != .forwardSlash }) else {
                     return nil
                 }
                 return self.buffer.readSlice(length: length)
@@ -111,6 +121,9 @@ struct LeafLexer {
                 }
                 return .variable(name: name)
             }
+        case .escaping:
+            state = .normal
+            return buffer.readSlice(length: 1).map { .raw($0) }
         }
     }
     

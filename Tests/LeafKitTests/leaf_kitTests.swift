@@ -18,7 +18,7 @@ func render(raw: String, ctx: LeafDict) throws -> String {
 
 class LeafTests: XCTestCase {
     func testRaw() throws {
-        let template = "Hello!"
+        let template = "raw text, should be same"
         let result = try render(raw: template, ctx: [:])
         XCTAssertEqual(result, template)
     }
@@ -44,6 +44,23 @@ class LeafTests: XCTestCase {
 }
 
 final class LeafKitTests: XCTestCase {
+    
+    func testEscaping() throws {
+        let template = """
+        \\#escapedHashtag
+        \\\\
+        \\#
+        """
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        buffer.writeString(template)
+        
+        var lexer = LeafLexer(template: buffer)
+        let tokens = try lexer.lex()
+        print()
+        print("Tokens:")
+        tokens.forEach { print($0) }
+        print()
+    }
     func testParser() throws {
         let template = """
         Hello #(name)!
