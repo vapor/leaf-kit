@@ -85,7 +85,7 @@ extension UInt8 {
  "\#(name)" == '#(name)'
  */
 
-struct _LeafLexer {
+struct LeafLexer {
     enum State {
         // parses as raw, until it finds `#` (excluding escaped `\#`)
         case normal
@@ -115,7 +115,6 @@ struct _LeafLexer {
     mutating func lex() throws -> [LeafToken] {
         var tokens: [LeafToken] = []
         while let next = try self.nextToken() {
-//            print("found token:\n\(next)")
             tokens.append(next)
         }
         return tokens
@@ -198,7 +197,8 @@ struct _LeafLexer {
                 guard let name = read else { fatalError("switch case should disallow this") }
                 if let keyword = LeafToken.Keyword(rawValue: name) { return .keyword(keyword) }
                 else if let op = LeafToken.Operator(rawValue: name) { return .operator(op) }
-//                else if let double = Double(name) { return }
+                else if let val = Int(name) { return .constant(.int(val)) }
+                else if let val = Double(name) { return .constant(.double(val)) }
                 return .variable(name: name)
             default:
                 fatalError("unable to process")
@@ -248,177 +248,177 @@ struct _LeafLexer {
     }
 }
 
-struct LeafLexer {
-    enum State {
-        // parses as body, until it finds `#` (excluding escaped `\#`)
-        case body
-        // found a `#`
-        case tag
-        // found a `(` continues until `)`
-        case parameters
-        
-
-    }
-    
-    var state: State
-    
-    private var buffer: ByteBuffer
-    
-    init(string: String) {
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.writeString(string)
-        self.init(template: buffer)
-    }
-    
-    init(template buffer: ByteBuffer) {
-        self.buffer = buffer
-        self.state = .body
-    }
-    
-    mutating func lex() throws -> [LeafToken] {
-        var tokens: [LeafToken] = []
-        while let next = try self.next() {
-            tokens.append(next)
-        }
-        return tokens
-    }
-    
-    mutating func next() throws -> LeafToken? {
-        guard let next = self.peek() else { return nil }
-        
-        switch state {
-        case .body:
-            switch next {
-            case .backSlash:
-                // consume `\`
-                pop()
-                let escaped = buffer.readSlice(length: 1).map(LeafToken.raw)
-                return escaped
-            case .octothorpe:
-                // consume `#`
-                pop()
-                state = .tag
-                return .tagIndicator
-            default:
-                // read until next
-                let slice = readSliceWhile { $0 != .octothorpe && $0 != .backSlash }
-                return slice.map(LeafToken.raw)
-            }
-        case .tag:
-            switch next {
-            case .leftParenthesis:
-                state = .parameters
-                return .tag(name: "")
-            case .colon:
-                pop()
-                state = .body
-                return .tagBodyIndicator
-            case let x where x.isLowercaseLetter || x.isUppercaseLetter:
-                let val = readWhile { $0.isUppercaseLetter || $0.isLowercaseLetter }
-                guard let name = val else { return nil }
-                state = .parameters
-                return .tag(name: name)
-            default:
-                state = .body
-                return try self.next()
-            }
-        case .parameters:
-            switch next {
-            case .leftParenthesis:
-                pop()
-                return .parametersStart
-            case .rightParenthesis:
-                pop()
-                // tag, to check for closing body
-                state = .tag
-                return .parametersEnd
-            case .comma:
-                pop()
-                return .parameterDelimiter
-            case .quote:
-                let source = LeafSource.start(at: self.buffer)
-                // consume first quote
-                pop()
-                let read = readWhile { $0 != .quote && $0 != .newLine }
-                guard let string = read else { return nil }
-                guard peek() == .quote else {
-                    throw LeafError(.unterminatedStringLiteral, source: source.end(at: buffer))
-                }
-                // consume final quote
-                pop()
-                return .stringLiteral(string)
-            case .space:
-                // skip space
-                pop()
-                return try self.next()
-            case .colon:
-                pop()
-                state = .body
-                return .tagBodyIndicator
-            default:
-                let read = readWhile { $0.isAllowedInVariable }
-                guard let name = read else {
-                    let source = LeafSource.start(at: self.buffer).end(at: self.buffer)
-                    throw LeafError(.unexpectedToken, source: source)
-                }
-                return .variable(name: name)
-            }
-        case .body:
-            state = .body
-            switch next {
-            case .colon:
-                pop()
-                return .tagBodyIndicator
-            default:
-                return try self.next()
-            }
-        }
-    }
-    
-    // MARK: byte buffer methods
-    
-    mutating func readWhile(while check: (UInt8) -> Bool) -> String? {
-        guard let length = countMatching(check: check) else {
-            return nil
-        }
-        return buffer.readString(length: length)
-    }
-    
-    mutating func readSliceWhile(while check: (UInt8) -> Bool) -> ByteBuffer? {
-        guard let length = countMatching(check: check) else {
-            return nil
-        }
-        return buffer.readSlice(length: length)
-    }
-    
-    mutating func pop(if byte: UInt8) -> Bool {
-        if self.peek() == byte {
-            self.pop()
-            return true
-        } else {
-            return false
-        }
-    }
-    
-    func peek() -> UInt8? {
-        return self.buffer.getInteger(at: self.buffer.readerIndex)
-    }
-    
-    mutating func pop() {
-        self.buffer.moveReaderIndex(forwardBy: 1)
-    }
-    
-    func countMatching(check isMatch: (UInt8) -> (Bool)) -> Int? {
-        if self.buffer.readableBytes == 0 {
-            return nil
-        }
-        
-        var copy = self.buffer
-        while let curr = copy.readInteger(as: UInt8.self) {
-            if !isMatch(curr) {
-                return (copy.readerIndex - self.buffer.readerIndex) - 1
-            }
-        }
-        return copy.readerIndex - self.buffer.readerIndex
-    }
-}
+//struct LeafLexer {
+//    enum State {
+//        // parses as body, until it finds `#` (excluding escaped `\#`)
+//        case body
+//        // found a `#`
+//        case tag
+//        // found a `(` continues until `)`
+//        case parameters
+//        
+//
+//    }
+//    
+//    var state: State
+//    
+//    private var buffer: ByteBuffer
+//    
+//    init(string: String) {
+//        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+//        buffer.writeString(string)
+//        self.init(template: buffer)
+//    }
+//    
+//    init(template buffer: ByteBuffer) {
+//        self.buffer = buffer
+//        self.state = .body
+//    }
+//    
+//    mutating func lex() throws -> [LeafToken] {
+//        var tokens: [LeafToken] = []
+//        while let next = try self.next() {
+//            tokens.append(next)
+//        }
+//        return tokens
+//    }
+//    
+//    mutating func next() throws -> LeafToken? {
+//        guard let next = self.peek() else { return nil }
+//        
+//        switch state {
+//        case .body:
+//            switch next {
+//            case .backSlash:
+//                // consume `\`
+//                pop()
+//                let escaped = buffer.readSlice(length: 1).map(LeafToken.raw)
+//                return escaped
+//            case .octothorpe:
+//                // consume `#`
+//                pop()
+//                state = .tag
+//                return .tagIndicator
+//            default:
+//                // read until next
+//                let slice = readSliceWhile { $0 != .octothorpe && $0 != .backSlash }
+//                return slice.map(LeafToken.raw)
+//            }
+//        case .tag:
+//            switch next {
+//            case .leftParenthesis:
+//                state = .parameters
+//                return .tag(name: "")
+//            case .colon:
+//                pop()
+//                state = .body
+//                return .tagBodyIndicator
+//            case let x where x.isLowercaseLetter || x.isUppercaseLetter:
+//                let val = readWhile { $0.isUppercaseLetter || $0.isLowercaseLetter }
+//                guard let name = val else { return nil }
+//                state = .parameters
+//                return .tag(name: name)
+//            default:
+//                state = .body
+//                return try self.next()
+//            }
+//        case .parameters:
+//            switch next {
+//            case .leftParenthesis:
+//                pop()
+//                return .parametersStart
+//            case .rightParenthesis:
+//                pop()
+//                // tag, to check for closing body
+//                state = .tag
+//                return .parametersEnd
+//            case .comma:
+//                pop()
+//                return .parameterDelimiter
+//            case .quote:
+//                let source = LeafSource.start(at: self.buffer)
+//                // consume first quote
+//                pop()
+//                let read = readWhile { $0 != .quote && $0 != .newLine }
+//                guard let string = read else { return nil }
+//                guard peek() == .quote else {
+//                    throw LeafError(.unterminatedStringLiteral, source: source.end(at: buffer))
+//                }
+//                // consume final quote
+//                pop()
+//                return .stringLiteral(string)
+//            case .space:
+//                // skip space
+//                pop()
+//                return try self.next()
+//            case .colon:
+//                pop()
+//                state = .body
+//                return .tagBodyIndicator
+//            default:
+//                let read = readWhile { $0.isAllowedInVariable }
+//                guard let name = read else {
+//                    let source = LeafSource.start(at: self.buffer).end(at: self.buffer)
+//                    throw LeafError(.unexpectedToken, source: source)
+//                }
+//                return .variable(name: name)
+//            }
+//        case .body:
+//            state = .body
+//            switch next {
+//            case .colon:
+//                pop()
+//                return .tagBodyIndicator
+//            default:
+//                return try self.next()
+//            }
+//        }
+//    }
+//    
+//    // MARK: byte buffer methods
+//    
+//    mutating func readWhile(while check: (UInt8) -> Bool) -> String? {
+//        guard let length = countMatching(check: check) else {
+//            return nil
+//        }
+//        return buffer.readString(length: length)
+//    }
+//    
+//    mutating func readSliceWhile(while check: (UInt8) -> Bool) -> ByteBuffer? {
+//        guard let length = countMatching(check: check) else {
+//            return nil
+//        }
+//        return buffer.readSlice(length: length)
+//    }
+//    
+//    mutating func pop(if byte: UInt8) -> Bool {
+//        if self.peek() == byte {
+//            self.pop()
+//            return true
+//        } else {
+//            return false
+//        }
+//    }
+//    
+//    func peek() -> UInt8? {
+//        return self.buffer.getInteger(at: self.buffer.readerIndex)
+//    }
+//    
+//    mutating func pop() {
+//        self.buffer.moveReaderIndex(forwardBy: 1)
+//    }
+//    
+//    func countMatching(check isMatch: (UInt8) -> (Bool)) -> Int? {
+//        if self.buffer.readableBytes == 0 {
+//            return nil
+//        }
+//        
+//        var copy = self.buffer
+//        while let curr = copy.readInteger(as: UInt8.self) {
+//            if !isMatch(curr) {
+//                return (copy.readerIndex - self.buffer.readerIndex) - 1
+//            }
+//        }
+//        return copy.readerIndex - self.buffer.readerIndex
+//    }
+//}

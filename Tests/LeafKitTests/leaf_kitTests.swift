@@ -44,10 +44,47 @@ class LeafTests { //: XCTestCase {
 }
 
 final class LexerTests: XCTestCase {
+    func testConstant() throws {
+        let input = "<h1>#(42)</h1>"
+        let expectation = """
+        raw("<h1>")
+        tagIndicator
+        tag(name: "")
+        parametersStart
+        constant(42)
+        parametersEnd
+        raw("</h1>")
+
+        """
+
+        let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
+        XCTAssertEqual(output, expectation)
+    }
+    
     func testEscaping() throws {
         let input = "\\#"
         let output = try lex(input).map { $0.description } .reduce("", +)
         XCTAssertEqual(output, "raw(\"#\")")
+    }
+    
+    func testParameters() throws {
+        let input = "#(foo == 40, and, \"literal\")"
+        let expectation = """
+        tagIndicator
+        tag(name: "")
+        parametersStart
+        variable(name: "foo")
+        operator(==)
+        constant(40)
+        parameterDelimiter
+        variable(name: "and")
+        parameterDelimiter
+        stringLiteral("literal")
+        parametersEnd
+
+        """
+        let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
+        XCTAssertEqual(output, expectation)
     }
     
     func testTags() throws {
@@ -100,14 +137,14 @@ final class LexerTests: XCTestCase {
         let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
         XCTAssertEqual(output, expectation)
     }
+}
+
+func lex(_ str: String) throws -> [LeafToken] {
+    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+    buffer.writeString(str)
     
-    func lex(_ str: String) throws -> [LeafToken] {
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.writeString(str)
-        
-        var lexer = _LeafLexer(template: buffer)
-        return try lexer.lex()
-    }
+    var lexer = LeafLexer(template: buffer)
+    return try lexer.lex()
 }
 
 final class LeafKitTests: XCTestCase {
@@ -155,7 +192,7 @@ final class LeafKitTests: XCTestCase {
         """
     }
     
-    func _testParser() throws {
+    func testParser() throws {
         let template = """
         Hello #(name)!
 
@@ -191,7 +228,7 @@ final class LeafKitTests: XCTestCase {
         var buffer = ByteBufferAllocator().buffer(capacity: 0)
         buffer.writeString(template)
         
-        var lexer = _LeafLexer(template: buffer)
+        var lexer = LeafLexer(template: buffer)
         let tokens = try lexer.lex()
         print()
         print("Tokens:")

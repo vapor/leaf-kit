@@ -1,9 +1,9 @@
 enum LeafToken: CustomStringConvertible, Equatable  {
-    enum Keyword: String {
+    enum Keyword: String, Equatable {
         case `in`
     }
     
-    enum Operator: String {
+    enum Operator: String, Equatable {
         case equals = "=="
         case notEquals = "!="
         case greaterThan = ">"
@@ -15,6 +15,18 @@ enum LeafToken: CustomStringConvertible, Equatable  {
         case minus = "-"
         case plusEquals = "+="
         case minusEquals = "-="
+    }
+    
+    enum Constant: CustomStringConvertible, Equatable {
+        case int(Int)
+        case double(Double)
+        
+        var description: String {
+            switch self {
+            case .int(let i): return i.description
+            case .double(let d): return d.description
+            }
+        }
     }
     
     case raw(ByteBuffer)
@@ -30,6 +42,7 @@ enum LeafToken: CustomStringConvertible, Equatable  {
     case variable(name: String)
     case keyword(Keyword)
     case `operator`(Operator)
+    case constant(Constant)
     
     case stringLiteral(String)
     
@@ -52,6 +65,8 @@ enum LeafToken: CustomStringConvertible, Equatable  {
             return "parameterDelimiter"
         case .variable(let name):
             return "variable(name: \(name.debugDescription))"
+        case .constant(let const):
+            return "constant(\(const))"
         case .keyword(let key):
             return "keyword(\(key.rawValue))"
         case .operator(let op):

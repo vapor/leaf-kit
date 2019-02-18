@@ -187,6 +187,9 @@ struct LeafParser {
                 self.pop()
                 return self.nextTag(named: name)
             }
+        case .tagIndicator:
+            pop()
+            return self.nextConditionalBody()
         default: fatalError("unexpected token: \(peek)")
         }
     }
@@ -207,6 +210,9 @@ struct LeafParser {
             } else {
                 return self.nextTag(named: n)
             }
+        case .tagIndicator:
+            pop()
+            return nextTagBody(endToken: endToken)
         default: fatalError("unexpected token: \(peek)")
         }
     }
