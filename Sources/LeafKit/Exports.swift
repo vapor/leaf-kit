@@ -5,7 +5,7 @@ extension UInt8 {
     static let quote: UInt8 = 0x22
     static let octothorpe: UInt8 = 0x23
     static let leftParenthesis: UInt8 = 0x28
-    static let forwardSlash: UInt8 = "\\".utf8.first!
+    static let backSlash: UInt8 = "\\".utf8.first!
     static let rightParenthesis: UInt8 = 0x29
     static let comma: UInt8 = 0x2C
     static let space: UInt8 = 0x20

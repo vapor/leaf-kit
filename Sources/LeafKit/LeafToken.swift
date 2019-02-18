@@ -1,6 +1,7 @@
 enum LeafToken: CustomStringConvertible, Equatable  {
     case raw(ByteBuffer)
     
+    case tagIndicator
     case tag(name: String)
     case tagBodyIndicator
     
@@ -17,6 +18,8 @@ enum LeafToken: CustomStringConvertible, Equatable  {
         case .raw(var byteBuffer):
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
             return "raw(\(string.debugDescription))"
+        case .tagIndicator:
+            return "tagIndicator"
         case .tag(let name):
             return "tag(name: \(name.debugDescription))"
         case .tagBodyIndicator:

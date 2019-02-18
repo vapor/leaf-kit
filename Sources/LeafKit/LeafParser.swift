@@ -19,6 +19,7 @@ struct LeafParser {
         guard let peek = self.peek() else {
             return nil
         }
+        print("peek: \(peek)")
         switch peek {
         case .raw(let raw):
             self.pop()
@@ -26,6 +27,12 @@ struct LeafParser {
         case .tag(let name):
             self.pop()
             return self.nextTag(named: name)
+        case .tagIndicator:
+            self.pop()
+            if self.peek() == LeafToken.parametersStart {
+                return self.nextTag(named: "")
+            }
+            return try self.next()
         default:
             fatalError("unexpected token: \(peek)")
         }
