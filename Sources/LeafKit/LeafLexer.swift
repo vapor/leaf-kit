@@ -92,6 +92,7 @@ enum _LeafToken: CustomStringConvertible { //}, Equatable  {
 
 extension UInt8 {
     var isValidInTagName: Bool { return isLowercaseLetter || isUppercaseLetter }
+    var isValidInParemeter: Bool { return isLowercaseLetter || isUppercaseLetter }
 }
 
 /*
@@ -131,7 +132,7 @@ struct _LeafLexer {
     mutating func lex() throws -> [LeafToken] {
         var tokens: [LeafToken] = []
         while let next = try self.nextToken() {
-            print("found token:\n\(next)")
+//            print("found token:\n\(next)")
             tokens.append(next)
         }
         return tokens
@@ -142,12 +143,14 @@ struct _LeafLexer {
         switch state {
         case .normal:
             switch next {
-            case .backSlash where peek(at: 1) == .octothorpe:
+            case .backSlash:
                 // consume '\' only in event of '\#'
                 // otherwise allow it to remain for other
                 // escapes, a la javascript
-                pop()
-                // add raw '#' to registry
+                if peek(at: 1) == .octothorpe {
+                    pop()
+                }
+                // either way, add raw '#' or '\' to registry
                 return buffer.readSlice(length: 1).map(LeafToken.raw)
             case .octothorpe:
                 // consume `#`
@@ -207,8 +210,8 @@ struct _LeafLexer {
                 // skip space
                 pop()
                 return try self.nextToken()
-            case let x where x.isAllowedInVariable:
-                let read = readWhile { $0.isAllowedInVariable }
+            case let x where x.isValidInParemeter:
+                let read = readWhile { $0.isValidInParemeter }
                 guard let name = read else { fatalError("switch case should disallow this") }
                 return .variable(name: name)
             default:

@@ -43,6 +43,71 @@ class LeafTests { //: XCTestCase {
     }
 }
 
+final class LexerTests: XCTestCase {
+    func testEscaping() throws {
+        let input = "\\#"
+        let output = try lex(input).map { $0.description } .reduce("", +)
+        XCTAssertEqual(output, "raw(\"#\")")
+    }
+    
+    func testTags() throws {
+        let input = """
+        #tag
+        #tag:
+        #endtag
+        #tag()
+        #tag():
+        #tag(foo)
+        #tag(foo):
+        """
+        let expectation = """
+        tagIndicator
+        tag(name: "tag")
+        raw("\\n")
+        tagIndicator
+        tag(name: "tag")
+        tagBodyIndicator
+        raw("\\n")
+        tagIndicator
+        tag(name: "endtag")
+        raw("\\n")
+        tagIndicator
+        tag(name: "tag")
+        parametersStart
+        parametersEnd
+        raw("\\n")
+        tagIndicator
+        tag(name: "tag")
+        parametersStart
+        parametersEnd
+        tagBodyIndicator
+        raw("\\n")
+        tagIndicator
+        tag(name: "tag")
+        parametersStart
+        variable(name: "foo")
+        parametersEnd
+        raw("\\n")
+        tagIndicator
+        tag(name: "tag")
+        parametersStart
+        variable(name: "foo")
+        parametersEnd
+        tagBodyIndicator
+
+        """
+        XCTAssertEqual(output, expectation)
+    }
+    
+    func lex(_ str: String) throws -> [LeafToken] {
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        buffer.writeString(str)
+        
+        var lexer = _LeafLexer(template: buffer)
+        return try lexer.lex()
+    }
+}
+
 final class LeafKitTests: XCTestCase {
     
     func _testEscaping() throws {
@@ -62,7 +127,7 @@ final class LeafKitTests: XCTestCase {
         print()
     }
     
-    func testTagName() throws {
+    func _testTagName() throws {
         let template = """
         #tag
         #tag:
@@ -82,13 +147,13 @@ final class LeafKitTests: XCTestCase {
         print()
     }
     
-    func testParameters() {
+    func _testParameters() {
         let temp = """
         #(foo:)
         """
     }
     
-    func testParser() throws {
+    func _testParser() throws {
         let template = """
         Hello #(name)!
 
@@ -149,7 +214,7 @@ final class LeafKitTests: XCTestCase {
         print()
     }
     
-    func testRenderer() throws {
+    func _testRenderer() throws {
         let threadPool = BlockingIOThreadPool(numberOfThreads: 1)
         threadPool.start()
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
@@ -163,10 +228,6 @@ final class LeafKitTests: XCTestCase {
         try threadPool.syncShutdownGracefully()
         try group.syncShutdownGracefully()
     }
-
-    static var allTests = [
-        ("testParser", testParser),
-    ]
 }
 
 var templateFolder: String {
