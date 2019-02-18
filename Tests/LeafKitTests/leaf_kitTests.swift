@@ -44,10 +44,10 @@ class LeafTests { //: XCTestCase {
 }
 
 final class LexerTests: XCTestCase {
-    
-    func testInner() throws {
+
+    func testParamNesting() throws {
         let input = """
-        #if(lowercase(greeting) == "welcome"):
+        #if(lowercase(first(greetings)) == "welcome"):
         foo
         #endif
         """
@@ -58,7 +58,10 @@ final class LexerTests: XCTestCase {
         parametersStart
         tag(name: "lowercase")
         parametersStart
-        variable(name: "greeting")
+        tag(name: "first")
+        parametersStart
+        variable(name: "greetings")
+        parametersEnd
         parametersEnd
         operator(==)
         stringLiteral("welcome")
@@ -73,6 +76,7 @@ final class LexerTests: XCTestCase {
         let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
         XCTAssertEqual(output, expectation)
     }
+    
     func testConstant() throws {
         let input = "<h1>#(42)</h1>"
         let expectation = """
