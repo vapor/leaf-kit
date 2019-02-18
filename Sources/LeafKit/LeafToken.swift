@@ -1,6 +1,6 @@
 enum LeafToken: CustomStringConvertible, Equatable  {
     enum Keyword: String, Equatable {
-        case `in`
+        case `in`, `true`, `false`, `self`, `nil`
     }
     
     enum Operator: String, Equatable {

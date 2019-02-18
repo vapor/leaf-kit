@@ -61,6 +61,14 @@ final class LexerTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
     
+    /*
+     // TODO:
+     
+     #("#")
+     #()
+     "#("\")#(name)" == '\logan'
+     "\#(name)" == '#(name)'
+     */
     func testEscaping() throws {
         let input = "\\#"
         let output = try lex(input).map { $0.description } .reduce("", +)
@@ -148,50 +156,6 @@ func lex(_ str: String) throws -> [LeafToken] {
 }
 
 final class LeafKitTests: XCTestCase {
-    
-    func _testEscaping() throws {
-        let template = """
-        \\#escapedHashtag
-        \\\\
-        \\#
-        """
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.writeString(template)
-        
-        var lexer = LeafLexer(template: buffer)
-        let tokens = try lexer.lex()
-        print()
-        print("Tokens:")
-        tokens.forEach { print($0) }
-        print()
-    }
-    
-    func _testTagName() throws {
-        let template = """
-        #tag
-        #tag:
-        #tag()
-        #tag():
-        #tag(foo)
-        #tag(foo):
-        """
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.writeString(template)
-        
-        var lexer = LeafLexer(template: buffer)
-        let tokens = try lexer.lex()
-        print()
-        print("Tokens:")
-        tokens.forEach { print($0) }
-        print()
-    }
-    
-    func _testParameters() {
-        let temp = """
-        #(foo:)
-        """
-    }
-    
     func testParser() throws {
         let template = """
         Hello #(name)!
