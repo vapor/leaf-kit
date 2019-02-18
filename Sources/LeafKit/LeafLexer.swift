@@ -27,14 +27,29 @@ extension UInt8 {
     }
 }
 
+
 struct LeafLexer {
     enum State {
+        class Machine {
+            var stack: [State] = []
+            var state: State = .normal
+            
+            func push(_ new: State) {
+                stack.append(new)
+                state = new
+            }
+            
+            func pop() {
+                state = stack.removeLast()
+            }
+        }
+        
         // parses as raw, until it finds `#` (excluding escaped `\#`)
         case normal
         // found a `#`
         case tag
         // found a `(` continues until `)`
-        case parameters
+        case parameters(depth: Int)
         // parses a tag body
         case body
     }
@@ -90,7 +105,7 @@ struct LeafLexer {
             switch next {
             case .leftParenthesis:
                 // '#('
-                state = .parameters
+                state = .parameters(depth: 0)
                 return .tag(name: "")
             case let x where x.isValidInTagName:
                 // collect the named tag, letters only
@@ -99,21 +114,26 @@ struct LeafLexer {
                 
                 let trailing = peek()
                 if trailing == .colon { state = .body }
-                else if trailing == .leftParenthesis { state = .parameters }
+                else if trailing == .leftParenthesis { state = .parameters(depth: 0) }
                 else { state = .normal }
                 
                 return .tag(name: name)
             default:
                 fatalError("unexpected token: \(String(bytes: [next], encoding: .utf8) ?? "<unknown>")")
             }
-        case .parameters:
+        case .parameters(let depth):
             switch next {
             case .leftParenthesis:
                 pop()
+                state = .parameters(depth: depth + 1)
                 return .parametersStart
             case .rightParenthesis:
                 pop()
-                state = .body
+                if depth <= 1 {
+                    state = .body
+                } else {
+                    state = .parameters(depth: depth - 1)
+                }
                 return .parametersEnd
             case .comma:
                 pop()
@@ -137,6 +157,11 @@ struct LeafLexer {
             case let x where x.isValidInParameter:
                 let read = readWhile { $0.isValidInParameter }
                 guard let name = read else { fatalError("switch case should disallow this") }
+                
+                // this parameter is a tag
+                if peek() == .leftParenthesis { return .tag(name: name) }
+                
+                
                 if let keyword = LeafToken.Keyword(rawValue: name) { return .keyword(keyword) }
                 else if let op = LeafToken.Operator(rawValue: name) { return .operator(op) }
                 else if let val = Int(name) { return .constant(.int(val)) }

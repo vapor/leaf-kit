@@ -79,19 +79,19 @@ indirect enum LeafSyntax: CustomStringConvertible {
         switch self {
         case .raw(var byteBuffer):
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-            return string.debugDescription
+            return "raw: " + string.debugDescription
         case .tag(let tag):
-            return tag.description
+            return "tag: " + tag.description
         case .variable(let variable):
-            return variable.description
+            return "variable: " + variable.description
         case .conditional(let conditional):
-            return conditional.description
+            return "conditional: " + conditional.description
         case .constant(let constant):
-            return constant.description
+            return "constant: " + constant.description
         case .import(let `import`):
-            return `import`.description
+            return "import: " + `import`.description
         case .extend(let extend):
-            return extend.description
+            return "extend: " + extend.description
         }
     }
 }

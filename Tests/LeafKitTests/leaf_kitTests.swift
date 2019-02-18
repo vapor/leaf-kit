@@ -44,6 +44,35 @@ class LeafTests { //: XCTestCase {
 }
 
 final class LexerTests: XCTestCase {
+    
+    func testInner() throws {
+        let input = """
+        #if(lowercase(greeting) == "welcome"):
+        foo
+        #endif
+        """
+        
+        let expectation = """
+        tagIndicator
+        tag(name: "if")
+        parametersStart
+        tag(name: "lowercase")
+        parametersStart
+        variable(name: "greeting")
+        parametersEnd
+        operator(==)
+        stringLiteral("welcome")
+        parametersEnd
+        tagBodyIndicator
+        raw("\\nfoo\\n")
+        tagIndicator
+        tag(name: "endif")
+
+        """
+        
+        let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
+        XCTAssertEqual(output, expectation)
+    }
     func testConstant() throws {
         let input = "<h1>#(42)</h1>"
         let expectation = """
@@ -195,9 +224,9 @@ final class LeafKitTests: XCTestCase {
         var lexer = LeafLexer(template: buffer)
         let tokens = try lexer.lex()
         print()
-        print("Tokens:")
-        tokens.forEach { print($0) }
-        print()
+//        print("Tokens:")
+//        tokens.forEach { print($0) }
+//        print()
         
         var parser = LeafParser(tokens: tokens)
         let ast = try parser.parse()
