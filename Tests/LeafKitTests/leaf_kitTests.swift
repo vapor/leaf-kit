@@ -28,19 +28,19 @@ class LeafTests: XCTestCase {
         let data = ["name": "Tanner"] as LeafDict
         try XCTAssertEqual(render(raw: template, ctx: data), "Hello, Tanner!")
     }
-//
-//    func testConstant() throws {
-//        let template = "<h1>#(42)</h1>"
-//        try XCTAssertEqual(renderer.testRender(template), "<h1>42</h1>")
-//    }
-//
-//    func testInterpolated() throws {
-//        let template = """
-//        <p>#("foo: #(foo)")</p>
-//        """
-//        let data = TemplateData.dictionary(["foo": .string("bar")])
-//        try XCTAssertEqual(renderer.testRender(template, data), "<p>foo: bar</p>")
-//    }
+
+    func testConstant() throws {
+        let template = "<h1>#(42)</h1>"
+        try XCTAssertEqual(render(raw: template, ctx: [:]), "<h1>42</h1>")
+    }
+
+    func testInterpolated() throws {
+        let template = """
+        <p>#("foo: #(foo)")</p>
+        """
+        let data = ["foo": "bar"] as LeafDict
+        try XCTAssertEqual(render(raw: template, ctx: data), "<p>foo: bar</p>")
+    }
 }
 
 final class LeafKitTests: XCTestCase {
