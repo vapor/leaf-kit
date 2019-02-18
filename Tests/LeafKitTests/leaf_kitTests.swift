@@ -47,7 +47,7 @@ final class LexerTests: XCTestCase {
 
     func testParamNesting() throws {
         let input = """
-        #if(lowercase(first(greetings)) == "welcome"):
+        #if(lowercase(first(name == "admin")) == "welcome"):
         foo
         #endif
         """
@@ -60,7 +60,9 @@ final class LexerTests: XCTestCase {
         parametersStart
         tag(name: "first")
         parametersStart
-        variable(name: "greetings")
+        variable(name: "name")
+        operator(==)
+        stringLiteral("admin")
         parametersEnd
         parametersEnd
         operator(==)
