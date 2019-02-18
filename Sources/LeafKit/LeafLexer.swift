@@ -39,20 +39,6 @@ extension UInt8 {
 
 struct LeafLexer {
     enum State {
-        class Machine {
-            var stack: [State] = []
-            var state: State = .normal
-            
-            func push(_ new: State) {
-                stack.append(new)
-                state = new
-            }
-            
-            func pop() {
-                state = stack.removeLast()
-            }
-        }
-        
         // parses as raw, until it finds `#` (excluding escaped `\#`)
         case normal
         // found a `#`
