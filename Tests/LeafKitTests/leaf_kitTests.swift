@@ -1,6 +1,27 @@
 import XCTest
 @testable import LeafKit
 
+func render(raw: String, ctx: [String: LeafData]) throws -> String {
+    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+    buffer.writeString(raw)
+    
+    var lexer = LeafLexer(template: buffer)
+    let tokens = try lexer.lex()
+    var parser = LeafParser(tokens: tokens)
+    let ast = try parser.parse()
+    var serializer = LeafSerializer(ast: ast, context: ctx)
+    var view = try serializer.serialize()
+    return view.readString(length: view.readableBytes)!
+}
+
+class LeafTests: XCTestCase {
+    func testRaw() throws {
+        let template = "Hello!"
+        let result = try render(raw: template, ctx: [:])
+        XCTAssertEqual(result, template)
+    }
+}
+
 final class LeafKitTests: XCTestCase {
     func testParser() throws {
         let template = """
