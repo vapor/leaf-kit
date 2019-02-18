@@ -1,5 +1,102 @@
-struct _LeafLexer {
+extension ByteBuffer {
+    mutating func stringify() -> String? {
+        return readString(length: readableBytes)
+    }
+}
+
+enum Parameter {
+    enum Keyword: String {
+        case `in`, `true`, `false`, `nil`, `self`
+    }
     
+    enum Operator: String {
+        case equals = "=="
+        case notEquals = "!="
+        case greaterThan = ">"
+        case greaterThanOrEquals = ">="
+        case lessThan = "<"
+        case lessThanOrEquals = "<="
+    }
+    
+    case keyword(Keyword)
+    case `operator`(Operator)
+    case variable(name: String)
+    
+    init(raw: String) {
+        if let keyword = Keyword(rawValue: raw) {
+            self = .keyword(keyword)
+        } else if let `operator` = Operator(rawValue: raw) {
+            self = .operator(`operator`)
+        } else {
+            self = .variable(name: raw)
+        }
+    }
+}
+
+enum _LeafToken: CustomStringConvertible, Equatable  {
+    case raw(ByteBuffer)
+    
+    case tag(name: String)
+    case tagBodyIndicator
+    
+    case parametersStart
+    case parameterDelimiter
+    case parametersEnd
+    
+    case variable(name: String)
+    
+    case stringLiteral(String)
+    
+    var description: String {
+        switch self {
+        case .raw(var byteBuffer):
+            let string = byteBuffer.stringify() ?? ""
+            return "raw(\(string.debugDescription))"
+        case .tag(let name):
+            return "tag(name: \(name.debugDescription))"
+        case .tagBodyIndicator:
+            return "tagBodyIndicator"
+        case .parametersStart:
+            return "parametersStart"
+        case .parametersEnd:
+            return "parametersEnd"
+        case .parameterDelimiter:
+            return "parameterDelimiter"
+        case .variable(let name):
+            return "variable(name: \(name.debugDescription))"
+        case .stringLiteral(let string):
+            return "stringLiteral(\(string.debugDescription))"
+        }
+    }
+    
+    static func makeVariable(with val: String) -> _LeafToken {
+        if let keyword = Parameter.Keyword(rawValue: val) { fatalError() }
+        fatalError()
+    }
+}
+
+struct _LeafLexer {
+    enum State {
+        case normal
+        case tag
+        case parameters
+        case escaping
+    }
+    
+    var state: State
+    
+    private var buffer: ByteBuffer
+    
+    init(string: String) {
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        buffer.writeString(string)
+        self.init(template: buffer)
+    }
+    
+    init(template buffer: ByteBuffer) {
+        self.buffer = buffer
+        self.state = .normal
+    }
 }
 
 struct LeafLexer {
