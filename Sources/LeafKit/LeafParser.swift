@@ -106,7 +106,7 @@ indirect enum _Syntax {
 
 indirect enum PreProcess: CustomStringConvertible {
     case raw(ByteBuffer)
-    case tagDeclaration(name: String, parameters: [LeafToken], hasBody: Bool)
+    case tagDeclaration(name: String, parameters: [Parameter], hasBody: Bool)
     case tagTerminator(name: String)
     
     var description: String {
@@ -452,8 +452,117 @@ struct _LeafParser {
             fatalError()
         }
     }
+ 
     
-    mutating func readParameters() throws -> [LeafToken] {
+    mutating func readParameters() throws -> [Parameter] {
+        // ensure open parameters
+        guard read() == .parametersStart else { throw "expected parameters start" }
+        
+        var group = [Parameter]()
+        var paramsList = [Parameter]()
+        func dump() {
+            defer { group = [] }
+            
+            
+            if group.isEmpty { return }
+            else if group.count == 1 { paramsList.append(group.first!) }
+            else { paramsList.append(.expression(group))}
+        }
+        
+        outer: while let next = peek() {
+            switch next {
+            case .parametersStart:
+                // we found an inner parameter list!
+                guard let last = group.last, case .tag(let name) = last else { fatalError("asfdljkeii") }
+                group.removeLast()
+
+                // TODO: remove recursion
+                let params = try readParameters()
+                
+                print("Tag: \(name)")
+                print("params:")
+                print(params.map { $0.description } .joined(separator: ",\n"))
+                continue
+            case .parameter(let p):
+                group.append(p)
+                pop()
+            case .parametersEnd:
+                dump()
+                pop()
+                break outer
+            case .parameterDelimiter:
+                dump()
+                pop()
+            case .whitespace:
+                pop()
+                continue
+            default:
+                print("breaking outer")
+                break outer
+            }
+            print("wtf")
+            // MUST be OUTSIDE of switch
+//            if depth <= 0 { break }
+        }
+        
+        return paramsList
+    }
+    
+    mutating func readProcessedParameters() throws -> [Parameter] {
+        // ensure open parameters
+        guard read() == .parametersStart else { throw "expected parameters start" }
+        
+        var group = [Parameter]()
+        var paramsList = [Parameter]()
+        func dump() {
+            defer { group = [] }
+            
+            
+            if group.isEmpty { return }
+            else if group.count == 1 { paramsList.append(group.first!) }
+            else { paramsList.append(.expression(group))}
+        }
+        
+        outer: while let next = peek() {
+            switch next {
+            case .parametersStart:
+                // we found an inner parameter list!
+                guard let last = group.last, case .tag(let name) = last else { fatalError("asfdljkeii") }
+                group.removeLast()
+                
+                // TODO: remove recursion
+                let params = try readParameters()
+                
+                print("Tag: \(name)")
+                print("params:")
+                print(params.map { $0.description } .joined(separator: ",\n"))
+                continue
+            case .parameter(let p):
+                group.append(p)
+                pop()
+            case .parametersEnd:
+                dump()
+                pop()
+                break outer
+            case .parameterDelimiter:
+                dump()
+                pop()
+            case .whitespace:
+                pop()
+                continue
+            default:
+                print("breaking outer")
+                break outer
+            }
+            print("wtf")
+            // MUST be OUTSIDE of switch
+            //            if depth <= 0 { break }
+        }
+        
+        return paramsList
+    }
+    
+    mutating func old_readParameters() throws -> [Parameter] {
         // ensure open parameters
         guard peek() == .parametersStart else { throw "expected parameters start" }
         
@@ -465,7 +574,7 @@ struct _LeafParser {
             
             if group.isEmpty { return }
             else if group.count == 1 { paramsList.append(group.first!) }
-            else { paramsList.append(.expression(group))}
+//            else { paramsList.append(.expression(group))}
         }
         
         var depth = 0
@@ -492,7 +601,7 @@ struct _LeafParser {
             if depth <= 0 { break }
         }
         
-        return paramsList.map { LeafToken.parameter($0) }
+        return paramsList
     }
     
     
@@ -535,16 +644,6 @@ struct _LeafParser {
         }
         
         return paramsList
-    }
-    
-    mutating func readParameter() throws -> Parameter {
-        guard let next = read() else { throw "expected parameter" }
-        switch next {
-//        case .constant(let c): return .constant(c)
-//        case .keyword(let k): return .keyword(k)
-//        case .operator(let o): return .operator(o)
-        default: fatalError()
-        }
     }
     
 //    indirect enum Parameter {

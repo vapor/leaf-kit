@@ -31,14 +31,65 @@ enum Constant: CustomStringConvertible, Equatable {
     }
 }
 
-indirect enum Parameter: Equatable {
+indirect enum ProcessedParameter {
+    case parameter(Parameter)
+    case expression([Parameter])
+    case tag(name: String, params: [ProcessedParameter], hasBody: Bool)
+}
+
+indirect enum Parameter: Equatable, CustomStringConvertible {
     case stringLiteral(String)
     case constant(Constant)
     case variable(name: String)
     case keyword(Keyword)
     case `operator`(Operator)
     case tag(name: String)
+    
+    // TODO: RM, NOT A TOKEN
     case expression([Parameter])
+    
+    // case
+    var description: String {
+        return name + "(" + short + ")"
+    }
+    
+    var name: String {
+        switch self {
+        case .stringLiteral(let s):
+            return "stringLiteral"
+        case .constant(let c):
+            return "constant"
+        case .variable(let v):
+            return "variable"
+        case .keyword(let k):
+            return "keyword"
+        case .operator(let o):
+            return "operator"
+        case .tag(let t):
+            return "tag"
+        case .expression(let list):
+            return "expression"
+        }
+    }
+    
+    var short: String {
+        switch self {
+        case .stringLiteral(let s):
+            return "\"\(s)\""
+        case .constant(let c):
+            return "\(c)"
+        case .variable(let v):
+            return "\(v)"
+        case .keyword(let k):
+            return "\(k)"
+        case .operator(let o):
+            return "\(o)"
+        case .tag(let t):
+            return "\"\(t)\""
+        case .expression(let list):
+            return list.map { $0.short } .reduce("") { $0 + ", " + $1 }
+        }
+    }
 }
 
 enum LeafToken: CustomStringConvertible, Equatable  {
