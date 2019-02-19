@@ -145,9 +145,9 @@ struct LeafLexer {
                 return .stringLiteral(string)
             case .space:
                 // skip whitespace
-                let _ = readWhile { $0 == .space }
-                // TODO: remove recursion, possibly return `.whitespace(length: Int)`?
-                return try self.nextToken()
+                let read = readWhile { $0 == .space }
+                guard let space = read else { fatalError("disallowed by switch") }
+                return .whitespace(length: space.count)
             case let x where x.isValidInParameter:
                 let read = readWhile { $0.isValidInParameter }
                 guard let name = read else { fatalError("switch case should disallow this") }
@@ -155,8 +155,8 @@ struct LeafLexer {
                 if peek() == .leftParenthesis { return .tag(name: name) }
                 
                 // check if expected parameter type
-                if let keyword = LeafToken.Keyword(rawValue: name) { return .keyword(keyword) }
-                else if let op = LeafToken.Operator(rawValue: name) { return .operator(op) }
+                if let keyword = Keyword(rawValue: name) { return .keyword(keyword) }
+                else if let op = Operator(rawValue: name) { return .operator(op) }
                 else if let val = Int(name) { return .constant(.int(val)) }
                 else if let val = Double(name) { return .constant(.double(val)) }
                 

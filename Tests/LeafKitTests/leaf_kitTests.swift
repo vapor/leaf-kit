@@ -16,6 +16,15 @@ func render(raw: String, ctx: LeafDict) throws -> String {
     return view.readString(length: view.readableBytes)!
 }
 
+extension Array where Element == LeafToken {
+    func dropWhitespace() -> Array<LeafToken> {
+        return self.filter { token in
+            guard case .whitespace = token else { return true }
+            return false
+        }
+    }
+}
+
 class LeafTests { //: XCTestCase {
     func testRaw() throws {
         let template = "raw text, should be same"
@@ -44,6 +53,28 @@ class LeafTests { //: XCTestCase {
 }
 
 final class LexerTests: XCTestCase {
+    
+    func testExtend() throws {
+        /// 'base.leaf
+        let base = """
+        <title>#import(title)</title>
+        #import(body)
+        """
+        
+        /// `home.leaf`
+        let home = """
+        #extend("base"):
+            #export("title", "Welcome")
+            #export("body"):
+                Hello, #(name)!
+            #endexport
+        #endextend
+        """
+        
+        let output = try lex(home).map { $0.description + "\n" } .reduce("", +)
+//        XCTAssertEqual(output, expectation)
+        print("")
+    }
     
     func testParamNesting() throws {
         let input = """
@@ -187,7 +218,7 @@ func lex(_ str: String) throws -> [LeafToken] {
     buffer.writeString(str)
     
     var lexer = LeafLexer(template: buffer)
-    return try lexer.lex()
+    return try lexer.lex().dropWhitespace()
 }
 
 final class LeafKitTests: XCTestCase {
@@ -234,22 +265,22 @@ final class LeafKitTests: XCTestCase {
 //        tokens.forEach { print($0) }
 //        print()
         
-        var parser = LeafParser(tokens: tokens)
-        let ast = try parser.parse()
-        print("AST:")
-        ast.forEach { print($0) }
-        print()
-        
-        var serializer = LeafSerializer(ast: ast, context: [
-            "name": "Tanner",
-            "a": true,
-            "bar": true
-        ])
-        var view = try serializer.serialize()
-        let string = view.readString(length: view.readableBytes)!
-        print("View:")
-        print(string)
-        print()
+//        var parser = LeafParser(tokens: tokens)
+//        let ast = try parser.parse()
+//        print("AST:")
+//        ast.forEach { print($0) }
+//        print()
+//
+//        var serializer = LeafSerializer(ast: ast, context: [
+//            "name": "Tanner",
+//            "a": true,
+//            "bar": true
+//        ])
+//        var view = try serializer.serialize()
+//        let string = view.readString(length: view.readableBytes)!
+//        print("View:")
+//        print(string)
+//        print()
     }
     
     func _testRenderer() throws {

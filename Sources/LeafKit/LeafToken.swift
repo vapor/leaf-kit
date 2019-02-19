@@ -1,36 +1,37 @@
-enum LeafToken: CustomStringConvertible, Equatable  {
-    enum Keyword: String, Equatable {
-        case `in`, `true`, `false`, `self`, `nil`
-    }
+enum Keyword: String, Equatable {
+    case `in`, `true`, `false`, `self`, `nil`
+}
+
+enum Operator: String, Equatable {
+    case equals = "=="
+    case notEquals = "!="
+    case greaterThan = ">"
+    case greaterThanOrEquals = ">="
+    case lessThan = "<"
+    case lessThanOrEquals = "<="
     
-    enum Operator: String, Equatable {
-        case equals = "=="
-        case notEquals = "!="
-        case greaterThan = ">"
-        case greaterThanOrEquals = ">="
-        case lessThan = "<"
-        case lessThanOrEquals = "<="
-        
-        case plus = "+"
-        case minus = "-"
-        case plusEquals = "+="
-        case minusEquals = "-="
-        
-        case and = "&&"
-        case or = "||"
-    }
+    case plus = "+"
+    case minus = "-"
+    case plusEquals = "+="
+    case minusEquals = "-="
     
-    enum Constant: CustomStringConvertible, Equatable {
-        case int(Int)
-        case double(Double)
-        
-        var description: String {
-            switch self {
-            case .int(let i): return i.description
-            case .double(let d): return d.description
-            }
+    case and = "&&"
+    case or = "||"
+}
+
+enum Constant: CustomStringConvertible, Equatable {
+    case int(Int)
+    case double(Double)
+    
+    var description: String {
+        switch self {
+        case .int(let i): return i.description
+        case .double(let d): return d.description
         }
     }
+}
+
+enum LeafToken: CustomStringConvertible, Equatable  {
     
     case raw(ByteBuffer)
     
@@ -48,6 +49,7 @@ enum LeafToken: CustomStringConvertible, Equatable  {
     case constant(Constant)
     
     case stringLiteral(String)
+    case whitespace(length: Int)
     
     var description: String {
         switch self {
@@ -76,6 +78,8 @@ enum LeafToken: CustomStringConvertible, Equatable  {
             return "operator(\(op.rawValue))"
         case .stringLiteral(let string):
             return "stringLiteral(\(string.debugDescription))"
+        case .whitespace(let length):
+            return "whitespace(\(length))"
         }
     }
 }
