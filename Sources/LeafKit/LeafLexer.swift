@@ -116,9 +116,14 @@ struct LeafLexer {
                 state = .parameters(depth: depth + 1)
                 return .parametersStart
             case .rightParenthesis:
+                // must pop before subsequent peek
                 pop()
                 if depth <= 1 {
-                    state = .body
+                    if peek() == .colon {
+                        state = .body
+                    } else {
+                        state = .normal
+                    }
                 } else {
                     state = .parameters(depth: depth - 1)
                 }
@@ -139,8 +144,9 @@ struct LeafLexer {
                 pop()
                 return .stringLiteral(string)
             case .space:
-                // skip space
-                pop()
+                // skip whitespace
+                let _ = readWhile { $0 == .space }
+                // TODO: remove recursion, possibly return `.whitespace(length: Int)`?
                 return try self.nextToken()
             case let x where x.isValidInParameter:
                 let read = readWhile { $0.isValidInParameter }
@@ -160,9 +166,9 @@ struct LeafLexer {
                 fatalError("todo: unable to process throw error")
             }
         case .body:
-            state = .normal
-            guard next == .colon else { return try nextToken() }
+            guard next == .colon else { fatalError("state should only be set to .body when a colon is in queue") }
             pop()
+            state = .normal
             return .tagBodyIndicator
         }
     }
