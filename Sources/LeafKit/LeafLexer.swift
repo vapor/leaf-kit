@@ -1,19 +1,13 @@
-extension ByteBuffer {
-    mutating func stringify() -> String? {
-        return readString(length: readableBytes)
-    }
-}
-
 extension UInt8 {
     var isValidInTagName: Bool {
-        return isLowercaseLetter
-            || isUppercaseLetter
+        return self.isLowercaseLetter
+            || self.isUppercaseLetter
     }
     
     var isValidInParameter: Bool {
-        return isLowercaseLetter
-            || isUppercaseLetter
-            || isValidOperator
+        return self.isLowercaseLetter
+            || self.isUppercaseLetter
+            || self.isValidOperator
             || (.zero ... .nine) ~= self
     }
     
@@ -35,7 +29,6 @@ extension UInt8 {
         }
     }
 }
-
 
 struct LeafLexer {
     enum State {
@@ -81,7 +74,7 @@ struct LeafLexer {
                 // consume '\' only in event of '\#'
                 // otherwise allow it to remain for other
                 // escapes, a la javascript
-                if peek(at: 1) == .octothorpe {
+                if peek(aheadBy: 1) == .octothorpe {
                     pop()
                 }
                 // either way, add raw '#' or '\' to registry
@@ -190,8 +183,8 @@ struct LeafLexer {
         return buffer.readSlice(length: length)
     }
     
-    func peek(at idx: Int = 0) -> UInt8? {
-        return self.buffer.getInteger(at: self.buffer.readerIndex + idx)
+    func peek(aheadBy offset: Int = 0) -> UInt8? {
+        return self.buffer.getInteger(at: self.buffer.readerIndex + offset)
     }
     
     mutating func pop() {
