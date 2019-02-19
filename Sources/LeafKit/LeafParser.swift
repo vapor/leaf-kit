@@ -51,14 +51,12 @@ struct _Expression {
 //}
 
 indirect enum Parameter {
-    //    case constant(Constant)
-    //    case variable(name: String)
     case stringLiteral(String)
     case constant(Constant)
     case variable(name: String)
     case keyword(Keyword)
     case `operator`(Operator)
-    case tag(_Tag)
+    case tag(name: String, parameters: [Parameter])
     case expression([Parameter])
 }
 
@@ -192,6 +190,16 @@ struct Syntaxer {
     }
 }
 
+extension LeafToken {
+//    func makeParam() -> Parameter? {
+//        switch self {
+//        case .constant(let c): return .constant(c)
+//        case .keyword(let k): return .keyword(k)
+//        case .operator(let o): return .oper
+//        default: fatalError()
+//        }
+//    }
+}
 struct _LeafParser {
     
 //    case raw(ByteBuffer)
@@ -437,24 +445,125 @@ struct _LeafParser {
         
         
         var depth = 0
-        while let peek = self.peek() {
+        while let next = peek() {
             pop()
             
-            if peek == .parametersStart {
+            switch next {
+            case .parametersStart:
                 depth += 1
-                paramsList.append(peek)
-                continue
-            } else if peek == .parametersEnd {
+                paramsList.append(next)
+            case .parametersEnd:
                 depth -= 1
-                paramsList.append(peek)
+                paramsList.append(next)
                 guard depth > 0 else { break }
-            } else {
-                paramsList.append(peek)
+            case .tag(let name):
+                /*
+                 inner tags are declared w/o the `#` syntax
+                 for example, #if(lowercase(name) == "me")
+                 ..because of this, it MUST be followed by a `(`
+                 to disambiguate between a variable if there is
+                 a case where a tag is being used w/o any
+                 explicit arguments
+                 */
+                guard peek() == .parametersStart else { throw "invalid tag declaration in parameters list" }
+                let parameters = try self.collectParameters()
+                fatalError()
+            default:
+                paramsList.append(next)
             }
         }
         
         return paramsList
     }
+    
+    
+    mutating func readParameters() throws -> [Parameter] {
+        // ensure open parameters
+        guard peek() == .parametersStart else { throw "expected parameters start" }
+        
+        var depth = 0
+        var paramsList = [Parameter]()
+        var group: [Parameter] = []
+        while let next = peek() {
+            pop()
+            
+            switch next {
+            case .parametersStart:
+                depth += 1
+            case .parametersEnd:
+                depth -= 1
+                guard depth > 0 else { break }
+            case .constant(let c):
+                fatalError()
+            case .parameterDelimiter:
+                fatalError()
+            case .whitespace:
+                fatalError()
+            case .tag(let name):
+                /*
+                 inner tags are declared w/o the `#` syntax
+                 for example, #if(lowercase(name) == "me")
+                 ..because of this, it MUST be followed by a `(`
+                 to disambiguate between a variable if there is
+                 a case where a tag is being used w/o any
+                 explicit arguments
+                 */
+                guard peek() == .parametersStart else { throw "invalid tag declaration in parameters list" }
+                let parameters = try self.collectParameters()
+                fatalError()
+            default:
+                fatalError()
+            }
+        }
+        
+        return paramsList
+    }
+    
+    mutating func readParameter() throws -> Parameter {
+        guard let next = read() else { throw "expected parameter" }
+        switch next {
+        case .constant(let c): return .constant(c)
+        case .keyword(let k): return .keyword(k)
+        case .operator(let o): return .operator(o)
+        default: fatalError()
+        }
+    }
+    
+    indirect enum Parameter {
+        case stringLiteral(String)
+        case constant(Constant)
+        case variable(name: String)
+        case keyword(Keyword)
+        case `operator`(Operator)
+        case tag(name: String, parameters: [Parameter])
+        case expression([Parameter])
+    }
+//    mutating func _collectParameters() throws -> [Parameter] {
+//        // ensure open parameters
+//        guard let first = read(), first == .parametersStart else { throw "expected parameters start" }
+//        var paramsList = [Parameter]()
+//
+//
+//
+////        var depth = 0
+//        while let next = peek() {
+//            pop()
+//
+//            switch next {
+//            case .parametersStart:
+////                depth += 1
+//                paramsList.append(next)
+//            case .parametersEnd:
+////                depth -= 1
+//                paramsList.append(next)
+////                guard depth > 0 else { break }
+//            default:
+//                paramsList.append(next)
+//            }
+//        }
+//
+//        return paramsList
+//    }
     
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
     mutating func parseTagDeclaration() throws -> _TagDeclaration {
