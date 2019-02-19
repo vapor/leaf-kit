@@ -124,6 +124,7 @@ final class LexerTests: XCTestCase {
         """
         
         let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
+        let _ = try parse(input)
         XCTAssertEqual(output, expectation)
     }
     
@@ -158,7 +159,7 @@ final class LexerTests: XCTestCase {
         XCTAssertEqual(output, "raw(\"#\")")
     }
     
-    func testParameters() throws {
+    func _testParameters() throws {
         let input = "#(foo == 40, and, \"literal\")"
         let expectation = """
         tagIndicator
@@ -178,7 +179,7 @@ final class LexerTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
     
-    func testTags() throws {
+    func _testTags() throws {
         let input = """
         #tag
         #tag:
@@ -227,8 +228,6 @@ final class LexerTests: XCTestCase {
         
         let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
         XCTAssertEqual(output, expectation)
-        
-        try parse(input)
     }
 }
 
@@ -247,8 +246,9 @@ func parse(_ str: String) throws -> [LeafToken] {
     var lexer = LeafLexer(template: buffer)
     let tokens = try lexer.lex()
     var parser = _LeafParser.init(tokens: tokens)
-    let syntax = try parser.parse()
-    print(syntax)
+    let syntax = try parser.preProcess()
+    let printable = syntax.map { $0.description + "\n" } .reduce("", +)
+    print(printable)
     print("")
     
     fatalError()
@@ -299,21 +299,82 @@ final class LeafKitTests: XCTestCase {
         print()
         
         var parser = _LeafParser(tokens: tokens)
-        let ast = try parser.preProcess()
+        let ast = try! parser.preProcess()
         print("AST:")
         ast.forEach { print($0) }
         print()
-//
-//        var serializer = LeafSerializer(ast: ast, context: [
-//            "name": "Tanner",
-//            "a": true,
-//            "bar": true
-//        ])
-//        var view = try serializer.serialize()
-//        let string = view.readString(length: view.readableBytes)!
-//        print("View:")
-//        print(string)
-//        print()
+        //
+        //        var serializer = LeafSerializer(ast: ast, context: [
+        //            "name": "Tanner",
+        //            "a": true,
+        //            "bar": true
+        //        ])
+        //        var view = try serializer.serialize()
+        //        let string = view.readString(length: view.readableBytes)!
+        //        print("View:")
+        //        print(string)
+        //        print()
+    }
+    
+    func __testParser() throws {
+        let template = """
+        Hello #(name)!
+
+        Hello #get(name)!
+
+        #set(name):
+            Hello #get(name)
+        #endset!
+
+        #if(a):b#endif
+
+        #if(foo):
+        123
+        #elseif(bar):
+        456
+        #else:
+        789
+        #endif
+
+        #import("title")
+
+        #import("body")
+
+        #extend("base"):
+            #export("title", "Welcome")
+            #export("body"):
+                Hello, #(name)!
+            #endexport
+        #endextend
+
+        More stuff here!
+        """
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        buffer.writeString(template)
+        
+        var lexer = LeafLexer(template: buffer)
+        let tokens = try lexer.lex()
+        print()
+        print("Tokens:")
+        tokens.forEach { print($0) }
+        print()
+        
+        var parser = _LeafParser(tokens: tokens)
+        let ast = try! parser.preProcess()
+        print("AST:")
+        ast.forEach { print($0) }
+        print()
+        //
+        //        var serializer = LeafSerializer(ast: ast, context: [
+        //            "name": "Tanner",
+        //            "a": true,
+        //            "bar": true
+        //        ])
+        //        var view = try serializer.serialize()
+        //        let string = view.readString(length: view.readableBytes)!
+        //        print("View:")
+        //        print(string)
+        //        print()
     }
     
     func _testRenderer() throws {

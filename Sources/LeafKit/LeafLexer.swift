@@ -142,7 +142,7 @@ struct LeafLexer {
                 }
                 // consume final quote
                 pop()
-                return .stringLiteral(string)
+                return .parameter(.stringLiteral(string))
             case .space:
                 // skip whitespace
                 let read = readWhile { $0 == .space }
@@ -152,16 +152,16 @@ struct LeafLexer {
                 let read = readWhile { $0.isValidInParameter }
                 guard let name = read else { fatalError("switch case should disallow this") }
                 // this parameter is a tag
-                if peek() == .leftParenthesis { return .tag(name: name) }
+                if peek() == .leftParenthesis { return .parameter(.tag(name: name)) }
                 
                 // check if expected parameter type
-                if let keyword = Keyword(rawValue: name) { return .keyword(keyword) }
-                else if let op = Operator(rawValue: name) { return .operator(op) }
-                else if let val = Int(name) { return .constant(.int(val)) }
-                else if let val = Double(name) { return .constant(.double(val)) }
+                if let keyword = Keyword(rawValue: name) { return .parameter(.keyword(keyword)) }
+                else if let op = Operator(rawValue: name) { return .parameter(.operator(op)) }
+                else if let val = Int(name) { return .parameter(.constant(.int(val))) }
+                else if let val = Double(name) { return .parameter(.constant(.double(val))) }
                 
                 // unknown param type.. var
-                return .variable(name: name)
+                return .parameter(.variable(name: name))
             default:
                 let val = String(bytes: [next], encoding: .utf8) ?? "unknown<\(next)>"
                 fatalError("todo: unable to process '\(val)' as param, throw error")

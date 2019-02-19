@@ -50,15 +50,15 @@ struct _Expression {
 //    case expression(_Expression)
 //}
 
-indirect enum Parameter {
-    case stringLiteral(String)
-    case constant(Constant)
-    case variable(name: String)
-    case keyword(Keyword)
-    case `operator`(Operator)
-    case tag(name: String, parameters: [Parameter])
-    case expression([Parameter])
-}
+//indirect enum Parameter {
+//    case stringLiteral(String)
+//    case constant(Constant)
+//    case variable(name: String)
+//    case keyword(Keyword)
+//    case `operator`(Operator)
+//    case tag(name: String, parameters: [Parameter])
+//    case expression([Parameter])
+//}
 
 struct _Extend {
     let key: String
@@ -104,10 +104,22 @@ indirect enum _Syntax {
     case extend(String)
 }
 
-indirect enum PreProcess {
+indirect enum PreProcess: CustomStringConvertible {
     case raw(ByteBuffer)
     case tagDeclaration(name: String, parameters: [LeafToken], hasBody: Bool)
     case tagTerminator(name: String)
+    
+    var description: String {
+        switch self {
+        case .raw(var byteBuffer):
+            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
+            return "raw(\(string.debugDescription))"
+        case .tagTerminator(name: let terminator):
+            return "tagTerminator(\(terminator))"
+        case .tagDeclaration(name: let n, parameters: let p, hasBody: let b):
+            return "tag(\(n), [\(p)], body: \(b))"
+        }
+    }
 }
 
 indirect enum _Parameter {
@@ -174,16 +186,17 @@ struct Syntaxer {
                 registry.append(token)
                 return
             case .tagBodyIndicator: fallthrough
-            case .constant: fallthrough
-            case .operator: fallthrough
+//            case .constant: fallthrough
+//            case .operator: fallthrough
             case .parameterDelimiter: fallthrough
             case .parametersStart: fallthrough
             case .stringLiteral: fallthrough
             case .parametersEnd: fallthrough
             case .tag: fallthrough
-            case .variable: fallthrough
+//            case .variable: fallthrough
             case .whitespace: fallthrough
-            case .keyword:
+            case .parameter:
+//            case .keyword:
                 fatalError("unexpected token: \(token)")
             }
         }
@@ -323,16 +336,17 @@ struct _LeafParser {
             let r = try collectRaw()
             return .raw(r)
         case .tagBodyIndicator: fallthrough
-        case .constant: fallthrough
-        case .operator: fallthrough
+//        case .constant: fallthrough
+//        case .operator: fallthrough
         case .parameterDelimiter: fallthrough
         case .parametersStart: fallthrough
         case .stringLiteral: fallthrough
         case .parametersEnd: fallthrough
         case .tag: fallthrough
-        case .variable: fallthrough
+//        case .variable: fallthrough
         case .whitespace: fallthrough
-        case .keyword:
+        case .parameter:
+//        case .keyword:
             fatalError("unexpected token: \(peek)")
         }
     }
@@ -383,16 +397,16 @@ struct _LeafParser {
             let r = try collectRaw()
             return .raw(r)
         case .tagBodyIndicator: fallthrough
-        case .constant: fallthrough
-        case .operator: fallthrough
+//        case .constant: fallthrough
+//        case .operator: fallthrough
         case .parameterDelimiter: fallthrough
         case .parametersStart: fallthrough
         case .stringLiteral: fallthrough
         case .parametersEnd: fallthrough
         case .tag: fallthrough
-        case .variable: fallthrough
+//        case .variable: fallthrough
         case .whitespace: fallthrough
-        case .keyword:
+        case .parameter:
             fatalError("unexpected token: \(peek)")
         }
     }
@@ -426,7 +440,8 @@ struct _LeafParser {
             // no parameters, but with a body
             return .tagDeclaration(name: name, parameters: [], hasBody: true)
         case .parametersStart:
-            let params = try collectParameters()
+            print("collecting parameters for: \(tag)")
+            let params = try readParameters()
             var hasBody = false
             if peek() == .tagBodyIndicator {
                 hasBody = true
@@ -438,68 +453,68 @@ struct _LeafParser {
         }
     }
     
-    mutating func collectParameters() throws -> [LeafToken] {
-        // ensure open parameters
-        guard let first = read(), first == .parametersStart else { throw "expected parameters start" }
-        var paramsList = [first]
-        
-        
-        var depth = 0
-        while let next = peek() {
-            pop()
-            
-            switch next {
-            case .parametersStart:
-                depth += 1
-                paramsList.append(next)
-            case .parametersEnd:
-                depth -= 1
-                paramsList.append(next)
-                guard depth > 0 else { break }
-            case .tag(let name):
-                /*
-                 inner tags are declared w/o the `#` syntax
-                 for example, #if(lowercase(name) == "me")
-                 ..because of this, it MUST be followed by a `(`
-                 to disambiguate between a variable if there is
-                 a case where a tag is being used w/o any
-                 explicit arguments
-                 */
-                guard peek() == .parametersStart else { throw "invalid tag declaration in parameters list" }
-                let parameters = try self.collectParameters()
-                fatalError()
-            default:
-                paramsList.append(next)
-            }
-        }
-        
-        return paramsList
-    }
-    
-    
-    mutating func readParameters() throws -> [Parameter] {
+    mutating func readParameters() throws -> [LeafToken] {
         // ensure open parameters
         guard peek() == .parametersStart else { throw "expected parameters start" }
         
-        var depth = 0
+        var group = [Parameter]()
         var paramsList = [Parameter]()
-        var group: [Parameter] = []
+        func dump() {
+            defer { group = [] }
+            
+            
+            if group.isEmpty { return }
+            else if group.count == 1 { paramsList.append(group.first!) }
+            else { paramsList.append(.expression(group))}
+        }
+        
+        var depth = 0
         while let next = peek() {
             pop()
             
             switch next {
             case .parametersStart:
                 depth += 1
+            case .parameter(let p):
+                group.append(p)
             case .parametersEnd:
                 depth -= 1
-                guard depth > 0 else { break }
-            case .constant(let c):
-                fatalError()
+                dump()
             case .parameterDelimiter:
-                fatalError()
+                dump()
             case .whitespace:
+                continue
+            default:
                 fatalError()
+            }
+            
+            // MUST be OUTSIDE of switch
+            if depth <= 0 { break }
+        }
+        
+        return paramsList.map { LeafToken.parameter($0) }
+    }
+    
+    
+    mutating func collectParameters() throws -> [LeafToken] {
+        // ensure open parameters
+        guard peek() == .parametersStart else { throw "expected parameters start" }
+        var paramsList = [LeafToken]()
+        
+        
+        var depth = 0
+        while let next = peek() {
+            pop()
+            
+            switch next {
+            case .parametersStart:
+                depth += 1
+                paramsList.append(next)
+            case .parametersEnd:
+                depth -= 1
+                paramsList.append(next)
             case .tag(let name):
+                fatalError("tag named: \(name)")
                 /*
                  inner tags are declared w/o the `#` syntax
                  for example, #if(lowercase(name) == "me")
@@ -508,12 +523,15 @@ struct _LeafParser {
                  a case where a tag is being used w/o any
                  explicit arguments
                  */
-                guard peek() == .parametersStart else { throw "invalid tag declaration in parameters list" }
-                let parameters = try self.collectParameters()
+                //                guard peek() == .parametersStart else { throw "invalid tag declaration in parameters list" }
+                //                let parameters = try self.collectParameters()
                 fatalError()
             default:
-                fatalError()
+                paramsList.append(next)
             }
+            
+            // MUST be OUTSIDE of switch
+            if depth <= 0 { break }
         }
         
         return paramsList
@@ -522,22 +540,22 @@ struct _LeafParser {
     mutating func readParameter() throws -> Parameter {
         guard let next = read() else { throw "expected parameter" }
         switch next {
-        case .constant(let c): return .constant(c)
-        case .keyword(let k): return .keyword(k)
-        case .operator(let o): return .operator(o)
+//        case .constant(let c): return .constant(c)
+//        case .keyword(let k): return .keyword(k)
+//        case .operator(let o): return .operator(o)
         default: fatalError()
         }
     }
     
-    indirect enum Parameter {
-        case stringLiteral(String)
-        case constant(Constant)
-        case variable(name: String)
-        case keyword(Keyword)
-        case `operator`(Operator)
-        case tag(name: String, parameters: [Parameter])
-        case expression([Parameter])
-    }
+//    indirect enum Parameter {
+//        case stringLiteral(String)
+//        case constant(Constant)
+//        case variable(name: String)
+//        case keyword(Keyword)
+//        case `operator`(Operator)
+//        case tag(name: String, parameters: [Parameter])
+//        case expression([Parameter])
+//    }
 //    mutating func _collectParameters() throws -> [Parameter] {
 //        // ensure open parameters
 //        guard let first = read(), first == .parametersStart else { throw "expected parameters start" }
@@ -614,51 +632,51 @@ struct _LeafParser {
             fatalError("todo: collect all raw and assemble")
         case .tagBodyIndicator:
             fatalError("add body")
-        case .constant: fallthrough
-        case .operator: fallthrough
+//        case .constant: fallthrough
+//        case .operator: fallthrough
         case .parameterDelimiter: fallthrough
         case .parametersStart: fallthrough
         case .stringLiteral: fallthrough
         case .parametersEnd: fallthrough
         case .tag: fallthrough
-        case .variable: fallthrough
+//        case .variable: fallthrough
         case .whitespace: fallthrough
-        case .keyword:
+        case .parameter:
             fatalError("unexpected token: \(peek)")
         }
         
-        switch peek {
-        case .constant(let c):
-//            return .parameter(.constant(c))
-            fatalError()
-        case .keyword(let k):
-//            return .parameter(.keyword(k))
-            fatalError()
-        case .operator(let o):
-//            return .parameter(.operator(o))
-            fatalError()
-        case .parameterDelimiter:
-            fatalError()
-        case .parametersStart:
-            fatalError()
-        case .parametersEnd:
-            fatalError()
-        case .raw(let r):
-            fatalError()
-        case .stringLiteral(let s):
-            fatalError()
-        case .tagIndicator:
-            pop()
-            fatalError()
-        case .tag(let name):
-            fatalError()
-        case .tagBodyIndicator:
-            fatalError()
-        case .variable(name: let v):
-            fatalError()
-        case .whitespace(let length):
-            fatalError("should be discarded")
-        }
+//        switch peek {
+//        case .constant(let c):
+////            return .parameter(.constant(c))
+//            fatalError()
+//        case .keyword(let k):
+////            return .parameter(.keyword(k))
+//            fatalError()
+//        case .operator(let o):
+////            return .parameter(.operator(o))
+//            fatalError()
+//        case .parameterDelimiter:
+//            fatalError()
+//        case .parametersStart:
+//            fatalError()
+//        case .parametersEnd:
+//            fatalError()
+//        case .raw(let r):
+//            fatalError()
+//        case .stringLiteral(let s):
+//            fatalError()
+//        case .tagIndicator:
+//            pop()
+//            fatalError()
+//        case .tag(let name):
+//            fatalError()
+//        case .tagBodyIndicator:
+//            fatalError()
+//        case .variable(name: let v):
+//            fatalError()
+//        case .whitespace(let length):
+//            fatalError("should be discarded")
+//        }
     }
     
     mutating func _next() throws -> _Syntax? {
@@ -667,15 +685,17 @@ struct _LeafParser {
         }
         
         switch peek {
-        case .constant(let c):
-//            return .parameter(.constant(c))
+        case .parameter:
             fatalError()
-        case .keyword(let k):
-//            return .parameter(.keyword(k))
-            fatalError()
-        case .operator(let o):
-//            return .parameter(.operator(o))
-            fatalError()
+//        case .constant(let c):
+////            return .parameter(.constant(c))
+//            fatalError()
+//        case .keyword(let k):
+////            return .parameter(.keyword(k))
+//            fatalError()
+//        case .operator(let o):
+////            return .parameter(.operator(o))
+//            fatalError()
         case .parameterDelimiter:
             fatalError()
         case .parametersStart:
@@ -693,8 +713,8 @@ struct _LeafParser {
             fatalError()
         case .tagBodyIndicator:
             fatalError()
-        case .variable(name: let v):
-            fatalError()
+//        case .variable(name: let v):
+//            fatalError()
         case .whitespace(let length):
             fatalError("should be discarded")
         }
@@ -884,9 +904,9 @@ struct _LeafParser {
             return nil
         }
         switch peek {
-        case .variable(let name):
-            self.pop()
-            return .variable(.init(name: name))
+//        case .parameter(let name):
+//            self.pop()
+//            return .variable(.init(name: name))
         case .parameterDelimiter:
             self.pop()
             return self.nextParameter()
@@ -897,8 +917,8 @@ struct _LeafParser {
             self.pop()
             return LeafSyntax.constant(.string(string))
         default:
+            fatalError("unexpected token: \(peek)")
             return nil
-            //            fatalError("unexpected token: \(peek)")
         }
     }
     
@@ -1151,9 +1171,9 @@ struct LeafParser {
             return nil
         }
         switch peek {
-        case .variable(let name):
-            self.pop()
-            return .variable(.init(name: name))
+//        case .variable(let name):
+//            self.pop()
+//            return .variable(.init(name: name))
         case .parameterDelimiter:
             self.pop()
             return self.nextParameter()
@@ -1165,7 +1185,7 @@ struct LeafParser {
             return LeafSyntax.constant(.string(string))
         default:
             return nil
-//            fatalError("unexpected token: \(peek)")
+            fatalError("unexpected token: \(peek)")
         }
     }
     

@@ -31,6 +31,15 @@ enum Constant: CustomStringConvertible, Equatable {
     }
 }
 
+indirect enum Parameter: Equatable {
+    case stringLiteral(String)
+    case constant(Constant)
+    case variable(name: String)
+    case keyword(Keyword)
+    case `operator`(Operator)
+    case tag(name: String)
+    case expression([Parameter])
+}
 
 enum LeafToken: CustomStringConvertible, Equatable  {
     
@@ -42,13 +51,15 @@ enum LeafToken: CustomStringConvertible, Equatable  {
     
     case parametersStart
     case parameterDelimiter
+    case parameter(Parameter)
     case parametersEnd
     
-    case variable(name: String)
-    case keyword(Keyword)
-    case `operator`(Operator)
-    case constant(Constant)
+//    case variable(name: String)
+//    case keyword(Keyword)
+//    case `operator`(Operator)
+//    case constant(Constant)
     
+    // TODO: RM IF POASIBLE
     case stringLiteral(String)
     case whitespace(length: Int)
     
@@ -69,14 +80,8 @@ enum LeafToken: CustomStringConvertible, Equatable  {
             return "parametersEnd"
         case .parameterDelimiter:
             return "parameterDelimiter"
-        case .variable(let name):
-            return "variable(name: \(name.debugDescription))"
-        case .constant(let const):
-            return "constant(\(const))"
-        case .keyword(let key):
-            return "keyword(\(key.rawValue))"
-        case .operator(let op):
-            return "operator(\(op.rawValue))"
+        case .parameter(let param):
+            return "param(\(param))"
         case .stringLiteral(let string):
             return "stringLiteral(\(string.debugDescription))"
         case .whitespace(let length):
