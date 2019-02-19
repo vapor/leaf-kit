@@ -1,31 +1,4 @@
-struct _Tag {
-    
-}
 
-struct _Expression {
-    
-}
-
-enum Parameter {
-    case constant(Constant), variable(name: String), keyword(Keyword), tag(_Tag)
-}
-
-indirect enum _Syntax {
-    case raw(ByteBuffer)
-    case tag(_Tag)
-    case parameter(Parameter)
-    case parameterGroup([_Syntax])
-    case expression(_Expression)
-    case `import`(String)
-    case extend(String)
-//    case raw(ByteBuffer)
-//    case tag(Tag)
-//    case conditional(Conditional)
-//    case variable(Variable)
-//    case constant(Constant)
-//    case `import`(Import)
-//    case extend(Extend)
-}
 
 indirect enum LeafSyntax: CustomStringConvertible {
     struct Variable: CustomStringConvertible {

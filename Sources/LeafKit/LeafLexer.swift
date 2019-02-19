@@ -163,7 +163,8 @@ struct LeafLexer {
                 // unknown param type.. var
                 return .variable(name: name)
             default:
-                fatalError("todo: unable to process throw error")
+                let val = String(bytes: [next], encoding: .utf8) ?? "unknown<\(next)>"
+                fatalError("todo: unable to process '\(val)' as param, throw error")
             }
         case .body:
             guard next == .colon else { fatalError("state should only be set to .body when a colon is in queue") }

@@ -54,6 +54,23 @@ class LeafTests { //: XCTestCase {
 
 final class LexerTests: XCTestCase {
     
+    func _testExtenasdfd() throws {
+        /// 'base.leaf
+//        let base = """
+//        <title>#import(title)</title>
+//        #import(body)
+//        """
+//
+        /// `home.leaf`
+        let home = """
+        #if(if(foo):bar#endif == "bar", "value")
+        """
+        
+        let output = try lex(home).map { $0.description + "\n" } .reduce("", +)
+        //        XCTAssertEqual(output, expectation)
+        print("")
+    }
+    
     func testExtend() throws {
         /// 'base.leaf
         let base = """
@@ -210,6 +227,8 @@ final class LexerTests: XCTestCase {
         
         let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
         XCTAssertEqual(output, expectation)
+        
+        try parse(input)
     }
 }
 
@@ -219,6 +238,20 @@ func lex(_ str: String) throws -> [LeafToken] {
     
     var lexer = LeafLexer(template: buffer)
     return try lexer.lex().dropWhitespace()
+}
+
+func parse(_ str: String) throws -> [LeafToken] {
+    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+    buffer.writeString(str)
+    
+    var lexer = LeafLexer(template: buffer)
+    let tokens = try lexer.lex()
+    var parser = _LeafParser.init(tokens: tokens)
+    let syntax = try parser.parse()
+    print(syntax)
+    print("")
+    
+    fatalError()
 }
 
 final class LeafKitTests: XCTestCase {
@@ -261,15 +294,15 @@ final class LeafKitTests: XCTestCase {
         var lexer = LeafLexer(template: buffer)
         let tokens = try lexer.lex()
         print()
-//        print("Tokens:")
-//        tokens.forEach { print($0) }
-//        print()
+        print("Tokens:")
+        tokens.forEach { print($0) }
+        print()
         
-//        var parser = LeafParser(tokens: tokens)
-//        let ast = try parser.parse()
-//        print("AST:")
-//        ast.forEach { print($0) }
-//        print()
+        var parser = _LeafParser(tokens: tokens)
+        let ast = try parser.preProcess()
+        print("AST:")
+        ast.forEach { print($0) }
+        print()
 //
 //        var serializer = LeafSerializer(ast: ast, context: [
 //            "name": "Tanner",
