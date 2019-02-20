@@ -116,19 +116,22 @@ indirect enum PreProcess: CustomStringConvertible {
             return "raw(\(string.debugDescription))"
         case .tagTerminator(name: let terminator):
             return "tagTerminator(\(terminator))"
-        case .tagDeclaration(name: let n, parameters: let p, hasBody: let b):
-            var process = ""
-            process += "\ntag: \(n)\n"
-            process += "hasBody: \(b)\n"
-            process += "parameters: \n"
-            
-//            process += "name: " + n + "\n"
-//            process += "parameters: [\n\t"
-            p.forEach { param in
-                process += param.description + ",\n"
-            }
-//            process += "]\n"
-            return process
+        case .tagDeclaration(let name, let params, let hasBody):
+            let name = name + "(hasBody: " + hasBody.description + ")"
+            return "tag(" + name + ": " + params.map { $0.description } .joined(separator: ",") + ")"
+//            return "tag(" + n + ": " +
+//            var process = ""
+//            process += "\ntag: \(n)\n"
+//            process += "hasBody: \(b)\n"
+//            process += "parameters: \n"
+//
+////            process += "name: " + n + "\n"
+////            process += "parameters: [\n\t"
+//            p.forEach { param in
+//                process += param.description + ",\n"
+//            }
+////            process += "]\n"
+//            return process
 //            return "tag(\(n), [\(p)], body: \(b))"
         }
     }
@@ -464,6 +467,56 @@ struct _LeafParser {
             fatalError()
         }
     }
+    
+    mutating func readProcessedParameters() throws -> [ProcessedParameter] {
+        // ensure open parameters
+        guard read() == .parametersStart else { throw "expected parameters start" }
+        
+        var group = [ProcessedParameter]()
+        var paramsList = [ProcessedParameter]()
+        func dump() {
+            defer { group = [] }
+            
+            
+            if group.isEmpty { return }
+            else if group.count == 1 { paramsList.append(group.first!) }
+            else { paramsList.append(.expression(group)) }
+        }
+        
+        outer: while let next = peek() {
+            switch next {
+            case .parametersStart:
+                fatalError("should not find")
+            case .parameter(let p):
+                pop()
+                switch p {
+                case .tag(let name):
+                    guard peek() == .parametersStart else { throw "tags in parameter list MUST declare parameter list" }
+                    // TODO: remove recursion
+                    let params = try readProcessedParameters()
+                    // parameter tags not permitted to have bodies
+                    group.append(.tag(name: name, params: params))
+                default:
+                    group.append(.parameter(p))
+                }
+            case .parametersEnd:
+                pop()
+                dump()
+                break outer
+            case .parameterDelimiter:
+                pop()
+                dump()
+            case .whitespace:
+                pop()
+                continue
+            default:
+                print("breaking outer, found: \(next)")
+                break outer
+            }
+        }
+        
+        return paramsList
+    }
  
     
     mutating func readParameters() throws -> [Parameter] {
@@ -515,71 +568,6 @@ struct _LeafParser {
             print("wtf")
             // MUST be OUTSIDE of switch
 //            if depth <= 0 { break }
-        }
-        
-        return paramsList
-    }
-    
-    mutating func readProcessedParameters() throws -> [ProcessedParameter] {
-        // ensure open parameters
-        guard read() == .parametersStart else { throw "expected parameters start" }
-        
-        var group = [ProcessedParameter]()
-        var paramsList = [ProcessedParameter]()
-        func dump() {
-            defer { group = [] }
-
-
-            if group.isEmpty { return }
-            else if group.count == 1 { paramsList.append(group.first!) }
-            else {
-//                let params = paramsList.compactMap {
-//                    guard case .parameter(let p) = $0 else { return nil }
-//                    return p
-//                } as [Parameter]
-                paramsList.append(.expression(group))
-            }
-        }
-
-        outer: while let next = peek() {
-            switch next {
-            case .parametersStart:
-                fatalError("should not find")
-            case .parameter(let p):
-                pop()
-                switch p {
-                case .tag(let name):
-                    guard peek() == .parametersStart else { throw "tags in parameter list MUST declare parameter list" }
-                    // TODO: remove recursion
-                    let params = try readProcessedParameters()
-                    // parameter tags not permitted to have bodies
-                    group.append(.tag(name: name, params: params))
-                default:
-                    group.append(.parameter(p))
-                }
-            case .parametersEnd:
-                pop()
-                dump()
-                break outer
-            case .parameterDelimiter:
-                pop()
-                dump()
-            case .whitespace:
-                pop()
-                continue
-//            case .tag(let name):
-//                guard peek() == .parametersStart else { throw "tags in parameter list MUST declare parameter list" }
-//                // TODO: remove recursion
-//                let params = try readProcessedParameters()
-//                // parameter tags not permitted to have bodies
-//                group.append(.tag(name: name, params: params))
-            default:
-                print("breaking outer")
-                break outer
-            }
-            print("wtf")
-            // MUST be OUTSIDE of switch
-            //            if depth <= 0 { break }
         }
         
         return paramsList

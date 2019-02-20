@@ -43,12 +43,9 @@ indirect enum ProcessedParameter: CustomStringConvertible {
         case .parameter(let p):
             return name + "(" + p.description + ")"
         case .expression(let p):
-            return name + "(" + p.map { $0.short }.joined(separator: " ") + ")"
+            return name + "(" + p.map { $0.description }.joined(separator: " ") + ")"
         case .tag(let tag, let p):
-            var print = "tag: " + tag + "\n"
-            print += "params:\n\t"
-            print += p.map { $0.description } .joined(separator: ",\n\t")
-            return print
+            return "tag(" + tag + ": " + p.map { $0.description } .joined(separator: ",") + ")"
         }
     }
     
