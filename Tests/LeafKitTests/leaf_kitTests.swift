@@ -105,11 +105,29 @@ final class ParserTests: XCTestCase {
         foo
         #endif
         """
-
+        
         try compile(input)
-//        let syntax = try compile(input)
-//        let output = syntax.map { $0.description } .joined(separator: "\n")
-//        XCTAssertEqual(output, expectation)
+        //        let syntax = try compile(input)
+        //        let output = syntax.map { $0.description } .joined(separator: "\n")
+        //        XCTAssertEqual(output, expectation)
+    }
+    func testCompiler2() throws {
+        let input = """
+        #if(sayhello):
+            abc
+            #for(name in names):
+                hi, #(name)
+            #endfor
+            def
+        #else:
+        foo
+        #endif
+        """
+        
+        try compile(input)
+        //        let syntax = try compile(input)
+        //        let output = syntax.map { $0.description } .joined(separator: "\n")
+        //        XCTAssertEqual(output, expectation)
     }
     
     

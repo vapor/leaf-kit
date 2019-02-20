@@ -199,16 +199,71 @@ extension _Syntax {
     }
 }
 
-indirect enum _Syntax: CustomStringConvertible {
-//    case documentStart
-//    case documentEnd
+indirect enum _ALTSyntax {//}: CustomStringConvertible {
+    //    case documentStart
+    //    case documentEnd
     
     case raw(ByteBuffer)
     case variable([ProcessedParameter])
+    
+    case tagDeclaration(name: String, parameters: [ProcessedParameter], body: [_ALTSyntax]?)
+//    case tagTerminator(name: String)
+    
+    case conditional(_ConditionalSyntax, body: [_ALTSyntax]?)
+    case loop([ProcessedParameter], body: [_ALTSyntax])
+    case `import`([ProcessedParameter])
+    case extend([ProcessedParameter], body: [_ALTSyntax])
+    case export([ProcessedParameter], body: [_ALTSyntax]?)
+    
+//    var description: String {
+//        switch self {
+//            //        case .documentStart:
+//            //            return "documentStart"
+//            //        case .documentEnd:
+//        //            return "documentEnd"
+//        case .raw(var byteBuffer):
+//            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
+//            return "raw(\(string.debugDescription))"
+//        case .tagTerminator(name: let terminator):
+//            return "tagTerminator(\(terminator))"
+//        case .tagDeclaration(let name, let params, let hasBody):
+//            let name = name + "(hasBody: " + hasBody.description + ")"
+//            return "tag(" + name + ": " + params.map { $0.description } .joined(separator: ", ") + ")"
+//        case .conditional(let c):
+//            var print = "conditional("
+//            switch c {
+//            case .if(let params):
+//                print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
+//            case .elseif(let params):
+//                print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
+//            case .else:
+//                print += "else"
+//            }
+//            return print + ")"
+//        case .loop(let params):
+//            return "loop(" + params.map { $0.description } .joined(separator: ", ") + ")"
+//        case .variable(let params):
+//            return "variable(" + params.map { $0.description } .joined(separator: ", ") + ")"
+//        case .import(let params):
+//            return "import(" + params.map { $0.description } .joined(separator: ", ") + ")"
+//        case .extend(let params):
+//            return "extend(" + params.map { $0.description } .joined(separator: ", ") + ")"
+//        case .export(let params, let hasBody):
+//            return "export(hasBody: \(hasBody): " + params.map { $0.description } .joined(separator: ", ") + ")"
+//        }
+//    }
+}
 
+indirect enum _Syntax: CustomStringConvertible {
+    //    case documentStart
+    //    case documentEnd
+    
+    case raw(ByteBuffer)
+    case variable([ProcessedParameter])
+    
     case tagDeclaration(name: String, parameters: [ProcessedParameter], hasBody: Bool)
     case tagTerminator(name: String)
-
+    
     case conditional(_ConditionalSyntax)
     case loop([ProcessedParameter])
     case `import`([ProcessedParameter])
@@ -217,10 +272,10 @@ indirect enum _Syntax: CustomStringConvertible {
     
     var description: String {
         switch self {
-//        case .documentStart:
-//            return "documentStart"
-//        case .documentEnd:
-//            return "documentEnd"
+            //        case .documentStart:
+            //            return "documentStart"
+            //        case .documentEnd:
+        //            return "documentEnd"
         case .raw(var byteBuffer):
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
             return "raw(\(string.debugDescription))"
@@ -560,9 +615,24 @@ final class Block: CustomStringConvertible {
     }
 }
 
-struct _Element {
-    let syntax: _Syntax
+final class _Element {
+    let parent: _Syntax
     var body: [_Element] = []
+    init(_ parent: _Syntax) {
+        self.parent = parent
+    }
+    var description: String {
+        let bod = body.map { $0.description } .joined(separator: ", ")
+        return "element(parent: "
+            + parent.description
+            + ", body: ("
+            + bod
+            + "))"
+//        var print = ""
+//        print += "parent(" + parent.description + ")\n"
+//        print += "body(" + body.map { $0.description } .joined(separator: ", ") + ")"
+//        return print
+    }
 }
 
 struct _Compiler {
@@ -570,8 +640,8 @@ struct _Compiler {
     init(syntax: [_Syntax]) {
         self.syntax = syntax
     }
-    private var ready: [Block] = []
-    private var stack: [Block] = []
+    private var ready: [_Element] = []
+    private var stack: [_Element] = []
     
     private var parent: [_Syntax] = []
     mutating func test() {
@@ -591,21 +661,29 @@ struct _Compiler {
         // ie: elseif, else
         if next.isTerminator { try close(with: next) }
         
-        // should NOT be elseif to account for dual function params
+        // this needs to be a secondary if-statement, and
+        // not joined above
+        //
+        // this allows for dual functors, a la elseif
         if next.expectsBody { stack.append(.init(next)) }
         
         if let last = stack.last {
-            last.body.append(next)
+            last.body.append(.init(next))
         } else if !next.isTerminator {
             stack.append(.init(next))
         }
     }
     
     mutating private func close(with closer: _Syntax) throws {
-        guard !stack.isEmpty else { throw "attempted to close \(closer), no corresponding tag" }
-        let block = stack.removeLast()
-        guard block.parent.matches(terminator: closer) else { throw "unable to match \(block.parent) with \(closer)" }
-        ready.insert(block, at: 0)
+        guard !stack.isEmpty else { throw "found terminator \(closer), with no corresponding tag" }
+        let element = stack.removeLast()
+        guard element.parent.matches(terminator: closer) else { throw "unable to match \(element.parent) with \(closer)" }
+        // now, element shoule collapse INTO stack
+        if let newTail = stack.last {
+            newTail.body.append(element)
+        } else {
+            ready.append(element)
+        }
     }
 }
 
@@ -767,6 +845,20 @@ func testGrouping(_ document: [_Syntax]) {
 //    }
 //}
 
+//struct Buffer<T> {
+//    var buffer: T
+//    init(_ buffer: T) { self.buffer = buffer }
+//    func peek() -> T? {
+//
+//    }
+//}
+
+struct TagDeclaration {
+    let name: String
+    let parameters: [ProcessedParameter]?
+    let expectsBody: Bool
+}
+
 struct _LeafParser {
     private let tokens: [LeafToken]
     private var offset: Int
@@ -789,13 +881,52 @@ struct _LeafParser {
         guard let peek = self.peek() else { return nil }
         switch peek {
         case .tagIndicator:
-            return try readTagDeclaration()
+//            let declaration = try _readTagDeclaration()
+            let tagDeclaration = try readTagDeclaration()
+            return tagDeclaration
         case .raw:
             let r = try collectRaw()
             return .raw(r)
         default: throw "unexpected token \(peek)"
         }
     }
+    
+    // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
+    private mutating func _readTagDeclaration() throws -> TagDeclaration {
+        // consume tag indicator
+        guard let first = read(), first == .tagIndicator else { throw "expected tag indicator" }
+        // a tag should ALWAYS follow a tag indicator
+        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag following a `#` indicator" }
+        
+        // if no further, then we've ended w/ a tag
+        guard let next = peek() else { return TagDeclaration(name: name, parameters: nil, expectsBody: false) }
+        
+        // following a tag can be,
+        // .raw - tag is complete
+        // .tagBodyIndicator - ready to read body
+        // .parametersStart - start parameters
+        switch next {
+        case .raw:
+            // a basic tag, something like `#date` w/ no params, and no body
+            return TagDeclaration(name: name, parameters: nil, expectsBody: false)
+        case .tagBodyIndicator:
+            // consume ':'
+            pop()
+            // no parameters, but with a body
+            return TagDeclaration(name: name, parameters: nil, expectsBody: true)
+        case .parametersStart:
+            let params = try readParameters()
+            var expectsBody = false
+            if peek() == .tagBodyIndicator {
+                expectsBody = true
+                pop()
+            }
+            return TagDeclaration(name: name, parameters: params, expectsBody: expectsBody)
+        default:
+            throw "found unexpected token " + next.description
+        }
+    }
+    
     
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
     private mutating func readTagDeclaration() throws -> _Syntax {
