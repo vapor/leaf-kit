@@ -104,6 +104,29 @@ indirect enum _Syntax {
     case extend(String)
 }
 
+/*
+ Token
+ => Syntax (PreProcess)
+ => Action
+ */
+indirect enum Action {
+    case raw(ByteBuffer)
+    
+    //
+    case tag(_Tag)
+    
+    //
+    case loop(_For)
+    case conditional(_Conditional)
+    case expression(_Expression)
+    case variable(name: String)
+    
+    ///
+    case `import`(String)
+    case extend(String)
+}
+
+
 indirect enum PreProcess: CustomStringConvertible {
     case raw(ByteBuffer)
     case tagDeclaration(name: String, parameters: [ProcessedParameter], hasBody: Bool)
@@ -204,8 +227,31 @@ extension LeafToken {
 //    }
 }
 
+/*
+ indirect enum _Syntax {
+ case raw(ByteBuffer)
+ 
+ //
+ case tag(_Tag)
+ 
+ //
+ case loop(_For)
+ case conditional(_Conditional)
+ case expression(_Expression)
+ case variable(name: String)
+ 
+ ///
+ case `import`(String)
+ case extend(String)
+ }
+
+ */
+
 struct Comprehension {
     let list: [PreProcess]
+    func syntax() -> [_Syntax] {
+        fatalError()
+    }
 }
 
 struct _LeafParser {
@@ -347,44 +393,39 @@ struct _LeafParser {
 //    }
     
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
-    mutating func nextTag() throws -> _Tag {
-        // consume tag indicator
-        guard let first = read(), first == .tagIndicator else { throw "expected tag indicator" }
-        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag following a `#` indicator" }
-        guard let next = peek() else { return _Tag(name: name, parameters: [], body: nil) }
-        
-        // following a tag can be,
-        // .raw - tag is complete
-        // .tagBodyIndicator - ready to read body
-        // .parametersStart - start parameters
-        switch next {
-        case .raw:
-            return _Tag(name: name, parameters: [], body: nil)
-        case .parametersStart:
-            registry.append(tag)
-            fatalError()
-        default:
-            fatalError()
-        }
-        
-        fatalError()
-    }
+//    mutating func nextTag() throws -> _Tag {
+//        // consume tag indicator
+//        guard let first = read(), first == .tagIndicator else { throw "expected tag indicator" }
+//        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag following a `#` indicator" }
+//        guard let next = peek() else { return _Tag(name: name, parameters: [], body: nil) }
+//
+//        // following a tag can be,
+//        // .raw - tag is complete
+//        // .tagBodyIndicator - ready to read body
+//        // .parametersStart - start parameters
+//        switch next {
+//        case .raw:
+//            return _Tag(name: name, parameters: [], body: nil)
+//        case .parametersStart:
+//            registry.append(tag)
+//            fatalError()
+//        default:
+//            fatalError()
+//        }
+//
+//        fatalError()
+//    }
     
-    mutating func preProcess() throws -> [PreProcess] {
+    mutating func parse() throws -> [PreProcess] {
         var collect = [PreProcess]()
-        while let val = try nextPreProcess() {
-            print("processed:")
-            print(val)
-                
+        while let val = try nextSyntax() {
             collect.append(val)
         }
         return collect
     }
     
-    mutating func nextPreProcess() throws -> PreProcess? {
+    mutating func nextSyntax() throws -> PreProcess? {
         guard let peek = self.peek() else { return nil }
-        print("peeking at \(peek)")
-        print("")
         switch peek {
         case .tagIndicator:
             return try readTagDeclaration()
@@ -392,17 +433,14 @@ struct _LeafParser {
             let r = try collectRaw()
             return .raw(r)
         case .tagBodyIndicator: fallthrough
-//        case .constant: fallthrough
-//        case .operator: fallthrough
         case .parameterDelimiter: fallthrough
         case .parametersStart: fallthrough
         case .stringLiteral: fallthrough
         case .parametersEnd: fallthrough
         case .tag: fallthrough
-//        case .variable: fallthrough
         case .whitespace: fallthrough
-        case .parameter:
-            fatalError("unexpected token: \(peek)")
+        case .parameter: fallthrough
+        default: fatalError("unexpected token: \(peek)")
         }
     }
     

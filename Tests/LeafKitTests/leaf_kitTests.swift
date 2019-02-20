@@ -52,6 +52,26 @@ class LeafTests { //: XCTestCase {
     }
 }
 
+final class ParserTests: XCTestCase {
+    func testParsing() throws {
+        let input = """
+        #if(lowercase(first(name == "admin")) == "welcome"):
+        foo
+        #endif
+        """
+        
+        let expectation = """
+        tag(if(hasBody: true): expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome"))))
+        raw("\\nfoo\\n")
+        tagTerminator(if)
+        """
+        
+        let syntax = try parse(input)
+        let output = syntax.map { $0.description } .joined(separator: "\n")
+        XCTAssertEqual(output, expectation)
+    }
+}
+
 final class LexerTests: XCTestCase {
     
     func _testExtenasdfd() throws {
@@ -230,24 +250,6 @@ final class LexerTests: XCTestCase {
         let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
         XCTAssertEqual(output, expectation)
     }
-    
-    func testParsing() throws {
-        let input = """
-        #if(lowercase(first(name == "admin")) == "welcome"):
-        foo
-        #endif
-        """
-        
-        let expectation = """
-        tag(if(hasBody: true): expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome"))))
-        raw("\\nfoo\\n")
-        tagTerminator(if)
-        """
-        
-        let syntax = try parse(input)
-        let output = syntax.map { $0.description } .joined(separator: "\n")
-        XCTAssertEqual(output, expectation)
-    }
 }
 
 func lex(_ str: String) throws -> [LeafToken] {
@@ -265,7 +267,7 @@ func parse(_ str: String) throws -> [PreProcess] {
     var lexer = LeafLexer(template: buffer)
     let tokens = try! lexer.lex()
     var parser = _LeafParser.init(tokens: tokens)
-    let syntax = try! parser.preProcess()
+    let syntax = try! parser.parse()
     return syntax
 }
 
@@ -314,7 +316,7 @@ final class LeafKitTests: XCTestCase {
         print()
         
         var parser = _LeafParser(tokens: tokens)
-        let ast = try! parser.preProcess()
+        let ast = try! parser.parse()
         print("AST:")
         ast.forEach { print($0) }
         print()
@@ -375,7 +377,7 @@ final class LeafKitTests: XCTestCase {
         print()
         
         var parser = _LeafParser(tokens: tokens)
-        let ast = try! parser.preProcess()
+        let ast = try! parser.parse()
         print("AST:")
         ast.forEach { print($0) }
         print()
