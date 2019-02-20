@@ -165,6 +165,8 @@ final class ParserTests: XCTestCase {
         """
         
         let lexed = try! lex(input).map { $0.description + "\n" } .reduce("", +)
+        let rawAlt = try! altParse(input)
+        let alt = rawAlt.map { $0.description + "\n" } .reduce("", +)
         let parsed = try! parse(input).map { $0.description + "\n" } .reduce("", +)
         let compiled = try! compile(input).map { $0.description + "\n" } .reduce("", +)
         let _ = lexed + parsed + compiled
@@ -428,11 +430,13 @@ final class LeafKitTests: XCTestCase {
         tokens.forEach { print($0) }
         print()
         
-        var parser = _LeafParser(tokens: tokens)
-        let ast = try! parser.altParse().map { $0.description } .joined(separator: "\n")
-        print("AST:")
+//        var parser = _LeafParser(tokens: tokens)
+//        let ast = try! parser.altParse().map { $0.description } .joined(separator: "\n")
+        let rawAlt = try! altParse(template)
+        let alt = rawAlt.map { $0.description } .joined(separator: "\n")
+//        print("AST:")
 //        ast.forEach { print($0) }
-        print()
+        print("")
         //
         //        var serializer = LeafSerializer(ast: ast, context: [
         //            "name": "Tanner",

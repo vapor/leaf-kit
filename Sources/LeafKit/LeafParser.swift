@@ -243,27 +243,24 @@ indirect enum _ALTSyntax {
     
     
     var description: String {
+        return print(depth: 0)
+    }
+    
+    func print(depth: Int) -> String {
+        var print = ""
         switch self {
-            //        case .documentStart:
-            //            return "documentStart"
-            //        case .documentEnd:
-        //            return "documentEnd"
         case .raw(var byteBuffer):
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-            return "raw(\(string.debugDescription))"
+            print += "raw(\(string.debugDescription))"
         case .variable(let params):
-            return "variable(" + "\(params)" + ")"
+            print += "variable(" + "\(params)" + ")"
         case .custom(let name, let params, let body):
-            var print = "tag(" + name + ": " + params.map { $0.description } .joined(separator: ", ") + ")"
-            if let body = body {
-                print += ":\n    " + body.map { $0.description } .joined(separator: "\n    ")
+            print += "tag(" + name + ": " + params.map { $0.description } .joined(separator: ", ") + ")"
+            if let body = body, !body.isEmpty {
+                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
-            return print
-//        case .tagDeclaration(let name, let params, let hasBody):
-//            let name = name + "(hasBody: " + hasBody.description + ")"
-//            return "tag(" + name + ": " + params.map { $0.description } .joined(separator: ", ") + ")"
         case .conditional(let c, let body):
-            var print = "conditional("
+            print += "conditional("
             switch c {
             case .if(let params):
                 print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
@@ -273,25 +270,29 @@ indirect enum _ALTSyntax {
                 print += "else"
             }
             print += ")"
-            if let body = body {
-                print += ":\n    " + body.map { $0.description } .joined(separator: "\n    ")
+            if let body = body, !body.isEmpty {
+                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
-            return print
         case .loop(let params, _):
-            return "loop(" + params.map { $0.description } .joined(separator: ", ") + ")"
-//        case .variable(let params):
-//            return "variable(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            print += "loop(" + params.map { $0.description } .joined(separator: ", ") + ")"
         case .import(let params):
-            return "import(" + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .extend(let params, _):
-            return "extend(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            print += "import(" + params.map { $0.description } .joined(separator: ", ") + ")"
+        case .extend(let params, let body):
+            print += "extend(" + params.map { $0.description } .joined(separator: ", ") + "):\n"
+            print += body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
         case .export(let params, let body):
-            var print = "export(" + params.map { $0.description } .joined(separator: ", ") + ")"
-            if let body = body {
-                print += ":\n    " + body.map { $0.description } .joined(separator: "\n    ")
+            print += "export(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            if let body = body, !body.isEmpty {
+                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
-            return print
         }
+        
+        var buffer = ""
+        let block = "  "
+        for _ in 0..<depth {
+            buffer += block
+        }
+        return print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
     }
 }
 
@@ -905,15 +906,13 @@ extension TagDeclaration {
         case "export":
             return .export(params, body: body)
         case "extend":
-            return .export(params, body: body)
+            return .extend(params, body: body)
         case "import":
             guard body.isEmpty else { throw "import does not accept a body" }
             return .import(params)
         default:
             return .custom(name: name, parameters: params, body: body)
         }
-        
-        return .custom(name: name, parameters: parameters ?? [], body: body)
     }
 }
 
