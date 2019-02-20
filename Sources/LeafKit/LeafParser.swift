@@ -199,15 +199,11 @@ extension _Syntax {
     }
 }
 
-indirect enum _ALTSyntax {//}: CustomStringConvertible {
-    //    case documentStart
-    //    case documentEnd
-    
+indirect enum _ALTSyntax {
     case raw(ByteBuffer)
     case variable([ProcessedParameter])
     
-    case tagDeclaration(name: String, parameters: [ProcessedParameter], body: [_ALTSyntax]?)
-//    case tagTerminator(name: String)
+    case custom(name: String, parameters: [ProcessedParameter], body: [_ALTSyntax]?)
     
     case conditional(_ConditionalSyntax, body: [_ALTSyntax]?)
     case loop([ProcessedParameter], body: [_ALTSyntax])
@@ -215,43 +211,58 @@ indirect enum _ALTSyntax {//}: CustomStringConvertible {
     case extend([ProcessedParameter], body: [_ALTSyntax])
     case export([ProcessedParameter], body: [_ALTSyntax]?)
     
-//    var description: String {
-//        switch self {
-//            //        case .documentStart:
-//            //            return "documentStart"
-//            //        case .documentEnd:
-//        //            return "documentEnd"
-//        case .raw(var byteBuffer):
-//            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-//            return "raw(\(string.debugDescription))"
-//        case .tagTerminator(name: let terminator):
-//            return "tagTerminator(\(terminator))"
+    
+    var description: String {
+        switch self {
+            //        case .documentStart:
+            //            return "documentStart"
+            //        case .documentEnd:
+        //            return "documentEnd"
+        case .raw(var byteBuffer):
+            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
+            return "raw(\(string.debugDescription))"
+        case .variable(let params):
+            return "variable(" + params.map { $0.description } .joined(separator: ", ") + ")"
+        case .custom(let name, let params, let body):
+            var print = "tag(" + name + ": " + params.map { $0.description } .joined(separator: ", ") + ")"
+            if let body = body {
+                print += ":\n    " + body.map { $0.description } .joined(separator: "\n    ")
+            }
+            return print
 //        case .tagDeclaration(let name, let params, let hasBody):
 //            let name = name + "(hasBody: " + hasBody.description + ")"
 //            return "tag(" + name + ": " + params.map { $0.description } .joined(separator: ", ") + ")"
-//        case .conditional(let c):
-//            var print = "conditional("
-//            switch c {
-//            case .if(let params):
-//                print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
-//            case .elseif(let params):
-//                print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
-//            case .else:
-//                print += "else"
-//            }
-//            return print + ")"
-//        case .loop(let params):
-//            return "loop(" + params.map { $0.description } .joined(separator: ", ") + ")"
+        case .conditional(let c, let body):
+            var print = "conditional("
+            switch c {
+            case .if(let params):
+                print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            case .elseif(let params):
+                print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            case .else:
+                print += "else"
+            }
+            print += ")"
+            if let body = body {
+                print += ":\n    " + body.map { $0.description } .joined(separator: "\n    ")
+            }
+            return print
+        case .loop(let params, _):
+            return "loop(" + params.map { $0.description } .joined(separator: ", ") + ")"
 //        case .variable(let params):
 //            return "variable(" + params.map { $0.description } .joined(separator: ", ") + ")"
-//        case .import(let params):
-//            return "import(" + params.map { $0.description } .joined(separator: ", ") + ")"
-//        case .extend(let params):
-//            return "extend(" + params.map { $0.description } .joined(separator: ", ") + ")"
-//        case .export(let params, let hasBody):
-//            return "export(hasBody: \(hasBody): " + params.map { $0.description } .joined(separator: ", ") + ")"
-//        }
-//    }
+        case .import(let params):
+            return "import(" + params.map { $0.description } .joined(separator: ", ") + ")"
+        case .extend(let params, _):
+            return "extend(" + params.map { $0.description } .joined(separator: ", ") + ")"
+        case .export(let params, let body):
+            var print = "export(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            if let body = body {
+                print += ":\n    " + body.map { $0.description } .joined(separator: "\n    ")
+            }
+            return print
+        }
+    }
 }
 
 indirect enum _Syntax: CustomStringConvertible {
@@ -635,58 +646,6 @@ final class _Element {
     }
 }
 
-struct _Compiler {
-    var syntax: [_Syntax]
-    init(syntax: [_Syntax]) {
-        self.syntax = syntax
-    }
-    private var ready: [_Element] = []
-    private var stack: [_Element] = []
-    
-    private var parent: [_Syntax] = []
-    mutating func test() {
-        syntax.forEach { try! handle(next: $0) }
-        ready += stack
-        stack.removeAll()
-        
-        let mix = ready.map { $0.description } .joined(separator: ",\n\n")
-        print(mix)
-        print(ready)
-        print(stack)
-        print("")
-    }
-    
-    mutating private func handle(next: _Syntax) throws {
-        // check terminator first for dual body/terminator functors,
-        // ie: elseif, else
-        if next.isTerminator { try close(with: next) }
-        
-        // this needs to be a secondary if-statement, and
-        // not joined above
-        //
-        // this allows for dual functors, a la elseif
-        if next.expectsBody { stack.append(.init(next)) }
-        
-        if let last = stack.last {
-            last.body.append(.init(next))
-        } else if !next.isTerminator {
-            stack.append(.init(next))
-        }
-    }
-    
-    mutating private func close(with closer: _Syntax) throws {
-        guard !stack.isEmpty else { throw "found terminator \(closer), with no corresponding tag" }
-        let element = stack.removeLast()
-        guard element.parent.matches(terminator: closer) else { throw "unable to match \(element.parent) with \(closer)" }
-        // now, element shoule collapse INTO stack
-        if let newTail = stack.last {
-            newTail.body.append(element)
-        } else {
-            ready.append(element)
-        }
-    }
-}
-
 func testGrouping(_ document: [_Syntax]) {
     
     var document = document.reversed().makeIterator()
@@ -859,6 +818,146 @@ struct TagDeclaration {
     let expectsBody: Bool
 }
 
+final class __Collector {
+    let parent: _Syntax
+    var body: [_Syntax] = []
+    init(_ parent: _Syntax) {
+        self.parent = parent
+    }
+}
+
+final class _Collector {
+    let parent: _Syntax
+    var body: [_Syntax] = []
+    init(_ parent: _Syntax) {
+        self.parent = parent
+    }
+}
+
+final class Awaiterrrrr {
+    let parent: TagDeclaration
+    var body: [_ALTSyntax] = []
+//    var child: Awaiterrrrr?
+//
+//    var tail: Awaiterrrrr? {
+//        // avoid recursion
+//        var child = self.child
+//        while let next = child?.child {
+//            child = next
+//        }
+//        return child
+//    }
+    
+    init(_ parent: TagDeclaration) {
+        self.parent = parent
+    }
+}
+
+extension TagDeclaration {
+    func makeSyntax(body: [_ALTSyntax]) throws -> _ALTSyntax {
+        let params = parameters ?? []
+
+        switch name {
+        case let n where n.starts(with: "end"):
+            throw "unable to convert terminator to syntax"
+        case "":
+            return .variable(params)
+        case "if":
+            return .conditional(.if(params), body: body)
+        case "elseif":
+            return .conditional(.elseif(params), body: body)
+        case "else":
+            guard params.count == 0 else { throw "else does not accept params" }
+            return .conditional(.else, body: body)
+        case "for":
+            return .loop(params, body: body)
+        case "export":
+            return .export(params, body: body)
+        case "extend":
+            return .export(params, body: body)
+        case "import":
+            guard body.isEmpty else { throw "import does not accept a body" }
+            return .import(params)
+        default:
+            return .custom(name: name, parameters: params, body: body)
+        }
+        
+        return .custom(name: name, parameters: parameters ?? [], body: body)
+    }
+}
+
+extension TagDeclaration {
+    var isTerminator: Bool {
+        switch name {
+        case let x where x.starts(with: "end"): return true
+        // dual function
+        case "elseif", "else": return true
+        default: return false
+        }
+    }
+    
+    func matches(terminator: TagDeclaration) -> Bool {
+        guard terminator.isTerminator else { return false }
+        switch terminator.name {
+        // if can NOT be a terminator
+        case "else", "elseif":
+            // else and elseif can only match to if or elseif
+            return name == "if" || name == "elseif"
+        case "endif":
+            return name == "if" || name == "elseif" || name == "else"
+        default:
+            return terminator.name == "end" + name
+        }
+    }
+}
+
+struct _Compiler {
+    private var syntax: [_Syntax]
+    private var ready: [_Element] = []
+    private var waiting: [_Element] = []
+    
+    init(syntax: [_Syntax]) {
+        self.syntax = syntax
+    }
+    
+    mutating func compile() throws -> [_Element] {
+        try syntax.forEach { try handle(next: $0) }
+        return ready + waiting
+    }
+    
+    mutating private func handle(next: _Syntax) throws {
+        // check terminator first for dual body/terminator functors,
+        // ie: elseif, else
+        if next.isTerminator { try close(with: next) }
+        
+        // this needs to be a secondary if-statement, and
+        // not joined above
+        //
+        // this allows for dual functors, a la elseif
+        if next.expectsBody {
+            waiting.append(.init(next))
+        } else if let last = waiting.last {
+            last.body.append(.init(next))
+        } else if !next.isTerminator {
+            // not a terminator, and nobody is
+            // waiting, top level
+            ready.append(.init(next))
+        }
+    }
+    
+    mutating private func close(with closer: _Syntax) throws {
+        guard !waiting.isEmpty else { throw "found terminator \(closer), with no corresponding tag" }
+        let element = waiting.removeLast()
+        guard element.parent.matches(terminator: closer) else { throw "unable to match \(element.parent) with \(closer)" }
+        // now, element shoule collapse INTO stack
+        if let newTail = waiting.last {
+            newTail.body.append(element)
+        } else {
+            ready.append(element)
+        }
+    }
+}
+
 struct _LeafParser {
     private let tokens: [LeafToken]
     private var offset: Int
@@ -868,13 +967,73 @@ struct _LeafParser {
         self.offset = 0
     }
 
-    
     mutating func parse() throws -> [_Syntax] {
         var collected = [_Syntax]()
         while let val = try nextSyntax() {
             collected.append(val)
         }
         return collected
+    }
+    
+    var finished: [_ALTSyntax] = []
+    var awaitingBody: [Awaiterrrrr] = []
+    
+    mutating func altParse() throws -> [_ALTSyntax] {
+        while let next = peek() {
+            try handle(next: next)
+        }
+        return finished
+    }
+    
+    private mutating func handle(next: LeafToken) throws {
+        switch next {
+        case .tagIndicator:
+            let declaration = try _readTagDeclaration()
+            // check terminator first for dual body/terminator functors,
+            // ie: elseif, else
+            if declaration.isTerminator { try close(with: declaration) }
+            
+            // this needs to be a secondary if-statement, and
+            // not joined above
+            //
+            // this allows for dual functors, a la elseif
+            if declaration.expectsBody {
+                awaitingBody.append(.init(declaration))
+            } else if !declaration.isTerminator {
+                let syntax = try declaration.makeSyntax(body: [])
+                if let last = awaitingBody.last {
+                    last.body.append(syntax)
+                } else {
+                    finished.append(syntax)
+                }
+            } else {
+                // dump terminators that don't also have a body
+                return
+            }
+        case .raw:
+            let r = try collectRaw()
+            let raw = _ALTSyntax.raw(r)
+            if let last = awaitingBody.last {
+                last.body.append(raw)
+            } else {
+                finished.append(raw)
+            }
+        default:
+            throw "unexpected token \(next)"
+        }
+    }
+    
+    mutating func close(with closer: TagDeclaration) throws {
+        guard !awaitingBody.isEmpty else { throw "found terminator \(closer), with no corresponding tag" }
+        let closedElement = awaitingBody.removeLast()
+        guard closedElement.parent.matches(terminator: closer) else { throw "unable to match \(closedElement.parent) with \(closer)" }
+        let syntax = try closedElement.parent.makeSyntax(body: closedElement.body)
+        // now, element shoule collapse INTO stack
+        if let newTail = awaitingBody.last {
+            newTail.body.append(syntax)
+        } else {
+            finished.append(syntax)
+        }
     }
     
     private mutating func nextSyntax() throws -> _Syntax? {

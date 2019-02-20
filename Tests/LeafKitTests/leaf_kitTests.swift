@@ -52,6 +52,9 @@ class LeafTests { //: XCTestCase {
     }
 }
 
+extension UInt8 {
+    var str: String { return String(bytes: [self], encoding: .utf8)! }
+}
 final class ParserTests: XCTestCase {
     func testParsingNesting() throws {
         let input = """
@@ -61,13 +64,19 @@ final class ParserTests: XCTestCase {
         """
         
         let expectation = """
-        conditional(if(expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome")))))
-        raw("\\nfoo\\n")
-        tagTerminator(if)
+        conditional(if(expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome"))))):
+            raw("\\nfoo\\n")
         """
         
         let syntax = try parse(input)
         let output = syntax.map { $0.description } .joined(separator: "\n")
+        var matched = ""
+        for x in 0..<output.count {
+            let l = Array(output.utf8)[x]
+            let r = Array(expectation.utf8)[x]
+            guard l == r else { fatalError("crashed at[\(x) ([\(l)]\(l.str), [\(r)]\(r.str)) match: ***\n\(matched)***") }
+            matched += l.str
+        }
         XCTAssertEqual(output, expectation)
     }
     
@@ -81,19 +90,18 @@ final class ParserTests: XCTestCase {
         """
         
         let expectation = """
-        conditional(if(parameter(variable(foo))))
-        raw("\\nfoo\\n")
-        conditional(else)
-        raw("\\nfoo\\n")
-        tagTerminator(if)
+        conditional(if(parameter(variable(foo)))):
+            raw("\\nfoo\\n")
+        conditional(else):
+            raw("\\nfoo\\n")
         """
         
-        let syntax = try parse(input)
+        let syntax = try! parse(input)
         let output = syntax.map { $0.description } .joined(separator: "\n")
         XCTAssertEqual(output, expectation)
     }
     
-    func testCompiler() throws {
+    func __testCompiler() throws {
         let input = """
         #if(sayhello):
             abc
@@ -106,12 +114,14 @@ final class ParserTests: XCTestCase {
         #endif
         """
         
-        try compile(input)
+        let output = try compile(input).map { $0.description } .joined(separator: ",\n")
+        XCTAssertEqual(output, "todo")
+        
         //        let syntax = try compile(input)
         //        let output = syntax.map { $0.description } .joined(separator: "\n")
         //        XCTAssertEqual(output, expectation)
     }
-    func testCompiler2() throws {
+    func __testCompiler2() throws {
         let input = """
         #if(sayhello):
             abc
@@ -124,14 +134,12 @@ final class ParserTests: XCTestCase {
         #endif
         """
         
-        try compile(input)
-        //        let syntax = try compile(input)
-        //        let output = syntax.map { $0.description } .joined(separator: "\n")
-        //        XCTAssertEqual(output, expectation)
+        let output = try compile(input).map { $0.description } .joined(separator: ",\n\n")
+        XCTAssertEqual(output, "todo")
     }
     
     
-    func testExtend() throws {
+    func __testExtend() throws {
         let input = """
         #extend("base"):
             #export("title", "Welcome")
@@ -333,19 +341,19 @@ func lex(_ str: String) throws -> [LeafToken] {
     return try lexer.lex().dropWhitespace()
 }
 
-func parse(_ str: String) throws -> [_Syntax] {
+func parse(_ str: String) throws -> [_ALTSyntax] {
     var buffer = ByteBufferAllocator().buffer(capacity: 0)
     buffer.writeString(str)
     
     var lexer = LeafLexer(template: buffer)
     let tokens = try! lexer.lex()
     var parser = _LeafParser.init(tokens: tokens)
-    let syntax = try! parser.parse()
+    let syntax = try! parser.altParse()
 
     return syntax
 }
 
-func compile(_ str: String) throws {
+func compile(_ str: String) throws -> [_Element] {
     var buffer = ByteBufferAllocator().buffer(capacity: 0)
     buffer.writeString(str)
     
@@ -355,7 +363,8 @@ func compile(_ str: String) throws {
     let syntax = try! parser.parse()
     
     var compiler = _Compiler(syntax: syntax)
-    compiler.test()
+    let elements = try compiler.compile()
+    return elements
 }
 
 final class LeafKitTests: XCTestCase {
@@ -403,9 +412,9 @@ final class LeafKitTests: XCTestCase {
         print()
         
         var parser = _LeafParser(tokens: tokens)
-        let ast = try! parser.parse()
+        let ast = try! parser.altParse().map { $0.description } .joined(separator: "\n")
         print("AST:")
-        ast.forEach { print($0) }
+//        ast.forEach { print($0) }
         print()
         //
         //        var serializer = LeafSerializer(ast: ast, context: [
