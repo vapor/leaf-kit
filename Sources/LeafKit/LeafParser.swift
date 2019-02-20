@@ -17,8 +17,8 @@ extension Array where Element == LeafToken {
 
 struct _Tag {
     let name: String
-    let parameters: [_Syntax]
-    let body: [_Syntax]?
+//    let parameters: [_Syntax]
+//    let body: [_Syntax]?
 }
 
 struct _TagDeclaration {
@@ -87,7 +87,7 @@ struct _Conditional {
  #if(a == b,"whoops")
  #(a b c)
  */
-indirect enum _Syntax {
+indirect enum _asdfSyntax {
     case raw(ByteBuffer)
     
     //
@@ -126,8 +126,16 @@ indirect enum Action {
     case extend(String)
 }
 
+struct Compiler {
+    let syntax: [_Syntax]
+    
+    func compile() -> [Action] {
+        fatalError()
+    }
+}
 
-indirect enum PreProcess: CustomStringConvertible {
+
+indirect enum _Syntax: CustomStringConvertible {
     case raw(ByteBuffer)
     case tagDeclaration(name: String, parameters: [ProcessedParameter], hasBody: Bool)
     case tagTerminator(name: String)
@@ -146,75 +154,7 @@ indirect enum PreProcess: CustomStringConvertible {
     }
 }
 
-indirect enum _Parameter {
-    //    case constant(Constant)
-    //    case variable(name: String)
-    case stringLiteral(String)
-    case constant(Constant)
-    case variable(name: String)
-    case keyword(Keyword)
-    case `operator`(Operator)
-    case tag(_Tag)
-    case expression([Parameter])
-}
-
-indirect enum __Syntax {
-    case raw(ByteBuffer)
-    
-    //
-    case tag(name: String, params: [_Syntax])
-    case parameter(LeafToken)
-    
-    //
-    case loop(_For)
-    case conditional(_Conditional)
-    case expression(_Expression)
-    case variable(name: String)
-    
-    ///
-    case `import`(String)
-    case extend(String)
-}
-
 extension String: Error {}
-
-struct Syntaxer {
-    let tokens: [LeafToken]
-    
-    enum State {
-        case normal
-        case tag
-//        case
-    }
-    
-    
-    var registry = [LeafToken]()
-    
-    mutating func process() {
-        for token in tokens {
-            switch token {
-            case .tagIndicator:
-                fatalError()
-            case .raw:
-                registry.append(token)
-                return
-            case .tagBodyIndicator: fallthrough
-//            case .constant: fallthrough
-//            case .operator: fallthrough
-            case .parameterDelimiter: fallthrough
-            case .parametersStart: fallthrough
-            case .stringLiteral: fallthrough
-            case .parametersEnd: fallthrough
-            case .tag: fallthrough
-//            case .variable: fallthrough
-            case .whitespace: fallthrough
-            case .parameter:
-//            case .keyword:
-                fatalError("unexpected token: \(token)")
-            }
-        }
-    }
-}
 
 extension LeafToken {
 //    func makeParam() -> Parameter? {
@@ -247,12 +187,12 @@ extension LeafToken {
 
  */
 
-struct Comprehension {
-    let list: [PreProcess]
-    func syntax() -> [_Syntax] {
-        fatalError()
-    }
-}
+//struct Comprehension {
+//    let list: [PreProcess]
+//    func syntax() -> [_Syntax] {
+//        fatalError()
+//    }
+//}
 
 struct _LeafParser {
     private let tokens: [LeafToken]
@@ -263,15 +203,15 @@ struct _LeafParser {
         self.offset = 0
     }
     
-    mutating func parse() throws -> [PreProcess] {
-        var collect = [PreProcess]()
+    mutating func parse() throws -> [_Syntax] {
+        var collect = [_Syntax]()
         while let val = try nextSyntax() {
             collect.append(val)
         }
         return collect
     }
     
-    private mutating func nextSyntax() throws -> PreProcess? {
+    private mutating func nextSyntax() throws -> _Syntax? {
         guard let peek = self.peek() else { return nil }
         switch peek {
         case .tagIndicator:
@@ -284,7 +224,7 @@ struct _LeafParser {
     }
     
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
-    private mutating func readTagDeclaration() throws -> PreProcess {
+    private mutating func readTagDeclaration() throws -> _Syntax {
         // consume tag indicator
         guard let first = read(), first == .tagIndicator else { throw "expected tag indicator" }
         // a tag should ALWAYS follow a tag indicator
@@ -296,7 +236,7 @@ struct _LeafParser {
         }
         
         // if no further, then we've ended w/ a tag
-        guard let next = peek() else { return .tagDeclaration(name: name, parameters: [], hasBody: false) }
+        guard let next = peek() else { return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: false) }
         
         // following a tag can be,
         // .raw - tag is complete
@@ -305,12 +245,12 @@ struct _LeafParser {
         switch next {
         case .raw:
             // a basic tag, something like `#date` w/ no params, and no body
-            return .tagDeclaration(name: name, parameters: [], hasBody: false)
+            return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: false)
         case .tagBodyIndicator:
             // consume ':'
             pop()
             // no parameters, but with a body
-            return .tagDeclaration(name: name, parameters: [], hasBody: true)
+            return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: true)
         case .parametersStart:
             let params = try readParameters()
             var hasBody = false
@@ -318,10 +258,14 @@ struct _LeafParser {
                 hasBody = true
                 pop()
             }
-            return .tagDeclaration(name: name, parameters: params, hasBody: hasBody)
+            return try convertTagDeclarationSyntax(name: name, parameters: params, hasBody: hasBody)
         default:
             fatalError()
         }
+    }
+    
+    func convertTagDeclarationSyntax(name: String, parameters: [ProcessedParameter], hasBody: Bool) throws -> _Syntax {
+        return .tagDeclaration(name: name, parameters: parameters, hasBody: hasBody)
     }
     
     private mutating func readParameters() throws -> [ProcessedParameter] {
@@ -347,7 +291,7 @@ struct _LeafParser {
                 switch p {
                 case .tag(let name):
                     guard peek() == .parametersStart else { throw "tags in parameter list MUST declare parameter list" }
-                    // TODO: remove recursion
+                    // TODO: remove recursion, in parameters only not so bad
                     let params = try readParameters()
                     // parameter tags not permitted to have bodies
                     group.append(.tag(name: name, params: params))

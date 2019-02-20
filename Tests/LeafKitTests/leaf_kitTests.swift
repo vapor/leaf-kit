@@ -260,7 +260,7 @@ func lex(_ str: String) throws -> [LeafToken] {
     return try lexer.lex().dropWhitespace()
 }
 
-func parse(_ str: String) throws -> [PreProcess] {
+func parse(_ str: String) throws -> [_Syntax] {
     var buffer = ByteBufferAllocator().buffer(capacity: 0)
     buffer.writeString(str)
     
