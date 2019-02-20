@@ -88,8 +88,10 @@ final class LexerTests: XCTestCase {
         #endextend
         """
         
-        let output = try lex(home).map { $0.description + "\n" } .reduce("", +)
+        let output = try! parse(home).map { $0.description + "\n" } .reduce("", +)
 //        XCTAssertEqual(output, expectation)
+        print(output)
+        
         print("")
     }
     
@@ -104,17 +106,17 @@ final class LexerTests: XCTestCase {
         tagIndicator
         tag(name: "if")
         parametersStart
-        tag(name: "lowercase")
+        param(tag("lowercase"))
         parametersStart
-        tag(name: "first")
+        param(tag("first"))
         parametersStart
-        variable(name: "name")
-        operator(==)
-        stringLiteral("admin")
+        param(variable(name))
+        param(operator(operator(==)))
+        param(stringLiteral("admin"))
         parametersEnd
         parametersEnd
-        operator(==)
-        stringLiteral("welcome")
+        param(operator(operator(==)))
+        param(stringLiteral("welcome"))
         parametersEnd
         tagBodyIndicator
         raw("\\nfoo\\n")
@@ -134,7 +136,7 @@ final class LexerTests: XCTestCase {
         tagIndicator
         tag(name: "")
         parametersStart
-        constant(42)
+        param(constant(42))
         parametersEnd
         raw("</h1>")
 
@@ -178,7 +180,7 @@ final class LexerTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
     
-    func _testTags() throws {
+    func testTags() throws {
         let input = """
         #tag
         #tag:
@@ -213,13 +215,13 @@ final class LexerTests: XCTestCase {
         tagIndicator
         tag(name: "tag")
         parametersStart
-        variable(name: "foo")
+        param(variable(foo))
         parametersEnd
         raw("\\n")
         tagIndicator
         tag(name: "tag")
         parametersStart
-        variable(name: "foo")
+        param(variable(foo))
         parametersEnd
         tagBodyIndicator
 
@@ -237,13 +239,13 @@ final class LexerTests: XCTestCase {
         """
         
         let expectation = """
-        
+        tag(if(hasBody: true): expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome"))))
+        raw("\\nfoo\\n")
+        tagTerminator(if)
         """
         
         let syntax = try parse(input)
         let output = syntax.map { $0.description } .joined(separator: "\n")
-        print(syntax)
-//        let output = ""
         XCTAssertEqual(output, expectation)
     }
 }

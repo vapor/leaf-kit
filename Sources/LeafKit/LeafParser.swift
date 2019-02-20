@@ -119,20 +119,6 @@ indirect enum PreProcess: CustomStringConvertible {
         case .tagDeclaration(let name, let params, let hasBody):
             let name = name + "(hasBody: " + hasBody.description + ")"
             return "tag(" + name + ": " + params.map { $0.description } .joined(separator: ",") + ")"
-//            return "tag(" + n + ": " +
-//            var process = ""
-//            process += "\ntag: \(n)\n"
-//            process += "hasBody: \(b)\n"
-//            process += "parameters: \n"
-//
-////            process += "name: " + n + "\n"
-////            process += "parameters: [\n\t"
-//            p.forEach { param in
-//                process += param.description + ",\n"
-//            }
-////            process += "]\n"
-//            return process
-//            return "tag(\(n), [\(p)], body: \(b))"
         }
     }
 }
@@ -148,17 +134,6 @@ indirect enum _Parameter {
     case tag(_Tag)
     case expression([Parameter])
 }
-/**
- a quick pass to
- - collect and group raw
- Raw
- Tag
- Parameters
- Raw
- Tag
- Body?
- -
- **/
 
 indirect enum __Syntax {
     case raw(ByteBuffer)
@@ -228,6 +203,11 @@ extension LeafToken {
 //        }
 //    }
 }
+
+struct Comprehension {
+    let list: [PreProcess]
+}
+
 struct _LeafParser {
     
 //    case raw(ByteBuffer)
@@ -325,46 +305,46 @@ struct _LeafParser {
 //        }
 //    }
     
-    mutating func parse() throws -> [_Syntax] {
-        while let next = try self.next() {
-            found.append(next)
-        }
-        return found
-    }
-    
-    mutating func _parse() throws -> [_Syntax] {
-        while let next = try self.next() {
-            found.append(next)
-        }
-        return found
-    }
-    
-    mutating func next() throws -> _Syntax? {
-        guard let peek = self.peek() else { return nil }
-        print("peeking at \(peek)")
-        print("")
-        switch peek {
-        case .tagIndicator:
-            let tag = try nextTag()
-            return .tag(tag)
-        case .raw:
-            let r = try collectRaw()
-            return .raw(r)
-        case .tagBodyIndicator: fallthrough
-//        case .constant: fallthrough
-//        case .operator: fallthrough
-        case .parameterDelimiter: fallthrough
-        case .parametersStart: fallthrough
-        case .stringLiteral: fallthrough
-        case .parametersEnd: fallthrough
-        case .tag: fallthrough
-//        case .variable: fallthrough
-        case .whitespace: fallthrough
-        case .parameter:
-//        case .keyword:
-            fatalError("unexpected token: \(peek)")
-        }
-    }
+//    mutating func parse() throws -> [_Syntax] {
+//        while let next = try self.next() {
+//            found.append(next)
+//        }
+//        return found
+//    }
+//
+//    mutating func _parse() throws -> [_Syntax] {
+//        while let next = try self.next() {
+//            found.append(next)
+//        }
+//        return found
+//    }
+//
+//    mutating func next() throws -> _Syntax? {
+//        guard let peek = self.peek() else { return nil }
+//        print("peeking at \(peek)")
+//        print("")
+//        switch peek {
+//        case .tagIndicator:
+//            let tag = try nextTag()
+//            return .tag(tag)
+//        case .raw:
+//            let r = try collectRaw()
+//            return .raw(r)
+//        case .tagBodyIndicator: fallthrough
+////        case .constant: fallthrough
+////        case .operator: fallthrough
+//        case .parameterDelimiter: fallthrough
+//        case .parametersStart: fallthrough
+//        case .stringLiteral: fallthrough
+//        case .parametersEnd: fallthrough
+//        case .tag: fallthrough
+////        case .variable: fallthrough
+//        case .whitespace: fallthrough
+//        case .parameter:
+////        case .keyword:
+//            fatalError("unexpected token: \(peek)")
+//        }
+//    }
     
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
     mutating func nextTag() throws -> _Tag {
