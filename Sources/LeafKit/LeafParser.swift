@@ -202,17 +202,56 @@ extension _Syntax {
 indirect enum _ALTSyntax {
     
     struct Import {
-        let params: [ProcessedParameter]
+        let key: String
+        init(_ params: [ProcessedParameter]) throws {
+            guard params.count == 1 else { throw "import only supports single param \(params)" }
+            guard case .parameter(let p) = params[0] else { throw "expected parameter" }
+            guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
+            self.key = s
+        }
     }
     
     struct Extend {
-        let params: [ProcessedParameter]
+        let key: String
         let body: [_ALTSyntax]
+        init(_ params: [ProcessedParameter], body: [_ALTSyntax]) throws {
+            guard params.count == 1 else { throw "extend only supports single param \(params)" }
+            guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
+            guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
+            self.key = s
+            self.body = try body.filter {
+                switch $0 {
+                // extend can ONLY export, raw space in body ignored
+                case .raw: return false
+                case .export: return true
+                default: throw "unexpected token in extend body: \($0).. use raw space and `export` only"
+                }
+            }
+        }
     }
     
     struct Export {
-        let params: [ProcessedParameter]
-        let body: [_ALTSyntax]?
+        let key: String
+        let body: [_ALTSyntax]
+        
+        init(_ params: [ProcessedParameter], body: [_ALTSyntax]) throws {
+            guard (1...2).contains(params.count) else { throw "export expects 1 or 2 params" }
+            guard case .parameter(let p) = params[0] else { throw "expected parameter" }
+            guard case .stringLiteral(let s) = p else { throw "export only supports string literals" }
+            self.key = s
+
+            if params.count == 2 {
+                guard case .parameter(let p) = params[1] else { throw "expected parameter" }
+                guard case .stringLiteral(let s) = p else { throw "extend only supports string literals" }
+                guard body.isEmpty else { throw "extend w/ two args requires NO body" }
+                var buffer = ByteBufferAllocator().buffer(capacity: 0)
+                buffer.writeString(s)
+                self.body = [.raw(buffer)]
+            } else {
+                guard !body.isEmpty else { throw "export requires body or secondary arg" }
+                self.body = body
+            }
+        }
     }
     
     struct Conditional {
@@ -237,9 +276,9 @@ indirect enum _ALTSyntax {
     
     case conditional(_ConditionalSyntax, body: [_ALTSyntax]?)
     case loop([ProcessedParameter], body: [_ALTSyntax])
-    case `import`([ProcessedParameter])
-    case extend([ProcessedParameter], body: [_ALTSyntax])
-    case export([ProcessedParameter], body: [_ALTSyntax]?)
+    case `import`(Import)
+    case extend(Extend)
+    case export(Export)
     
     
     var description: String {
@@ -252,10 +291,10 @@ indirect enum _ALTSyntax {
         case .raw(var byteBuffer):
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
             print += "raw(\(string.debugDescription))"
-        case .variable(let params):
-            print += "variable(" + "\(params)" + ")"
+        case .variable(let v):
+            print += "variable(" + "\(v.params.map { $0.description } .joined(separator: ", "))" + ")"
         case .custom(let name, let params, let body):
-            print += "tag(" + name + ": " + params.map { $0.description } .joined(separator: ", ") + ")"
+            print += name + "(" + params.map { $0.description } .joined(separator: ", ") + ")"
             if let body = body, !body.isEmpty {
                 print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
@@ -275,15 +314,17 @@ indirect enum _ALTSyntax {
             }
         case .loop(let params, _):
             print += "loop(" + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .import(let params):
-            print += "import(" + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .extend(let params, let body):
-            print += "extend(" + params.map { $0.description } .joined(separator: ", ") + "):\n"
-            print += body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
-        case .export(let params, let body):
-            print += "export(" + params.map { $0.description } .joined(separator: ", ") + ")"
-            if let body = body, !body.isEmpty {
-                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+        case .import(let imp):
+            print += "import(" + imp.key.debugDescription + ")"
+        case .extend(let ext):
+            print += "extend(" + ext.key.debugDescription + ")"
+            if !ext.body.isEmpty {
+                print += ":\n" + ext.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+            }
+        case .export(let export):
+            print += "export(" + export.key.debugDescription + ")"
+            if !export.body.isEmpty {
+                print += ":\n" + export.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
         }
         
@@ -904,12 +945,12 @@ extension TagDeclaration {
         case "for":
             return .loop(params, body: body)
         case "export":
-            return .export(params, body: body)
+            return try .export(.init(params, body: body))
         case "extend":
-            return .extend(params, body: body)
+            return try .extend(.init(params, body: body))
         case "import":
             guard body.isEmpty else { throw "import does not accept a body" }
-            return .import(params)
+            return try .import(.init(params))
         default:
             return .custom(name: name, parameters: params, body: body)
         }
