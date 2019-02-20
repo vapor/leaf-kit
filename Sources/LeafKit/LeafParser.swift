@@ -179,7 +179,7 @@ indirect enum _Syntax: CustomStringConvertible {
     
     case `import`([ProcessedParameter])
     case extend([ProcessedParameter])
-    case export([ProcessedParameter])
+    case export([ProcessedParameter], hasBody: Bool)
     
     var description: String {
         switch self {
@@ -210,8 +210,8 @@ indirect enum _Syntax: CustomStringConvertible {
             return "import(" + params.map { $0.description } .joined(separator: ", ") + ")"
         case .extend(let params):
             return "extend(" + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .export(let params):
-            return "export(" + params.map { $0.description } .joined(separator: ", ") + ")"
+        case .export(let params, let hasBody):
+            return "export(hasBody: \(hasBody): " + params.map { $0.description } .joined(separator: ", ") + ")"
         }
     }
 }
@@ -578,7 +578,7 @@ struct _LeafParser {
             guard hasBody else { throw "for statement requires body" }
             return .loop(params)
         case "export":
-            return .export(params)
+            return .export(params, hasBody: hasBody)
         case "extend":
             guard hasBody else { throw "extensions require body" }
             return .extend(params)

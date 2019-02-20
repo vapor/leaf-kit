@@ -53,7 +53,7 @@ class LeafTests { //: XCTestCase {
 }
 
 final class ParserTests: XCTestCase {
-    func testParsing() throws {
+    func testParsingNesting() throws {
         let input = """
         #if(lowercase(first(name == "admin")) == "welcome"):
         foo
@@ -92,26 +92,7 @@ final class ParserTests: XCTestCase {
         let output = syntax.map { $0.description } .joined(separator: "\n")
         XCTAssertEqual(output, expectation)
     }
-}
-
-final class LexerTests: XCTestCase {
     
-    func _testExtenasdfd() throws {
-        /// 'base.leaf
-//        let base = """
-//        <title>#import(title)</title>
-//        #import(body)
-//        """
-//
-        /// `home.leaf`
-        let home = """
-        #if(if(foo):bar#endif == "bar", "value")
-        """
-        
-        let output = try lex(home).map { $0.description + "\n" } .reduce("", +)
-        //        XCTAssertEqual(output, expectation)
-        print("")
-    }
     
     func testExtend() throws {
         /// 'base.leaf
@@ -131,9 +112,29 @@ final class LexerTests: XCTestCase {
         """
         
         let output = try! parse(home).map { $0.description + "\n" } .reduce("", +)
-//        XCTAssertEqual(output, expectation)
+        //        XCTAssertEqual(output, expectation)
         print(output)
         
+        print("")
+    }
+}
+
+final class LexerTests: XCTestCase {
+    
+    func _testExtenasdfd() throws {
+        /// 'base.leaf
+//        let base = """
+//        <title>#import(title)</title>
+//        #import(body)
+//        """
+//
+        /// `home.leaf`
+        let home = """
+        #if(if(foo):bar#endif == "bar", "value")
+        """
+        
+        let output = try lex(home).map { $0.description + "\n" } .reduce("", +)
+        //        XCTAssertEqual(output, expectation)
         print("")
     }
     
