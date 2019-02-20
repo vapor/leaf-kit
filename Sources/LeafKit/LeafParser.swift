@@ -69,9 +69,9 @@ struct _For {
     
 }
 
-struct _Conditional {
-    
-}
+//struct _Conditional {
+//
+//}
 
 /*
  
@@ -134,22 +134,64 @@ struct Compiler {
     }
 }
 
+enum _Conditional {
+    case `if`([ProcessedParameter])
+    case `elseif`([ProcessedParameter])
+    case `else`
+}
+
+
+indirect enum _Syntaxxxx: CustomStringConvertible {
+    case raw(ByteBuffer)
+    case tag(name: String, parameters: [ProcessedParameter]?, body: [_Syntaxxxx]?)
+    
+    //    case variable(name: String)
+    //    case conditional(_Conditional)
+    
+    var description: String {
+        let t = type(of: self)
+        return "\(t) \(self)"
+//        switch self {
+//        case .raw(var byteBuffer):
+//            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
+//            return "raw(\(string.debugDescription))"
+//            //        case .variable(let name):
+//        //            return "variable(\(name))"
+//        case .tagTerminator(name: let terminator):
+//            return "tagTerminator(\(terminator))"
+//        case .tagDeclaration(let name, let params, let hasBody):
+//            let name = name + "(hasBody: " + hasBody.description + ")"
+//            return "tag(" + name + ": " + params.map { $0.description } .joined(separator: ",") + ")"
+//        default:
+//            fatalError()
+//            return "conditional()"
+//        }
+    }
+}
 
 indirect enum _Syntax: CustomStringConvertible {
     case raw(ByteBuffer)
     case tagDeclaration(name: String, parameters: [ProcessedParameter], hasBody: Bool)
     case tagTerminator(name: String)
     
+//    case variable(name: String)
+//    case conditional(_Conditional)
+    
     var description: String {
         switch self {
         case .raw(var byteBuffer):
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
             return "raw(\(string.debugDescription))"
+//        case .variable(let name):
+//            return "variable(\(name))"
         case .tagTerminator(name: let terminator):
             return "tagTerminator(\(terminator))"
         case .tagDeclaration(let name, let params, let hasBody):
             let name = name + "(hasBody: " + hasBody.description + ")"
             return "tag(" + name + ": " + params.map { $0.description } .joined(separator: ",") + ")"
+        default:
+            fatalError()
+            return "conditional()"
         }
     }
 }
@@ -187,12 +229,45 @@ extension LeafToken {
 
  */
 
+struct Tagggg {
+    let name: String
+    let parameters: [ProcessedParameter]?
+    let body: [_Syntax]?
+}
+
 //struct Comprehension {
 //    let list: [PreProcess]
 //    func syntax() -> [_Syntax] {
 //        fatalError()
 //    }
 //}
+
+//class TTTTagDeclaration {
+//    let name
+//}
+
+struct _Compiler {
+    let syntax: [_Syntax]
+    private var reversed: ReversedCollection<[_Syntax]>.Iterator
+    
+    init(syntax: [_Syntax]) {
+        self.syntax = syntax
+        let reversed = syntax.reversed().makeIterator()
+        self.reversed = reversed
+    }
+    
+    mutating func compile() throws {
+        var registry: [_Syntax]
+        while let next = reversed.next() {
+            switch next {
+            case .raw, .tagDeclaration:
+                registry.append(next)
+            case .tagTerminator(let name):
+                fatalError()
+            }
+        }
+    }
+}
 
 struct _LeafParser {
     private let tokens: [LeafToken]
@@ -202,14 +277,64 @@ struct _LeafParser {
         self.tokens = tokens
         self.offset = 0
     }
+
     
     mutating func parse() throws -> [_Syntax] {
-        var collect = [_Syntax]()
+        var collected = [_Syntax]()
         while let val = try nextSyntax() {
-            collect.append(val)
+//            switch val {
+//            case .tagTerminator(let name):
+//                let body = collected.reversed().drop { syn -> Bool in
+//                    switch syn {
+//                    case .tagDeclaration(let tag, let _, let hasBody) where tag == name && hasBody:
+//                        print("found: \(tag) matching \(name)")
+//                        return false
+//                    default:
+//                        return true
+//                    }
+//                }
+//                let bodyOpened = collected.last!
+//                print(bodyOpened)
+//                print("")
+//            default:
+//                print("do nothing")
+//            }
+            collected.append(val)
         }
-        return collect
+        return collected
     }
+    
+//    mutating func close(name: String) {
+//        var tagName: String = ""
+//        var parameters: [ProcessedParameter]
+//        let body = collected.reversed().drop { syn -> Bool in
+//            switch syn {
+//            case .tagDeclaration(let tag, let parameters, let hasBody) where tag == name && hasBody:
+//                return tag != name
+//            default:
+//                return true
+//            }
+//        }
+////        collected.reversed().c
+//        let found = collected.reversed().firstIndex { syn -> Bool in
+//            switch syn {
+//            case .tagDeclaration(let tag, let parameters, let hasBody) where hasBody:
+//                return tag == name
+//            default:
+//                return false
+//            }
+//        }
+//
+//        guard let idx = found else { fatalError("found end token w/o close") }
+////        collected.dropLast(<#T##k: Int##Int#>)
+////        for syntax in collected {
+////            switch syntax {
+////                case .tagDeclaration(let name, let parameters, let hasBody)
+////            default:
+////                return
+////            }
+////        }
+//    }
     
     private mutating func nextSyntax() throws -> _Syntax? {
         guard let peek = self.peek() else { return nil }
@@ -221,6 +346,151 @@ struct _LeafParser {
             return .raw(r)
         default: throw "unexpected token \(peek)"
         }
+    }
+    
+    // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
+//    private mutating func _readTagDeclaration() throws -> Tagggg {
+//        // consume tag indicator
+//        guard let first = read(), first == .tagIndicator else { throw "expected tag indicator" }
+//        // a tag should ALWAYS follow a tag indicator
+//        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag following a `#` indicator" }
+//
+//        // TODO: WARN: tags that begin w/ 'end' are reserved, and can NOT have a body
+//        if name.starts(with: "end") {
+//
+//            return .tagTerminator(name: String(name.dropFirst(3)))
+//        }
+//
+//        // if no further, then we've ended document w/ a tag
+//        guard let next = peek() else { return Tagggg(name: name, parameters: nil, body: nil) }
+//
+//        // following a tag can be,
+//        // .raw - tag is complete
+//        // .tagBodyIndicator - ready to read body
+//        // .parametersStart - start parameters
+//        switch next {
+//        case .raw:
+//            // a basic tag, something like `#date` w/ no params, and no body
+//            return Tagggg(name: name, parameters: nil, body: nil)
+//        case .tagBodyIndicator:
+//            // consume ':'
+//            pop()
+//            // no parameters, but with a body
+//            return Tagggg(name: name, parameters: nil, body: [])
+////            return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: true)
+//        case .parametersStart:
+//            let params = try readParameters()
+//            var hasBody = false
+//            if peek() == .tagBodyIndicator {
+//                hasBody = true
+//                pop()
+//            }
+//            return try convertTagDeclarationSyntax(name: name, parameters: params, hasBody: hasBody)
+//        default:
+//            fatalError()
+//        }
+//    }
+    
+    // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
+    private mutating func _readTagDeclaration() throws -> _Syntax {
+        // consume tag indicator
+        guard let first = read(), first == .tagIndicator else { throw "expected tag indicator" }
+        // a tag should ALWAYS follow a tag indicator
+        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag following a `#` indicator" }
+        
+        switch name {
+        case let n where n.starts(with: "end"):
+            // TODO: WARN: tags that begin w/ 'end' are reserved, and can NOT have a body
+            return .tagTerminator(name: String(name.dropFirst(3)))
+        case "if", "elseif":
+            let params = try readParameters()
+            var hasBody = false
+            if peek() == .tagBodyIndicator {
+                hasBody = true
+                pop()
+            }
+            fatalError("conditional")
+        case "for":
+            fatalError()
+        default: fatalError()
+        }
+        
+        if name.starts(with: "end") {
+            return .tagTerminator(name: String(name.dropFirst(3)))
+        }
+        
+        // if no further, then we've ended w/ a tag
+        guard let next = peek() else { return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: false) }
+        
+        // following a tag can be,
+        // .raw - tag is complete
+        // .tagBodyIndicator - ready to read body
+        // .parametersStart - start parameters
+        switch next {
+        case .raw:
+            // a basic tag, something like `#date` w/ no params, and no body
+            return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: false)
+        case .tagBodyIndicator:
+            // consume ':'
+            pop()
+            // no parameters, but with a body
+            return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: true)
+        case .parametersStart:
+            let params = try readParameters()
+            var hasBody = false
+            if peek() == .tagBodyIndicator {
+                hasBody = true
+                pop()
+            }
+            return try convertTagDeclarationSyntax(name: name, parameters: params, hasBody: hasBody)
+        default:
+            fatalError()
+        }
+    }
+    
+    // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
+    private mutating func _readBody() throws -> _Syntax {
+        // consume tag indicator
+        guard let first = read(), first == .tagBodyIndicator else { throw "expected body indicator" }
+        // a tag should ALWAYS follow a tag indicator
+        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag following a `#` indicator" }
+        
+        // TODO: WARN: tags that begin w/ 'end' are reserved, and can NOT have a body
+        if name.starts(with: "end") {
+            return .tagTerminator(name: String(name.dropFirst(3)))
+        }
+        
+        // if no further, then we've ended w/ a tag
+        guard let next = peek() else { return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: false) }
+        
+        // following a tag can be,
+        // .raw - tag is complete
+        // .tagBodyIndicator - ready to read body
+        // .parametersStart - start parameters
+        switch next {
+        case .raw:
+            // a basic tag, something like `#date` w/ no params, and no body
+            return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: false)
+        case .tagBodyIndicator:
+            // consume ':'
+            pop()
+            // no parameters, but with a body
+            return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: true)
+        case .parametersStart:
+            let params = try readParameters()
+            var hasBody = false
+            if peek() == .tagBodyIndicator {
+                hasBody = true
+                pop()
+            }
+            return try convertTagDeclarationSyntax(name: name, parameters: params, hasBody: hasBody)
+        default:
+            fatalError()
+        }
+    }
+    
+    private mutating func readBody(to: Tagggg) throws -> [ProcessedParameter] {
+        fatalError()
     }
     
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
@@ -264,7 +534,28 @@ struct _LeafParser {
         }
     }
     
+    func readBody() throws -> [_Syntax] {
+        fatalError()
+    }
+    
     func convertTagDeclarationSyntax(name: String, parameters: [ProcessedParameter], hasBody: Bool) throws -> _Syntax {
+        switch name {
+        case "":
+            guard parameters.count == 1 else { throw "unsupported variable parameters: \(parameters)" }
+            let parameter = parameters[0]
+//            guard case .
+//            return .variable(name: "")
+            /*
+             
+             #()
+             
+             */
+            print("handling variable")
+            print(parameters)
+            print()
+        default:
+            print("not handling: \(name)")
+        }
         return .tagDeclaration(name: name, parameters: parameters, hasBody: hasBody)
     }
     
@@ -342,6 +633,15 @@ struct _LeafParser {
         guard let val = self.peek() else { return nil }
         pop()
         return val
+    }
+    
+    mutating func readWhile(_ check: (LeafToken) -> Bool) -> [LeafToken]? {
+        guard self.offset < self.tokens.count else { return nil }
+        var matched = [LeafToken]()
+        while let next = peek(), check(next) {
+            matched.append(next)
+        }
+        return matched.isEmpty ? nil : matched
     }
 }
 

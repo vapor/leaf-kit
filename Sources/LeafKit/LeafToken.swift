@@ -33,6 +33,14 @@ enum Constant: CustomStringConvertible, Equatable {
     }
 }
 
+/*
+ #if(value):
+    #(value)
+ #else:
+    no name entered
+ #endif
+ */
+
 indirect enum ProcessedParameter: CustomStringConvertible {
     case parameter(Parameter)
     case expression([ProcessedParameter])
