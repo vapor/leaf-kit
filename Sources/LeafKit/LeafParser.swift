@@ -106,7 +106,7 @@ indirect enum _Syntax {
 
 indirect enum PreProcess: CustomStringConvertible {
     case raw(ByteBuffer)
-    case tagDeclaration(name: String, parameters: [Parameter], hasBody: Bool)
+    case tagDeclaration(name: String, parameters: [ProcessedParameter], hasBody: Bool)
     case tagTerminator(name: String)
     
     var description: String {
@@ -117,7 +117,19 @@ indirect enum PreProcess: CustomStringConvertible {
         case .tagTerminator(name: let terminator):
             return "tagTerminator(\(terminator))"
         case .tagDeclaration(name: let n, parameters: let p, hasBody: let b):
-            return "tag(\(n), [\(p)], body: \(b))"
+            var process = ""
+            process += "\ntag: \(n)\n"
+            process += "hasBody: \(b)\n"
+            process += "parameters: \n"
+            
+//            process += "name: " + n + "\n"
+//            process += "parameters: [\n\t"
+            p.forEach { param in
+                process += param.description + ",\n"
+            }
+//            process += "]\n"
+            return process
+//            return "tag(\(n), [\(p)], body: \(b))"
         }
     }
 }
@@ -441,7 +453,7 @@ struct _LeafParser {
             return .tagDeclaration(name: name, parameters: [], hasBody: true)
         case .parametersStart:
             print("collecting parameters for: \(tag)")
-            let params = try readParameters()
+            let params = try readProcessedParameters()
             var hasBody = false
             if peek() == .tagBodyIndicator {
                 hasBody = true
@@ -508,48 +520,59 @@ struct _LeafParser {
         return paramsList
     }
     
-    mutating func readProcessedParameters() throws -> [Parameter] {
+    mutating func readProcessedParameters() throws -> [ProcessedParameter] {
         // ensure open parameters
         guard read() == .parametersStart else { throw "expected parameters start" }
         
-        var group = [Parameter]()
-        var paramsList = [Parameter]()
+        var group = [ProcessedParameter]()
+        var paramsList = [ProcessedParameter]()
         func dump() {
             defer { group = [] }
-            
-            
+
+
             if group.isEmpty { return }
             else if group.count == 1 { paramsList.append(group.first!) }
-            else { paramsList.append(.expression(group))}
+            else {
+//                let params = paramsList.compactMap {
+//                    guard case .parameter(let p) = $0 else { return nil }
+//                    return p
+//                } as [Parameter]
+                paramsList.append(.expression(group))
+            }
         }
-        
+
         outer: while let next = peek() {
             switch next {
             case .parametersStart:
-                // we found an inner parameter list!
-                guard let last = group.last, case .tag(let name) = last else { fatalError("asfdljkeii") }
-                group.removeLast()
-                
-                // TODO: remove recursion
-                let params = try readParameters()
-                
-                print("Tag: \(name)")
-                print("params:")
-                print(params.map { $0.description } .joined(separator: ",\n"))
-                continue
+                fatalError("should not find")
             case .parameter(let p):
-                group.append(p)
                 pop()
+                switch p {
+                case .tag(let name):
+                    guard peek() == .parametersStart else { throw "tags in parameter list MUST declare parameter list" }
+                    // TODO: remove recursion
+                    let params = try readProcessedParameters()
+                    // parameter tags not permitted to have bodies
+                    group.append(.tag(name: name, params: params))
+                default:
+                    group.append(.parameter(p))
+                }
             case .parametersEnd:
-                dump()
                 pop()
+                dump()
                 break outer
             case .parameterDelimiter:
-                dump()
                 pop()
+                dump()
             case .whitespace:
                 pop()
                 continue
+//            case .tag(let name):
+//                guard peek() == .parametersStart else { throw "tags in parameter list MUST declare parameter list" }
+//                // TODO: remove recursion
+//                let params = try readProcessedParameters()
+//                // parameter tags not permitted to have bodies
+//                group.append(.tag(name: name, params: params))
             default:
                 print("breaking outer")
                 break outer

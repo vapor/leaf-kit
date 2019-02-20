@@ -124,7 +124,6 @@ final class LexerTests: XCTestCase {
         """
         
         let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
-        let _ = try parse(input)
         XCTAssertEqual(output, expectation)
     }
     
@@ -229,6 +228,24 @@ final class LexerTests: XCTestCase {
         let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
         XCTAssertEqual(output, expectation)
     }
+    
+    func testParsing() throws {
+        let input = """
+        #if(lowercase(first(name == "admin")) == "welcome"):
+        foo
+        #endif
+        """
+        
+        let expectation = """
+        
+        """
+        
+        let syntax = try parse(input)
+        let output = syntax.map { $0.description } .joined(separator: "\n")
+        print(syntax)
+//        let output = ""
+        XCTAssertEqual(output, expectation)
+    }
 }
 
 func lex(_ str: String) throws -> [LeafToken] {
@@ -239,19 +256,15 @@ func lex(_ str: String) throws -> [LeafToken] {
     return try lexer.lex().dropWhitespace()
 }
 
-func parse(_ str: String) throws -> [LeafToken] {
+func parse(_ str: String) throws -> [PreProcess] {
     var buffer = ByteBufferAllocator().buffer(capacity: 0)
     buffer.writeString(str)
     
     var lexer = LeafLexer(template: buffer)
-    let tokens = try lexer.lex()
+    let tokens = try! lexer.lex()
     var parser = _LeafParser.init(tokens: tokens)
-    let syntax = try parser.preProcess()
-    let printable = syntax.map { $0.description + "\n" } .reduce("", +)
-    print(printable)
-    print("")
-    
-    fatalError()
+    let syntax = try! parser.preProcess()
+    return syntax
 }
 
 final class LeafKitTests: XCTestCase {

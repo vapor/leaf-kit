@@ -2,7 +2,7 @@ enum Keyword: String, Equatable {
     case `in`, `true`, `false`, `self`, `nil`
 }
 
-enum Operator: String, Equatable {
+enum Operator: String, Equatable, CustomStringConvertible {
     case equals = "=="
     case notEquals = "!="
     case greaterThan = ">"
@@ -17,6 +17,8 @@ enum Operator: String, Equatable {
     
     case and = "&&"
     case or = "||"
+    
+    var description: String { return "operator(" + rawValue + ")" }
 }
 
 enum Constant: CustomStringConvertible, Equatable {
@@ -31,10 +33,46 @@ enum Constant: CustomStringConvertible, Equatable {
     }
 }
 
-indirect enum ProcessedParameter {
+indirect enum ProcessedParameter: CustomStringConvertible {
     case parameter(Parameter)
-    case expression([Parameter])
-    case tag(name: String, params: [ProcessedParameter], hasBody: Bool)
+    case expression([ProcessedParameter])
+    case tag(name: String, params: [ProcessedParameter])
+    
+    var description: String {
+        switch self {
+        case .parameter(let p):
+            return name + "(" + p.description + ")"
+        case .expression(let p):
+            return name + "(" + p.map { $0.short }.joined(separator: " ") + ")"
+        case .tag(let tag, let p):
+            var print = "tag: " + tag + "\n"
+            print += "params:\n\t"
+            print += p.map { $0.description } .joined(separator: ",\n\t")
+            return print
+        }
+    }
+    
+    var short: String {
+        switch self {
+        case .parameter(let p):
+            return p.short
+        case .expression(let p):
+            return p.map { $0.short }.joined(separator: " ")
+        case .tag(let name, let p):
+            return name + "(" + p.map { $0.short }.joined(separator: " ") + ")"
+        }
+    }
+    
+    var name: String {
+        switch self {
+        case .parameter:
+            return "parameter"
+        case .expression:
+            return "expression"
+        case .tag:
+            return "tag"
+        }
+    }
 }
 
 indirect enum Parameter: Equatable, CustomStringConvertible {
