@@ -93,6 +93,25 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
     
+    func testCompiler() throws {
+        let input = """
+        #if(sayhello):
+            abc
+            #for(name in names):
+                hi, #(name)
+            #endfor
+            def
+        #else:
+        foo
+        #endif
+        """
+
+        try compile(input)
+//        let syntax = try compile(input)
+//        let output = syntax.map { $0.description } .joined(separator: "\n")
+//        XCTAssertEqual(output, expectation)
+    }
+    
     
     func testExtend() throws {
         let input = """
@@ -119,13 +138,14 @@ final class ParserTests: XCTestCase {
 
         """
         
+        let lexed = try! lex(input).map { $0.description + "\n" } .reduce("", +)
         let output = try! parse(input).map { $0.description + "\n" } .reduce("", +)
         XCTAssertEqual(output, expectation)
     }
     
     func testPPP() throws {
-        var it = [0, 1, 2, 3, 4].reversed().makeIterator()
-        let stripped = it.drop(while: { print("check \($0)"); return false; })
+        var it = [0, 1, 2, 3, 4] // .reversed().makeIterator()
+        let stripped = it.drop(while: { $0 > 2 })
         print(Array(stripped))
         print("")
     }
@@ -303,7 +323,21 @@ func parse(_ str: String) throws -> [_Syntax] {
     let tokens = try! lexer.lex()
     var parser = _LeafParser.init(tokens: tokens)
     let syntax = try! parser.parse()
+
     return syntax
+}
+
+func compile(_ str: String) throws {
+    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+    buffer.writeString(str)
+    
+    var lexer = LeafLexer(template: buffer)
+    let tokens = try! lexer.lex()
+    var parser = _LeafParser.init(tokens: tokens)
+    let syntax = try! parser.parse()
+    
+    var compiler = _Compiler(syntax: syntax)
+    compiler.test()
 }
 
 final class LeafKitTests: XCTestCase {

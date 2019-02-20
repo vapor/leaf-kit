@@ -40,8 +40,7 @@ enum Constant: CustomStringConvertible, Equatable {
     no name entered
  #endif
  */
-
-indirect enum ProcessedParameter: CustomStringConvertible {
+indirect enum ProcessedParameter: CustomStringConvertible, Equatable {
     case parameter(Parameter)
     case expression([ProcessedParameter])
     case tag(name: String, params: [ProcessedParameter])
