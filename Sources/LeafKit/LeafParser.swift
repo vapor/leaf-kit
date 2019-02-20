@@ -200,8 +200,38 @@ extension _Syntax {
 }
 
 indirect enum _ALTSyntax {
+    
+    struct Import {
+        let params: [ProcessedParameter]
+    }
+    
+    struct Extend {
+        let params: [ProcessedParameter]
+        let body: [_ALTSyntax]
+    }
+    
+    struct Export {
+        let params: [ProcessedParameter]
+        let body: [_ALTSyntax]?
+    }
+    
+    struct Conditional {
+        let condition: [ProcessedParameter]
+        let body: [_ALTSyntax]
+        let next: _ALTSyntax?
+    }
+    
+    struct Loop {
+        let params: [ProcessedParameter]
+        let body: [_ALTSyntax]
+    }
+    
+    struct Variable {
+        let params: [ProcessedParameter]
+    }
+    
     case raw(ByteBuffer)
-    case variable([ProcessedParameter])
+    case variable(Variable)
     
     case custom(name: String, parameters: [ProcessedParameter], body: [_ALTSyntax]?)
     
@@ -222,7 +252,7 @@ indirect enum _ALTSyntax {
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
             return "raw(\(string.debugDescription))"
         case .variable(let params):
-            return "variable(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            return "variable(" + "\(params)" + ")"
         case .custom(let name, let params, let body):
             var print = "tag(" + name + ": " + params.map { $0.description } .joined(separator: ", ") + ")"
             if let body = body {
@@ -862,7 +892,7 @@ extension TagDeclaration {
         case let n where n.starts(with: "end"):
             throw "unable to convert terminator to syntax"
         case "":
-            return .variable(params)
+            return .variable(.init(params: params))
         case "if":
             return .conditional(.if(params), body: body)
         case "elseif":
