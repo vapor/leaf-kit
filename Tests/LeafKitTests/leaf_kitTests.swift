@@ -101,7 +101,7 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
     
-    func __testCompiler() throws {
+    func testCompiler() throws {
         let input = """
         #if(sayhello):
             abc
@@ -121,7 +121,7 @@ final class ParserTests: XCTestCase {
         //        let output = syntax.map { $0.description } .joined(separator: "\n")
         //        XCTAssertEqual(output, expectation)
     }
-    func __testCompiler2() throws {
+    func testCompiler2() throws {
         let input = """
         #if(sayhello):
             abc
@@ -139,7 +139,7 @@ final class ParserTests: XCTestCase {
     }
     
     
-    func __testExtend() throws {
+    func testCompileExtend() throws {
         let input = """
         #extend("base"):
             #export("title", "Welcome")
@@ -165,7 +165,11 @@ final class ParserTests: XCTestCase {
         """
         
         let lexed = try! lex(input).map { $0.description + "\n" } .reduce("", +)
-        let output = try! parse(input).map { $0.description + "\n" } .reduce("", +)
+        let parsed = try! parse(input).map { $0.description + "\n" } .reduce("", +)
+        let compiled = try! compile(input).map { $0.description + "\n" } .reduce("", +)
+        let _ = lexed + parsed + compiled
+        
+        let output = parsed
         XCTAssertEqual(output, expectation)
     }
     
@@ -341,7 +345,8 @@ func lex(_ str: String) throws -> [LeafToken] {
     return try lexer.lex().dropWhitespace()
 }
 
-func parse(_ str: String) throws -> [_ALTSyntax] {
+
+func altParse(_ str: String) throws -> [_ALTSyntax] {
     var buffer = ByteBufferAllocator().buffer(capacity: 0)
     buffer.writeString(str)
     
@@ -349,6 +354,18 @@ func parse(_ str: String) throws -> [_ALTSyntax] {
     let tokens = try! lexer.lex()
     var parser = _LeafParser.init(tokens: tokens)
     let syntax = try! parser.altParse()
+    
+    return syntax
+}
+
+func parse(_ str: String) throws -> [_Syntax] {
+    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+    buffer.writeString(str)
+    
+    var lexer = LeafLexer(template: buffer)
+    let tokens = try! lexer.lex()
+    var parser = _LeafParser.init(tokens: tokens)
+    let syntax = try! parser.parse()
 
     return syntax
 }

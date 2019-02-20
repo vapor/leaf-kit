@@ -928,6 +928,7 @@ struct _Compiler {
     mutating private func handle(next: _Syntax) throws {
         // check terminator first for dual body/terminator functors,
         // ie: elseif, else
+        // must happen BEFORE body
         if next.isTerminator { try close(with: next) }
         
         // this needs to be a secondary if-statement, and
@@ -936,12 +937,14 @@ struct _Compiler {
         // this allows for dual functors, a la elseif
         if next.expectsBody {
             waiting.append(.init(next))
-        } else if let last = waiting.last {
-            last.body.append(.init(next))
         } else if !next.isTerminator {
-            // not a terminator, and nobody is
-            // waiting, top level
-            ready.append(.init(next))
+            if let last = waiting.last {
+                last.body.append(.init(next))
+            } else {
+                // not a terminator, and nobody is
+                // waiting, top level
+                ready.append(.init(next))
+            }
         }
     }
     
