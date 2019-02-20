@@ -278,7 +278,15 @@ struct _Compiler {
     
     mutating func compile() throws {
         var registry: [_Syntax]
+        
+        
         while let next = reversed.next() {
+            switch next {
+            case .tagTerminator(let terminate):
+//                var body = reversed.dro
+                fatalError()
+            default: fatalError()
+            }
 //            switch next {
 //            case .raw, .tagDeclaration:
 //                registry.append(next)

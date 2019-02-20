@@ -95,14 +95,7 @@ final class ParserTests: XCTestCase {
     
     
     func testExtend() throws {
-        /// 'base.leaf
-        let base = """
-        <title>#import(title)</title>
-        #import(body)
-        """
-        
-        /// `home.leaf`
-        let home = """
+        let input = """
         #extend("base"):
             #export("title", "Welcome")
             #export("body"):
@@ -111,10 +104,29 @@ final class ParserTests: XCTestCase {
         #endextend
         """
         
-        let output = try! parse(home).map { $0.description + "\n" } .reduce("", +)
-        //        XCTAssertEqual(output, expectation)
-        print(output)
+        let expectation = """
+        extend(parameter(stringLiteral("base")))
+        raw("\\n    ")
+        export(hasBody: false: parameter(stringLiteral("title")), parameter(stringLiteral("Welcome")))
+        raw("\\n    ")
+        export(hasBody: true: parameter(stringLiteral("body")))
+        raw("\\n        Hello, ")
+        variable(parameter(variable(name)))
+        raw("!\\n    ")
+        tagTerminator(export)
+        raw("\\n")
+        tagTerminator(extend)
+
+        """
         
+        let output = try! parse(input).map { $0.description + "\n" } .reduce("", +)
+        XCTAssertEqual(output, expectation)
+    }
+    
+    func testPPP() throws {
+        var it = [0, 1, 2, 3, 4].reversed().makeIterator()
+        let stripped = it.drop(while: { print("check \($0)"); return false; })
+        print(Array(stripped))
         print("")
     }
 }
