@@ -274,7 +274,7 @@ indirect enum _ALTSyntax {
     
     case custom(name: String, parameters: [ProcessedParameter], body: [_ALTSyntax]?)
     
-    case conditional(_ConditionalSyntax, body: [_ALTSyntax]?)
+    case conditional(_ConditionalSyntax, body: [_ALTSyntax], next: Conditional?)
     case loop([ProcessedParameter], body: [_ALTSyntax])
     case `import`(Import)
     case extend(Extend)
@@ -298,7 +298,7 @@ indirect enum _ALTSyntax {
             if let body = body, !body.isEmpty {
                 print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
-        case .conditional(let c, let body):
+        case .conditional(let c, let body, let next):
             print += "conditional("
             switch c {
             case .if(let params):
@@ -309,7 +309,7 @@ indirect enum _ALTSyntax {
                 print += "else"
             }
             print += ")"
-            if let body = body, !body.isEmpty {
+            if !body.isEmpty {
                 print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
         case .loop(let params, _):
@@ -936,12 +936,12 @@ extension TagDeclaration {
         case "":
             return .variable(.init(params: params))
         case "if":
-            return .conditional(.if(params), body: body)
+            return .conditional(.if(params), body: body, next: nil)
         case "elseif":
-            return .conditional(.elseif(params), body: body)
+            return .conditional(.elseif(params), body: body, next: nil)
         case "else":
             guard params.count == 0 else { throw "else does not accept params" }
-            return .conditional(.else, body: body)
+            return .conditional(.else, body: body, next: nil)
         case "for":
             return .loop(params, body: body)
         case "export":
@@ -1050,6 +1050,11 @@ struct _LeafParser {
     }
     
     var finished: [_ALTSyntax] = []
+    
+    func addFinished(_ finished: _ALTSyntax) {
+//        guard case 
+    }
+    
     var awaitingBody: [Awaiterrrrr] = []
     
     mutating func altParse() throws -> [_ALTSyntax] {
