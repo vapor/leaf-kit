@@ -370,7 +370,7 @@ func parse(_ str: String) throws -> [_Syntax] {
     return syntax
 }
 
-func compile(_ str: String) throws -> [_Element] {
+func compile(_ str: String) throws -> [_Block] {
     var buffer = ByteBufferAllocator().buffer(capacity: 0)
     buffer.writeString(str)
     

@@ -626,23 +626,24 @@ final class Block: CustomStringConvertible {
     }
 }
 
-final class _Element {
+final class _Block {
     let parent: _Syntax
-    var body: [_Element] = []
+    var body: [_Block] = []
     init(_ parent: _Syntax) {
         self.parent = parent
     }
     var description: String {
         let bod = body.map { $0.description } .joined(separator: ", ")
-        return "element(parent: "
-            + parent.description
-            + ", body: ("
-            + bod
-            + "))"
-//        var print = ""
-//        print += "parent(" + parent.description + ")\n"
-//        print += "body(" + body.map { $0.description } .joined(separator: ", ") + ")"
-//        return print
+        var print = "\n"
+        print += "<block>\n"
+        print += parent.description + "\n"
+        if !body.isEmpty {
+            print += "<body>"
+            print += bod
+            print += "\n</body>"
+        }
+        print += "</block>"
+        return print
     }
 }
 
@@ -913,14 +914,14 @@ extension TagDeclaration {
 
 struct _Compiler {
     private var syntax: [_Syntax]
-    private var ready: [_Element] = []
-    private var waiting: [_Element] = []
+    private var ready: [_Block] = []
+    private var waiting: [_Block] = []
     
     init(syntax: [_Syntax]) {
         self.syntax = syntax
     }
     
-    mutating func compile() throws -> [_Element] {
+    mutating func compile() throws -> [_Block] {
         try syntax.forEach { try handle(next: $0) }
         return ready + waiting
     }
