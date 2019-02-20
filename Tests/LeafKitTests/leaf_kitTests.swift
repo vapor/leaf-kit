@@ -61,7 +61,29 @@ final class ParserTests: XCTestCase {
         """
         
         let expectation = """
-        tag(if(hasBody: true): expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome"))))
+        conditional(if(expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome")))))
+        raw("\\nfoo\\n")
+        tagTerminator(if)
+        """
+        
+        let syntax = try parse(input)
+        let output = syntax.map { $0.description } .joined(separator: "\n")
+        XCTAssertEqual(output, expectation)
+    }
+    
+    func testComplex() throws {
+        let input = """
+        #if(foo):
+        foo
+        #else:
+        foo
+        #endif
+        """
+        
+        let expectation = """
+        conditional(if(parameter(variable(foo))))
+        raw("\\nfoo\\n")
+        conditional(else)
         raw("\\nfoo\\n")
         tagTerminator(if)
         """
