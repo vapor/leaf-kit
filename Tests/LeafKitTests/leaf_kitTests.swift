@@ -160,19 +160,19 @@ final class LexerTests: XCTestCase {
         XCTAssertEqual(output, "raw(\"#\")")
     }
     
-    func _testParameters() throws {
+    func testParameters() throws {
         let input = "#(foo == 40, and, \"literal\")"
         let expectation = """
         tagIndicator
         tag(name: "")
         parametersStart
-        variable(name: "foo")
-        operator(==)
-        constant(40)
+        param(variable(foo))
+        param(operator(operator(==)))
+        param(constant(40))
         parameterDelimiter
-        variable(name: "and")
+        param(variable(and))
         parameterDelimiter
-        stringLiteral("literal")
+        param(stringLiteral("literal"))
         parametersEnd
 
         """
