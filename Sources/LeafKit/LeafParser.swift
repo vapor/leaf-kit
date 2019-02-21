@@ -353,10 +353,16 @@ indirect enum _ALTSyntax: CustomStringConvertible {
         }
     }
     
+    struct CustomTag {
+        let name: String
+        let params: [ProcessedParameter]
+        let body: [_ALTSyntax]?
+    }
+    
     case raw(ByteBuffer)
     case variable(Variable)
     
-    case custom(name: String, parameters: [ProcessedParameter], body: [_ALTSyntax]?)
+    case custom(CustomTag)
     
     case conditional(Conditional)
     case loop(Loop)
@@ -377,9 +383,9 @@ indirect enum _ALTSyntax: CustomStringConvertible {
             print += "raw(\(string.debugDescription))"
         case .variable(let v):
             print += v.print(depth: depth)
-        case .custom(let name, let params, let body):
-            print += name + "(" + params.map { $0.description } .joined(separator: ", ") + ")"
-            if let body = body, !body.isEmpty {
+        case .custom(let custom):
+            print += custom.name + "(" + custom.params.map { $0.description } .joined(separator: ", ") + ")"
+            if let body = custom.body, !body.isEmpty {
                 print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
         case .conditional(let c):
@@ -1063,7 +1069,7 @@ extension TagDeclaration {
             guard body.isEmpty else { throw "import does not accept a body" }
             return try .import(.init(params))
         default:
-            return .custom(name: name, parameters: params, body: body)
+            return .custom(.init(name: name, params: params, body: body))
         }
     }
 }
