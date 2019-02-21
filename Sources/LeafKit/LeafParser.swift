@@ -169,48 +169,37 @@ indirect enum _Syntaxxxx: CustomStringConvertible {
     }
 }
 
-extension _Syntax {
-    var isConditionalTerminator: Bool { return terminator == "if"}
-    var isLoopTerminator: Bool { return terminator == "for" }
-    var isImportTerminator: Bool { return terminator == "import" }
-    var isExtendTerminator: Bool { return terminator == "extend" }
-    var isExportTerminator: Bool { return terminator == "export" }
-    
-    var isTerminator: Bool {
-        switch self {
-        case .conditional(let c):
-            switch c {
-            case .if:
-                return false
-            case .elseif, .else:
-                // else, and elseif dual function as a tag, and a terminator
-                return true
-            }
-        case .tagTerminator:
-            return true
-        default:
-            return false
-        }
-    }
-    
-    var terminator: String? {
-        guard case .tagTerminator(let name) = self else { return nil }
-        return name
-    }
-}
-
-let block = "  "
-//func pad(depth: Int) -> String {
-//    var buffer = ""
-//    for _ in 0..<depth {
-//        buffer += block
+//extension _Syntax {
+//    var isConditionalTerminator: Bool { return terminator == "if"}
+//    var isLoopTerminator: Bool { return terminator == "for" }
+//    var isImportTerminator: Bool { return terminator == "import" }
+//    var isExtendTerminator: Bool { return terminator == "extend" }
+//    var isExportTerminator: Bool { return terminator == "export" }
+//
+//    var isTerminator: Bool {
+//        switch self {
+//        case .conditional(let c):
+//            switch c {
+//            case .if:
+//                return false
+//            case .elseif, .else:
+//                // else, and elseif dual function as a tag, and a terminator
+//                return true
+//            }
+//        case .tagTerminator:
+//            return true
+//        default:
+//            return false
+//        }
+//    }
+//
+//    var terminator: String? {
+//        guard case .tagTerminator(let name) = self else { return nil }
+//        return name
 //    }
 //}
 
-struct Statement {
-    let indent: Int
-    let statement: String
-}
+let block = "  "
 
 indirect enum _ALTSyntax: CustomStringConvertible {
     
@@ -836,53 +825,49 @@ final class _Block {
     }
 }
 
-func testGrouping(_ document: [_Syntax]) {
-    
-    var document = document.reversed().makeIterator()
-    
-
-    var awaitingBody: [_Syntax] = []
-    func close(with terminator: _Syntax) {
-        fatalError()
-    }
-    
-    var activeParent: _Syntax? = nil
-    var activeBody: [_Syntax] = []
-    func close(terminator: String) {
-        activeBody.drop { next in
-            fatalError()
-//            return next.matches(terminator: terminator)
-        }
-    }
-    
-    while let next = document.next() {
-        // check terminator first for dual body/terminator functors,
-        // ie: elseif, else
-        if next.isTerminator {
-            
-        }
-
-            // push stack if necessary
-        if next.expectsBody { awaitingBody.append(next) }
-        switch next {
-        case .conditional(let c):
-            switch c {
-            case .if: fatalError()
-            case .elseif: fatalError()
-            case .else: fatalError()
-            }
-        case .export: fatalError()
-        case .extend: fatalError()
-        case .import: fatalError()
-        case .loop: fatalError()
-        case .raw: fatalError()
-        case .tagDeclaration: fatalError()
-        case .tagTerminator: fatalError()
-        case .variable: fatalError()
-        }
-    }
-    
-}
+//func testGrouping(_ document: [_Syntax]) {
+//    
+//    var document = document.reversed().makeIterator()
+//    
+//
+//    var awaitingBody: [_Syntax] = []
+//    func close(with terminator: _Syntax) {
+//        fatalError()
+//    }
+//    
+//    var activeParent: _Syntax? = nil
+//    var activeBody: [_Syntax] = []
+//    func close(terminator: String) {
+//        activeBody.drop { next in
+//            fatalError()
+////            return next.matches(terminator: terminator)
+//        }
+//    }
+//    
+//    while let next = document.next() {
+//
+//
+//            // push stack if necessary
+//        if next.expectsBody { awaitingBody.append(next) }
+//        switch next {
+//        case .conditional(let c):
+//            switch c {
+//            case .if: fatalError()
+//            case .elseif: fatalError()
+//            case .else: fatalError()
+//            }
+//        case .export: fatalError()
+//        case .extend: fatalError()
+//        case .import: fatalError()
+//        case .loop: fatalError()
+//        case .raw: fatalError()
+//        case .tagDeclaration: fatalError()
+//        case .tagTerminator: fatalError()
+//        case .variable: fatalError()
+//        }
+//    }
+//    
+//}
 
 /*
  
@@ -1114,26 +1099,27 @@ struct _Compiler {
     }
     
     mutating private func handle(next: _Syntax) throws {
-        // check terminator first for dual body/terminator functors,
-        // ie: elseif, else
-        // must happen BEFORE body
-        if next.isTerminator { try close(with: next) }
-        
-        // this needs to be a secondary if-statement, and
-        // not joined above
-        //
-        // this allows for dual functors, a la elseif
-        if next.expectsBody {
-            waiting.append(.init(next))
-        } else if !next.isTerminator {
-            if let last = waiting.last {
-                last.body.append(.init(next))
-            } else {
-                // not a terminator, and nobody is
-                // waiting, top level
-                ready.append(.init(next))
-            }
-        }
+        fatalError()
+//        // check terminator first for dual body/terminator functors,
+//        // ie: elseif, else
+//        // must happen BEFORE body
+//        if next.isTerminator { try close(with: next) }
+//
+//        // this needs to be a secondary if-statement, and
+//        // not joined above
+//        //
+//        // this allows for dual functors, a la elseif
+//        if next.expectsBody {
+//            waiting.append(.init(next))
+//        } else if !next.isTerminator {
+//            if let last = waiting.last {
+//                last.body.append(.init(next))
+//            } else {
+//                // not a terminator, and nobody is
+//                // waiting, top level
+//                ready.append(.init(next))
+//            }
+//        }
     }
     
     mutating private func close(with closer: _Syntax) throws {
