@@ -185,6 +185,7 @@ final class ParserTests: XCTestCase {
         let _ = lexed + parsed
         
         let output = alt
+        // random order of dict is what is failing test :+1:
         XCTAssertEqual(output, expectation)
     }
     

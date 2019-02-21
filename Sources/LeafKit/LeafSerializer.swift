@@ -194,7 +194,7 @@ struct _LeafSerializer {
         case .extend(let ext):
             print += "extend(" + ext.key.debugDescription + ")"
             if !ext.exports.isEmpty {
-                print += ":\n" + ext.exports.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+                print += ":\n" + ext.exports.values.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
         case .export(let export):
             print += "export(" + export.key.debugDescription + ")"

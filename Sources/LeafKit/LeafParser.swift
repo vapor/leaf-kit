@@ -31,8 +31,16 @@ extension Syntax.Extend {
         base.forEach { syntax in
             switch syntax {
             case .import(let im):
-                fatalError()
-            default: fatalError()
+                if let export = exports[im.key] {
+                    // export exists, inject body
+                    extended += export.body
+                } else {
+                    // any unsatisfied import will continue
+                    // and can be satisfied later
+                    extended.append(syntax)
+                }
+            default:
+                extended.append(syntax)
             }
             
         }
@@ -55,21 +63,27 @@ extension Syntax {
     
     struct Extend {
         let key: String
-        let exports: [Export]
+        // TODO: RANDOM ORDER FAILS TEST, OK?
+        let exports: [String: Export]
 
         init(_ params: [ProcessedParameter], body: [Syntax]) throws {
             guard params.count == 1 else { throw "extend only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
             self.key = s
-            self.exports = try body.compactMap {
-                switch $0 {
+            
+            var exports: [String: Export] = [:]
+            try body.forEach { syntax in
+                switch syntax {
                 // extend can ONLY export, raw space in body ignored
-                case .raw: return nil
-                case .export(let export): return export
-                default: throw "unexpected token in extend body: \($0).. use raw space and `export` only"
+                case .raw: return
+                case .export(let export):
+                    exports[export.key] = export
+                default:
+                    throw "unexpected token in extend body: \(syntax).. use raw space and `export` only"
                 }
             }
+            self.exports = exports
         }
     }
     
@@ -269,7 +283,7 @@ extension Syntax: CustomStringConvertible {
         case .extend(let ext):
             print += "extend(" + ext.key.debugDescription + ")"
             if !ext.exports.isEmpty {
-                print += ":\n" + ext.exports.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+                print += ":\n" + ext.exports.values.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
         case .export(let export):
             print += export.print(depth: depth)
