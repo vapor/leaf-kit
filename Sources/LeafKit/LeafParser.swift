@@ -199,7 +199,7 @@ extension _Syntax {
     }
 }
 
-indirect enum _ALTSyntax {
+indirect enum _ALTSyntax: CustomStringConvertible {
     
     struct Import {
         let key: String

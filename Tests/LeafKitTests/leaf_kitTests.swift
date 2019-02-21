@@ -388,40 +388,17 @@ func compile(_ str: String) throws -> [_Block] {
 
 final class LeafKitTests: XCTestCase {
     func testParser() throws {
-//        let template = """
-//        Hello #(name)!
-//
-//        Hello #get(name)!
-//
-//        #set(name):
-//            Hello #get(name)
-//        #endset!
-//
-//        #if(a):b#endif
-//
-//        #if(foo):
-//        123
-//        #elseif(bar):
-//        456
-//        #else:
-//        789
-//        #endif
-//
-//        #import("title")
-//
-//        #import("body")
-//
-//        #extend("base"):
-//            #export("title", "Welcome")
-//            #export("body"):
-//                Hello, #(name)!
-//            #endexport
-//        #endextend
-//
-//        More stuff here!
-//        """
-
         let template = """
+        Hello #(name)!
+
+        Hello #get(name)!
+
+        #set(name):
+            Hello #get(name)
+        #endset!
+
+        #if(a):b#endif
+
         #if(foo):
         123
         #elseif(bar):
@@ -429,7 +406,30 @@ final class LeafKitTests: XCTestCase {
         #else:
         789
         #endif
+
+        #import("title")
+
+        #import("body")
+
+        #extend("base"):
+            #export("title", "Welcome")
+            #export("body"):
+                Hello, #(name)!
+            #endexport
+        #endextend
+
+        More stuff here!
         """
+
+//        let template = """
+//        #if(foo):
+//        123
+//        #elseif(bar):
+//        456
+//        #else:
+//        789
+//        #endif
+//        """
         var buffer = ByteBufferAllocator().buffer(capacity: 0)
         buffer.writeString(template)
         
@@ -443,6 +443,9 @@ final class LeafKitTests: XCTestCase {
 //        var parser = _LeafParser(tokens: tokens)
 //        let ast = try! parser.altParse().map { $0.description } .joined(separator: "\n")
         let rawAlt = try! altParse(template)
+        print("AST")
+        rawAlt.forEach { print($0) }
+        print()
         let alt = rawAlt.map { $0.description } .joined(separator: "\n")
 //        print("AST:")
 //        ast.forEach { print($0) }
