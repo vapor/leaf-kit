@@ -199,6 +199,19 @@ extension _Syntax {
     }
 }
 
+let block = "  "
+//func pad(depth: Int) -> String {
+//    var buffer = ""
+//    for _ in 0..<depth {
+//        buffer += block
+//    }
+//}
+
+struct Statement {
+    let indent: Int
+    let statement: String
+}
+
 indirect enum _ALTSyntax: CustomStringConvertible {
     
     struct Import {
@@ -312,10 +325,9 @@ indirect enum _ALTSyntax: CustomStringConvertible {
         func print(depth: Int) -> String {
             var print = ""
             print += "for(" + item + " in " + array + "):\n"
-            print += body.map { $0.print(depth: depth) } .joined(separator: "\n")
+            print += body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             
             var buffer = ""
-            let block = "  "
             for _ in 0..<depth {
                 buffer += block
             }
@@ -334,6 +346,10 @@ indirect enum _ALTSyntax: CustomStringConvertible {
                 self.name = n
             default: throw "todo: implement constant and literal? maybe process earlier as not variable, but raw"
             }
+        }
+        
+        func print(depth: Int) -> String {
+            return "variable(" + name + ")"
         }
     }
     
@@ -369,7 +385,7 @@ indirect enum _ALTSyntax: CustomStringConvertible {
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
             print += "raw(\(string.debugDescription))"
         case .variable(let v):
-            print += "variable(" + v.name + ")"
+            print += v.print(depth: depth)
         case .custom(let name, let params, let body):
             print += name + "(" + params.map { $0.description } .joined(separator: ", ") + ")"
             if let body = body, !body.isEmpty {
@@ -384,7 +400,7 @@ indirect enum _ALTSyntax: CustomStringConvertible {
         case .extend(let ext):
             print += "extend(" + ext.key.debugDescription + ")"
             if !ext.body.isEmpty {
-                print += ":\n" + ext.body.map { $0.print(depth: depth) } .joined(separator: "\n")
+                print += ":\n" + ext.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
         case .export(let export):
             print += "export(" + export.key.debugDescription + ")"
@@ -394,7 +410,6 @@ indirect enum _ALTSyntax: CustomStringConvertible {
         }
         
         var buffer = ""
-        let block = "  "
         for _ in 0..<depth {
             buffer += block
         }
