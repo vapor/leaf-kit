@@ -161,7 +161,7 @@ final class ParserTests: XCTestCase {
         let header = """
         <h1>#import("header")</h1>
         """
-//        / 'base.leaf
+
         let base = """
         #extend("header")
         <title>#import("title")</title>
@@ -193,28 +193,22 @@ final class ParserTests: XCTestCase {
             print("Document: " + key.uppercased())
             val.ast.forEach { print($0) }
         }
-        print()
         
-//        let expectation = """
-//        extend("base"):
-//          export("title"):
-//            raw("Welcome")
-//          export("body"):
-//            raw("\\n        Hello, ")
-//            variable(name)
-//            raw("!\\n    ")
-//
-//        """
-
-//        let lexed = try! lex(input).map { $0.description + "\n" } .reduce("", +)
-//        let rawAlt = try! altParse(input)
-//        let alt = rawAlt.map { $0.description + "\n" } .reduce("", +)
-//        let parsed = try! parse(input).map { $0.description + "\n" } .reduce("", +)
-//        let _ = lexed + parsed
-        
-//        let output = alt
-        // random order of dict is what is failing test :+1:
-//        XCTAssertEqual(output, expectation)
+        let homeDoc = compiled["home"]
+        XCTAssertNotNil(homeDoc)
+        let output = homeDoc?.ast.map { $0.description } .joined(separator: "\n") ?? ""
+        let expectation = """
+        raw("<h1>")
+        import("header")
+        raw("</h1>")
+        raw("\\n<title>")
+        raw("Welcome")
+        raw("</title>\\n")
+        raw("\\n        Hello, ")
+        variable(name)
+        raw("!\\n    ")
+        """
+        XCTAssertEqual(output, expectation)
     }
     
     

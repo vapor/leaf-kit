@@ -68,7 +68,7 @@ struct Compiler {
     // just keep checking what we can compile
     // and if we can't, stick it in the back of
     // the array and try again later
-    mutating func compile() -> [String: Document] {
+    mutating func compile() throws -> [String: Document] {
         var drain = self.documents
         var hold = [Document]()
         while let next = drain.first {
@@ -81,14 +81,17 @@ struct Compiler {
             }
             
             guard drain.isEmpty else { continue }
-            if hold.isEmpty { break }
-            else if hold.map({ $0.name }) == documents.map({ $0.name }) { break }
-            else {
+            if hold.isEmpty {
+                break
+            } else if hold.map({ $0.name }) == documents.map({ $0.name }) {
+                break
+            } else {
                 drain = hold
                 hold = []
             }
         }
         
+        guard documents.isEmpty else { throw "unable to resolve \(documents)" }
         return compiled
     }
 
