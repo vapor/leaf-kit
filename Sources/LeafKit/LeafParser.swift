@@ -371,15 +371,6 @@ indirect enum _ALTSyntax: CustomStringConvertible {
     
     func print(depth: Int) -> String {
         var print = ""
-        defer {
-//            var buffer = ""
-//            let block = "  "
-//            for _ in 0..<depth {
-//                buffer += block
-//            }
-//            print = print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
-        }
-        
         switch self {
         case .raw(var byteBuffer):
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
