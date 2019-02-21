@@ -254,10 +254,25 @@ indirect enum _ALTSyntax {
         }
     }
     
-    struct Conditional {
-        let condition: [ProcessedParameter]
+    final class Conditional {
+        let condition: _ConditionalSyntax
         let body: [_ALTSyntax]
-        let next: _ALTSyntax?
+        
+        
+        private(set) var next: Conditional?
+        
+        init(_ condition: _ConditionalSyntax, body: [_ALTSyntax]) {
+            self.condition = condition
+            self.body = body
+        }
+        
+        func attach(_ new: Conditional) {
+            var tail = self
+            while let next = tail.next {
+                tail = next
+            }
+            tail.next = new
+        }
     }
     
     struct Loop {
@@ -266,7 +281,17 @@ indirect enum _ALTSyntax {
     }
     
     struct Variable {
-        let params: [ProcessedParameter]
+        let name: String
+        
+        init(_ params: [ProcessedParameter]) throws {
+            guard params.count == 1 else { throw "only single parameter variable supported currently" }
+            guard case .parameter(let p) = params[0] else { throw "expected single parameter" }
+            switch p {
+            case .variable(let n):
+                self.name = n
+            default: throw "todo: implement constant and literal? maybe process earlier as not variable, but raw"
+            }
+        }
     }
     
     case raw(ByteBuffer)
@@ -274,7 +299,7 @@ indirect enum _ALTSyntax {
     
     case custom(name: String, parameters: [ProcessedParameter], body: [_ALTSyntax]?)
     
-    case conditional(_ConditionalSyntax, body: [_ALTSyntax], next: Conditional?)
+    case conditional(Conditional)
     case loop([ProcessedParameter], body: [_ALTSyntax])
     case `import`(Import)
     case extend(Extend)
@@ -292,26 +317,29 @@ indirect enum _ALTSyntax {
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
             print += "raw(\(string.debugDescription))"
         case .variable(let v):
-            print += "variable(" + "\(v.params.map { $0.description } .joined(separator: ", "))" + ")"
+            print += "variable(" + v.name + ")"
         case .custom(let name, let params, let body):
             print += name + "(" + params.map { $0.description } .joined(separator: ", ") + ")"
             if let body = body, !body.isEmpty {
                 print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
-        case .conditional(let c, let body, let next):
-            print += "conditional("
-            switch c {
-            case .if(let params):
-                print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
-            case .elseif(let params):
-                print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
-            case .else:
-                print += "else"
-            }
-            print += ")"
-            if !body.isEmpty {
-                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
-            }
+        case .conditional(let c):
+            print += "conditional:\n"
+            print += c.print(depth: depth + 1)
+//            print += "conditional("
+//            switch c.condition {
+//            case .if(let params):
+//                print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
+//            case .elseif(let params):
+//                print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
+//            case .else:
+//                print += "else"
+//            }
+//            print += ")"
+//            if !c.body.isEmpty {
+//                print += ":\n" + c.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+//            }
+            
         case .loop(let params, _):
             print += "loop(" + params.map { $0.description } .joined(separator: ", ") + ")"
         case .import(let imp):
@@ -334,6 +362,38 @@ indirect enum _ALTSyntax {
             buffer += block
         }
         return print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
+    }
+}
+
+extension _ALTSyntax.Conditional {
+    func print(depth: Int) -> String {
+        var print = ""
+        switch condition {
+        case .if(let params):
+            print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
+        case .elseif(let params):
+            print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
+        case .else:
+            print += "else"
+        }
+        
+        if !body.isEmpty {
+            print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+        }
+        
+        var buffer = ""
+        let block = "  "
+        for _ in 0..<depth {
+            buffer += block
+        }
+        print = print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
+        
+        // todo: remove recursion
+        if let next = self.next {
+            print += "\n"
+            print += next.print(depth: depth)
+        }
+        return print
     }
 }
 
@@ -934,14 +994,14 @@ extension TagDeclaration {
         case let n where n.starts(with: "end"):
             throw "unable to convert terminator to syntax"
         case "":
-            return .variable(.init(params: params))
+            return try .variable(.init(params))
         case "if":
-            return .conditional(.if(params), body: body, next: nil)
+            return .conditional(.init(.if(params), body: body))
         case "elseif":
-            return .conditional(.elseif(params), body: body, next: nil)
+            return .conditional(.init(.elseif(params), body: body))
         case "else":
             guard params.count == 0 else { throw "else does not accept params" }
-            return .conditional(.else, body: body, next: nil)
+            return .conditional(.init(.else, body: body))
         case "for":
             return .loop(params, body: body)
         case "export":
@@ -1102,17 +1162,38 @@ struct _LeafParser {
         }
     }
     
-    mutating func close(with closer: TagDeclaration) throws {
-        guard !awaitingBody.isEmpty else { throw "found terminator \(closer), with no corresponding tag" }
-        let closedElement = awaitingBody.removeLast()
-        guard closedElement.parent.matches(terminator: closer) else { throw "unable to match \(closedElement.parent) with \(closer)" }
-        let syntax = try closedElement.parent.makeSyntax(body: closedElement.body)
+    mutating func close(with terminator: TagDeclaration) throws {
+        guard !awaitingBody.isEmpty else { throw "found terminator \(terminator), with no corresponding tag" }
+        let willClose = awaitingBody.removeLast()
+        guard willClose.parent.matches(terminator: terminator) else { throw "unable to match \(willClose.parent) with \(terminator)" }
+        let syntax = try willClose.parent.makeSyntax(body: willClose.body)
+  
+        if terminator.name == "endif" {
+        }
+        
         // now, element shoule collapse INTO stack
         if let newTail = awaitingBody.last {
             newTail.body.append(syntax)
+        } else if case .conditional(let new) = syntax {
+            switch new.condition {
+            case .if:
+                // a new if, never attaches to a previous
+                finished.append(syntax)
+            case .elseif, .else:
+                // elseif and else always attach
+                guard let last = finished.last, case .conditional(let tail) = last else { throw "unable to attach \(new.condition) to \(finished.last?.description ?? "<>")" }
+                tail.attach(new)
+            }
         } else {
             finished.append(syntax)
         }
+        
+        // now, element shoule collapse INTO stack
+//        if let newTail = awaitingBody.last {
+//            newTail.body.append(syntax)
+//        } else {
+//            finished.append(syntax)
+//        }
     }
     
     private mutating func nextSyntax() throws -> _Syntax? {

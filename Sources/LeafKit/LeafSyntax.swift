@@ -30,6 +30,7 @@ indirect enum LeafSyntax: CustomStringConvertible {
         var body: [LeafSyntax]
         var next: LeafSyntax?
         
+        
         var description: String {
             let b = body.map { $0.description }.joined(separator: ", ")
             if let next = self.next {

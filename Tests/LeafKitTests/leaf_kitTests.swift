@@ -68,15 +68,15 @@ final class ParserTests: XCTestCase {
             raw("\\nfoo\\n")
         """
         
-        let syntax = try parse(input)
+        let syntax = try altParse(input)
         let output = syntax.map { $0.description } .joined(separator: "\n")
-        var matched = ""
-        for x in 0..<output.count {
-            let l = Array(output.utf8)[x]
-            let r = Array(expectation.utf8)[x]
-            guard l == r else { fatalError("crashed at[\(x) ([\(l)]\(l.str), [\(r)]\(r.str)) match: ***\n\(matched)***") }
-            matched += l.str
-        }
+//        var matched = ""
+//        for x in 0..<output.count {
+//            let l = Array(output.utf8)[x]
+//            let r = Array(expectation.utf8)[x]
+//            guard l == r else { fatalError("crashed at[\(x) ([\(l)]\(l.str), [\(r)]\(r.str)) match: ***\n\(matched)***") }
+//            matched += l.str
+//        }
         XCTAssertEqual(output, expectation)
     }
     
@@ -388,17 +388,40 @@ func compile(_ str: String) throws -> [_Block] {
 
 final class LeafKitTests: XCTestCase {
     func testParser() throws {
+//        let template = """
+//        Hello #(name)!
+//
+//        Hello #get(name)!
+//
+//        #set(name):
+//            Hello #get(name)
+//        #endset!
+//
+//        #if(a):b#endif
+//
+//        #if(foo):
+//        123
+//        #elseif(bar):
+//        456
+//        #else:
+//        789
+//        #endif
+//
+//        #import("title")
+//
+//        #import("body")
+//
+//        #extend("base"):
+//            #export("title", "Welcome")
+//            #export("body"):
+//                Hello, #(name)!
+//            #endexport
+//        #endextend
+//
+//        More stuff here!
+//        """
+
         let template = """
-        Hello #(name)!
-
-        Hello #get(name)!
-
-        #set(name):
-            Hello #get(name)
-        #endset!
-
-        #if(a):b#endif
-
         #if(foo):
         123
         #elseif(bar):
@@ -406,19 +429,6 @@ final class LeafKitTests: XCTestCase {
         #else:
         789
         #endif
-
-        #import("title")
-
-        #import("body")
-
-        #extend("base"):
-            #export("title", "Welcome")
-            #export("body"):
-                Hello, #(name)!
-            #endexport
-        #endextend
-
-        More stuff here!
         """
         var buffer = ByteBufferAllocator().buffer(capacity: 0)
         buffer.writeString(template)
