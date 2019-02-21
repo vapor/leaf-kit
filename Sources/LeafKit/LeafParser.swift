@@ -268,11 +268,13 @@ indirect enum Syntax: CustomStringConvertible {
             self.body = body
         }
         
-        func attach(_ new: Conditional) {
+        func attach(_ new: Conditional) throws {
             var tail = self
             while let next = tail.next {
                 tail = next
             }
+            
+            // todo: verify that is valid attachment
             tail.next = new
         }
     }
@@ -935,9 +937,9 @@ struct _LeafParser {
     private mutating func handle(next: LeafToken) throws {
         switch next {
         case .tagIndicator:
-            let declaration = try _readTagDeclaration()
-            // check terminator first for dual body/terminator functors,
-            // ie: elseif, else
+            let declaration = try readTagDeclaration()
+            // check terminator first
+            // always takes priority, especially for dual body/terminator functors
             if declaration.isTerminator { try close(with: declaration) }
             
             // this needs to be a secondary if-statement, and
@@ -946,24 +948,25 @@ struct _LeafParser {
             // this allows for dual functors, a la elseif
             if declaration.expectsBody {
                 awaitingBody.append(.init(declaration))
-            } else if !declaration.isTerminator {
+            } else if declaration.isTerminator {
+                // dump terminators that don't also have a body,
+                // already closed above
+                // MUST close FIRST (as above)
+                return
+            } else {
                 let syntax = try declaration.makeSyntax(body: [])
                 if let last = awaitingBody.last {
                     last.body.append(syntax)
                 } else {
                     finished.append(syntax)
                 }
-            } else {
-                // dump terminators that don't also have a body
-                return
             }
         case .raw:
             let r = try collectRaw()
-            let raw = Syntax.raw(r)
             if let last = awaitingBody.last {
-                last.body.append(raw)
+                last.body.append(.raw(r))
             } else {
-                finished.append(raw)
+                finished.append(.raw(r))
             }
         default:
             throw "unexpected token \(next)"
@@ -974,31 +977,40 @@ struct _LeafParser {
         guard !awaitingBody.isEmpty else { throw "found terminator \(terminator), with no corresponding tag" }
         let willClose = awaitingBody.removeLast()
         guard willClose.parent.matches(terminator: terminator) else { throw "unable to match \(willClose.parent) with \(terminator)" }
-        let syntax = try willClose.parent.makeSyntax(body: willClose.body)
-  
-        if terminator.name == "endif" {
-        }
         
-        // now, element shoule collapse INTO stack
+        // closed body
+        let newSyntax = try willClose.parent.makeSyntax(body: willClose.body)
+        
+        // if another element exists, then we are in
+        // a nested body context, attach new syntax
+        // as body element to this new context
         if let newTail = awaitingBody.last {
-            newTail.body.append(syntax)
-        } else if case .conditional(let new) = syntax {
+            newTail.body.append(newSyntax)
+        // if the new syntax is a conditional, it may need to be attached
+        // to the last parsed conditional
+        } else if case .conditional(let new) = newSyntax {
             switch new.condition {
+            // a new if, never attaches to a previous
             case .if:
-                // a new if, never attaches to a previous
-                finished.append(syntax)
+                finished.append(newSyntax)
             case .elseif, .else:
-                // elseif and else always attach
-                guard let last = finished.last, case .conditional(let tail) = last else { throw "unable to attach \(new.condition) to \(finished.last?.description ?? "<>")" }
-                tail.attach(new)
+                // elseif and else ALWAYS attach
+                // ensure there is a leading conditional to
+                // attach to
+                guard let last = finished.last, case .conditional(let tail) = last else {
+                    throw "unable to attach \(new.condition) to \(finished.last?.description ?? "<>")"
+                }
+                try tail.attach(new)
             }
         } else {
-            finished.append(syntax)
+            // if there's no open contexts,
+            // then we can just store
+            finished.append(newSyntax)
         }
     }
     
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
-    private mutating func _readTagDeclaration() throws -> TagDeclaration {
+    private mutating func readTagDeclaration() throws -> TagDeclaration {
         // consume tag indicator
         guard let first = read(), first == .tagIndicator else { throw "expected tag indicator" }
         // a tag should ALWAYS follow a tag indicator
