@@ -156,8 +156,28 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
     
+    func testShouldThrowCantResolve() throws {
+        let base = """
+        #extend("header")
+        <title>#import("title")</title>
+        #import("body")
+        """
+        let baseAst = try altParse(base)
+        
+        let documents: [Document] = [
+            .init(name: "base", ast: baseAst),
+        ]
+        
+        var resolver = ExtendResolver(documents)
+        do {
+            let _ = try resolver.resolve()
+            XCTFail("should throw, can't resolve")
+        } catch {
+            XCTAssert(true)
+        }
+    }
     
-    func testDocumentCompileExtend() throws {
+    func testDocumentResolveExtend() throws {
         let header = """
         <h1>#import("header")</h1>
         """
@@ -187,8 +207,8 @@ final class ParserTests: XCTestCase {
             .init(name: "home", ast: homeAst)
         ]
         
-        var compiler = Compiler(documents)
-        let compiled = try compiler.compile()
+        var resolver = ExtendResolver(documents)
+        let compiled = try! resolver.resolve()
         for (key, val) in compiled {
             print("Document: " + key.uppercased())
             val.ast.forEach { print($0) }

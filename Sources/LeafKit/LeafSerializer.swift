@@ -175,8 +175,6 @@ struct _LeafSerializer {
     }
     
     mutating func serialize(_ syntax: Syntax) throws {
-        var print = ""
-        let depth = 0
         switch syntax {
         case .raw(var byteBuffer):
             buffer.writeBuffer(&byteBuffer)
@@ -186,22 +184,21 @@ struct _LeafSerializer {
         case .custom(let custom):
             fatalError("missing custom implementation")
         case .conditional(let c):
-            print += c.print(depth: depth)
+            fatalError("missing implementation")
         case .loop(let loop):
-            print += loop.print(depth: depth)
+            fatalError("missing implementation")
         case .import(let imp):
-            print += "import(" + imp.key.debugDescription + ")"
-        case .extend(let ext):
-            print += "extend(" + ext.key.debugDescription + ")"
-            if !ext.exports.isEmpty {
-                print += ":\n" + ext.exports.values.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
-            }
-        case .export(let export):
-            print += "export(" + export.key.debugDescription + ")"
-            if !export.body.isEmpty {
-                print += ":\n" + export.body.map { $0.print(depth: depth) } .joined(separator: "\n")
-            }
+            throw "unable to serialize import(\(imp.key)).. unsatisfied base"
+        case .extend:
+            throw "extensions should be removed in compile phase"
+        case .export:
+            throw "exports and extensions should be resolved in compile phase"
         }
+    }
+    
+    mutating func serialize(_ loop: Syntax.Loop) throws {
+        guard let array = context[loop.array] else { throw "expected array key for loop" }
+        fatalError()
     }
     
     mutating func serialize(_ syntax: LeafSyntax) {

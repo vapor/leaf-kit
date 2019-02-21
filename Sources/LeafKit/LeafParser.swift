@@ -55,10 +55,9 @@ extension Array where Element == Document {
 //    }
 }
 
-struct Compiler {
-    // todo: internal protect
-    var documents: [Document]
-    private(set) var compiled: [String: Document] = [:]
+struct ExtendResolver {
+    let documents: [Document]
+    private(set) var resolved: [String: Document] = [:]
     init(_ docs: [Document]) {
         self.documents = docs
     }
@@ -68,38 +67,38 @@ struct Compiler {
     // just keep checking what we can compile
     // and if we can't, stick it in the back of
     // the array and try again later
-    mutating func compile() throws -> [String: Document] {
+    mutating func resolve() throws -> [String: Document] {
         var drain = self.documents
-        var hold = [Document]()
+        var unresolved = [Document]()
         while let next = drain.first {
             drain.removeFirst()
 
             if canSatisfyAllDependenciesFor(doc: next) {
-                compile(next: next)
+                resolve(next: next)
             } else {
-                hold.append(next)
+                unresolved.append(next)
             }
             
             guard drain.isEmpty else { continue }
-            if hold.isEmpty {
+            if unresolved.isEmpty {
                 break
-            } else if hold.map({ $0.name }) == documents.map({ $0.name }) {
+            } else if unresolved.map({ $0.name }) == documents.map({ $0.name }) {
                 break
             } else {
-                drain = hold
-                hold = []
+                drain = unresolved
+                unresolved = []
             }
         }
         
-        guard documents.isEmpty else { throw "unable to resolve \(documents)" }
-        return compiled
+        guard unresolved.isEmpty else { throw "unable to resolve \(unresolved)" }
+        return resolved
     }
 
-    mutating func compile(next doc: Document) {
+    private mutating func resolve(next doc: Document) {
         var processed: [Syntax] = []
         doc.ast.forEach { syntax in
             if case .extend(let e) = syntax {
-                guard let base = compiled[e.key] else { fatalError("couldn't extend \(e)") }
+                guard let base = resolved[e.key] else { fatalError("couldn't extend \(e)") }
                 let extended = e.extend(base: base.ast)
                 processed += extended
             } else {
@@ -108,14 +107,14 @@ struct Compiler {
         }
         
         let new = Document(name: doc.name, ast: processed)
-        compiled[new.name] = new
+        resolved[new.name] = new
     }
     
     func canSatisfyAllDependenciesFor(doc: Document) -> Bool {
         // no deps, easily satisfy
             // see if all dependencies necessary have already been compiled
         return doc.dependencies.isEmpty
-            || doc.dependencies.allSatisfy(compiled.keys.contains)
+            || doc.dependencies.allSatisfy(resolved.keys.contains)
     }
 }
 
