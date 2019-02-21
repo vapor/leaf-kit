@@ -4,16 +4,17 @@ import XCTest
 typealias LeafDict = [String: LeafData]
 
 func render(raw: String, ctx: LeafDict) throws -> String {
-    var buffer = ByteBufferAllocator().buffer(capacity: 0)
-    buffer.writeString(raw)
-
-    var lexer = LeafLexer(template: buffer)
-    let tokens = try lexer.lex()
-    var parser = OldLeafParser(tokens: tokens)
-    let ast = try parser.parse()
-    var serializer = LeafSerializer(ast: ast, context: ctx)
-    var view = try serializer.serialize()
-    return view.readString(length: view.readableBytes)!
+//    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+//    buffer.writeString(raw)
+//
+//    var lexer = LeafLexer(template: buffer)
+//    let tokens = try lexer.lex()
+//    var parser = OldLeafParser(tokens: tokens)
+//    let ast = try parser.parse()
+//    var serializer = LeafSerializer(ast: ast, context: ctx)
+//    var view = try serializer.serialize()
+//    return view.readString(length: view.readableBytes)!
+    return ""
 }
 
 extension Array where Element == LeafToken {
@@ -171,6 +172,26 @@ final class ParserTests: XCTestCase {
         var resolver = ExtendResolver(documents)
         do {
             let _ = try resolver.resolve()
+            XCTFail("should throw, can't resolve")
+        } catch {
+            XCTAssert(true)
+        }
+    }
+    
+    func testShouldThrowCantResolveAccessor() throws {
+        let base = """
+        #extend("header")
+        <title>#import("title")</title>
+        #import("body")
+        """
+        let baseAst = try altParse(base)
+        
+        let documents: [Document] = [
+            .init(name: "base", ast: baseAst),
+        ]
+        
+        do {
+            let _ = try DocumentAccessor(documents)
             XCTFail("should throw, can't resolve")
         } catch {
             XCTAssert(true)

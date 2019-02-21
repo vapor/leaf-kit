@@ -16,6 +16,7 @@ extension LeafData: ExpressibleByBooleanLiteral {
 }
 
 struct LeafSerializer {
+    typealias LeafSyntax = Syntax
     private let ast: [LeafSyntax]
     private var offset: Int
     private var buffer: ByteBuffer
@@ -32,50 +33,51 @@ struct LeafSerializer {
         self.offset = 0
         while let next = self.peek() {
             self.pop()
-            self.serialize(next)
+            try self.serialize(next)
         }
         return self.buffer
     }
     
-    mutating func serialize(_ syntax: LeafSyntax) {
+    mutating func serialize(_ syntax: LeafSyntax) throws {
         switch syntax {
-        case .conditional(let conditional):
-            self.serialize(conditional)
-        case .raw(var raw):
-            self.buffer.writeBuffer(&raw)
-        case .tag(let tag):
-            self.serialize(tag)
-        case .variable(let variable):
-            self.serialize(variable)
-        case .constant(let constant):
-            self.serialize(constant)
-        case .import, .extend:
-            #warning("TODO: error when serializing import / extend tags")
-            break
+        case .raw(var byteBuffer):
+            self.buffer.writeBuffer(&byteBuffer)
+        case .variable(let v):
+            self.serialize(v)
+        case .custom(let custom):
+            fatalError()
+        case .conditional(let c):
+            fatalError()
+        case .loop(let loop):
+            fatalError()
+        case .import, .extend, .export:
+            throw "syntax \(syntax) should have been resolved BEFORE serialization"
         }
     }
     
     mutating func serialize(_ conditional: LeafSyntax.Conditional) {
-        guard let shouldSerialize = self.boolify(conditional.condition) else {
-            fatalError("invalid condition")
-        }
-        if shouldSerialize {
-            conditional.body.forEach { self.serialize($0) }
-        } else if let next = conditional.next {
-            self.serialize(next)
-        }
+        fatalError()
+//        guard let shouldSerialize = self.boolify(conditional.condition) else {
+//            fatalError("invalid condition")
+//        }
+//        if shouldSerialize {
+//            conditional.body.forEach { self.serialize($0) }
+//        } else if let next = conditional.next {
+//            self.serialize(next)
+//        }
     }
     
-    mutating func serialize(_ tag: LeafSyntax.Tag) {
-        switch tag.name {
-        case "get":
-            switch tag.parameters.count {
-            case 1: self.serialize(tag.parameters[0])
-            default: fatalError()
-            }
-            
-        default: break
-        }
+    mutating func serialize(_ tag: LeafSyntax.CustomTag) {
+        fatalError()
+//        switch tag.name {
+//        case "get":
+//            switch tag.parameters.count {
+//            case 1: self.serialize(tag.parameters[0])
+//            default: fatalError()
+//            }
+//
+//        default: break
+//        }
     }
     
     mutating func serialize(_ variable: LeafSyntax.Variable) {
@@ -83,18 +85,6 @@ struct LeafSerializer {
             fatalError("no variable named \(variable.name)")
         }
         self.serialize(data)
-    }
-    
-    mutating func serialize(_ constant: LeafSyntax.Constant) {
-        switch constant {
-        case .bool(let bool):
-            switch bool {
-            case true: self.buffer.writeString("true")
-            case false: self.buffer.writeString("false")
-            }
-        case .string(let string):
-            self.buffer.writeString(string)
-        }
     }
     
     mutating func serialize(_ data: LeafData) {
@@ -116,16 +106,16 @@ struct LeafSerializer {
             } else {
                 return false
             }
-        case .constant(let constant):
-            switch constant {
-            case .bool(let bool): return bool
-            case .string(let string):
-                switch string {
-                case "false", "0": return false
-                default: return true
-                }
-            }
-        default: return nil
+//        case .constant(let constant):
+//            switch constant {
+//            case .bool(let bool): return bool
+//            case .string(let string):
+//                switch string {
+//                case "false", "0": return false
+//                default: return true
+//                }
+//            }
+        default: fatalError()
         }
     }
     
@@ -134,7 +124,7 @@ struct LeafSerializer {
         case .bool(let bool): return bool
         case .string(let string):
             switch string {
-            case "false", "0": return false
+            case "false", "0", "no": return false
             default: return true
             }
         }

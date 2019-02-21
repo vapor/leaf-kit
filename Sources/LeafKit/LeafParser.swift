@@ -17,15 +17,52 @@ enum ConditionalSyntax {
     case `else`
 }
 
+struct UnresolvedDocument {
+    let name: String
+    let raw: [Syntax]
+    
+    var unresolvedDependencies: [String] {
+        return extensions.map { $0.key }
+    }
+    
+    private var extensions: [Syntax.Extend] {
+        return raw.compactMap {
+            switch $0 {
+            case .extend(let e): return e
+            default: return nil
+            }
+        }
+    }
+}
+
+struct ResolvedDocument {
+    let name: String
+    let ast: [Syntax]
+    
+    init(name: String, ast: [Syntax]) throws {
+        for syntax in ast {
+            switch syntax {
+            case .extend, .import, .export:
+                throw "unresolved ast"
+            default:
+                continue
+            }
+        }
+        
+        self.name = name
+        self.ast = ast
+    }
+}
+
 struct Document {
     let name: String
     let ast: [Syntax]
     
-    var dependencies: [String] {
+    var unresolvedDependencies: [String] {
         return extensions.map { $0.key }
     }
     
-    var extensions: [Syntax.Extend] {
+    private var extensions: [Syntax.Extend] {
         return ast.compactMap {
             switch $0 {
             case .extend(let e): return e
@@ -55,11 +92,189 @@ extension Array where Element == Document {
 //    }
 }
 
+final class DocumentAccessor {
+    private(set) var cache: [String: Document] = [:]
+    
+    init(_ starting: [Document]) throws {
+        try starting.forEach(add)
+    }
+    
+    func load(_ name: String) throws -> Document {
+        if let cached = cache[name] { return cached }
+        let new = try readFromDisk(name)
+        try add(new)
+        return new
+    }
+    
+    private func add(_ doc: Document) throws {
+        guard cache[doc.name] == nil else { throw "document \(doc.name) already exists" }
+        let _ = try doc.unresolvedDependencies.map(load)
+        cache[doc.name] = try resolve(doc)
+    }
+    
+    private func readFromDisk(_ name: String) throws -> Document {
+        fatalError()
+    }
+    
+    private func resolve(_ doc: Document) throws -> Document {
+        var processed: [Syntax] = []
+        try doc.ast.forEach { syntax in
+            if case .extend(let e) = syntax {
+                // should already be cached, avoid load because would be recursion
+                guard let base = cache[e.key] else { throw "couldn't resolve extend(\"\(e)\")" }
+                let extended = e.extend(base: base.ast)
+                processed += extended
+            } else {
+                processed.append(syntax)
+            }
+        }
+        
+        return Document(name: doc.name, ast: processed)
+    }
+}
+
+import Foundation
+final class _DocumentAccess {
+    fileprivate func _load(name: String) throws -> UnresolvedDocument {
+        // todo: support things like view directory
+        guard let data = FileManager.default.contents(atPath: name) else { throw "no data found" }
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        buffer.writeBytes(data)
+        var lexer = LeafLexer(template: buffer)
+        let tokens = try lexer.lex()
+        var parser = LeafParser(tokens: tokens)
+        let raw = try parser.altParse()
+        return .init(name: name, raw: raw)
+    }
+    
+    fileprivate func load(name: String) throws -> Document {
+        // todo: support things like view directory
+        guard let data = FileManager.default.contents(atPath: name) else { throw "no data found" }
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        buffer.writeBytes(data)
+        var lexer = LeafLexer(template: buffer)
+        let tokens = try lexer.lex()
+        var parser = LeafParser(tokens: tokens)
+        let raw = try parser.altParse()
+        // todo: should maybe protect more from raw ast? probably not an issue
+        return Document(name: name, ast: raw)
+    }
+}
+
+final class _DocumentCache {
+    private var cache: [String: Document] = [:]
+    
+    func load(name: String) -> Document? {
+        return cache[name]
+    }
+    func save(_ doc: Document) throws {
+        cache[doc.name] = doc
+    }
+}
+
+protocol _DocumentLoad {
+    func rawDocument(name: String) throws -> [Document]
+}
+
+final class Resolved {
+    
+}
+
+
+struct DocumentResolver {
+    private(set) var resolved: [String: ResolvedDocument] = [:]
+    private let access: _DocumentAccess
+    
+    // we're gonna be real lazy about this stop
+    // as opposed to trying to prioritize
+    // just keep checking what we can compile
+    // and if we can't, stick it in the back of
+    // the array and try again later
+    mutating func resolve(_ raw: [UnresolvedDocument]) throws -> [String: ResolvedDocument] {
+        var start = raw
+        var drain = start
+        var unresolved = [UnresolvedDocument]()
+        
+        while let next = drain.first {
+            drain.removeFirst()
+
+            if canSatisfyAllDependenciesFor(doc: next) {
+                try resolve(next: next)
+            } else {
+                unresolved.append(next)
+            }
+            
+            // until we've exhausted our drain, keep resolving
+            guard drain.isEmpty else { continue }
+            
+            if unresolved.isEmpty {
+                // all resolved properly
+                break
+            } else if unresolved.map({ $0.name }) == start.map({ $0.name }) {
+                let fullyResolved = Array(resolved.keys)
+                let unresolvedDocuments = unresolved.map { $0.name }
+
+                let grouped = Set(unresolved.flatMap { $0.unresolvedDependencies })
+                let missing = grouped.filter { dependency in
+                    // we've already loaded the dependency
+                    // but haven't been able to resolve it,
+                    // continue up tree to see which loads are missing
+                    return !unresolvedDocuments.contains(dependency)
+                        // this dependency is ready and fully resolved,
+                        // we're waiting for others to properly resolve
+                        && !fullyResolved.contains(dependency)
+                }
+                
+                guard !missing.isEmpty else {
+                    throw "circular dependency, or missing files detected, unable to resolve: \(unresolved)"
+                }
+                let fresh = try Set(missing).map(access._load)
+                // put fresh in front, since they're known dependencies
+                start = fresh + unresolved
+                drain = start
+                unresolved = []
+            } else {
+                // still some unresolved, let's try another pass
+                start = unresolved
+                drain = start
+                unresolved = []
+            }
+        }
+        
+        guard unresolved.isEmpty else { fatalError("can only break when empty") }
+        return resolved
+    }
+
+    private mutating func resolve(next doc: UnresolvedDocument) throws {
+        var processed: [Syntax] = []
+        doc.raw.forEach { syntax in
+            if case .extend(let e) = syntax {
+                guard let base = resolved[e.key] else { fatalError("couldn't extend \(e)") }
+                let extended = e.extend(base: base.ast)
+                processed += extended
+            } else {
+                processed.append(syntax)
+            }
+        }
+        
+        let new = try ResolvedDocument(name: doc.name, ast: processed)
+        resolved[new.name] = new
+    }
+    
+    func canSatisfyAllDependenciesFor(doc: UnresolvedDocument) -> Bool {
+        // no deps, easily satisfy
+        return doc.unresolvedDependencies.isEmpty
+            // see if all dependencies necessary have already been compiled
+            || doc.unresolvedDependencies.allSatisfy(resolved.keys.contains)
+    }
+}
+
 struct ExtendResolver {
-    let documents: [Document]
+    private let raw: [Document]
     private(set) var resolved: [String: Document] = [:]
+    
     init(_ docs: [Document]) {
-        self.documents = docs
+        self.raw = docs
     }
     
     // we're gonna be real lazy about this stop
@@ -68,11 +283,11 @@ struct ExtendResolver {
     // and if we can't, stick it in the back of
     // the array and try again later
     mutating func resolve() throws -> [String: Document] {
-        var drain = self.documents
+        var drain = self.raw
         var unresolved = [Document]()
         while let next = drain.first {
             drain.removeFirst()
-
+            
             if canSatisfyAllDependenciesFor(doc: next) {
                 resolve(next: next)
             } else {
@@ -82,7 +297,7 @@ struct ExtendResolver {
             guard drain.isEmpty else { continue }
             if unresolved.isEmpty {
                 break
-            } else if unresolved.map({ $0.name }) == documents.map({ $0.name }) {
+            } else if unresolved.map({ $0.name }) == raw.map({ $0.name }) {
                 break
             } else {
                 drain = unresolved
@@ -90,10 +305,16 @@ struct ExtendResolver {
             }
         }
         
+        /// here again is pretty lazy, but we see what's unresolved
+        /// and attempt to load these from disk since they're not cached
+        if !unresolved.isEmpty {
+            
+        }
+        
         guard unresolved.isEmpty else { throw "unable to resolve \(unresolved)" }
         return resolved
     }
-
+    
     private mutating func resolve(next doc: Document) {
         var processed: [Syntax] = []
         doc.ast.forEach { syntax in
@@ -112,9 +333,9 @@ struct ExtendResolver {
     
     func canSatisfyAllDependenciesFor(doc: Document) -> Bool {
         // no deps, easily satisfy
-            // see if all dependencies necessary have already been compiled
-        return doc.dependencies.isEmpty
-            || doc.dependencies.allSatisfy(resolved.keys.contains)
+        // see if all dependencies necessary have already been compiled
+        return doc.unresolvedDependencies.isEmpty
+            || doc.unresolvedDependencies.allSatisfy(resolved.keys.contains)
     }
 }
 
