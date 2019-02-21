@@ -64,19 +64,13 @@ final class ParserTests: XCTestCase {
         """
         
         let expectation = """
-        conditional(if(expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome"))))):
-            raw("\\nfoo\\n")
+        conditional:
+          if(expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome")))):
+              raw("\\nfoo\\n")
         """
         
         let syntax = try altParse(input)
         let output = syntax.map { $0.description } .joined(separator: "\n")
-//        var matched = ""
-//        for x in 0..<output.count {
-//            let l = Array(output.utf8)[x]
-//            let r = Array(expectation.utf8)[x]
-//            guard l == r else { fatalError("crashed at[\(x) ([\(l)]\(l.str), [\(r)]\(r.str)) match: ***\n\(matched)***") }
-//            matched += l.str
-//        }
         XCTAssertEqual(output, expectation)
     }
     
@@ -90,13 +84,14 @@ final class ParserTests: XCTestCase {
         """
         
         let expectation = """
-        conditional(if(parameter(variable(foo)))):
-            raw("\\nfoo\\n")
-        conditional(else):
-            raw("\\nfoo\\n")
+        conditional:
+          if(parameter(variable(foo))):
+              raw("\\nfoo\\n")
+          else:
+              raw("\\nfoo\\n")
         """
         
-        let syntax = try! parse(input)
+        let syntax = try! altParse(input)
         let output = syntax.map { $0.description } .joined(separator: "\n")
         XCTAssertEqual(output, expectation)
     }
@@ -114,12 +109,21 @@ final class ParserTests: XCTestCase {
         #endif
         """
         
-        let output = try compile(input).map { $0.description } .joined(separator: ",\n")
-        XCTAssertEqual(output, "todo")
+        let expectation = """
+        conditional:
+          if(parameter(variable(sayhello))):
+              raw("\\n    abc\\n    ")
+              loop(expression(parameter(variable(name)) parameter(keyword(in)) parameter(variable(names)))):
+                  raw("\\n        hi, ")
+                  variable(name)
+                  raw("\\n    ")
+              raw("\\n    def\\n")
+          else:
+              raw("\\nfoo\\n")
+        """
         
-        //        let syntax = try compile(input)
-        //        let output = syntax.map { $0.description } .joined(separator: "\n")
-        //        XCTAssertEqual(output, expectation)
+        let output = try altParse(input).map { $0.description } .joined(separator: "\n")
+        XCTAssertEqual(output, expectation)
     }
     func testCompiler2() throws {
         let input = """
@@ -130,12 +134,25 @@ final class ParserTests: XCTestCase {
             #endfor
             def
         #else:
-        foo
+            foo
         #endif
         """
         
-        let output = try compile(input).map { $0.description } .joined(separator: ",\n\n")
-        XCTAssertEqual(output, "todo")
+        let expectation = """
+        conditional:
+          if(parameter(variable(sayhello))):
+              raw("\\n    abc\\n    ")
+              loop(expression(parameter(variable(name)) parameter(keyword(in)) parameter(variable(names)))):
+                  raw("\\n        hi, ")
+                  variable(name)
+                  raw("\\n    ")
+              raw("\\n    def\\n")
+          else:
+              raw("\\n    foo\\n")
+        """
+        
+        let output = try altParse(input).map { $0.description } .joined(separator: "\n")
+        XCTAssertEqual(output, expectation)
     }
     
     
@@ -150,17 +167,13 @@ final class ParserTests: XCTestCase {
         """
         
         let expectation = """
-        extend(parameter(stringLiteral("base")))
-        raw("\\n    ")
-        export(hasBody: false: parameter(stringLiteral("title")), parameter(stringLiteral("Welcome")))
-        raw("\\n    ")
-        export(hasBody: true: parameter(stringLiteral("body")))
-        raw("\\n        Hello, ")
-        variable(parameter(variable(name)))
-        raw("!\\n    ")
-        tagTerminator(export)
-        raw("\\n")
-        tagTerminator(extend)
+        extend("base"):
+          export("title"):
+              raw("Welcome")
+          export("body"):
+              raw("\\n        Hello, ")
+              variable(name)
+              raw("!\\n    ")
 
         """
         
@@ -171,7 +184,7 @@ final class ParserTests: XCTestCase {
         let compiled = try! compile(input).map { $0.description + "\n" } .reduce("", +)
         let _ = lexed + parsed + compiled
         
-        let output = parsed
+        let output = alt
         XCTAssertEqual(output, expectation)
     }
     

@@ -326,22 +326,11 @@ indirect enum _ALTSyntax: CustomStringConvertible {
         case .conditional(let c):
             print += "conditional:\n"
             print += c.print(depth: depth + 1)
-//            print += "conditional("
-//            switch c.condition {
-//            case .if(let params):
-//                print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
-//            case .elseif(let params):
-//                print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
-//            case .else:
-//                print += "else"
-//            }
-//            print += ")"
-//            if !c.body.isEmpty {
-//                print += ":\n" + c.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
-//            }
-            
-        case .loop(let params, _):
+        case .loop(let params, let body):
             print += "loop(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            if !body.isEmpty {
+                print += ":\n" + body.map { $0.print(depth: depth) } .joined(separator: "\n")
+            }
         case .import(let imp):
             print += "import(" + imp.key.debugDescription + ")"
         case .extend(let ext):
