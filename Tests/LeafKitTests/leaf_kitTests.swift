@@ -157,6 +157,67 @@ final class ParserTests: XCTestCase {
     }
     
     
+    func testDocumentCompileExtend() throws {
+        let header = """
+        <h1>#import("header")</h1>
+        """
+//        / 'base.leaf
+        let base = """
+        #extend("header")
+        <title>#import("title")</title>
+        #import("body")
+        """
+        
+        let home = """
+        #extend("base"):
+            #export("title", "Welcome")
+            #export("body"):
+                Hello, #(name)!
+            #endexport
+        #endextend
+        """
+        
+        let headerAst = try altParse(header)
+        let baseAst = try altParse(base)
+        let homeAst = try altParse(home)
+        
+        let documents: [Document] = [
+            .init(name: "header", ast: headerAst),
+            .init(name: "base", ast: baseAst),
+            .init(name: "home", ast: homeAst)
+        ]
+        
+        var compiler = Compiler(documents)
+        let compiled = try compiler.compile()
+        for (key, val) in compiled {
+            print("Document: " + key.uppercased())
+            val.ast.forEach { print($0) }
+        }
+        print()
+        
+//        let expectation = """
+//        extend("base"):
+//          export("title"):
+//            raw("Welcome")
+//          export("body"):
+//            raw("\\n        Hello, ")
+//            variable(name)
+//            raw("!\\n    ")
+//
+//        """
+
+//        let lexed = try! lex(input).map { $0.description + "\n" } .reduce("", +)
+//        let rawAlt = try! altParse(input)
+//        let alt = rawAlt.map { $0.description + "\n" } .reduce("", +)
+//        let parsed = try! parse(input).map { $0.description + "\n" } .reduce("", +)
+//        let _ = lexed + parsed
+        
+//        let output = alt
+        // random order of dict is what is failing test :+1:
+//        XCTAssertEqual(output, expectation)
+    }
+    
+    
     func testCompileExtend() throws {
         let input = """
         #extend("base"):

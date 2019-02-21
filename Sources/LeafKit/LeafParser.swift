@@ -17,8 +17,103 @@ enum ConditionalSyntax {
     case `else`
 }
 
-func extend(base: [Syntax], with: Syntax.Extend) {
+struct Document {
+    let name: String
+    let ast: [Syntax]
     
+    var dependencies: [String] {
+        return extensions.map { $0.key }
+    }
+    
+    var extensions: [Syntax.Extend] {
+        return ast.compactMap {
+            switch $0 {
+            case .extend(let e): return e
+            default: return nil
+            }
+        }
+    }
+}
+
+extension Array where Element == Document {
+//    func prioritize() -> Array {
+//
+//        var prioritized = Array()
+//        forEach { element in
+//            let extensions = element.extensionNames
+//            guard !extensions.isEmpty else {
+//                prioritized.append(element)
+//                return
+//            }
+//
+//
+//        }
+//        return sorted { left, right in
+//            return false
+//        }
+//        fatalError()
+//    }
+}
+
+struct Compiler {
+    // todo: internal protect
+    var documents: [Document]
+    private(set) var compiled: [String: Document] = [:]
+    init(_ docs: [Document]) {
+        self.documents = docs
+    }
+    
+    // we're gonna be real lazy about this stop
+    // as opposed to trying to prioritize
+    // just keep checking what we can compile
+    // and if we can't, stick it in the back of
+    // the array and try again later
+    mutating func compile() -> [String: Document] {
+        var drain = self.documents
+        var hold = [Document]()
+        while let next = drain.first {
+            drain.removeFirst()
+
+            if canSatisfyAllDependenciesFor(doc: next) {
+                compile(next: next)
+            } else {
+                hold.append(next)
+            }
+            
+            guard drain.isEmpty else { continue }
+            if hold.isEmpty { break }
+            else if hold.map({ $0.name }) == documents.map({ $0.name }) { break }
+            else {
+                drain = hold
+                hold = []
+            }
+        }
+        
+        return compiled
+    }
+
+    mutating func compile(next doc: Document) {
+        var processed: [Syntax] = []
+        doc.ast.forEach { syntax in
+            if case .extend(let e) = syntax {
+                guard let base = compiled[e.key] else { fatalError("couldn't extend \(e)") }
+                let extended = e.extend(base: base.ast)
+                processed += extended
+            } else {
+                processed.append(syntax)
+            }
+        }
+        
+        let new = Document(name: doc.name, ast: processed)
+        compiled[new.name] = new
+    }
+    
+    func canSatisfyAllDependenciesFor(doc: Document) -> Bool {
+        // no deps, easily satisfy
+            // see if all dependencies necessary have already been compiled
+        return doc.dependencies.isEmpty
+            || doc.dependencies.allSatisfy(compiled.keys.contains)
+    }
 }
 
 /*
