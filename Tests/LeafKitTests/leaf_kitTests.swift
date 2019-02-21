@@ -6,10 +6,10 @@ typealias LeafDict = [String: LeafData]
 func render(raw: String, ctx: LeafDict) throws -> String {
     var buffer = ByteBufferAllocator().buffer(capacity: 0)
     buffer.writeString(raw)
-    
+
     var lexer = LeafLexer(template: buffer)
     let tokens = try lexer.lex()
-    var parser = LeafParser(tokens: tokens)
+    var parser = OldLeafParser(tokens: tokens)
     let ast = try parser.parse()
     var serializer = LeafSerializer(ast: ast, context: ctx)
     var view = try serializer.serialize()
@@ -182,8 +182,7 @@ final class ParserTests: XCTestCase {
         let rawAlt = try! altParse(input)
         let alt = rawAlt.map { $0.description + "\n" } .reduce("", +)
         let parsed = try! parse(input).map { $0.description + "\n" } .reduce("", +)
-        let compiled = try! compile(input).map { $0.description + "\n" } .reduce("", +)
-        let _ = lexed + parsed + compiled
+        let _ = lexed + parsed
         
         let output = alt
         XCTAssertEqual(output, expectation)
@@ -431,20 +430,20 @@ func parse(_ str: String) throws -> [_Syntax] {
     return syntax
 }
 
-func compile(_ str: String) throws -> [_Block] {
-    var buffer = ByteBufferAllocator().buffer(capacity: 0)
-    buffer.writeString(str)
-    
-    var lexer = LeafLexer(template: buffer)
-    let tokens = try! lexer.lex()
-    var parser = _LeafParser.init(tokens: tokens)
-    let syntax = try! parser.parse()
-
-    fatalError()
-//    var compiler = _Compiler(syntax: syntax)
-//    let elements = try compiler.compile()
-//    return elements
-}
+//func compile(_ str: String) throws -> [_Block] {
+//    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+//    buffer.writeString(str)
+//
+//    var lexer = LeafLexer(template: buffer)
+//    let tokens = try! lexer.lex()
+//    var parser = _LeafParser.init(tokens: tokens)
+//    let syntax = try! parser.parse()
+//
+//    fatalError()
+////    var compiler = _Compiler(syntax: syntax)
+////    let elements = try compiler.compile()
+////    return elements
+//}
 
 final class LeafKitTests: XCTestCase {
     func testParser() throws {
