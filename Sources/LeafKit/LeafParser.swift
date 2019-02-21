@@ -825,50 +825,6 @@ final class _Block {
     }
 }
 
-//func testGrouping(_ document: [_Syntax]) {
-//    
-//    var document = document.reversed().makeIterator()
-//    
-//
-//    var awaitingBody: [_Syntax] = []
-//    func close(with terminator: _Syntax) {
-//        fatalError()
-//    }
-//    
-//    var activeParent: _Syntax? = nil
-//    var activeBody: [_Syntax] = []
-//    func close(terminator: String) {
-//        activeBody.drop { next in
-//            fatalError()
-////            return next.matches(terminator: terminator)
-//        }
-//    }
-//    
-//    while let next = document.next() {
-//
-//
-//            // push stack if necessary
-//        if next.expectsBody { awaitingBody.append(next) }
-//        switch next {
-//        case .conditional(let c):
-//            switch c {
-//            case .if: fatalError()
-//            case .elseif: fatalError()
-//            case .else: fatalError()
-//            }
-//        case .export: fatalError()
-//        case .extend: fatalError()
-//        case .import: fatalError()
-//        case .loop: fatalError()
-//        case .raw: fatalError()
-//        case .tagDeclaration: fatalError()
-//        case .tagTerminator: fatalError()
-//        case .variable: fatalError()
-//        }
-//    }
-//    
-//}
-
 /*
  
  */
