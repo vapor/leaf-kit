@@ -236,7 +236,7 @@ final class PrintTests: XCTestCase {
         
         var lexer = LeafLexer(template: buffer)
         let tokens = try! lexer.lex()
-        var parser = _LeafParser.init(tokens: tokens)
+        var parser = LeafParser.init(tokens: tokens)
         return try! parser.altParse()
     }
 }
@@ -412,7 +412,7 @@ func altParse(_ str: String) throws -> [Syntax] {
     
     var lexer = LeafLexer(template: buffer)
     let tokens = try! lexer.lex()
-    var parser = _LeafParser.init(tokens: tokens)
+    var parser = LeafParser.init(tokens: tokens)
     let syntax = try! parser.altParse()
     
     return syntax
@@ -566,7 +566,7 @@ final class LeafKitTests: XCTestCase {
         tokens.forEach { print($0) }
         print()
         
-        var parser = _LeafParser(tokens: tokens)
+        var parser = LeafParser(tokens: tokens)
         let ast = try! parser.altParse()
         print("AST:")
         ast.forEach { print($0) }

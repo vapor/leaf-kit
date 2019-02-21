@@ -1,208 +1,12 @@
-extension Array where Element == LeafToken {
-    func dropWhitespace() -> Array<LeafToken> {
-        return self.filter { token in
-            guard case .whitespace = token else { return true }
-            return false
-        }
-    }
-}
-
-/*
- 
- tag:
-     parameterGroup:
-     body:
-
- */
-
-//struct _Tag {
-//    let name: String
-////    let parameters: [_Syntax]
-////    let body: [_Syntax]?
-//}
-
-struct _TagDeclaration {
-    let name: String
-    // todo: convert to '[Parameter]' ?
-    let parameters: [LeafToken]
-    let hasBody: Bool
-    
-    init(name: String, parameterTokens: [LeafToken], hasBody: Bool) {
-        self.name = name
-        self.parameters = parameterTokens // .map { toParameter }
-        self.hasBody = hasBody
-    }
-}
-
-struct _Expression {
-    
-}
-
-//enum _Parameter {
-////    case constant(Constant)
-////    case variable(name: String)
-//    case stringLiteral(String)
-//    case constant(Constant)
-//    case variable(name: String)
-//    case keyword(Keyword)
-//    case `operator`(Operator)
-//    case tag(_Tag)
-//    case expression(_Expression)
-//}
-
-//indirect enum Parameter {
-//    case stringLiteral(String)
-//    case constant(Constant)
-//    case variable(name: String)
-//    case keyword(Keyword)
-//    case `operator`(Operator)
-//    case tag(name: String, parameters: [Parameter])
-//    case expression([Parameter])
-//}
-
-//struct _Extend {
-//    let key: String
-//    let exports: [String: [LeafSyntax]]
-//}
-
-struct _For {
-    
-}
-
-//struct _Conditional {
-//
-//}
-
-/*
- 
- #(foo == 40, and, \"literal\")
- #if
- 
- */
-
-
-/*
- #for(foo in over18(bar)):
- #endfor
- #if(a == b,"whoops")
- #(a b c)
- */
-indirect enum _asdfSyntax {
-    case raw(ByteBuffer)
-    
-    //
-    case tag(_Tag)
-    
-    //
-    case loop(_For)
-    case conditional(_ConditionalSyntax)
-    case expression(_Expression)
-    case variable(name: String)
-
-    ///
-    case `import`(String)
-    case extend(String)
-}
-
-/*
- Token
- => Syntax (PreProcess)
- => Action
- */
-indirect enum Action {
-    case raw(ByteBuffer)
-    
-    //
-    case tag(_Tag)
-    
-    //
-    case loop(_For)
-    case conditional(_ConditionalSyntax)
-    case expression(_Expression)
-    case variable(name: String)
-    
-    ///
-    case `import`(String)
-    case extend(String)
-}
-
-//struct Compiler {
-//    let syntax: [_Syntax]
-//
-//    func compile() -> [Action] {
-//        fatalError()
-//    }
-//}
-
-enum _ConditionalSyntax {
+enum ConditionalSyntax {
     case `if`([ProcessedParameter])
     case `elseif`([ProcessedParameter])
     case `else`
 }
 
-
-indirect enum _Syntaxxxx: CustomStringConvertible {
-    case raw(ByteBuffer)
-    case tag(name: String, parameters: [ProcessedParameter]?, body: [_Syntaxxxx]?)
-    
-    //    case variable(name: String)
-    //    case conditional(_Conditional)
-    
-    var description: String {
-        let t = type(of: self)
-        return "\(t) \(self)"
-//        switch self {
-//        case .raw(var byteBuffer):
-//            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-//            return "raw(\(string.debugDescription))"
-//            //        case .variable(let name):
-//        //            return "variable(\(name))"
-//        case .tagTerminator(name: let terminator):
-//            return "tagTerminator(\(terminator))"
-//        case .tagDeclaration(let name, let params, let hasBody):
-//            let name = name + "(hasBody: " + hasBody.description + ")"
-//            return "tag(" + name + ": " + params.map { $0.description } .joined(separator: ",") + ")"
-//        default:
-//            fatalError()
-//            return "conditional()"
-//        }
-    }
-}
-
-//extension _Syntax {
-//    var isConditionalTerminator: Bool { return terminator == "if"}
-//    var isLoopTerminator: Bool { return terminator == "for" }
-//    var isImportTerminator: Bool { return terminator == "import" }
-//    var isExtendTerminator: Bool { return terminator == "extend" }
-//    var isExportTerminator: Bool { return terminator == "export" }
-//
-//    var isTerminator: Bool {
-//        switch self {
-//        case .conditional(let c):
-//            switch c {
-//            case .if:
-//                return false
-//            case .elseif, .else:
-//                // else, and elseif dual function as a tag, and a terminator
-//                return true
-//            }
-//        case .tagTerminator:
-//            return true
-//        default:
-//            return false
-//        }
-//    }
-//
-//    var terminator: String? {
-//        guard case .tagTerminator(let name) = self else { return nil }
-//        return name
-//    }
-//}
-
 let block = "  "
 
 indirect enum Syntax: CustomStringConvertible {
-    
     struct Import {
         let key: String
         init(_ params: [ProcessedParameter]) throws {
@@ -257,13 +61,11 @@ indirect enum Syntax: CustomStringConvertible {
     }
     
     final class Conditional {
-        let condition: _ConditionalSyntax
+        let condition: ConditionalSyntax
         let body: [Syntax]
-        
-        
         private(set) var next: Conditional?
         
-        init(_ condition: _ConditionalSyntax, body: [Syntax]) {
+        init(_ condition: ConditionalSyntax, body: [Syntax]) {
             self.condition = condition
             self.body = body
         }
@@ -276,6 +78,42 @@ indirect enum Syntax: CustomStringConvertible {
             
             // todo: verify that is valid attachment
             tail.next = new
+        }
+        
+        func print(depth: Int) -> String {
+            var print = "conditional:\n"
+            print += _print(depth: depth + 1)
+            return print
+        }
+        
+        func _print(depth: Int) -> String {
+            var print = ""
+            switch condition {
+            case .if(let params):
+                print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            case .elseif(let params):
+                print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            case .else:
+                print += "else"
+            }
+            
+            if !body.isEmpty {
+                print += ":\n" + body.map { $0.print(depth: depth) } .joined(separator: "\n")
+            }
+            
+            var buffer = ""
+            let block = "  "
+            for _ in 0..<depth {
+                buffer += block
+            }
+            print = print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
+            
+            // todo: remove recursion
+            if let next = self.next {
+                print += "\n"
+                print += next._print(depth: depth)
+            }
+            return print
         }
     }
     
@@ -407,425 +245,7 @@ indirect enum Syntax: CustomStringConvertible {
     }
 }
 
-extension Syntax.Conditional {
-    func print(depth: Int) -> String {
-        var print = "conditional:\n"
-        print += _print(depth: depth + 1)
-        return print
-    }
-    
-    func _print(depth: Int) -> String {
-        var print = ""
-        switch condition {
-        case .if(let params):
-            print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .elseif(let params):
-            print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .else:
-            print += "else"
-        }
-        
-        if !body.isEmpty {
-            print += ":\n" + body.map { $0.print(depth: depth) } .joined(separator: "\n")
-        }
-        
-        var buffer = ""
-        let block = "  "
-        for _ in 0..<depth {
-            buffer += block
-        }
-        print = print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
-        
-        // todo: remove recursion
-        if let next = self.next {
-            print += "\n"
-            print += next._print(depth: depth)
-        }
-        return print
-    }
-}
-
-indirect enum _Syntax: CustomStringConvertible {
-    //    case documentStart
-    //    case documentEnd
-    
-    case raw(ByteBuffer)
-    case variable([ProcessedParameter])
-    
-    case tagDeclaration(name: String, parameters: [ProcessedParameter], hasBody: Bool)
-    case tagTerminator(name: String)
-    
-    case conditional(_ConditionalSyntax)
-    case loop([ProcessedParameter])
-    case `import`([ProcessedParameter])
-    case extend([ProcessedParameter])
-    case export([ProcessedParameter], hasBody: Bool)
-    
-    var description: String {
-        switch self {
-            //        case .documentStart:
-            //            return "documentStart"
-            //        case .documentEnd:
-        //            return "documentEnd"
-        case .raw(var byteBuffer):
-            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-            return "raw(\(string.debugDescription))"
-        case .tagTerminator(name: let terminator):
-            return "tagTerminator(\(terminator))"
-        case .tagDeclaration(let name, let params, let hasBody):
-            let name = name + "(hasBody: " + hasBody.description + ")"
-            return "tag(" + name + ": " + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .conditional(let c):
-            var print = "conditional("
-            switch c {
-            case .if(let params):
-                print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
-            case .elseif(let params):
-                print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
-            case .else:
-                print += "else"
-            }
-            return print + ")"
-        case .loop(let params):
-            return "loop(" + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .variable(let params):
-            return "variable(" + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .import(let params):
-            return "import(" + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .extend(let params):
-            return "extend(" + params.map { $0.description } .joined(separator: ", ") + ")"
-        case .export(let params, let hasBody):
-            return "export(hasBody: \(hasBody): " + params.map { $0.description } .joined(separator: ", ") + ")"
-        }
-    }
-}
-
 extension String: Error {}
-
-extension LeafToken {
-//    func makeParam() -> Parameter? {
-//        switch self {
-//        case .constant(let c): return .constant(c)
-//        case .keyword(let k): return .keyword(k)
-//        case .operator(let o): return .oper
-//        default: fatalError()
-//        }
-//    }
-}
-
-/*
- indirect enum _Syntax {
- case raw(ByteBuffer)
- 
- //
- case tag(_Tag)
- 
- //
- case loop(_For)
- case conditional(_Conditional)
- case expression(_Expression)
- case variable(name: String)
- 
- ///
- case `import`(String)
- case extend(String)
- }
-
- */
-
-struct Tagggg {
-    let name: String
-    let parameters: [ProcessedParameter]?
-    let body: [_Syntax]?
-}
-
-//struct Comprehension {
-//    let list: [PreProcess]
-//    func syntax() -> [_Syntax] {
-//        fatalError()
-//    }
-//}
-
-//class TTTTagDeclaration {
-//    let name
-//}
-
-//extension _Syntax {
-//    func matches(terminator: String) -> Bool {
-//        switch terminator {
-//        case "if":
-//            switch self {
-//            case .conditional(let c):
-//                switch c {
-//                case .if(_):
-//                    return true
-//                default:
-//                    return false
-//                }
-//            default: fatalError()
-//            }
-//        default: fatalError()
-//        }
-//    }
-//}
-
-class Thing {
-    
-}
-
-
-//indirect enum LeafElement {
-//    case raw(ByteBuffer)
-//    case tagDeclaration(name: String, parameters: [ProcessedParameter], hasBody: Bool)
-//    case tagTerminator(name: String)
-//    case conditional(_ConditionalSyntax)
-//    case loop([ProcessedParameter])
-//    case variable([ProcessedParameter])
-//
-//    case `import`([ProcessedParameter])
-//    case extend([ProcessedParameter])
-//    case export([ProcessedParameter], hasBody: Bool)
-//}
-
-
-//protocol LeafElement {}
-
-extension Array where Element == ProcessedParameter {
-    func compile() {
-        
-    }
-}
-
-extension IndexingIterator where Element == [_Syntax] {
-//    func readBody(matching) {
-//
-//    }
-}
-
-//final class _Conditional {
-//
-//}
-//indirect enum LeafElement {
-//    // todo: process [ProcessedParameters] into a proper condition
-//    case conditional(condition: [ProcessedParameter], body: [LeafElement], next: LeafElement?)
-//}
-
-protocol LeafElement {}
-
-struct _Raw: LeafElement {
-    let buffer: ByteBuffer
-}
-
-struct _Tag: LeafElement {
-    let name: String
-    let params: [ProcessedParameter]
-    let body: [LeafElement]
-}
-
-final class _Conditional: LeafElement {
-    // TODO: process into something that can be evaluated
-    let condition: [ProcessedParameter]
-    let body: [LeafElement]
-    let next: _Conditional?
-    
-    init(condition: [ProcessedParameter], body: [LeafElement], next: _Conditional?) {
-        self.condition = condition
-        self.body = body
-        self.next = next
-    }
-}
-
-struct _Loop: LeafElement {
-    // TODO: process into something that can be evaluated
-    let params: [ProcessedParameter]
-    let body: [LeafElement]
-    
-//    init(params: [ProcessedParameter], body: [LeafElement]) {
-//        self.params = params
-//        self.body = body
-//    }
-}
-
-struct _Variable: LeafElement {
-    let name: String
-}
-
-struct _Import: LeafElement {
-    let params: [ProcessedParameter]
-}
-
-struct _Export {
-    let name = "first param"
-    let body = "second param, or body"
-    let params: [ProcessedParameter]
-}
-
-struct _Extend: LeafElement {
-    let params: [ProcessedParameter]
-    let body: [LeafElement]
-}
-
-/*
- // => raw
- case raw(ByteBuffer)
- 
- // => collect body,
- case tagDeclaration(name: String, parameters: [ProcessedParameter], hasBody: Bool)
- // <= matches w/ body
- case tagTerminator(name: String)
- 
- case conditional(_ConditionalSyntax)
- 
- // => collect body
- case loop([ProcessedParameter])
- case variable([ProcessedParameter])
- 
- case `import`([ProcessedParameter])
- case extend([ProcessedParameter])
- case export([ProcessedParameter], hasBody: Bool)
- */
-
-//class Block {
-//    let parent: _Syntax
-//    let body: [_Syntax]?
-//}
-
-extension IndexingIterator where Element == [_Syntax] {
-    mutating func dropLast(_ k: Int = 1) -> [Array<_Syntax>] {
-        fatalError()
-    }
-}
-
-//final class Group {
-//    let parent: _Syntax?
-//    var body: [Group]? = nil
-//    init(parent: _Syntax?, body: [Group]?) {
-//        self.parent = parent
-//    }
-//}
-
-extension _Syntax {
-    func matches(terminator: _Syntax) -> Bool {
-        switch terminator {
-        case .conditional(let terminatingConditional):
-            switch terminatingConditional {
-                // if can NOT be a terminator
-            case .if: return false
-            case .else, .elseif:
-                // else and elseif can only match to
-                guard case .conditional(let parent) = self else { return false }
-                switch parent {
-                case .if, .elseif: return true
-                case .else:
-                    // else conditions can't be terminated by a subsequent
-                    // conditional terminator
-                    return false
-                }
-            }
-        case .tagTerminator(let terminator):
-            switch self {
-            case .tagDeclaration(let name, _, _): return name == terminator
-            case .conditional(let condition): return terminator == "if"
-            case .export: return terminator == "export"
-            case .extend: return terminator == "extend"
-            case .loop: return terminator == "for"
-            case .import: return false
-            case .raw: return false
-            case .tagTerminator: return false
-            case .variable: return false
-            }
-        default: fatalError()
-        }
-//        guard case .tagDeclaration(let name, _, _) = self, terminator == name else { return false }
-        return true
-    }
-}
-
-extension Array {
-    mutating func readLastUntilInclusive(_ check: (Element) throws -> Bool) -> Array {
-        var array = [Element]()
-//        while let next = f
-        return array
-    }
-}
-
-extension _Syntax {
-    var expectsBody: Bool {
-        switch self {
-        case .export(_, let hasBody): return hasBody
-        case .tagDeclaration(_, _, let hasBody): return hasBody
-        case .conditional: return true
-        case .extend: return true
-        case .loop: return true
-        case .import: return false
-        case .raw: return false
-        case .tagTerminator: return false
-        case .variable: return false
-        }
-    }
-}
-/*
- extend(base)
- raw("\n    ")
- export("title", "Welcome")
- raw("\n    ")
- export("body")
- raw("\n        Hello, ")
- variable(parameter(variable(name)))
- raw("!\n    ")
- tagTerminator(export)
- raw("\n")
- tagTerminator(extend)
- */
-
-class Group {
-    let parent: _Syntax?
-    var body: [Group]? = nil
-    init(parent: _Syntax?, body: [Group]?) {
-        self.parent = parent
-    }
-}
-
-//final class Link {
-//    let parent: _Syntax?
-//
-//}
-
-final class Block: CustomStringConvertible {
-    let parent: _Syntax
-    var body: [_Syntax] = []
-    init(_ parent: _Syntax) {
-        self.parent = parent
-    }
-    
-    var description: String {
-        var print = ""
-        print += "parent(" + parent.description + ")\n"
-        print += "body(" + body.map { $0.description } .joined(separator: ", ") + ")"
-        return print
-    }
-}
-
-final class _Block {
-    let parent: _Syntax
-    var body: [_Block] = []
-    init(_ parent: _Syntax) {
-        self.parent = parent
-    }
-    var description: String {
-        let bod = body.map { $0.description } .joined(separator: ", ")
-        var print = "\n"
-        print += "<block>\n"
-        print += parent.description + "\n"
-        if !body.isEmpty {
-            print += "<body>"
-            print += bod
-            print += "\n</body>"
-        }
-        print += "</block>"
-        return print
-    }
-}
 
 struct TagDeclaration {
     let name: String
@@ -833,23 +253,7 @@ struct TagDeclaration {
     let expectsBody: Bool
 }
 
-final class __Collector {
-    let parent: _Syntax
-    var body: [_Syntax] = []
-    init(_ parent: _Syntax) {
-        self.parent = parent
-    }
-}
-
-final class _Collector {
-    let parent: _Syntax
-    var body: [_Syntax] = []
-    init(_ parent: _Syntax) {
-        self.parent = parent
-    }
-}
-
-final class OpenTag {
+final class OpenContext {
     let parent: TagDeclaration
     var body: [Syntax] = []
     init(_ parent: TagDeclaration) {
@@ -914,7 +318,7 @@ extension TagDeclaration {
 }
 
 
-struct _LeafParser {
+struct LeafParser {
     private let tokens: [LeafToken]
     private var offset: Int
     
@@ -925,7 +329,7 @@ struct _LeafParser {
 
     
     var finished: [Syntax] = []
-    var awaitingBody: [OpenTag] = []
+    var awaitingBody: [OpenContext] = []
     
     mutating func altParse() throws -> [Syntax] {
         while let next = peek() {
