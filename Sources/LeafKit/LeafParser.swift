@@ -201,7 +201,7 @@ indirect enum _Syntaxxxx: CustomStringConvertible {
 
 let block = "  "
 
-indirect enum _ALTSyntax: CustomStringConvertible {
+indirect enum Syntax: CustomStringConvertible {
     
     struct Import {
         let key: String
@@ -215,8 +215,8 @@ indirect enum _ALTSyntax: CustomStringConvertible {
     
     struct Extend {
         let key: String
-        let body: [_ALTSyntax]
-        init(_ params: [ProcessedParameter], body: [_ALTSyntax]) throws {
+        let body: [Syntax]
+        init(_ params: [ProcessedParameter], body: [Syntax]) throws {
             guard params.count == 1 else { throw "extend only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
@@ -234,9 +234,9 @@ indirect enum _ALTSyntax: CustomStringConvertible {
     
     struct Export {
         let key: String
-        let body: [_ALTSyntax]
+        let body: [Syntax]
         
-        init(_ params: [ProcessedParameter], body: [_ALTSyntax]) throws {
+        init(_ params: [ProcessedParameter], body: [Syntax]) throws {
             guard (1...2).contains(params.count) else { throw "export expects 1 or 2 params" }
             guard case .parameter(let p) = params[0] else { throw "expected parameter" }
             guard case .stringLiteral(let s) = p else { throw "export only supports string literals" }
@@ -258,12 +258,12 @@ indirect enum _ALTSyntax: CustomStringConvertible {
     
     final class Conditional {
         let condition: _ConditionalSyntax
-        let body: [_ALTSyntax]
+        let body: [Syntax]
         
         
         private(set) var next: Conditional?
         
-        init(_ condition: _ConditionalSyntax, body: [_ALTSyntax]) {
+        init(_ condition: _ConditionalSyntax, body: [Syntax]) {
             self.condition = condition
             self.body = body
         }
@@ -284,10 +284,10 @@ indirect enum _ALTSyntax: CustomStringConvertible {
         let array: String
 
         /// the body of the looop
-        let body: [_ALTSyntax]
+        let body: [Syntax]
         
         /// initialize a new loop
-        init(_ params: [ProcessedParameter], body: [_ALTSyntax]) throws {
+        init(_ params: [ProcessedParameter], body: [Syntax]) throws {
             guard
                 params.count == 1,
                 case .expression(let list) = params[0],
@@ -345,7 +345,7 @@ indirect enum _ALTSyntax: CustomStringConvertible {
     struct CustomTag {
         let name: String
         let params: [ProcessedParameter]
-        let body: [_ALTSyntax]?
+        let body: [Syntax]?
     }
     
     case raw(ByteBuffer)
@@ -405,7 +405,7 @@ indirect enum _ALTSyntax: CustomStringConvertible {
     }
 }
 
-extension _ALTSyntax.Conditional {
+extension Syntax.Conditional {
     func print(depth: Int) -> String {
         var print = "conditional:\n"
         print += _print(depth: depth + 1)
@@ -825,124 +825,6 @@ final class _Block {
     }
 }
 
-/*
- 
- */
-//struct _Compiler {
-//    
-//    enum State {
-//        case normal
-//        case body(stack: [_Syntax])
-//    }
-//    
-//    var state = State.normal
-//    
-//    var parentStack: [_Syntax] = []
-//    
-//    mutating func push(parent: _Syntax) {
-//        parentStack.append(parent)
-//    }
-//    mutating func pop() {
-//        guard parentStack.count > 0 else { fatalError() }
-//        parentStack.removeLast()
-//    }
-//    
-//    var parent: _Syntax {
-//        guard let p = parentStack.last else { fatalError() }
-//        return p
-//    }
-//    
-////    let syntax: [_Syntax]
-//    var body = [_Syntax]()
-//    private var syntax: IndexingIterator<[_Syntax]>
-//    
-//    init(syntax: [_Syntax]) {
-//        self.init(syntax: syntax.makeIterator())
-//    }
-//    init(syntax: IndexingIterator<[_Syntax]>) {
-//        self.syntax = syntax
-//    }
-//    
-//    mutating func compile() throws {
-//        while let next = syntax.next() {
-//            switch next {
-//            case .conditional: fatalError()
-//            case .export: fatalError()
-//            case .extend: fatalError()
-//            case .import: fatalError()
-//            case .loop: fatalError()
-//            case .raw: fatalError()
-//            case .tagDeclaration: fatalError()
-//            case .tagTerminator: fatalError()
-//            case .variable: fatalError()
-//                
-//            }
-//        }
-//    }
-//    
-//    mutating func handle(next: _Syntax) {
-//        switch next {
-//        case .conditional: fatalError()
-//        case .export: fatalError()
-//        case .extend: fatalError()
-//        case .import: fatalError()
-//        case .loop: fatalError()
-//        case .raw: fatalError()
-//        case .tagDeclaration: fatalError()
-//        case .tagTerminator: fatalError()
-//        case .variable: fatalError()
-//        }
-//        
-//        switch state {
-//        case .normal:
-//            fatalError()
-//        case .body(let stack):
-//            fatalError()
-//        }
-//    }
-//    
-//    func compile(_ next: _Syntax) {
-//        switch next {
-//        case .conditional(let c):
-//            fatalError()
-////            switch c {
-////                case .if(let p)
-////            }
-//        default: fatalError()
-//        }
-//    }
-//    
-//    mutating func readConditional(parent: _Syntax) -> _Conditional {
-//        print("todo: guard that parent is 'if'")
-//        
-//        var body = [_Syntax]()
-//        while let next = syntax.next() {
-//            switch next {
-//            case .conditional(let c):
-//                switch c {
-//                case .if:
-//                    let c = readConditional(parent: next)
-//                    fatalError("found subsequent if, nest \(c)")
-//                case .elseif:
-//                    fatalError()
-//                case .else:
-//                    fatalError()
-//                }
-//            default: fatalError()
-//            }
-//        }
-//        fatalError()
-//    }
-//}
-
-//struct Buffer<T> {
-//    var buffer: T
-//    init(_ buffer: T) { self.buffer = buffer }
-//    func peek() -> T? {
-//
-//    }
-//}
-
 struct TagDeclaration {
     let name: String
     let parameters: [ProcessedParameter]?
@@ -967,25 +849,14 @@ final class _Collector {
 
 final class Awaiterrrrr {
     let parent: TagDeclaration
-    var body: [_ALTSyntax] = []
-//    var child: Awaiterrrrr?
-//
-//    var tail: Awaiterrrrr? {
-//        // avoid recursion
-//        var child = self.child
-//        while let next = child?.child {
-//            child = next
-//        }
-//        return child
-//    }
-    
+    var body: [Syntax] = []
     init(_ parent: TagDeclaration) {
         self.parent = parent
     }
 }
 
 extension TagDeclaration {
-    func makeSyntax(body: [_ALTSyntax]) throws -> _ALTSyntax {
+    func makeSyntax(body: [Syntax]) throws -> Syntax {
         let params = parameters ?? []
 
         switch name {
@@ -1040,56 +911,56 @@ extension TagDeclaration {
     }
 }
 
-struct _Compiler {
-    private var syntax: [_Syntax]
-    private var ready: [_Block] = []
-    private var waiting: [_Block] = []
-    
-    init(syntax: [_Syntax]) {
-        self.syntax = syntax
-    }
-    
-    mutating func compile() throws -> [_Block] {
-        try syntax.forEach { try handle(next: $0) }
-        return ready + waiting
-    }
-    
-    mutating private func handle(next: _Syntax) throws {
-        fatalError()
-//        // check terminator first for dual body/terminator functors,
-//        // ie: elseif, else
-//        // must happen BEFORE body
-//        if next.isTerminator { try close(with: next) }
-//
-//        // this needs to be a secondary if-statement, and
-//        // not joined above
-//        //
-//        // this allows for dual functors, a la elseif
-//        if next.expectsBody {
-//            waiting.append(.init(next))
-//        } else if !next.isTerminator {
-//            if let last = waiting.last {
-//                last.body.append(.init(next))
-//            } else {
-//                // not a terminator, and nobody is
-//                // waiting, top level
-//                ready.append(.init(next))
-//            }
+//struct _Compiler {
+//    private var syntax: [_Syntax]
+//    private var ready: [_Block] = []
+//    private var waiting: [_Block] = []
+//    
+//    init(syntax: [_Syntax]) {
+//        self.syntax = syntax
+//    }
+//    
+//    mutating func compile() throws -> [_Block] {
+//        try syntax.forEach { try handle(next: $0) }
+//        return ready + waiting
+//    }
+//    
+//    mutating private func handle(next: _Syntax) throws {
+//        fatalError()
+////        // check terminator first for dual body/terminator functors,
+////        // ie: elseif, else
+////        // must happen BEFORE body
+////        if next.isTerminator { try close(with: next) }
+////
+////        // this needs to be a secondary if-statement, and
+////        // not joined above
+////        //
+////        // this allows for dual functors, a la elseif
+////        if next.expectsBody {
+////            waiting.append(.init(next))
+////        } else if !next.isTerminator {
+////            if let last = waiting.last {
+////                last.body.append(.init(next))
+////            } else {
+////                // not a terminator, and nobody is
+////                // waiting, top level
+////                ready.append(.init(next))
+////            }
+////        }
+//    }
+//    
+//    mutating private func close(with closer: _Syntax) throws {
+//        guard !waiting.isEmpty else { throw "found terminator \(closer), with no corresponding tag" }
+//        let element = waiting.removeLast()
+//        guard element.parent.matches(terminator: closer) else { throw "unable to match \(element.parent) with \(closer)" }
+//        // now, element shoule collapse INTO stack
+//        if let newTail = waiting.last {
+//            newTail.body.append(element)
+//        } else {
+//            ready.append(element)
 //        }
-    }
-    
-    mutating private func close(with closer: _Syntax) throws {
-        guard !waiting.isEmpty else { throw "found terminator \(closer), with no corresponding tag" }
-        let element = waiting.removeLast()
-        guard element.parent.matches(terminator: closer) else { throw "unable to match \(element.parent) with \(closer)" }
-        // now, element shoule collapse INTO stack
-        if let newTail = waiting.last {
-            newTail.body.append(element)
-        } else {
-            ready.append(element)
-        }
-    }
-}
+//    }
+//}
 
 struct _LeafParser {
     private let tokens: [LeafToken]
@@ -1108,15 +979,15 @@ struct _LeafParser {
         return collected
     }
     
-    var finished: [_ALTSyntax] = []
+    var finished: [Syntax] = []
     
-    func addFinished(_ finished: _ALTSyntax) {
+    func addFinished(_ finished: Syntax) {
 //        guard case 
     }
     
     var awaitingBody: [Awaiterrrrr] = []
     
-    mutating func altParse() throws -> [_ALTSyntax] {
+    mutating func altParse() throws -> [Syntax] {
         while let next = peek() {
             try handle(next: next)
         }
@@ -1150,7 +1021,7 @@ struct _LeafParser {
             }
         case .raw:
             let r = try collectRaw()
-            let raw = _ALTSyntax.raw(r)
+            let raw = Syntax.raw(r)
             if let last = awaitingBody.last {
                 last.body.append(raw)
             } else {

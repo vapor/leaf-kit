@@ -231,7 +231,7 @@ final class PrintTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
     
-    func parse(_ str: String) -> [_ALTSyntax] {
+    func parse(_ str: String) -> [Syntax] {
         var buffer = ByteBufferAllocator().buffer(capacity: 0)
         buffer.writeString(str)
         
@@ -407,7 +407,7 @@ func lex(_ str: String) throws -> [LeafToken] {
 }
 
 
-func altParse(_ str: String) throws -> [_ALTSyntax] {
+func altParse(_ str: String) throws -> [Syntax] {
     var buffer = ByteBufferAllocator().buffer(capacity: 0)
     buffer.writeString(str)
     
@@ -439,10 +439,11 @@ func compile(_ str: String) throws -> [_Block] {
     let tokens = try! lexer.lex()
     var parser = _LeafParser.init(tokens: tokens)
     let syntax = try! parser.parse()
-    
-    var compiler = _Compiler(syntax: syntax)
-    let elements = try compiler.compile()
-    return elements
+
+    fatalError()
+//    var compiler = _Compiler(syntax: syntax)
+//    let elements = try compiler.compile()
+//    return elements
 }
 
 final class LeafKitTests: XCTestCase {
