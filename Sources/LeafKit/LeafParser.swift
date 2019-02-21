@@ -1,12 +1,48 @@
+indirect enum Syntax {
+    case raw(ByteBuffer)
+    case variable(Variable)
+    
+    case custom(CustomTag)
+    
+    case conditional(Conditional)
+    case loop(Loop)
+    case `import`(Import)
+    case extend(Extend)
+    case export(Export)
+}
+
 enum ConditionalSyntax {
     case `if`([ProcessedParameter])
     case `elseif`([ProcessedParameter])
     case `else`
 }
 
+func extend(base: [Syntax], with: Syntax.Extend) {
+    
+}
+
+/*
+ 
+ */
+extension Syntax.Extend {
+    func extend(base: [Syntax]) -> [Syntax] {
+        // from the base
+        var extended = [Syntax]()
+        base.forEach { syntax in
+            switch syntax {
+            case .import(let im):
+                fatalError()
+            default: fatalError()
+            }
+            
+        }
+        return extended
+    }
+}
+
 let block = "  "
 
-indirect enum Syntax: CustomStringConvertible {
+extension Syntax {
     struct Import {
         let key: String
         init(_ params: [ProcessedParameter]) throws {
@@ -19,17 +55,18 @@ indirect enum Syntax: CustomStringConvertible {
     
     struct Extend {
         let key: String
-        let body: [Syntax]
+        let exports: [Export]
+
         init(_ params: [ProcessedParameter], body: [Syntax]) throws {
             guard params.count == 1 else { throw "extend only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
             self.key = s
-            self.body = try body.filter {
+            self.exports = try body.compactMap {
                 switch $0 {
                 // extend can ONLY export, raw space in body ignored
-                case .raw: return false
-                case .export: return true
+                case .raw: return nil
+                case .export(let export): return export
                 default: throw "unexpected token in extend body: \($0).. use raw space and `export` only"
                 }
             }
@@ -45,7 +82,7 @@ indirect enum Syntax: CustomStringConvertible {
             guard case .parameter(let p) = params[0] else { throw "expected parameter" }
             guard case .stringLiteral(let s) = p else { throw "export only supports string literals" }
             self.key = s
-
+            
             if params.count == 2 {
                 guard case .parameter(let p) = params[1] else { throw "expected parameter" }
                 guard case .stringLiteral(let s) = p else { throw "extend only supports string literals" }
@@ -57,6 +94,21 @@ indirect enum Syntax: CustomStringConvertible {
                 guard !body.isEmpty else { throw "export requires body or secondary arg" }
                 self.body = body
             }
+        }
+        
+        func print(depth: Int) -> String {
+            var print = ""
+            
+            print += "export(" + key.debugDescription + ")"
+            if !body.isEmpty {
+                print += ":\n" + body.map { $0.print(depth: depth) } .joined(separator: "\n")
+            }
+            
+            var buffer = ""
+            for _ in 0..<depth {
+                buffer += block
+            }
+            return print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
         }
     }
     
@@ -122,7 +174,7 @@ indirect enum Syntax: CustomStringConvertible {
         let item: String
         /// the key to use to access the array
         let array: String
-
+        
         /// the body of the looop
         let body: [Syntax]
         
@@ -187,18 +239,9 @@ indirect enum Syntax: CustomStringConvertible {
         let params: [ProcessedParameter]
         let body: [Syntax]?
     }
-    
-    case raw(ByteBuffer)
-    case variable(Variable)
-    
-    case custom(CustomTag)
-    
-    case conditional(Conditional)
-    case loop(Loop)
-    case `import`(Import)
-    case extend(Extend)
-    case export(Export)
-    
+}
+
+extension Syntax: CustomStringConvertible {
     
     var description: String {
         return print(depth: 0)
@@ -225,14 +268,11 @@ indirect enum Syntax: CustomStringConvertible {
             print += "import(" + imp.key.debugDescription + ")"
         case .extend(let ext):
             print += "extend(" + ext.key.debugDescription + ")"
-            if !ext.body.isEmpty {
-                print += ":\n" + ext.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+            if !ext.exports.isEmpty {
+                print += ":\n" + ext.exports.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
         case .export(let export):
-            print += "export(" + export.key.debugDescription + ")"
-            if !export.body.isEmpty {
-                print += ":\n" + export.body.map { $0.print(depth: depth) } .joined(separator: "\n")
-            }
+            print += export.print(depth: depth)
         }
         
         var buffer = ""

@@ -1,3 +1,46 @@
+/// base
+
+```html
+<title>#import("title")</title>
+#import("body")
+```
+
+/// `header`
+
+```html
+#extend("base"):
+#endextend
+<t>#import("header")</t>
+```
+
+=> 
+
+all extend tags are replaced injected in place of tag..
+if an import can be satisfied, it is satisfied
+// this allows 
+/// `header`
+```html
+<title>#import("title")</title>
+#import("body")
+<t>#import("header")</t>
+```
+
+this allows us to do another insert here and properly populate
+
+```html
+#extend("header"):
+#export("title", "welcome")
+#export("header", "a header here")
+#export("body"): 
+Hello, #(name)! 
+#endexport
+#endextend
+
+<t>Heylo</t>
+```
+
+**********************************************
+
 /// 'base.leaf
 
 ```html
@@ -5,15 +48,26 @@
 #import("body")
 ```
 
-/// `home.leaf`
+/// `header`
 
 ```html
 #extend("base"):
-    #export("title", "Welcome")
+#endextend
+<t>#import("header")</t>
+```
+
+/// `home.leaf`
+
+```html
+#extend("header"):
+    #export("title", "welcome")
+    #export("header", "a header here")
     #export("body"): 
         Hello, #(name)! 
     #endexport
 #endextend
+
+<t>Heylo</t>
 ```
 
 ==>
