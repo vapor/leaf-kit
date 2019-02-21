@@ -275,9 +275,52 @@ indirect enum _ALTSyntax: CustomStringConvertible {
         }
     }
     
-    struct Loop {
-        let params: [ProcessedParameter]
+    struct Loop: CustomStringConvertible {
+        /// the key to use when accessing items
+        let item: String
+        /// the key to use to access the array
+        let array: String
+
+        /// the body of the looop
         let body: [_ALTSyntax]
+        
+        /// initialize a new loop
+        init(_ params: [ProcessedParameter], body: [_ALTSyntax]) throws {
+            guard
+                params.count == 1,
+                case .expression(let list) = params[0],
+                list.count == 3,
+                case .parameter(let left) = list[0],
+                case .variable(let item) = left,
+                case .parameter(let `in`) = list[1],
+                case .keyword(let k) = `in`,
+                k == .in,
+                case .parameter(let right) = list[2],
+                case .variable(let array) = right
+                else { throw "for loops expect single expression, 'name in names'" }
+            self.item = item
+            self.array = array
+            
+            guard !body.isEmpty else { throw "for loops require a body" }
+            self.body = body
+        }
+        
+        var description: String {
+            return print(depth: 0)
+        }
+        
+        func print(depth: Int) -> String {
+            var print = ""
+            print += "for(" + item + " in " + array + "):\n"
+            print += body.map { $0.print(depth: depth) } .joined(separator: "\n")
+            
+            var buffer = ""
+            let block = "  "
+            for _ in 0..<depth {
+                buffer += block
+            }
+            return print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
+        }
     }
     
     struct Variable {
@@ -300,7 +343,7 @@ indirect enum _ALTSyntax: CustomStringConvertible {
     case custom(name: String, parameters: [ProcessedParameter], body: [_ALTSyntax]?)
     
     case conditional(Conditional)
-    case loop([ProcessedParameter], body: [_ALTSyntax])
+    case loop(Loop)
     case `import`(Import)
     case extend(Extend)
     case export(Export)
@@ -312,6 +355,15 @@ indirect enum _ALTSyntax: CustomStringConvertible {
     
     func print(depth: Int) -> String {
         var print = ""
+        defer {
+//            var buffer = ""
+//            let block = "  "
+//            for _ in 0..<depth {
+//                buffer += block
+//            }
+//            print = print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
+        }
+        
         switch self {
         case .raw(var byteBuffer):
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
@@ -324,24 +376,20 @@ indirect enum _ALTSyntax: CustomStringConvertible {
                 print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
         case .conditional(let c):
-            print += "conditional:\n"
-            print += c.print(depth: depth + 1)
-        case .loop(let params, let body):
-            print += "loop(" + params.map { $0.description } .joined(separator: ", ") + ")"
-            if !body.isEmpty {
-                print += ":\n" + body.map { $0.print(depth: depth) } .joined(separator: "\n")
-            }
+            print += c.print(depth: depth)
+        case .loop(let loop):
+            print += loop.print(depth: depth)
         case .import(let imp):
             print += "import(" + imp.key.debugDescription + ")"
         case .extend(let ext):
             print += "extend(" + ext.key.debugDescription + ")"
             if !ext.body.isEmpty {
-                print += ":\n" + ext.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+                print += ":\n" + ext.body.map { $0.print(depth: depth) } .joined(separator: "\n")
             }
         case .export(let export):
             print += "export(" + export.key.debugDescription + ")"
             if !export.body.isEmpty {
-                print += ":\n" + export.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+                print += ":\n" + export.body.map { $0.print(depth: depth) } .joined(separator: "\n")
             }
         }
         
@@ -350,12 +398,20 @@ indirect enum _ALTSyntax: CustomStringConvertible {
         for _ in 0..<depth {
             buffer += block
         }
-        return print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
+        print = print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
+
+        return print
     }
 }
 
 extension _ALTSyntax.Conditional {
     func print(depth: Int) -> String {
+        var print = "conditional:\n"
+        print += _print(depth: depth + 1)
+        return print
+    }
+    
+    func _print(depth: Int) -> String {
         var print = ""
         switch condition {
         case .if(let params):
@@ -367,7 +423,7 @@ extension _ALTSyntax.Conditional {
         }
         
         if !body.isEmpty {
-            print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+            print += ":\n" + body.map { $0.print(depth: depth) } .joined(separator: "\n")
         }
         
         var buffer = ""
@@ -380,7 +436,7 @@ extension _ALTSyntax.Conditional {
         // todo: remove recursion
         if let next = self.next {
             print += "\n"
-            print += next.print(depth: depth)
+            print += next._print(depth: depth)
         }
         return print
     }
@@ -992,7 +1048,7 @@ extension TagDeclaration {
             guard params.count == 0 else { throw "else does not accept params" }
             return .conditional(.init(.else, body: body))
         case "for":
-            return .loop(params, body: body)
+            return try .loop(.init(params, body: body))
         case "export":
             return try .export(.init(params, body: body))
         case "extend":
