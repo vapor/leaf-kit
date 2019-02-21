@@ -847,7 +847,7 @@ final class _Collector {
     }
 }
 
-final class Awaiterrrrr {
+final class OpenTag {
     let parent: TagDeclaration
     var body: [Syntax] = []
     init(_ parent: TagDeclaration) {
@@ -921,21 +921,9 @@ struct _LeafParser {
         self.offset = 0
     }
 
-    mutating func parse() throws -> [_Syntax] {
-        var collected = [_Syntax]()
-        while let val = try nextSyntax() {
-            collected.append(val)
-        }
-        return collected
-    }
     
     var finished: [Syntax] = []
-    
-    func addFinished(_ finished: Syntax) {
-//        guard case 
-    }
-    
-    var awaitingBody: [Awaiterrrrr] = []
+    var awaitingBody: [OpenTag] = []
     
     mutating func altParse() throws -> [Syntax] {
         while let next = peek() {
@@ -1007,27 +995,6 @@ struct _LeafParser {
         } else {
             finished.append(syntax)
         }
-        
-        // now, element shoule collapse INTO stack
-//        if let newTail = awaitingBody.last {
-//            newTail.body.append(syntax)
-//        } else {
-//            finished.append(syntax)
-//        }
-    }
-    
-    private mutating func nextSyntax() throws -> _Syntax? {
-        guard let peek = self.peek() else { return nil }
-        switch peek {
-        case .tagIndicator:
-//            let declaration = try _readTagDeclaration()
-            let tagDeclaration = try readTagDeclaration()
-            return tagDeclaration
-        case .raw:
-            let r = try collectRaw()
-            return .raw(r)
-        default: throw "unexpected token \(peek)"
-        }
     }
     
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
@@ -1063,79 +1030,6 @@ struct _LeafParser {
             return TagDeclaration(name: name, parameters: params, expectsBody: expectsBody)
         default:
             throw "found unexpected token " + next.description
-        }
-    }
-    
-    
-    // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
-    private mutating func readTagDeclaration() throws -> _Syntax {
-        // consume tag indicator
-        guard let first = read(), first == .tagIndicator else { throw "expected tag indicator" }
-        // a tag should ALWAYS follow a tag indicator
-        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag following a `#` indicator" }
-        
-        // if no further, then we've ended w/ a tag
-        guard let next = peek() else { return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: false) }
-        
-        // following a tag can be,
-        // .raw - tag is complete
-        // .tagBodyIndicator - ready to read body
-        // .parametersStart - start parameters
-        switch next {
-        case .raw:
-            // a basic tag, something like `#date` w/ no params, and no body
-            return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: false)
-        case .tagBodyIndicator:
-            // consume ':'
-            pop()
-            // no parameters, but with a body
-            return try convertTagDeclarationSyntax(name: name, parameters: [], hasBody: true)
-        case .parametersStart:
-            let params = try readParameters()
-            var hasBody = false
-            if peek() == .tagBodyIndicator {
-                hasBody = true
-                pop()
-            }
-            return try convertTagDeclarationSyntax(name: name, parameters: params, hasBody: hasBody)
-        default:
-            throw "found unexpected token " + next.description
-        }
-    }
-    
-    func convertTagDeclarationSyntax(name: String, parameters params: [ProcessedParameter], hasBody: Bool) throws -> _Syntax {
-        switch name {
-        case let n where n.starts(with: "end"):
-            // beginning w/ 'end' is reserved
-            guard !hasBody else { throw "terminators must NOT have a body" }
-            return .tagTerminator(name: String(name.dropFirst(3)))
-        case "":
-            return .variable(params)
-        case "if":
-            // todo, should this be allowed? '#if(foo, "body")
-            guard hasBody else { throw "if statement requires body" }
-            return .conditional(.if(params))
-        case "elseif":
-            guard hasBody else { throw "elseif statement requires body" }
-            return .conditional(.elseif(params))
-        case "else":
-            guard hasBody else { throw "else statement requires body" }
-            return .conditional(.else)
-        case "for":
-            guard hasBody else { throw "for statement requires body" }
-            return .loop(params)
-        case "export":
-            // export can have body or multi-field
-            return .export(params, hasBody: hasBody)
-        case "extend":
-            guard hasBody else { throw "extensions require body" }
-            return .extend(params)
-        case "import":
-            guard !hasBody else { throw "import can not take body" }
-            return .import(params)
-        default:
-            // custom tag declaration
-            return .tagDeclaration(name: name, parameters: params, hasBody: hasBody)
         }
     }
     

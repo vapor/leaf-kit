@@ -418,16 +418,17 @@ func altParse(_ str: String) throws -> [Syntax] {
     return syntax
 }
 
-func parse(_ str: String) throws -> [_Syntax] {
-    var buffer = ByteBufferAllocator().buffer(capacity: 0)
-    buffer.writeString(str)
-    
-    var lexer = LeafLexer(template: buffer)
-    let tokens = try! lexer.lex()
-    var parser = _LeafParser.init(tokens: tokens)
-    let syntax = try! parser.parse()
-
-    return syntax
+func parse(_ str: String) throws -> [Syntax] {
+    return try altParse(str)
+//    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+//    buffer.writeString(str)
+//
+//    var lexer = LeafLexer(template: buffer)
+//    let tokens = try! lexer.lex()
+//    var parser = _LeafParser.init(tokens: tokens)
+//    let syntax = try! parser.parse()
+//
+//    return syntax
 }
 
 //func compile(_ str: String) throws -> [_Block] {
@@ -566,7 +567,7 @@ final class LeafKitTests: XCTestCase {
         print()
         
         var parser = _LeafParser(tokens: tokens)
-        let ast = try! parser.parse()
+        let ast = try! parser.altParse()
         print("AST:")
         ast.forEach { print($0) }
         print()
