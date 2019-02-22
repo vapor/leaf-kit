@@ -282,11 +282,10 @@ final class ParserTests: XCTestCase {
             raw("!\\n    ")
           export("title"):
             raw("Welcome")
-
         """
         
         let rawAlt = try! altParse(input)
-        let output = rawAlt.map { $0.description + "\n" } .reduce("", +)
+        let output = rawAlt.map { $0.description } .joined(separator: "\n")
         XCTAssertEqual(output, expectation)
     }
     
