@@ -42,7 +42,8 @@ struct ResolvedDocument {
     init(name: String, ast: [Syntax]) throws {
         for syntax in ast {
             switch syntax {
-            case .extend, .import, .export:
+            case .extend, .export:
+                // all extentions MUST be resolved
                 throw "unresolved ast"
             default:
                 continue
@@ -134,10 +135,10 @@ final class DocumentAccessor {
 }
 
 import Foundation
-final class _DocumentAccess {
+final class FileAccessor {
     fileprivate func _load(name: String) throws -> UnresolvedDocument {
         // todo: support things like view directory
-        guard let data = FileManager.default.contents(atPath: name) else { throw "no data found" }
+        guard let data = FileManager.default.contents(atPath: name) else { throw "no document found at path \(name)" }
         var buffer = ByteBufferAllocator().buffer(capacity: 0)
         buffer.writeBytes(data)
         var lexer = LeafLexer(template: buffer)
@@ -180,10 +181,143 @@ final class Resolved {
     
 }
 
+final class DocumentLoader {
+    private var fileAccess: FileAccessor
+    private var resolved: [String: ResolvedDocument] = [:]
+    private var unresolved: [String: UnresolvedDocument] = [:]
+    
+    init(_ access: FileAccessor) {
+        self.fileAccess = access
+    }
+    
+    func insert(name: String, body: ByteBuffer) throws {
+        var lexer = LeafLexer(template: body)
+        let tokens = try lexer.lex()
+        try insert(name: name, body: tokens)
+    }
+    
+    func insert(name: String, body: String) throws {
+        var lexer = LeafLexer(string: body)
+        let tokens = try lexer.lex()
+        try insert(name: name, body: tokens)
+    }
+    
+    func insert(name: String, body: [LeafToken]) throws {
+        var parser = LeafParser(tokens: body)
+        let syntax = try parser.altParse()
+        let document = UnresolvedDocument(name: name, raw: syntax)
+        unresolved[name] = document
+    }
+    
+    /// Loads and resolves a document
+    
+    func load(_ name: String) throws -> ResolvedDocument {
+        if let cached = resolved[name] { return cached }
+        
+        // load unresolved ast from cache or file
+        let doc = try unresolved[name] ?? fileAccess._load(name: name)
+        return try resolve(doc)
+    }
+    
+    /// an individual object resolution
+    /// could probably be optimized
+    private func resolve(_ unresolved: UnresolvedDocument) throws -> ResolvedDocument {
+        try resolve([unresolved])
+        guard let value = resolved[unresolved.name] else { fatalError("unexpected nil") }
+        return value
+    }
+    
+    // we're gonna be real lazy about this stop
+    // as opposed to trying to prioritize
+    // just keep checking what we can compile
+    // and if we can't, stick it in the back of
+    // the array and try again later
+    private func resolve(_ raw: [UnresolvedDocument]) throws {
+        var start = raw + unresolved.values
+        unresolved = [:]
+        var drain = start
+        var waitingToRetry = [UnresolvedDocument]()
+        
+        while let next = drain.first {
+            drain.removeFirst()
+            
+            if canSatisfyAllDependenciesFor(doc: next) {
+                try ready(next: next)
+            } else {
+                waitingToRetry.append(next)
+            }
+            
+            // until we've exhausted our drain, keep resolving
+            guard drain.isEmpty else { continue }
+            
+            if waitingToRetry.isEmpty {
+                // all resolved properly
+                break
+            } else if waitingToRetry.map({ $0.name }) == start.map({ $0.name }) {
+                let fullyResolved = Array(resolved.keys)
+                let unresolvedDocuments = waitingToRetry.map { $0.name }
+                
+                let grouped = Set(waitingToRetry.flatMap { $0.unresolvedDependencies })
+                let missing = grouped.filter { dependency in
+                    // we've already loaded the dependency
+                    // but haven't been able to resolve it,
+                    // continue up tree to see which loads are missing
+                    return !unresolvedDocuments.contains(dependency)
+                        // this dependency is ready and fully resolved,
+                        // we're waiting for others to properly resolve
+                        && !fullyResolved.contains(dependency)
+                }
+                
+                // TODO: Would be nice to detect circular or unresolvable dependencies here
+                guard !missing.isEmpty else {
+                    waitingToRetry.forEach { stillRaw in
+                        unresolved[stillRaw.name] = stillRaw
+                    }
+                    return
+                }
+                let fresh = try Set(missing).map(fileAccess._load)
+                // put fresh in front, since they're known dependencies
+                start = fresh + waitingToRetry
+                drain = start
+                waitingToRetry = []
+            } else {
+                // still some unresolved, let's try another pass
+                start = waitingToRetry
+                drain = start
+                waitingToRetry = []
+            }
+        }
+        
+        guard waitingToRetry.isEmpty else { fatalError("can only break when empty") }
+    }
+    
+    private func ready(next doc: UnresolvedDocument) throws {
+        var processed: [Syntax] = []
+        doc.raw.forEach { syntax in
+            if case .extend(let e) = syntax {
+                guard let base = resolved[e.key] else { fatalError("couldn't extend \(e)") }
+                let extended = e.extend(base: base.ast)
+                processed += extended
+            } else {
+                processed.append(syntax)
+            }
+        }
+        
+        let new = try ResolvedDocument(name: doc.name, ast: processed)
+        resolved[new.name] = new
+    }
+    
+    func canSatisfyAllDependenciesFor(doc: UnresolvedDocument) -> Bool {
+        // no deps, easily satisfy
+        return doc.unresolvedDependencies.isEmpty
+            // see if all dependencies necessary have already been compiled
+            || doc.unresolvedDependencies.allSatisfy(resolved.keys.contains)
+    }
+}
 
 struct DocumentResolver {
     private(set) var resolved: [String: ResolvedDocument] = [:]
-    private let access: _DocumentAccess
+    private let fileAccess: FileAccessor
     
     // we're gonna be real lazy about this stop
     // as opposed to trying to prioritize
@@ -228,7 +362,7 @@ struct DocumentResolver {
                 guard !missing.isEmpty else {
                     throw "circular dependency, or missing files detected, unable to resolve: \(unresolved)"
                 }
-                let fresh = try Set(missing).map(access._load)
+                let fresh = try Set(missing).map(fileAccess._load)
                 // put fresh in front, since they're known dependencies
                 start = fresh + unresolved
                 drain = start

@@ -179,23 +179,35 @@ final class ParserTests: XCTestCase {
     }
     
     func testShouldThrowCantResolveAccessor() throws {
+        let header = """
+        <h1>Hi!</h1>
+        """
         let base = """
         #extend("header")
         <title>#import("title")</title>
         #import("body")
         """
-        let baseAst = try altParse(base)
+//        let baseAst = try altParse(base)
         
-        let documents: [Document] = [
-            .init(name: "base", ast: baseAst),
-        ]
+        let loader = DocumentLoader(.init())
+        try! loader.insert(name: "base", body: base)
+        try! loader.insert(name: "header", body: header)
         
-        do {
-            let _ = try DocumentAccessor(documents)
-            XCTFail("should throw, can't resolve")
-        } catch {
-            XCTAssert(true)
-        }
+        let resolved = try! loader.load("base")
+        resolved.ast.forEach { print($0) }
+        print()
+        
+//
+//        let documents: [Document] = [
+//            .init(name: "base", ast: baseAst),
+//        ]
+//
+//        do {
+//            let _ = try DocumentAccessor(documents)
+//            XCTFail("should throw, can't resolve")
+//        } catch {
+//            XCTAssert(true)
+//        }
     }
     
     func testDocumentResolveExtend() throws {
@@ -618,6 +630,47 @@ final class LeafKitTests: XCTestCase {
         //        print("View:")
         //        print(string)
         //        print()
+    }
+    
+    func testLoader() throws {
+        let template = """
+        Hello #(name)!
+
+        Hello #get(name)!
+
+        #set(name):
+            Hello #get(name)
+        #endset!
+
+        #if(a):b#endif
+
+        #if(foo):
+        123
+        #elseif(bar):
+        456
+        #else:
+        789
+        #endif
+
+        #import("title")
+
+        #import("body")
+
+        #extend("base"):
+            #export("title", "Welcome")
+            #export("body"):
+                Hello, #(name)!
+            #endexport
+        #endextend
+
+        More stuff here!
+        """
+        
+        let loader = DocumentLoader(.init())
+        let doc = try loader.insert(name: "foo", body: template)
+        
+        let foo = try loader.load("foo")
+        print()
     }
     
     func __testParser() throws {
