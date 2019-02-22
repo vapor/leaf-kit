@@ -163,22 +163,19 @@ final class ParserTests: XCTestCase {
         <title>#import("title")</title>
         #import("body")
         """
-        let baseAst = try altParse(base)
         
-        let documents: [Document] = [
-            .init(name: "base", ast: baseAst),
-        ]
         
-        var resolver = ExtendResolver(documents)
+        let loader = DocumentLoader(FileAccessor())
+        try loader.insert(name: "base", raw: base)
         do {
-            let _ = try resolver.resolve()
+            let _ = try loader.load("base")
             XCTFail("should throw, can't resolve")
         } catch {
             XCTAssert(true)
         }
     }
     
-    func testShouldThrowCantResolveAccessor() throws {
+    func testInsertResolution() throws {
         let header = """
         <h1>Hi!</h1>
         """
@@ -187,27 +184,22 @@ final class ParserTests: XCTestCase {
         <title>#import("title")</title>
         #import("body")
         """
-//        let baseAst = try altParse(base)
         
-        let loader = DocumentLoader(.init())
-        try! loader.insert(name: "base", body: base)
-        try! loader.insert(name: "header", body: header)
+        let loader = DocumentLoader(FileAccessor())
+        try loader.insert(name: "base", raw: base)
+        try loader.insert(name: "header", raw: header)
         
-        let resolved = try! loader.load("base")
-        resolved.ast.forEach { print($0) }
-        print()
-        
-//
-//        let documents: [Document] = [
-//            .init(name: "base", ast: baseAst),
-//        ]
-//
-//        do {
-//            let _ = try DocumentAccessor(documents)
-//            XCTFail("should throw, can't resolve")
-//        } catch {
-//            XCTAssert(true)
-//        }
+        let resolved = try loader.load("base")
+        let output = resolved.ast.map { $0.description } .joined(separator: "\n")
+
+        let expectation = """
+        raw("<h1>Hi!</h1>")
+        raw("\\n<title>")
+        import("title")
+        raw("</title>\\n")
+        import("body")
+        """
+        XCTAssertEqual(output, expectation)
     }
     
     func testDocumentResolveExtend() throws {
@@ -230,26 +222,13 @@ final class ParserTests: XCTestCase {
         #endextend
         """
         
-        let headerAst = try altParse(header)
-        let baseAst = try altParse(base)
-        let homeAst = try altParse(home)
+        let loader = DocumentLoader(FileAccessor())
+        try loader.insert(name: "header", raw: header)
+        try loader.insert(name: "base", raw: base)
+        try loader.insert(name: "home", raw: home)
         
-        let documents: [Document] = [
-            .init(name: "header", ast: headerAst),
-            .init(name: "base", ast: baseAst),
-            .init(name: "home", ast: homeAst)
-        ]
-        
-        var resolver = ExtendResolver(documents)
-        let compiled = try! resolver.resolve()
-        for (key, val) in compiled {
-            print("Document: " + key.uppercased())
-            val.ast.forEach { print($0) }
-        }
-        
-        let homeDoc = compiled["home"]
-        XCTAssertNotNil(homeDoc)
-        let output = homeDoc?.ast.map { $0.description } .joined(separator: "\n") ?? ""
+        let homeDoc = try loader.load("home")
+        let output = homeDoc.ast.map { $0.description } .joined(separator: "\n")
         let expectation = """
         raw("<h1>")
         import("header")
@@ -666,10 +645,16 @@ final class LeafKitTests: XCTestCase {
         More stuff here!
         """
         
-        let loader = DocumentLoader(.init())
-        let doc = try loader.insert(name: "foo", body: template)
+        let loader = DocumentLoader(FileAccessor())
+        let unresolved = try loader.insert(name: "foo", raw: template)
+        do {
+            try loader.load("foo")
+            XCTFail("shouldn't resolve,missing base")
+        } catch {
+            XCTAssert(true)
+        }
         
-        let foo = try loader.load("foo")
+        unresolved.raw { print($0) }
         print()
     }
     

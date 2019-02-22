@@ -43,15 +43,6 @@ public final class LeafRenderer {
         let raw = try parser.altParse()
         
         #warning("TODO: resolve import / extend / static embed")
-        var resolver = ExtendResolver([.init(name: "todo", ast: raw)])
-        let ast = try resolver.resolve()
-        
-//        var serializer = LeafSerializer(ast: ast, context: [
-//            "name": "Tanner",
-//            "a": true,
-//            "bar": true
-//        ])
-//        return try serializer.serialize()
         throw "todo: serialize"
     }
 }
