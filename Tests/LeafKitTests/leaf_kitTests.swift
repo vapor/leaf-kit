@@ -276,17 +276,6 @@ final class ParserTests: XCTestCase {
         
         let expectation = """
         extend("base"):
-          export("title"):
-            raw("Welcome")
-          export("body"):
-            raw("\\n        Hello, ")
-            variable(name)
-            raw("!\\n    ")
-
-        """
-        
-        let expectationTwo = """
-        extend("base"):
           export("body"):
             raw("\\n        Hello, ")
             variable(name)
@@ -296,15 +285,9 @@ final class ParserTests: XCTestCase {
 
         """
         
-        let lexed = try! lex(input).map { $0.description + "\n" } .reduce("", +)
         let rawAlt = try! altParse(input)
-        let alt = rawAlt.map { $0.description + "\n" } .reduce("", +)
-        let parsed = try! parse(input).map { $0.description + "\n" } .reduce("", +)
-        let _ = lexed + parsed
-        
-        let output = alt
-        // random order of dict is generates this in random order, should fix?
-        XCTAssertTrue([expectation, expectationTwo].contains(output))
+        let output = rawAlt.map { $0.description + "\n" } .reduce("", +)
+        XCTAssertEqual(output, expectation)
     }
     
     func testPPP() throws {

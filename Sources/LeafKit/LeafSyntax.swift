@@ -95,7 +95,7 @@ extension Syntax {
             var print = indent(depth)
             print += "extend(" + key.debugDescription + ")"
             if !exports.isEmpty {
-                print += ":\n" + exports.values.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+                print += ":\n" + exports.sorted { $0.key < $1.key } .map { $0.1.print(depth: depth + 1) } .joined(separator: "\n")
             }
             return print
         }
