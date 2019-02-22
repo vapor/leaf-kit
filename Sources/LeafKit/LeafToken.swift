@@ -18,7 +18,7 @@ enum Operator: String, Equatable, CustomStringConvertible {
     case and = "&&"
     case or = "||"
     
-    var description: String { return "operator(" + rawValue + ")" }
+    var description: String { return rawValue }
 }
 
 enum Constant: CustomStringConvertible, Equatable {
@@ -48,11 +48,11 @@ indirect enum ProcessedParameter: CustomStringConvertible, Equatable {
     var description: String {
         switch self {
         case .parameter(let p):
-            return name + "(" + p.description + ")"
+            return p.description
         case .expression(let p):
-            return name + "(" + p.map { $0.description }.joined(separator: " ") + ")"
+            return name + "(" + p.map { $0.short }.joined(separator: " ") + ")"
         case .tag(let tag, let p):
-            return "tag(" + tag + ": " + p.map { $0.description } .joined(separator: ",") + ")"
+            return "tag(" + tag + ": " + p.map { $0.short } .joined(separator: ",") + ")"
         }
     }
     
@@ -97,19 +97,19 @@ indirect enum Parameter: Equatable, CustomStringConvertible {
     
     var name: String {
         switch self {
-        case .stringLiteral(let s):
+        case .stringLiteral:
             return "stringLiteral"
-        case .constant(let c):
+        case .constant:
             return "constant"
-        case .variable(let v):
+        case .variable:
             return "variable"
-        case .keyword(let k):
+        case .keyword:
             return "keyword"
-        case .operator(let o):
+        case .operator:
             return "operator"
-        case .tag(let t):
+        case .tag:
             return "tag"
-        case .expression(let list):
+        case .expression:
             return "expression"
         }
     }

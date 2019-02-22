@@ -66,7 +66,7 @@ final class ParserTests: XCTestCase {
         
         let expectation = """
         conditional:
-          if(expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome")))):
+          if(expression(lowercase(first(name == "admin")) == "welcome")):
             raw("\\nfoo\\n")
         """
         
@@ -86,7 +86,7 @@ final class ParserTests: XCTestCase {
         
         let expectation = """
         conditional:
-          if(expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome")))):
+          if(expression(lowercase(first(name == "admin")) == "welcome")):
             raw("\\nfoo\\n")
         """
         
@@ -106,7 +106,7 @@ final class ParserTests: XCTestCase {
         
         let expectation = """
         conditional:
-          if(parameter(variable(foo))):
+          if(variable(foo)):
             raw("\\nfoo\\n")
           else:
             raw("\\nfoo\\n")
@@ -132,7 +132,7 @@ final class ParserTests: XCTestCase {
         
         let expectation = """
         conditional:
-          if(parameter(variable(sayhello))):
+          if(variable(sayhello)):
             raw("\\n    abc\\n    ")
             for(name in names):
               raw("\\n        hi, ")
@@ -162,7 +162,7 @@ final class ParserTests: XCTestCase {
         
         let expectation = """
         conditional:
-          if(parameter(variable(sayhello))):
+          if(variable(sayhello)):
             raw("\\n    abc\\n    ")
             for(name in names):
               raw("\\n        hi, ")
@@ -298,6 +298,20 @@ final class ParserTests: XCTestCase {
 }
 
 final class PrintTests: XCTestCase {
+    func testRaw() throws {
+        let template = """
+        hello, raw text
+        """
+        let v = parse(template).first!
+        guard case .raw(let test) = v else { throw "nope" }
+        
+        let expectation = """
+        raw(\"hello, raw text\")
+        """
+        let output = v.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+    
     func testVariable() throws {
         let template = """
         #(foo)
@@ -326,6 +340,88 @@ final class PrintTests: XCTestCase {
           raw("\\n    hello, ")
           variable(name)
           raw(".\\n")
+        """
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+    
+    func testConditional() throws {
+        let template = """
+        #if(foo):
+            some stuff
+        #elseif(bar == "bar"):
+            bar stuff
+        #else:
+            no stuff
+        #endif
+        """
+        let v = parse(template).first!
+        guard case .conditional(let test) = v else { throw "nope" }
+        
+        let expectation = """
+        conditional:
+          if(variable(foo)):
+            raw("\\n    some stuff\\n")
+          elseif(expression(bar == "bar")):
+            raw("\\n    bar stuff\\n")
+          else:
+            raw("\\n    no stuff\\n")
+        """
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+    
+    func testImport() throws {
+        let template = """
+        #import("someimport")
+        """
+        let v = parse(template).first!
+        guard case .import(let test) = v else { throw "nope" }
+        
+        let expectation = """
+        import(\"someimport\")
+        """
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+    
+    func testExtendAndExport() throws {
+        let template = """
+        #extend("base"):
+            #export("title","Welcome")
+            #export("body"):
+                hello there
+            #endexport
+        #endextend
+        """
+        let v = parse(template).first!
+        guard case .extend(let test) = v else { throw "nope" }
+        
+        let expectation = """
+        extend("base"):
+          export("body"):
+            raw("\\n        hello there\\n    ")
+          export("title"):
+            raw("Welcome")
+        """
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+    
+    
+    func testCustomTag() throws {
+        let template = """
+        #custom(tag, foo == bar):
+            some body
+        #endcustom
+        """
+        
+        let v = parse(template).first!
+        guard case .custom(let test) = v else { throw "nope" }
+        
+        let expectation = """
+        custom(variable(tag), expression(foo == bar)):
+          raw("\\n    some body\\n")
         """
         let output = test.print(depth: 0)
         XCTAssertEqual(output, expectation)
@@ -377,11 +473,11 @@ final class LexerTests: XCTestCase {
         param(tag("first"))
         parametersStart
         param(variable(name))
-        param(operator(operator(==)))
+        param(operator(==))
         param(stringLiteral("admin"))
         parametersEnd
         parametersEnd
-        param(operator(operator(==)))
+        param(operator(==))
         param(stringLiteral("welcome"))
         parametersEnd
         tagBodyIndicator
@@ -433,7 +529,7 @@ final class LexerTests: XCTestCase {
         tag(name: "")
         parametersStart
         param(variable(foo))
-        param(operator(operator(==)))
+        param(operator(==))
         param(constant(40))
         parameterDelimiter
         param(variable(and))
