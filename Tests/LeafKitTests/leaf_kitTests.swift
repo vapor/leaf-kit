@@ -648,13 +648,13 @@ final class LeafKitTests: XCTestCase {
         let loader = DocumentLoader(FileAccessor())
         let unresolved = try loader.insert(name: "foo", raw: template)
         do {
-            try loader.load("foo")
+            _ = try loader.load("foo")
             XCTFail("shouldn't resolve,missing base")
         } catch {
             XCTAssert(true)
         }
         
-        unresolved.raw { print($0) }
+        unresolved.raw.forEach { print($0) }
         print()
     }
     
