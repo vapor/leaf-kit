@@ -41,7 +41,15 @@ extension Syntax.Extend {
     }
 }
 
-let block = "  "
+func indent(_ depth: Int) -> String {
+    let block = "  "
+    var buffer = ""
+    for _ in 0..<depth {
+        buffer += block
+    }
+    return buffer
+}
+
 
 extension Syntax {
     struct Import {
@@ -51,6 +59,10 @@ extension Syntax {
             guard case .parameter(let p) = params[0] else { throw "expected parameter" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
             self.key = s
+        }
+        
+        func print(depth: Int) -> String {
+            return indent(depth) + "import(" + key.debugDescription + ")"
         }
     }
     
@@ -78,6 +90,15 @@ extension Syntax {
             }
             self.exports = exports
         }
+        
+        func print(depth: Int) -> String {
+            var print = indent(depth)
+            print += "extend(" + key.debugDescription + ")"
+            if !exports.isEmpty {
+                print += ":\n" + exports.values.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+            }
+            return print
+        }
     }
     
     struct Export {
@@ -104,18 +125,12 @@ extension Syntax {
         }
         
         func print(depth: Int) -> String {
-            var print = ""
-            
+            var print = indent(depth)
             print += "export(" + key.debugDescription + ")"
             if !body.isEmpty {
-                print += ":\n" + body.map { $0.print(depth: depth) } .joined(separator: "\n")
+                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
-            
-            var buffer = ""
-            for _ in 0..<depth {
-                buffer += block
-            }
-            return print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
+            return print
         }
     }
     
@@ -140,38 +155,35 @@ extension Syntax {
         }
         
         func print(depth: Int) -> String {
-            var print = "conditional:\n"
+            var print = indent(depth) + "conditional:\n"
             print += _print(depth: depth + 1)
             return print
         }
         
         func _print(depth: Int) -> String {
+            let buffer = indent(depth)
+            
             var print = ""
             switch condition {
             case .if(let params):
-                print += "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
+                print += buffer + "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
             case .elseif(let params):
-                print += "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
+                print += buffer + "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
             case .else:
-                print += "else"
+                print += buffer + "else"
             }
             
             if !body.isEmpty {
-                print += ":\n" + body.map { $0.print(depth: depth) } .joined(separator: "\n")
+                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
-            
-            var buffer = ""
-            let block = "  "
-            for _ in 0..<depth {
-                buffer += block
-            }
-            print = print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
             
             // todo: remove recursion
             if let next = self.next {
                 print += "\n"
                 print += next._print(depth: depth)
             }
+            
+            
             return print
         }
     }
@@ -211,15 +223,10 @@ extension Syntax {
         }
         
         func print(depth: Int) -> String {
-            var print = ""
+            var print = indent(depth)
             print += "for(" + item + " in " + array + "):\n"
             print += body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
-            
-            var buffer = ""
-            for _ in 0..<depth {
-                buffer += block
-            }
-            return print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
+            return print
         }
     }
     
@@ -237,7 +244,7 @@ extension Syntax {
         }
         
         func print(depth: Int) -> String {
-            return "variable(" + name + ")"
+            return indent(depth) + "variable(" + name + ")"
         }
     }
     
@@ -245,6 +252,15 @@ extension Syntax {
         let name: String
         let params: [ProcessedParameter]
         let body: [Syntax]?
+        
+        func print(depth: Int) -> String {
+            var print = indent(depth)
+            print += name + "(" + params.map { $0.description } .joined(separator: ", ") + ")"
+            if let body = body, !body.isEmpty {
+                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+            }
+            return print
+        }
     }
 }
 
@@ -255,39 +271,24 @@ extension Syntax: CustomStringConvertible {
     }
     
     func print(depth: Int) -> String {
-        var print = ""
         switch self {
         case .raw(var byteBuffer):
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-            print += "raw(\(string.debugDescription))"
+            return indent(depth) + "raw(\(string.debugDescription))"
         case .variable(let v):
-            print += v.print(depth: depth)
+            return v.print(depth: depth)
         case .custom(let custom):
-            print += custom.name + "(" + custom.params.map { $0.description } .joined(separator: ", ") + ")"
-            if let body = custom.body, !body.isEmpty {
-                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
-            }
+            return custom.print(depth: depth)
         case .conditional(let c):
-            print += c.print(depth: depth)
+            return c.print(depth: depth)
         case .loop(let loop):
-            print += loop.print(depth: depth)
+            return loop.print(depth: depth)
         case .import(let imp):
-            print += "import(" + imp.key.debugDescription + ")"
+            return imp.print(depth: depth)
         case .extend(let ext):
-            print += "extend(" + ext.key.debugDescription + ")"
-            if !ext.exports.isEmpty {
-                print += ":\n" + ext.exports.values.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
-            }
+            return ext.print(depth: depth)
         case .export(let export):
-            print += export.print(depth: depth)
+            return export.print(depth: depth)
         }
-        
-        var buffer = ""
-        for _ in 0..<depth {
-            buffer += block
-        }
-        print = print.split(separator: "\n").map { buffer + $0 } .joined(separator: "\n")
-        
-        return print
     }
 }

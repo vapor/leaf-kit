@@ -586,6 +586,14 @@ final class LeafKitTests: XCTestCase {
             #endexport
         #endextend
 
+        #parent:
+            #if(somebs):
+                #for(boo in far):
+                    ya, ok, some stuff is here ;)
+                #endfor
+            #endif
+        #endparent
+
         More stuff here!
         """
 

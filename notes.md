@@ -200,3 +200,24 @@ tagTerminator(export)
 raw("\n")
 tagTerminator(extend)
 ```
+
+
+#####################################
+
+```
+#if(lowercase(role) == "owner"):
+hi, boss
+#else:
+hi, person
+#endif
+```
+=>
+```
+var = context[role]
+var = lowercase(role)
+if var == owner {
+    return "hi, boss"
+} else {
+    return "hi, person"
+}
+```
