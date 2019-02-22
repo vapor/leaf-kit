@@ -40,7 +40,7 @@ public final class LeafRenderer {
         var lexer = LeafLexer(template: template)
         let tokens = try lexer.lex()
         var parser = LeafParser(tokens: tokens)
-        let raw = try parser.altParse()
+        let raw = try parser.parse()
         
         #warning("TODO: resolve import / extend / static embed")
         throw "todo: serialize"

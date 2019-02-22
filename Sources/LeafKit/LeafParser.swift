@@ -84,7 +84,7 @@ struct LeafParser {
     var finished: [Syntax] = []
     var awaitingBody: [OpenContext] = []
     
-    mutating func altParse() throws -> [Syntax] {
+    mutating func parse() throws -> [Syntax] {
         while let next = peek() {
             try handle(next: next)
         }

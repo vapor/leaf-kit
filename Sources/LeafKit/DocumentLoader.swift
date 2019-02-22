@@ -74,7 +74,7 @@ final class DocumentLoader {
         var lexer = LeafLexer(template: raw)
         let tokens = try lexer.lex()
         var parser = LeafParser(tokens: tokens)
-        let syntax = try parser.altParse()
+        let syntax = try parser.parse()
         return UnresolvedDocument(name: name, raw: syntax)
     }
     
