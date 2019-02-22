@@ -57,6 +57,26 @@ extension UInt8 {
     var str: String { return String(bytes: [self], encoding: .utf8)! }
 }
 final class ParserTests: XCTestCase {
+    func testNesting() throws {
+        let input = """
+        #if(lowercase(first(name == "admin")) == "welcome"):
+        foo
+        #endif
+        """
+        
+        let expectation = """
+        conditional:
+          if(expression(tag(lowercase: tag(first: expression(parameter(variable(name)) parameter(operator(operator(==))) parameter(stringLiteral("admin"))))) parameter(operator(operator(==))) parameter(stringLiteral("welcome")))):
+            raw("\\nfoo\\n")
+        """
+        
+        let loader = DocumentLoader()
+        try loader.insert(name: "test", raw: input)
+        let document = try loader.load("test")
+        let output = document.ast.map { $0.description } .joined(separator: "\n")
+        XCTAssertEqual(output, expectation)
+    }
+    
     func testParsingNesting() throws {
         let input = """
         #if(lowercase(first(name == "admin")) == "welcome"):
@@ -325,7 +345,7 @@ final class PrintTests: XCTestCase {
         var lexer = LeafLexer(template: buffer)
         let tokens = try! lexer.lex()
         var parser = LeafParser.init(tokens: tokens)
-        return try! parser.altParse()
+        return try! parser.parse()
     }
 }
 
@@ -501,7 +521,7 @@ func altParse(_ str: String) throws -> [Syntax] {
     var lexer = LeafLexer(template: buffer)
     let tokens = try! lexer.lex()
     var parser = LeafParser.init(tokens: tokens)
-    let syntax = try! parser.altParse()
+    let syntax = try! parser.parse()
     
     return syntax
 }
@@ -702,7 +722,7 @@ final class LeafKitTests: XCTestCase {
         print()
         
         var parser = LeafParser(tokens: tokens)
-        let ast = try! parser.altParse()
+        let ast = try! parser.parse()
         print("AST:")
         ast.forEach { print($0) }
         print()
