@@ -6,7 +6,7 @@ private struct TagDeclaration {
     let expectsBody: Bool
 }
 
-private final class OpenContext {
+private struct OpenContext {
     let parent: TagDeclaration
     var body: [Syntax] = []
     init(_ parent: TagDeclaration) {
@@ -112,16 +112,20 @@ struct LeafParser {
                 return
             } else {
                 let syntax = try declaration.makeSyntax(body: [])
-                if let last = awaitingBody.last {
+                if var last = awaitingBody.last {
                     last.body.append(syntax)
+                    awaitingBody.removeLast()
+                    awaitingBody.append(last)
                 } else {
                     finished.append(syntax)
                 }
             }
         case .raw:
             let r = try collectRaw()
-            if let last = awaitingBody.last {
+            if var last = awaitingBody.last {
                 last.body.append(.raw(r))
+                awaitingBody.removeLast()
+                awaitingBody.append(last)
             } else {
                 finished.append(.raw(r))
             }
@@ -141,8 +145,10 @@ struct LeafParser {
         // if another element exists, then we are in
         // a nested body context, attach new syntax
         // as body element to this new context
-        if let newTail = awaitingBody.last {
+        if var newTail = awaitingBody.last {
             newTail.body.append(newSyntax)
+            awaitingBody.removeLast()
+            awaitingBody.append(newTail)
         // if the new syntax is a conditional, it may need to be attached
         // to the last parsed conditional
         } else if case .conditional(let new) = newSyntax {
