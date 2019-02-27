@@ -33,13 +33,14 @@ enum Constant: CustomStringConvertible, Equatable {
     }
 }
 
-/*
- #if(value):
-    #(value)
- #else:
-    no name entered
- #endif
- */
+struct Expression {
+    let raw: [ProcessedParameter]
+
+    func process() {
+        //
+    }
+}
+
 indirect enum ProcessedParameter: CustomStringConvertible, Equatable {
     case parameter(Parameter)
     case expression([ProcessedParameter])
@@ -146,11 +147,6 @@ enum LeafToken: CustomStringConvertible, Equatable  {
     case parameterDelimiter
     case parameter(Parameter)
     case parametersEnd
-    
-//    case variable(name: String)
-//    case keyword(Keyword)
-//    case `operator`(Operator)
-//    case constant(Constant)
     
     // TODO: RM IF POASIBLE
     case stringLiteral(String)

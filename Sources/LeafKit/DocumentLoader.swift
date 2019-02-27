@@ -195,10 +195,53 @@ final class DocumentLoader {
         resolved[new.name] = new
     }
     
-    func canSatisfyAllDependenciesFor(doc: UnresolvedDocument) -> Bool {
+    private func canSatisfyAllDependenciesFor(doc: UnresolvedDocument) -> Bool {
         // no deps, easily satisfy
         return doc.unresolvedDependencies.isEmpty
             // see if all dependencies necessary have already been compiled
             || doc.unresolvedDependencies.allSatisfy(resolved.keys.contains)
+    }
+}
+
+
+struct ExtendResolver {
+    private let document: UnresolvedDocument
+    private let dependencies: [String: ResolvedDocument]
+
+    init(document: UnresolvedDocument, dependencies list: [ResolvedDocument]) {
+        self.document = document
+        var dependencies = [String: ResolvedDocument]()
+        list.forEach { dep in
+            dependencies[dep.name] = dep
+        }
+        self.dependencies = dependencies
+    }
+
+    
+    /// an individual object resolution
+    /// could probably be optimized
+    func resolve() throws -> ResolvedDocument {
+        guard canSatisfyAllDependencies() else { throw "unable to resolve \(document)" }
+        
+        var processed: [Syntax] = []
+        document.raw.forEach { syntax in
+            if case .extend(let e) = syntax {
+                guard let base = dependencies[e.key] else { fatalError("disallowed by guard") }
+                let extended = e.extend(base: base.ast)
+                processed += extended
+            } else {
+                processed.append(syntax)
+            }
+        }
+        
+        return try ResolvedDocument(name: document.name, ast: processed)
+    }
+    
+    
+    private func canSatisfyAllDependencies() -> Bool {
+        // no deps, easily satisfy
+        return document.unresolvedDependencies.isEmpty
+            // see if all dependencies necessary have already been compiled
+            || document.unresolvedDependencies.allSatisfy(dependencies.keys.contains)
     }
 }

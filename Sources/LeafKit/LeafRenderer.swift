@@ -46,3 +46,18 @@ public final class LeafRenderer {
         throw "todo: serialize"
     }
 }
+
+extension Array where Element == Syntax {
+    var dependencies: [String] {
+        return extensions.map { $0.key }
+    }
+    
+    private var extensions: [Syntax.Extend] {
+        return compactMap {
+            switch $0 {
+            case .extend(let e): return e
+            default: return nil
+            }
+        }
+    }
+}
