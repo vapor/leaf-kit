@@ -1,3 +1,5 @@
+import Foundation
+
 internal enum TemplateDataStorage {
     /// A `Bool`.
     ///

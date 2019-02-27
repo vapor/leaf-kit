@@ -1,3 +1,5 @@
+import Foundation
+
 /// Capable of being encoded as `TemplateData`.
 public protocol TemplateDataRepresentable {
     /// Converts `self` to `TemplateData` or throws an error if `self`
@@ -18,7 +20,7 @@ extension FixedWidthInteger {
     /// See `TemplateDataRepresentable`
     public func convertToTemplateData() throws -> TemplateData {
         guard self > Int.min && self < Int.max else {
-            throw TemplateKitError(identifier: "intSize", reason: "\(Self.self) \(self) cannot be represented by an Int.")
+            throw "todo" //TemplateKitError(identifier: "intSize", reason: "\(Self.self) \(self) cannot be represented by an Int.")
         }
         return .int(Int(self))
     }
@@ -35,21 +37,23 @@ extension UInt32: TemplateDataRepresentable { }
 extension UInt64: TemplateDataRepresentable { }
 extension UInt: TemplateDataRepresentable { }
 
-extension OptionalType {
+extension Optional {
     /// See `TemplateDataRepresentable`
     public func convertToTemplateData() throws -> TemplateData {
-        if let wrapped = self.wrapped {
-            if let data = wrapped as? TemplateDataRepresentable {
-                return try data.convertToTemplateData()
-            } else {
-                throw TemplateKitError(
-                    identifier: "convertOptional",
-                    reason: "Optional type `\(Self.self)` is not `TemplateDataRepresentable`"
-                )
-            }
-        } else {
-            return .null
-        }
+        guard let wrapped = self else { return .null }
+        fatalError()
+//        if let wrapped = self.wrapped {
+//            if let data = wrapped as? TemplateDataRepresentable {
+//                return try data.convertToTemplateData()
+//            } else {
+//                throw TemplateKitError(
+//                    identifier: "convertOptional",
+//                    reason: "Optional type `\(Self.self)` is not `TemplateDataRepresentable`"
+//                )
+//            }
+//        } else {
+//            return .null
+//        }
     }
 }
 

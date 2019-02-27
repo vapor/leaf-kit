@@ -1,6 +1,8 @@
+import Foundation
+
 /// TemplateKit's supported serializable data types.
 /// - note: This is different from types supported in the AST.
-public struct TemplateData: NestedData, Equatable, TemplateDataRepresentable {
+public struct TemplateData: Equatable, TemplateDataRepresentable {
     // MARK: Equatable
 
     /// See `Equatable`.
