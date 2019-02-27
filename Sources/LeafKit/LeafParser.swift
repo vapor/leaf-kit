@@ -1,12 +1,12 @@
 extension String: Error {}
 
-struct TagDeclaration {
+private struct TagDeclaration {
     let name: String
     let parameters: [ProcessedParameter]?
     let expectsBody: Bool
 }
 
-final class OpenContext {
+private final class OpenContext {
     let parent: TagDeclaration
     var body: [Syntax] = []
     init(_ parent: TagDeclaration) {
@@ -81,8 +81,8 @@ struct LeafParser {
     }
 
     
-    var finished: [Syntax] = []
-    var awaitingBody: [OpenContext] = []
+    private var finished: [Syntax] = []
+    private var awaitingBody: [OpenContext] = []
     
     mutating func parse() throws -> [Syntax] {
         while let next = peek() {
@@ -130,7 +130,7 @@ struct LeafParser {
         }
     }
     
-    mutating func close(with terminator: TagDeclaration) throws {
+    private mutating func close(with terminator: TagDeclaration) throws {
         guard !awaitingBody.isEmpty else { throw "found terminator \(terminator), with no corresponding tag" }
         let willClose = awaitingBody.removeLast()
         guard willClose.parent.matches(terminator: terminator) else { throw "unable to match \(willClose.parent) with \(terminator)" }
