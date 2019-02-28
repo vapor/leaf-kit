@@ -7,7 +7,6 @@ public struct LeafConfig {
 }
 
 protocol LeafCache {
-    // TODO: return future<void> is better
     func insert(_ document: ResolvedDocument, on loop: EventLoop) -> EventLoopFuture<ResolvedDocument>
     func load(path: String, on loop: EventLoop) -> EventLoopFuture<ResolvedDocument?>
 }
