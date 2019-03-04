@@ -17,12 +17,6 @@ enum ConditionalSyntax {
     case `else`
 }
 
-extension ConditionalSyntax {
-    func satisfies(_ context: [String: LeafData]) {
-        
-    }
-}
-
 extension Syntax.Extend {
     func extend(base: [Syntax]) -> [Syntax] {
         // from the base
@@ -56,6 +50,7 @@ func indent(_ depth: Int) -> String {
     return buffer
 }
 
+var customTags: [String: CustomTagProtocol.Type] = [:]
 
 extension Syntax {
     struct Import {
@@ -259,10 +254,40 @@ extension Syntax {
         let params: [ProcessedParameter]
         let body: [Syntax]?
         
+        func render(_ context: [String: TemplateData]) -> ByteBuffer {
+            
+            fatalError()
+        }
+        
         func print(depth: Int) -> String {
             var print = indent(depth)
             print += name + "(" + params.map { $0.description } .joined(separator: ", ") + ")"
             if let body = body, !body.isEmpty {
+                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+            }
+            return print
+        }
+    }
+    
+    struct _CustomTag {
+        let name: String
+        let impl: CustomTagProtocol
+        
+        init(name: String, params: [ProcessedParameter], body: [Syntax]?) throws {
+            self.name = name
+            guard let impl = customTags[name] else { throw "foo" }
+            self.impl = try impl.init(params: params, body: body)
+        }
+        
+        func render(_ context: [String: TemplateData]) -> ByteBuffer {
+            
+            fatalError()
+        }
+        
+        func print(depth: Int) -> String {
+            var print = indent(depth)
+            print += name + "(" + impl.params.map { $0.description } .joined(separator: ", ") + ")"
+            if let body = impl.body, !body.isEmpty {
                 print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
             return print

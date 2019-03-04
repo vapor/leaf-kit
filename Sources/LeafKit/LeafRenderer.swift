@@ -21,6 +21,57 @@ final class Cache: LeafCache {
     }
 }
 
+protocol CustomTagProtocol {
+    var params: [ProcessedParameter] { get }
+    var body: [Syntax]? { get }
+    init(params: [ProcessedParameter], body: [Syntax]?) throws
+    func serialize(context: [String: TemplateData]) throws -> ByteBuffer
+}
+
+
+//struct CustomTagResolver {
+//    static var customTags: [String: CustomTagProtocol.Type] = [:]
+//
+//    func resolve(_ raw: [Syntax]) throws -> [Syntax] {
+//        return try raw.map { syntax in
+//            switch syntax {
+//            case .custom(let decl):
+//                guard let impl = CustomTagResolver.customTags[decl.name] else { throw "no declaration for \(decl.name) found" }
+//                return try impl.init(params: decl.params, body: decl.body)
+//            default:
+//                return syntax
+//            }
+//        }
+//    }
+//
+//    /// an individual object resolution
+//    /// could probably be optimized
+//    func resolve() throws -> ResolvedDocument {
+//        guard canSatisfyAllDependencies() else { throw "unable to resolve \(document)" }
+//
+//        var processed: [Syntax] = []
+//        document.raw.forEach { syntax in
+//            if case .extend(let e) = syntax {
+//                guard let base = dependencies[e.key] else { fatalError("disallowed by guard") }
+//                let extended = e.extend(base: base.ast)
+//                processed += extended
+//            } else {
+//                processed.append(syntax)
+//            }
+//        }
+//
+//        return try ResolvedDocument(name: document.name, ast: processed)
+//    }
+//
+//
+//    private func canSatisfyAllDependencies() -> Bool {
+//        // no deps, easily satisfy
+//        return document.unresolvedDependencies.isEmpty
+//            // see if all dependencies necessary have already been compiled
+//            || document.unresolvedDependencies.allSatisfy(dependencies.keys.contains)
+//    }
+//}
+
 public final class LeafRenderer {
     let config: LeafConfig
     let file: NonBlockingFileIO
