@@ -50,7 +50,9 @@ func indent(_ depth: Int) -> String {
     return buffer
 }
 
-var customTags: [String: CustomTagProtocol.Type] = [:]
+var customTags: [String: CustomTagProtocol.Type] = [
+    "lowercased": Lowercased.self
+]
 
 extension Syntax {
     struct Import {

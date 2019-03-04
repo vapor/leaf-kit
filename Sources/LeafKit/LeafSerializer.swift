@@ -62,6 +62,11 @@ struct LeafSerializer {
         fatalError()
     }
     
+    mutating func serialize(_ tag: Syntax._CustomTag) throws {
+        var serialized = try tag.impl.serialize(context: context)
+        self.buffer.writeBuffer(&serialized)
+    }
+    
     mutating func serialize(_ variable: Syntax.Variable) {
         guard let data = self.context[variable.name] else {
             fatalError("no variable named \(variable.name)")
