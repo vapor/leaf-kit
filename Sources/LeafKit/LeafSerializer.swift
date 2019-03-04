@@ -16,13 +16,12 @@ extension LeafData: ExpressibleByBooleanLiteral {
 }
 
 struct LeafSerializer {
-    typealias LeafSyntax = Syntax
-    private let ast: [LeafSyntax]
+    private let ast: [Syntax]
     private var offset: Int
     private var buffer: ByteBuffer
     private var context: [String: LeafData]
     
-    init(ast: [LeafSyntax], context: [String: LeafData]) {
+    init(ast: [Syntax], context: [String: LeafData]) {
         self.ast = ast
         self.offset = 0
         self.buffer = ByteBufferAllocator().buffer(capacity: 0)
@@ -38,53 +37,40 @@ struct LeafSerializer {
         return self.buffer
     }
     
-    mutating func serialize(_ syntax: LeafSyntax) throws {
+    mutating func serialize(_ syntax: Syntax) throws {
         switch syntax {
         case .raw(var byteBuffer):
             self.buffer.writeBuffer(&byteBuffer)
         case .variable(let v):
             self.serialize(v)
         case .custom(let custom):
-            fatalError()
+            self.serialize(custom)
         case .conditional(let c):
-            fatalError()
+            self.serialize(c)
         case .loop(let loop):
-            fatalError()
+            self.serialize(loop)
         case .import, .extend, .export:
             throw "syntax \(syntax) should have been resolved BEFORE serialization"
         }
     }
     
-    mutating func serialize(_ conditional: LeafSyntax.Conditional) {
+    mutating func serialize(_ conditional: Syntax.Conditional) {
         fatalError()
-//        guard let shouldSerialize = self.boolify(conditional.condition) else {
-//            fatalError("invalid condition")
-//        }
-//        if shouldSerialize {
-//            conditional.body.forEach { self.serialize($0) }
-//        } else if let next = conditional.next {
-//            self.serialize(next)
-//        }
     }
     
-    mutating func serialize(_ tag: LeafSyntax.CustomTag) {
+    mutating func serialize(_ tag: Syntax.CustomTag) {
         fatalError()
-//        switch tag.name {
-//        case "get":
-//            switch tag.parameters.count {
-//            case 1: self.serialize(tag.parameters[0])
-//            default: fatalError()
-//            }
-//
-//        default: break
-//        }
     }
     
-    mutating func serialize(_ variable: LeafSyntax.Variable) {
+    mutating func serialize(_ variable: Syntax.Variable) {
         guard let data = self.context[variable.name] else {
             fatalError("no variable named \(variable.name)")
         }
         self.serialize(data)
+    }
+    
+    mutating func serialize(_ loop: Syntax.Loop) {
+        
     }
     
     mutating func serialize(_ data: LeafData) {
@@ -98,7 +84,8 @@ struct LeafSerializer {
         }
     }
     
-    func boolify(_ syntax: LeafSyntax) -> Bool? {
+    
+    func boolify(_ syntax: Syntax) -> Bool? {
         switch syntax {
         case .variable(let variable):
             if let data = self.context[variable.name] {
@@ -130,7 +117,7 @@ struct LeafSerializer {
         }
     }
     
-    func peek() -> LeafSyntax? {
+    func peek() -> Syntax? {
         guard self.offset < self.ast.count else {
             return nil
         }

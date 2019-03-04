@@ -7,51 +7,17 @@ public struct LeafConfig {
 }
 
 protocol LeafCache {
-    func insert(_ document: ResolvedDocument)
-    func load(name: String) throws -> EventLoopFuture<ResolvedDocument>
+    func insert(_ document: ResolvedDocument, on loop: EventLoop) -> EventLoopFuture<ResolvedDocument>
+    func load(path: String, on loop: EventLoop) -> EventLoopFuture<ResolvedDocument?>
 }
 
-public final class _LeafRenderer {
-    let config: LeafConfig
-    let file: NonBlockingFileIO
-    let eventLoop: EventLoop
-    let cache: LeafCache! = nil
-    
-    public init(
-        config: LeafConfig,
-        threadPool: BlockingIOThreadPool,
-        eventLoop: EventLoop
-        ) {
-        self.config = config
-        self.file = .init(threadPool: threadPool)
-        self.eventLoop = eventLoop
+final class Cache: LeafCache {
+    func insert(_ document: ResolvedDocument, on loop: EventLoop) -> EventLoopFuture<ResolvedDocument> {
+        return loop.makeSucceededFuture(document)
     }
     
-    public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
-        return self.file.openFile(path: config.rootDirectory + path, eventLoop: self.eventLoop).flatMap { res in
-            return self.file.read(
-                fileRegion: res.1, allocator: ByteBufferAllocator(),
-                eventLoop: self.eventLoop
-                ).flatMapThrowing { buffer in
-                    try res.0.close()
-                    return buffer
-            }
-            }.flatMapThrowing { template in
-                return try self.render(template: template, context: context)
-        }
-    }
-    
-    public func render(template: ByteBuffer, context: [String: LeafData]) throws -> ByteBuffer {
-        var lexer = LeafLexer(template: template)
-        let tokens = try lexer.lex()
-        var parser = LeafParser(tokens: tokens)
-        let raw = try parser.parse()
-        raw.dependencies
-        
-        
-        #warning("TODO: resolve import / extend / static embed")
-        throw "todo: serialize"
+    func load(path: String, on loop: EventLoop) -> EventLoopFuture<ResolvedDocument?> {
+        return loop.makeSucceededFuture(nil)
     }
 }
 
@@ -60,11 +26,14 @@ public final class LeafRenderer {
     let file: NonBlockingFileIO
     let eventLoop: EventLoop
     
+    // TODO: More Cache Options
+    let cache: LeafCache = Cache()
+    
     public init(
         config: LeafConfig,
         threadPool: BlockingIOThreadPool,
         eventLoop: EventLoop
-        ) {
+    ) {
         self.config = config
         self.file = .init(threadPool: threadPool)
         self.eventLoop = eventLoop
@@ -72,28 +41,67 @@ public final class LeafRenderer {
     
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
         let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
-        return self.file.openFile(path: config.rootDirectory + path, eventLoop: self.eventLoop).flatMap { res in
-            return self.file.read(
-                fileRegion: res.1, allocator: ByteBufferAllocator(),
-                eventLoop: self.eventLoop
-                ).flatMapThrowing { buffer in
-                    try res.0.close()
-                    return buffer
-            }
-            }.flatMapThrowing { template in
-                return try self.render(template: template, context: context)
+        let expanded = config.rootDirectory + path
+        let document = fetch(path: expanded)
+        return document.flatMapThrowing { document in
+            throw "todo: serialize document w/ context"
         }
     }
     
-    public func render(template: ByteBuffer, context: [String: LeafData]) throws -> ByteBuffer {
-        var lexer = LeafLexer(template: template)
-        let tokens = try lexer.lex()
-        var parser = LeafParser(tokens: tokens)
-        let raw = try parser.parse()
+    private func fetch(path: String) -> EventLoopFuture<ResolvedDocument> {
+        let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
+        let expanded = config.rootDirectory + path
+        return cache.load(path: expanded, on: eventLoop).flatMap { cached in
+            guard let cached = cached else { return self.read(file: path) }
+            return self.eventLoop.makeSucceededFuture(cached)
+        }
+    }
+    
+    private func read(file: String) -> EventLoopFuture<ResolvedDocument> {
+        let raw = readBytes(file: file)
         
+        let syntax = raw.flatMapThrowing { raw -> [Syntax] in
+            var lexer = LeafLexer(template: raw)
+            let tokens = try lexer.lex()
+            var parser = LeafParser(tokens: tokens)
+            return try parser.parse()
+        }
         
-        #warning("TODO: resolve import / extend / static embed")
-        throw "todo: serialize"
+        return syntax.flatMap { syntax in
+            let dependencies = self.readDependencies(syntax.dependencies)
+            let resolved = dependencies.flatMapThrowing { dependencies -> ResolvedDocument in
+                let unresolved = UnresolvedDocument(name: file, raw: syntax)
+                let resolver = ExtendResolver(document: unresolved, dependencies: dependencies)
+                return try resolver.resolve()
+            }
+            
+            return resolved.flatMap { resolved in self.cache.insert(resolved, on: self.eventLoop) }
+        }
+    }
+    
+    private func readDependencies(_ dependencies: [String]) -> EventLoopFuture<[ResolvedDocument]> {
+        let fetchRequests = dependencies.map(self.fetch)
+        let results = EventLoopFuture.whenAllComplete(fetchRequests, on: self.eventLoop)
+        return results.flatMapThrowing { results in
+            return try results.map { result -> ResolvedDocument in
+                switch result {
+                case .success(let ob): return ob
+                case .failure(let e): throw e
+                }
+            }
+        }
+    }
+    
+    private func readBytes(file: String) -> EventLoopFuture<ByteBuffer> {
+        let openFile  = self.file.openFile(path: file, eventLoop: self.eventLoop)
+        return openFile.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
+            let allocator = ByteBufferAllocator()
+            let read = self.file.read(fileRegion: region, allocator: allocator, eventLoop: self.eventLoop)
+            return read.flatMapThrowing { (buffer)  in
+                try handle.close()
+                return buffer
+            }
+        }
     }
 }
 
