@@ -71,9 +71,13 @@ struct LeafSerializer {
     
     mutating func serialize(_ loop: Syntax.Loop) throws {
         guard let array = context[loop.array]?.array else { throw "expected array at key: \(loop.array)" }
-        try array.forEach { item in
+        for (idx, item) in array.enumerated() {
             var innerContext = self.context
+            
+            if idx == 0 { innerContext["isFirst"] = .bool(true) }
+            else if idx == array.count - 1 { innerContext["isLast"] = .bool(true) }
             innerContext[loop.item] = item
+            
             var serializer = LeafSerializer(ast: loop.body, context: innerContext)
             var loopBody = try serializer.serialize()
             self.buffer.writeBuffer(&loopBody)
