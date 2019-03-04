@@ -1,0 +1,35 @@
+import XCTest
+@testable import LeafKit
+
+final class SerializerTests: XCTestCase {
+    func testComplex() throws {
+        let input = """
+        hello, #(name)!
+        #for(skill in skills):
+        you're pretty good at #(skill)
+        #endfor
+        """
+        
+        let expectation = """
+        conditional:
+          if(variable(foo)):
+            raw("\\nfoo\\n")
+          else:
+            raw("\\nfoo\\n")
+        """
+        
+        let syntax = try! altParse(input)
+        let name = TemplateData(.string("vapor"))
+        let running = TemplateData(.string("running"))
+        let walking = TemplateData(.string("walking"))
+        let skills = TemplateData(.array([running, walking]))
+        var serializer = LeafSerializer(ast: syntax, context: ["name": name, "skills": skills])
+        var serialized = try serializer.serialize()
+        let str = serialized.readString(length: serialized.readableBytes) ?? "<err>"
+        print(str)
+        print()
+//        let syntax = try! altParse(input)
+//        let output = syntax.map { $0.description } .joined(separator: "\n")
+//        XCTAssertEqual(output, expectation)
+    }
+}

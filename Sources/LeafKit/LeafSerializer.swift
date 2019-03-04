@@ -81,15 +81,9 @@ struct LeafSerializer {
     }
     
     mutating func serialize(_ data: TemplateData) {
-        fatalError()
-//        switch data {
-//        case .bool(let bool):
-//            switch bool {
-//            case true: self.buffer.writeString("true")
-//            case false: self.buffer.writeString("false")
-//            }
-//        case .string(let string): self.buffer.writeString(string)
-//        }
+        // todo: should throw?
+        guard let raw = data.data else { return }
+        self.buffer.writeBytes(raw)
     }
     
     
@@ -115,15 +109,7 @@ struct LeafSerializer {
     }
     
     func boolify(_ data: TemplateData) -> Bool? {
-        fatalError()
-//        switch data {
-//        case .bool(let bool): return bool
-//        case .string(let string):
-//            switch string {
-//            case "false", "0", "no": return false
-//            default: return true
-//            }
-//        }
+        return data.bool ?? false
     }
     
     func peek() -> Syntax? {
