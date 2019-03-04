@@ -53,6 +53,18 @@ class LeafTests { //: XCTestCase {
     }
 }
 
+final class SomeTests: XCTestCase {
+    func testCodable() {
+        struct Foo: Codable {
+            let foo: String
+        }
+        
+        
+        let a = Foo(foo: "afds")
+        
+    }
+}
+
 extension UInt8 {
     var str: String { return String(bytes: [self], encoding: .utf8)! }
 }

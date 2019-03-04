@@ -21,6 +21,24 @@ enum Operator: String, Equatable, CustomStringConvertible {
     var description: String { return rawValue }
 }
 
+extension Operator {
+    var isBooleanOperator: Bool {
+        switch self {
+        case .equals,
+             .notEquals,
+             .greaterThan,
+             .greaterThanOrEquals,
+             .lessThan,
+             .lessThanOrEquals,
+             .and,
+             .or:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 enum Constant: CustomStringConvertible, Equatable {
     case int(Int)
     case double(Double)

@@ -19,9 +19,9 @@ struct LeafSerializer {
     private let ast: [Syntax]
     private var offset: Int
     private var buffer: ByteBuffer
-    private var context: [String: LeafData]
+    private var context: [String: TemplateData]
     
-    init(ast: [Syntax], context: [String: LeafData]) {
+    init(ast: [Syntax], context: [String: TemplateData]) {
         self.ast = ast
         self.offset = 0
         self.buffer = ByteBufferAllocator().buffer(capacity: 0)
@@ -48,7 +48,7 @@ struct LeafSerializer {
         case .conditional(let c):
             self.serialize(c)
         case .loop(let loop):
-            self.serialize(loop)
+            try self.serialize(loop)
         case .import, .extend, .export:
             throw "syntax \(syntax) should have been resolved BEFORE serialization"
         }
@@ -69,19 +69,27 @@ struct LeafSerializer {
         self.serialize(data)
     }
     
-    mutating func serialize(_ loop: Syntax.Loop) {
-        
+    mutating func serialize(_ loop: Syntax.Loop) throws {
+        guard let array = context[loop.array]?.array else { throw "expected array at key: \(loop.array)" }
+        try array.forEach { item in
+            var innerContext = self.context
+            innerContext[loop.item] = item
+            var serializer = LeafSerializer(ast: loop.body, context: innerContext)
+            var loopBody = try serializer.serialize()
+            self.buffer.writeBuffer(&loopBody)
+        }
     }
     
-    mutating func serialize(_ data: LeafData) {
-        switch data {
-        case .bool(let bool):
-            switch bool {
-            case true: self.buffer.writeString("true")
-            case false: self.buffer.writeString("false")
-            }
-        case .string(let string): self.buffer.writeString(string)
-        }
+    mutating func serialize(_ data: TemplateData) {
+        fatalError()
+//        switch data {
+//        case .bool(let bool):
+//            switch bool {
+//            case true: self.buffer.writeString("true")
+//            case false: self.buffer.writeString("false")
+//            }
+//        case .string(let string): self.buffer.writeString(string)
+//        }
     }
     
     
@@ -106,15 +114,16 @@ struct LeafSerializer {
         }
     }
     
-    func boolify(_ data: LeafData) -> Bool? {
-        switch data {
-        case .bool(let bool): return bool
-        case .string(let string):
-            switch string {
-            case "false", "0", "no": return false
-            default: return true
-            }
-        }
+    func boolify(_ data: TemplateData) -> Bool? {
+        fatalError()
+//        switch data {
+//        case .bool(let bool): return bool
+//        case .string(let string):
+//            switch string {
+//            case "false", "0", "no": return false
+//            default: return true
+//            }
+//        }
     }
     
     func peek() -> Syntax? {

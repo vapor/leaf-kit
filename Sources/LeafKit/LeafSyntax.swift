@@ -17,6 +17,12 @@ enum ConditionalSyntax {
     case `else`
 }
 
+extension ConditionalSyntax {
+    func satisfies(_ context: [String: LeafData]) {
+        
+    }
+}
+
 extension Syntax.Extend {
     func extend(base: [Syntax]) -> [Syntax] {
         // from the base
