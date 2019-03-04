@@ -59,10 +59,23 @@ struct Expression {
     }
 }
 
-indirect enum ProcessedParameter: CustomStringConvertible, Equatable {
+extension ConditionalSyntax {
+    func satisfied(by context: [String: TemplateData]) -> Bool {
+        switch self {
+        case .if(let expression):
+            fatalError()
+        case .elseif(let expression):
+            fatalError()
+        case .else:
+            return true
+        }
+    }
+}
+
+indirect enum ProcessedParameter: CustomStringConvertible {
     case parameter(Parameter)
     case expression([ProcessedParameter])
-    case tag(name: String, params: [ProcessedParameter])
+    case tag(Syntax.CustomTag)
     
     var description: String {
         switch self {
@@ -70,8 +83,8 @@ indirect enum ProcessedParameter: CustomStringConvertible, Equatable {
             return p.description
         case .expression(let p):
             return name + "(" + p.map { $0.short }.joined(separator: " ") + ")"
-        case .tag(let tag, let p):
-            return "tag(" + tag + ": " + p.map { $0.short } .joined(separator: ",") + ")"
+        case .tag(let tag):
+            return "tag(" + tag.name + ": " + tag.params.map { $0.short } .joined(separator: ",") + ")"
         }
     }
     
@@ -81,8 +94,8 @@ indirect enum ProcessedParameter: CustomStringConvertible, Equatable {
             return p.short
         case .expression(let p):
             return p.map { $0.short }.joined(separator: " ")
-        case .tag(let name, let p):
-            return name + "(" + p.map { $0.short }.joined(separator: " ") + ")"
+        case .tag(let tag):
+            return tag.name + "(" + tag.params.map { $0.short }.joined(separator: " ") + ")"
         }
     }
     

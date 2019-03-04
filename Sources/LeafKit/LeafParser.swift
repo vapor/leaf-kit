@@ -234,7 +234,7 @@ struct LeafParser {
                     // TODO: remove recursion, in parameters only not so bad
                     let params = try readParameters()
                     // parameter tags not permitted to have bodies
-                    group.append(.tag(name: name, params: params))
+                    group.append(.tag(.init(name: name, params: params, body: nil)))
                 default:
                     group.append(.parameter(p))
                 }
