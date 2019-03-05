@@ -1,55 +1,12 @@
 import XCTest
 @testable import LeafKit
 
-typealias LeafDict = [String: LeafData]
-
-func render(raw: String, ctx: LeafDict) throws -> String {
-//    var buffer = ByteBufferAllocator().buffer(capacity: 0)
-//    buffer.writeString(raw)
-//
-//    var lexer = LeafLexer(template: buffer)
-//    let tokens = try lexer.lex()
-//    var parser = OldLeafParser(tokens: tokens)
-//    let ast = try parser.parse()
-//    var serializer = LeafSerializer(ast: ast, context: ctx)
-//    var view = try serializer.serialize()
-//    return view.readString(length: view.readableBytes)!
-    return ""
-}
-
 extension Array where Element == LeafToken {
     func dropWhitespace() -> Array<LeafToken> {
         return self.filter { token in
             guard case .whitespace = token else { return true }
             return false
         }
-    }
-}
-
-class LeafTests { //: XCTestCase {
-    func testRaw() throws {
-        let template = "raw text, should be same"
-        let result = try render(raw: template, ctx: [:])
-        XCTAssertEqual(result, template)
-    }
-    
-    func testPrint() throws {
-        let template = "Hello, #(name)!"
-        let data = ["name": "Tanner"] as LeafDict
-        try XCTAssertEqual(render(raw: template, ctx: data), "Hello, Tanner!")
-    }
-
-    func testConstant() throws {
-        let template = "<h1>#(42)</h1>"
-        try XCTAssertEqual(render(raw: template, ctx: [:]), "<h1>42</h1>")
-    }
-
-    func testInterpolated() throws {
-        let template = """
-        <p>#("foo: #(foo)")</p>
-        """
-        let data = ["foo": "bar"] as LeafDict
-        try XCTAssertEqual(render(raw: template, ctx: data), "<p>foo: bar</p>")
     }
 }
 

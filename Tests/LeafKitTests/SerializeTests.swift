@@ -15,7 +15,7 @@ final class SerializerTests: XCTestCase {
         #endif
 
         #if(lowercased(me) == "logan"):
-            expression resolution worked!!
+        expression resolution worked!!
         #endif
         """
         
