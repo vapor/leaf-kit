@@ -101,7 +101,7 @@ struct ParameterResolver {
             guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
             return .init(.bool(lhs >= rhs))
         case .plus, .minus, .multiply, .divide:
-            fatalError("concat string, add nums")
+            fatalError("todo: concat string, add nums, etc...")
         }
     }
     
