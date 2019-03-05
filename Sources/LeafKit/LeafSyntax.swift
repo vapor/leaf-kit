@@ -63,10 +63,6 @@ func indent(_ depth: Int) -> String {
     return buffer
 }
 
-var customTags: [String: CustomTagProtocol.Type] = [
-    "lowercased": Lowercased.self
-]
-
 extension Syntax {
     struct Import {
         let key: String
@@ -273,36 +269,6 @@ extension Syntax {
             var print = indent(depth)
             print += name + "(" + params.map { $0.description } .joined(separator: ", ") + ")"
             if let body = body, !body.isEmpty {
-                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
-            }
-            return print
-        }
-    }
-    
-    struct CustomTagImplementation {
-        let name: String
-        let params: [ProcessedParameter]
-        let body: [Syntax]?
-        
-        let impl: CustomTagProtocol
-        
-        init(name: String, params: [ProcessedParameter], body: [Syntax]?) throws {
-            self.name = name
-            self.params = params
-            self.body = body
-            guard let impl = customTags[name] else { throw "foo" }
-            self.impl = try impl.init(params: params, body: body)
-        }
-        
-        func render(_ context: [String: TemplateData]) -> ByteBuffer {
-            
-            fatalError()
-        }
-        
-        func print(depth: Int) -> String {
-            var print = indent(depth)
-            print += name + "(" + impl.params.map { $0.description } .joined(separator: ", ") + ")"
-            if let body = impl.body, !body.isEmpty {
                 print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
             return print

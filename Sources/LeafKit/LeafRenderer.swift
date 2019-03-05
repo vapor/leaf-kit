@@ -21,39 +21,13 @@ final class Cache: LeafCache {
     }
 }
 
-protocol _CustomFunctionProtocol {
-    func serialize(params: [ProcessedParameter],
-                   body: [Syntax]?,
-                   context: [String: TemplateData]) throws -> TemplateData
-}
-
-enum ResolvedParams {
-    
-}
-
-protocol _CustomTagProtocol {
+protocol CustomTagProtocol {
     func render(params: [ProcessedParameter],
                    body: [Syntax]?,
                    context: [String: TemplateData]) throws -> TemplateData
 }
 
-//extension TemplateData {
-//    init(_ buffer: ByteBuffer) {
-//        var buffer = buffer
-//        let str = buffer.readString(length: buffer.readableBytes)
-//        fatalError()
-//    }
-//}
-
-protocol CustomTagProtocol {
-    var params: [ProcessedParameter] { get }
-    var body: [Syntax]? { get }
-    init(params: [ProcessedParameter], body: [Syntax]?) throws
-    func serialize(context: [String: TemplateData]) throws -> ByteBuffer
-}
-
-
-struct _Lowercased: _CustomTagProtocol {
+struct Lowercased: CustomTagProtocol {
     func render(params: [ProcessedParameter], body: [Syntax]?, context: [String : TemplateData]) throws -> TemplateData {
         let resolver = ParameterResolver(context: context, params: params)
         let resolved = try resolver.resolve()
@@ -62,43 +36,6 @@ struct _Lowercased: _CustomTagProtocol {
     }
 }
 
-struct Lowercased: CustomTagProtocol {
-    let params: [ProcessedParameter]
-    let body: [Syntax]?
-    
-    let `var`: String?
-    let literal: String?
-    
-    init(params: [ProcessedParameter], body: [Syntax]?) throws {
-        self.params = params
-        self.body = body
-        
-        guard params.count == 1 else { throw "unexpected input lowercased" }
-        guard case .parameter(let param) = params[0] else { throw "unexpected type" }
-        switch param {
-        case .stringLiteral(let s):
-            self.var = nil
-            self.literal = s
-        case .variable(name: let v):
-            self.var = v
-            self.literal = nil
-        default:
-            throw "only accepts string literal or variaable"
-        }
-    }
-
-    func serialize(context: [String: TemplateData]) throws -> ByteBuffer {
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        
-        if let literal = self.literal {
-            buffer.writeString(literal.lowercased())
-        } else if let v = self.var, let value = context[v]?.string {
-            buffer.writeString(value.lowercased())
-        }
-        
-        return buffer
-    }
-}
 
 public final class LeafRenderer {
     let config: LeafConfig

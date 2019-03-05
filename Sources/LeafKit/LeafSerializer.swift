@@ -1,6 +1,6 @@
-var tags: [String: _CustomTagProtocol] = [
-    "lowercase" : _Lowercased(),
-    "lowercased" : _Lowercased()
+var customTags: [String: CustomTagProtocol] = [
+    "lowercase" : Lowercased(),
+    "lowercased" : Lowercased(),
 ]
 
 struct ResolvedParameter {
@@ -24,7 +24,7 @@ struct ParameterResolver {
         case .parameter(let p):
             result = try resolve(param: p)
         case .tag(let t):
-            result = try tags[t.name]?.render(params: t.params, body: t.body, context: context)
+            result = try customTags[t.name]?.render(params: t.params, body: t.body, context: context)
                 ?? .init(.null)
         }
         return .init(param: param, result: result)
@@ -186,7 +186,7 @@ struct LeafSerializer {
     }
     
     mutating func serialize(_ tag: Syntax.CustomTagDeclaration) throws {
-        let rendered = try tags[tag.name]?.render(params: tag.params, body: tag.body, context: context)
+        let rendered = try customTags[tag.name]?.render(params: tag.params, body: tag.body, context: context)
             ?? .init(.null)
         serialize(rendered)
     }
