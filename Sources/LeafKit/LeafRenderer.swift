@@ -60,7 +60,8 @@ public final class LeafRenderer {
         let expanded = config.rootDirectory + path
         let document = fetch(path: expanded)
         return document.flatMapThrowing { document in
-            throw "todo: serialize document w/ context"
+            var serializer = LeafSerializer(ast: document.ast, context: context)
+            return try serializer.serialize()
         }
     }
     
