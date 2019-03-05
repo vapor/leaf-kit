@@ -13,14 +13,20 @@ final class SerializerTests: XCTestCase {
         #elseif(true):
         it works!
         #endif
+
+        #if(lowercased(me) == "logan"):
+            expression resolution worked!!
+        #endif
         """
         
         let syntax = try! altParse(input)
         let name = TemplateData(.string("vapor"))
+        
+        let me = TemplateData(.string("LOGAN"))
         let running = TemplateData(.string("running"))
         let walking = TemplateData(.string("walking"))
         let skills = TemplateData(.array([running, walking]))
-        var serializer = LeafSerializer(ast: syntax, context: ["name": name, "skills": skills])
+        var serializer = LeafSerializer(ast: syntax, context: ["name": name, "skills": skills, "me": me])
         var serialized = try serializer.serialize()
         let str = serialized.readString(length: serialized.readableBytes) ?? "<err>"
         print(str)

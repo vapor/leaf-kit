@@ -15,7 +15,10 @@ extension LeafData: ExpressibleByBooleanLiteral {
     }
 }
 
-var tags: [String: _CustomTagProtocol] = [:]
+var tags: [String: _CustomTagProtocol] = [
+    "lowercase" : _Lowercased(),
+    "lowercased" : _Lowercased()
+]
 
 struct Operation {
     indirect enum Argument {
