@@ -2,7 +2,7 @@ indirect enum Syntax {
     case raw(ByteBuffer)
     case variable(Variable)
     
-    case custom(CustomTag)
+    case custom(CustomTagDeclaration)
     
     case conditional(Conditional)
     case loop(Loop)
@@ -10,6 +10,19 @@ indirect enum Syntax {
     case extend(Extend)
     case export(Export)
 }
+
+//indirect enum Syntax {
+//    case raw(ByteBuffer)
+//    case variable(Variable)
+//
+//    case custom(CustomTagDeclaration)
+//
+//    case conditional(Conditional)
+//    case loop(Loop)
+//    case `import`(Import)
+//    case extend(Extend)
+//    case export(Export)
+//}
 
 enum ConditionalSyntax {
     case `if`([ProcessedParameter])
@@ -251,15 +264,10 @@ extension Syntax {
         }
     }
     
-    struct CustomTag {
+    struct CustomTagDeclaration {
         let name: String
         let params: [ProcessedParameter]
         let body: [Syntax]?
-        
-        func render(_ context: [String: TemplateData]) -> ByteBuffer {
-            
-            fatalError()
-        }
         
         func print(depth: Int) -> String {
             var print = indent(depth)
@@ -271,12 +279,17 @@ extension Syntax {
         }
     }
     
-    struct _CustomTag {
+    struct CustomTagImplementation {
         let name: String
+        let params: [ProcessedParameter]
+        let body: [Syntax]?
+        
         let impl: CustomTagProtocol
         
         init(name: String, params: [ProcessedParameter], body: [Syntax]?) throws {
             self.name = name
+            self.params = params
+            self.body = body
             guard let impl = customTags[name] else { throw "foo" }
             self.impl = try impl.init(params: params, body: body)
         }

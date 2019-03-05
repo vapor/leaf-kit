@@ -1,5 +1,5 @@
 enum Keyword: String, Equatable {
-    case `in`, `true`, `false`, `self`, `nil`
+    case `in`, `true`, `false`, `self`, `nil`, `yes`, `no`
 }
 
 enum Operator: String, Equatable, CustomStringConvertible {
@@ -12,13 +12,23 @@ enum Operator: String, Equatable, CustomStringConvertible {
     
     case plus = "+"
     case minus = "-"
-    case plusEquals = "+="
-    case minusEquals = "-="
+    case divide = "/"
+    case multiply = "*"
     
     case and = "&&"
     case or = "||"
     
     var description: String { return rawValue }
+}
+
+extension Operator {
+    var priority: Int {
+        switch self {
+        case .multiply, .divide: return 0
+        case .plus, .minus: return 1
+        default: return 2
+        }
+    }
 }
 
 extension Operator {
@@ -70,12 +80,55 @@ extension ConditionalSyntax {
             return true
         }
     }
+    
+    private func expression(_ exp: [ProcessedParameter], satisfiedBy context: [String: TemplateData]) {
+        
+        fatalError()
+    }
+}
+
+extension ProcessedParameter {
+    func boolify(with context: [String: TemplateData]) -> Bool {
+        switch self {
+        case .parameter(let param):
+            return param.boolify(with: context)
+        default:
+            fatalError()
+        }
+    }
+}
+
+extension Parameter {
+    func boolify(with context: [String: TemplateData]) -> Bool {
+        switch self {
+        case .constant(let c):
+            switch c {
+            case .double(let d): return d == 1
+            case .int(let i): return i == 1
+            }
+        case .keyword(let k):
+            switch k {
+            case .true, .yes: return true
+            default: return false
+            }
+        case .variable(name: let v):
+            return context[v]?.bool ?? false
+        case .operator:
+            return false
+        case .stringLiteral(let s):
+            return s == "true" || s == "yes"
+        case .expression(let _):
+            fatalError()
+        case .tag(name: let _):
+            fatalError()
+        }
+    }
 }
 
 indirect enum ProcessedParameter: CustomStringConvertible {
     case parameter(Parameter)
     case expression([ProcessedParameter])
-    case tag(Syntax.CustomTag)
+    case tag(Syntax.CustomTagDeclaration)
     
     var description: String {
         switch self {

@@ -8,6 +8,9 @@ final class SerializerTests: XCTestCase {
         #for(skill in skills):
         you're pretty good at #(skill)
         #endfor
+
+        #if(false): don't show
+        #elseif(true): it works! #endif
         """
         
         let expectation = """

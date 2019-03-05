@@ -21,6 +21,30 @@ final class Cache: LeafCache {
     }
 }
 
+protocol _CustomFunctionProtocol {
+    func serialize(params: [ProcessedParameter],
+                   body: [Syntax]?,
+                   context: [String: TemplateData]) throws -> TemplateData
+}
+
+enum ResolvedParams {
+    
+}
+
+protocol _CustomTagProtocol {
+    func serialize(params: [ProcessedParameter],
+                   body: [Syntax]?,
+                   context: [String: TemplateData]) throws -> TemplateData
+}
+
+extension TemplateData {
+    init(_ buffer: ByteBuffer) {
+        var buffer = buffer
+        let str = buffer.readString(length: buffer.readableBytes)
+        fatalError()
+    }
+}
+
 protocol CustomTagProtocol {
     var params: [ProcessedParameter] { get }
     var body: [Syntax]? { get }
