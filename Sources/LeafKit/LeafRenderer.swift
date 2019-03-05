@@ -118,7 +118,7 @@ public final class LeafRenderer {
         self.eventLoop = eventLoop
     }
     
-    public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
+    public func render(path: String, context: [String: TemplateData]) -> EventLoopFuture<ByteBuffer> {
         let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
         let expanded = config.rootDirectory + path
         let document = fetch(path: expanded)

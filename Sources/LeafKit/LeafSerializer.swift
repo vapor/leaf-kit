@@ -1,41 +1,7 @@
-public enum LeafData {
-    case bool(Bool)
-    case string(String)
-}
-
-extension LeafData: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
-        self = .string(value)
-    }
-}
-
-extension LeafData: ExpressibleByBooleanLiteral {
-    public init(booleanLiteral value: Bool) {
-        self = .bool(value)
-    }
-}
-
 var tags: [String: _CustomTagProtocol] = [
     "lowercase" : _Lowercased(),
     "lowercased" : _Lowercased()
 ]
-
-struct Operation {
-    indirect enum Argument {
-        case data(TemplateData)
-        case operation(Operation)
-    }
-    
-    indirect enum Function {
-        case keyword(Keyword)
-        case `operator`(Operator)
-    }
-    
-    
-    let lhs: Argument
-    let rhs: Argument
-    let function: Function
-}
 
 struct ResolvedParameter {
     let param: ProcessedParameter
