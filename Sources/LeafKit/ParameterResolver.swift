@@ -1,3 +1,5 @@
+import Foundation
+
 struct ResolvedParameter {
     let param: ProcessedParameter
     let result: TemplateData
@@ -102,6 +104,40 @@ struct ParameterResolver {
             return .init(.bool(lhs >= rhs))
         case .plus, .minus, .multiply, .divide:
             fatalError("todo: concat string, add nums, etc...")
+        }
+    }
+    
+    private func plus(lhs: TemplateData, rhs: TemplateData) -> TemplateData {
+        switch lhs.storage {
+        case .array(let arr):
+            let rhs = rhs.array ?? []
+            return .init(.array(arr + rhs))
+        case .data(let data):
+            let rhs = rhs.data ?? Data()
+            return .init(.data(data + rhs))
+        case .string(let s):
+            let rhs = rhs.string ?? ""
+            return .init(.string(s + rhs))
+        case .int(let i):
+            // todo: if either is double, be double
+            let rhs = rhs.int ?? 0
+            return .init(.int(i + rhs))
+        case .double(let d):
+            let rhs = rhs.double ?? 0
+            return .init(.double(d + rhs))
+        case .lazy(let load):
+            let l = load()
+            return plus(lhs: l, rhs: rhs)
+        case .dictionary(let lhs):
+            var rhs = rhs.dictionary ?? [:]
+            lhs.forEach { key, val in
+                rhs[key] = val
+            }
+            return .init(.dictionary(rhs))
+        case .null:
+            return .null
+        case .bool:
+            return .null
         }
     }
     
