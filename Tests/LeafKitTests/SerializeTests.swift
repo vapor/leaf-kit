@@ -10,7 +10,9 @@ final class SerializerTests: XCTestCase {
         #endfor
 
         #if(false): don't show
-        #elseif(true): it works! #endif
+        #elseif(true):
+        it works!
+        #endif
         """
         
         let expectation = """
