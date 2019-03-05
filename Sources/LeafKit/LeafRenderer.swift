@@ -32,24 +32,34 @@ enum ResolvedParams {
 }
 
 protocol _CustomTagProtocol {
-    func serialize(params: [ProcessedParameter],
+    func render(params: [ProcessedParameter],
                    body: [Syntax]?,
                    context: [String: TemplateData]) throws -> TemplateData
 }
 
-extension TemplateData {
-    init(_ buffer: ByteBuffer) {
-        var buffer = buffer
-        let str = buffer.readString(length: buffer.readableBytes)
-        fatalError()
-    }
-}
+//extension TemplateData {
+//    init(_ buffer: ByteBuffer) {
+//        var buffer = buffer
+//        let str = buffer.readString(length: buffer.readableBytes)
+//        fatalError()
+//    }
+//}
 
 protocol CustomTagProtocol {
     var params: [ProcessedParameter] { get }
     var body: [Syntax]? { get }
     init(params: [ProcessedParameter], body: [Syntax]?) throws
     func serialize(context: [String: TemplateData]) throws -> ByteBuffer
+}
+
+
+struct _Lowercased: _CustomTagProtocol {
+    func render(params: [ProcessedParameter], body: [Syntax]?, context: [String : TemplateData]) throws -> TemplateData {
+        let resolver = ParameterResolver(context: context, params: params)
+        let resolved = try resolver.resolve()
+        guard let str = resolved.first?.result.string else { throw "unable to lowercase unexpected data" }
+        return .init(.string(str.lowercased()))
+    }
 }
 
 struct Lowercased: CustomTagProtocol {

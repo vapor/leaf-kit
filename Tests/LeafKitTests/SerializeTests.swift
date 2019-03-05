@@ -15,14 +15,6 @@ final class SerializerTests: XCTestCase {
         #endif
         """
         
-        let expectation = """
-        conditional:
-          if(variable(foo)):
-            raw("\\nfoo\\n")
-          else:
-            raw("\\nfoo\\n")
-        """
-        
         let syntax = try! altParse(input)
         let name = TemplateData(.string("vapor"))
         let running = TemplateData(.string("running"))
