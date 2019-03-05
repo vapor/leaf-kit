@@ -94,7 +94,6 @@ struct LeafSerializer {
     }
     
     mutating func serialize(_ data: TemplateData) {
-        // todo: should throw?
         guard let raw = data.data else { return }
         self.buffer.writeBytes(raw)
     }

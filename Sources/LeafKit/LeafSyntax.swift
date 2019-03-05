@@ -11,19 +11,6 @@ indirect enum Syntax {
     case export(Export)
 }
 
-//indirect enum Syntax {
-//    case raw(ByteBuffer)
-//    case variable(Variable)
-//
-//    case custom(CustomTagDeclaration)
-//
-//    case conditional(Conditional)
-//    case loop(Loop)
-//    case `import`(Import)
-//    case extend(Extend)
-//    case export(Export)
-//}
-
 enum ConditionalSyntax {
     case `if`([ProcessedParameter])
     case `elseif`([ProcessedParameter])
