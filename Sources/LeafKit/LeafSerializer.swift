@@ -55,7 +55,7 @@ struct ParameterResolver {
         case .parameter(let p):
             result = try resolve(param: p)
         case .tag(let t):
-            result = try tags[t.name]?.serialize(params: t.params, body: t.body, context: context)
+            result = try tags[t.name]?.render(params: t.params, body: t.body, context: context)
                 ?? .init(.null)
         }
         return .init(param: param, result: result)
@@ -181,7 +181,7 @@ struct LeafSerializer {
         case .variable(let v):
             self.serialize(v)
         case .custom(let custom):
-            self.serialize(custom)
+            try self.serialize(custom)
         case .conditional(let c):
             try self.serialize(c)
         case .loop(let loop):
@@ -216,14 +216,11 @@ struct LeafSerializer {
         }
     }
     
-    mutating func serialize(_ tag: Syntax.CustomTagDeclaration) {
-        fatalError()
+    mutating func serialize(_ tag: Syntax.CustomTagDeclaration) throws {
+        let rendered = try tags[tag.name]?.render(params: tag.params, body: tag.body, context: context)
+            ?? .init(.null)
+        serialize(rendered)
     }
-    
-//    mutating func serialize(_ tag: Syntax._CustomTag) throws {
-//        var serialized = try tag.impl.serialize(context: context)
-//        self.buffer.writeBuffer(&serialized)
-//    }
     
     mutating func serialize(_ variable: Syntax.Variable) {
         guard let data = self.context[variable.name] else {
@@ -251,10 +248,6 @@ struct LeafSerializer {
         // todo: should throw?
         guard let raw = data.data else { return }
         self.buffer.writeBytes(raw)
-    }
-    
-    func boolify(_ data: TemplateData) -> Bool? {
-        return data.bool ?? false
     }
     
     func peek() -> Syntax? {
