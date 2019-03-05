@@ -36,7 +36,6 @@ struct Lowercased: CustomTagProtocol {
     }
 }
 
-
 public final class LeafRenderer {
     let config: LeafConfig
     let file: NonBlockingFileIO

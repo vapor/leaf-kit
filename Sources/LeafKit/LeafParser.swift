@@ -225,7 +225,11 @@ struct LeafParser {
         outer: while let next = peek() {
             switch next {
             case .parametersStart:
-                fatalError("should not find")
+                // found a nested () that we will group together into
+                // an expression, ie: #if(foo == (bar + car))
+                let params = try readParameters()
+                // parameter tags not permitted to have bodies
+                group.append(.expression(params))
             case .parameter(let p):
                 pop()
                 switch p {
