@@ -6,9 +6,9 @@ struct LeafSerializer {
     private let ast: [Syntax]
     private var offset: Int
     private var buffer: ByteBuffer
-    private var data: [String: TemplateData]
+    private var data: [String: LeafData]
     
-    init(ast: [Syntax], context: [String: TemplateData]) {
+    init(ast: [Syntax], context: [String: LeafData]) {
         self.ast = ast
         self.offset = 0
         self.buffer = ByteBufferAllocator().buffer(capacity: 0)
@@ -93,7 +93,7 @@ struct LeafSerializer {
         }
     }
     
-    mutating func serialize(_ data: TemplateData) {
+    mutating func serialize(_ data: LeafData) {
         guard let raw = data.data else { return }
         self.buffer.writeBytes(raw)
     }

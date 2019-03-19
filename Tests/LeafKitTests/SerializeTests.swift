@@ -20,12 +20,12 @@ final class SerializerTests: XCTestCase {
         """
         
         let syntax = try! altParse(input)
-        let name = TemplateData(.string("vapor"))
+        let name = LeafData(.string("vapor"))
         
-        let me = TemplateData(.string("LOGAN"))
-        let running = TemplateData(.string("running"))
-        let walking = TemplateData(.string("walking"))
-        let skills = TemplateData(.array([running, walking]))
+        let me = LeafData(.string("LOGAN"))
+        let running = LeafData(.string("running"))
+        let walking = LeafData(.string("walking"))
+        let skills = LeafData(.array([running, walking]))
         var serializer = LeafSerializer(ast: syntax, context: ["name": name, "skills": skills, "me": me])
         var serialized = try serializer.serialize()
         let str = serialized.readString(length: serialized.readableBytes) ?? "<err>"

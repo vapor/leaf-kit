@@ -23,16 +23,16 @@ final class Cache: LeafCache {
 
 struct LeafContext {
     let params: [ProcessedParameter]
-    let data: [String: TemplateData]
+    let data: [String: LeafData]
     let body: [Syntax]?
 }
 
 protocol LeafTag {
-    func render(_ ctx: LeafContext) throws -> TemplateData
+    func render(_ ctx: LeafContext) throws -> LeafData
 }
 
 struct Lowercased: LeafTag {
-    func render(_ ctx: LeafContext) throws -> TemplateData {
+    func render(_ ctx: LeafContext) throws -> LeafData {
         let resolver = ParameterResolver(params: ctx.params, data: ctx.data)
         let resolved = try resolver.resolve()
         guard let str = resolved.first?.result.string else { throw "unable to lowercase unexpected data" }
@@ -58,7 +58,7 @@ public final class LeafRenderer {
         self.eventLoop = eventLoop
     }
     
-    public func render(path: String, context: [String: TemplateData]) -> EventLoopFuture<ByteBuffer> {
+    public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
         let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
         let expanded = config.rootDirectory + path
         let document = fetch(path: expanded)

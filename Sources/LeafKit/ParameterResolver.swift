@@ -2,19 +2,19 @@ import Foundation
 
 struct ResolvedParameter {
     let param: ProcessedParameter
-    let result: TemplateData
+    let result: LeafData
 }
 
 struct ParameterResolver {
     let params: [ProcessedParameter]
-    let data: [String: TemplateData]
+    let data: [String: LeafData]
     
     func resolve() throws -> [ResolvedParameter] {
         return try params.map(resolve)
     }
     
     private func resolve(_ param: ProcessedParameter) throws -> ResolvedParameter {
-        let result: TemplateData
+        let result: LeafData
         switch param {
         case .expression(let e):
             result = try resolve(expression: e)
@@ -28,12 +28,12 @@ struct ParameterResolver {
         return .init(param: param, result: result)
     }
     
-    private func resolve(param: Parameter) throws -> TemplateData {
+    private func resolve(param: Parameter) throws -> LeafData {
         switch param {
         case .constant(let c):
             switch c {
-            case .double(let d): return TemplateData(.double(d))
-            case .int(let d): return TemplateData(.int(d))
+            case .double(let d): return LeafData(.double(d))
+            case .int(let d): return LeafData(.int(d))
             }
         case .stringLiteral(let s):
             return .init(.string(s))
@@ -55,7 +55,7 @@ struct ParameterResolver {
     }
     
     // #if(lowercase(first(name == "admin")) == "welcome")
-    private func resolve(expression: [ProcessedParameter]) throws -> TemplateData {
+    private func resolve(expression: [ProcessedParameter]) throws -> LeafData {
         // todo: to support nested expressions, ie:
         // file == name + ".jpg"
         // should resolve to:
@@ -77,7 +77,7 @@ struct ParameterResolver {
         }
     }
     
-    private func resolve(lhs: TemplateData, op: Operator, rhs: TemplateData) throws -> TemplateData {
+    private func resolve(lhs: LeafData, op: Operator, rhs: LeafData) throws -> LeafData {
         switch op {
         case .and:
             let lhs = lhs.bool ?? false
@@ -108,7 +108,7 @@ struct ParameterResolver {
         }
     }
     
-    private func plus(lhs: TemplateData, rhs: TemplateData) -> TemplateData {
+    private func plus(lhs: LeafData, rhs: LeafData) -> LeafData {
         switch lhs.storage {
         case .array(let arr):
             let rhs = rhs.array ?? []
@@ -142,7 +142,7 @@ struct ParameterResolver {
         }
     }
     
-    private func resolve(lhs: TemplateData, key: Keyword, rhs: TemplateData) throws -> TemplateData {
+    private func resolve(lhs: LeafData, key: Keyword, rhs: LeafData) throws -> LeafData {
         switch key {
         case .in:
             let arr = rhs.array ?? []

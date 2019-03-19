@@ -2,11 +2,11 @@ import Foundation
 
 /// TemplateKit's supported serializable data types.
 /// - note: This is different from types supported in the AST.
-public struct TemplateData: Equatable, TemplateDataRepresentable {
+public struct LeafData: Equatable, LeafDataRepresentable {
     // MARK: Equatable
 
     /// See `Equatable`.
-    public static func ==(lhs: TemplateData, rhs: TemplateData) -> Bool {
+    public static func ==(lhs: LeafData, rhs: LeafData) -> Bool {
         /// Fuzzy compare
         if lhs.string != nil && lhs.string == rhs.string {
             return true
@@ -33,57 +33,57 @@ public struct TemplateData: Equatable, TemplateDataRepresentable {
     }
 
     /// Actual storage.
-    internal var storage: TemplateDataStorage
+    internal var storage: LeafDataStorage
 
-    /// Creates a new `TemplateData`.
-    internal init(_ storage: TemplateDataStorage) {
+    /// Creates a new `LeafData`.
+    internal init(_ storage: LeafDataStorage) {
         self.storage = storage
     }
 
     // MARK: Static
 
-    /// Creates a new `TemplateData` from a `Bool`.
-    public static func bool(_ value: Bool) -> TemplateData {
+    /// Creates a new `LeafData` from a `Bool`.
+    public static func bool(_ value: Bool) -> LeafData {
         return .init(.bool(value))
     }
 
-    /// Creates a new `TemplateData` from a `String`.
-    public static func string(_ value: String) -> TemplateData {
+    /// Creates a new `LeafData` from a `String`.
+    public static func string(_ value: String) -> LeafData {
         return .init(.string(value))
     }
 
-    /// Creates a new `TemplateData` from am `Int`.
-    public static func int(_ value: Int) -> TemplateData {
+    /// Creates a new `LeafData` from am `Int`.
+    public static func int(_ value: Int) -> LeafData {
         return .init(.int(value))
     }
 
-    /// Creates a new `TemplateData` from a `Double`.
-    public static func double(_ value: Double) -> TemplateData {
+    /// Creates a new `LeafData` from a `Double`.
+    public static func double(_ value: Double) -> LeafData {
         return .init(.double(value))
     }
 
-    /// Creates a new `TemplateData` from `Data`.
-    public static func data(_ value: Data) -> TemplateData {
+    /// Creates a new `LeafData` from `Data`.
+    public static func data(_ value: Data) -> LeafData {
         return .init(.data(value))
     }
 
-    /// Creates a new `TemplateData` from `[String: TemplateData]`.
-    public static func dictionary(_ value: [String: TemplateData]) -> TemplateData {
+    /// Creates a new `LeafData` from `[String: LeafData]`.
+    public static func dictionary(_ value: [String: LeafData]) -> LeafData {
         return .init(.dictionary(value))
     }
 
-    /// Creates a new `TemplateData` from `[TemplateData]`.
-    public static func array(_ value: [TemplateData]) -> TemplateData {
+    /// Creates a new `LeafData` from `[LeafData]`.
+    public static func array(_ value: [LeafData]) -> LeafData {
         return .init(.array(value))
     }
 
-    /// Creates a new `TemplateData` from `() -> TemplateData`.
-    public static func lazy(_ value: @escaping () -> TemplateData) -> TemplateData {
+    /// Creates a new `LeafData` from `() -> LeafData`.
+    public static func lazy(_ value: @escaping () -> LeafData) -> LeafData {
         return .init(.lazy(value))
     }
 
-    /// Creates a new null `TemplateData`.
-    public static var null: TemplateData {
+    /// Creates a new null `LeafData`.
+    public static var null: LeafData {
         return .init(.null)
     }
 
@@ -205,8 +205,8 @@ public struct TemplateData: Equatable, TemplateDataRepresentable {
         }
     }
     
-    /// Attempts to convert to `[String: TemplateData]` or returns `nil`.
-    public var dictionary: [String: TemplateData]? {
+    /// Attempts to convert to `[String: LeafData]` or returns `nil`.
+    public var dictionary: [String: LeafData]? {
         switch storage {
         case .dictionary(let d):
             return d
@@ -215,8 +215,8 @@ public struct TemplateData: Equatable, TemplateDataRepresentable {
         }
     }
 
-    /// Attempts to convert to `[TemplateData]` or returns `nil`.
-    public var array: [TemplateData]? {
+    /// Attempts to convert to `[LeafData]` or returns `nil`.
+    public var array: [LeafData]? {
         switch storage {
         case .array(let a):
             return a
@@ -235,8 +235,8 @@ public struct TemplateData: Equatable, TemplateDataRepresentable {
 
     // MARK: Convertible
 
-    /// See `TemplateDataRepresentable`
-    public func convertToTemplateData() throws -> TemplateData {
+    /// See `LeafDataRepresentable`
+    public func convertToLeafData() throws -> LeafData {
         return self
     }
 }

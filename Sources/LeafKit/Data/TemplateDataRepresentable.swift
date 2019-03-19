@@ -1,24 +1,24 @@
 import Foundation
 
-/// Capable of being encoded as `TemplateData`.
-public protocol TemplateDataRepresentable {
-    /// Converts `self` to `TemplateData` or throws an error if `self`
+/// Capable of being encoded as `LeafData`.
+public protocol LeafDataRepresentable {
+    /// Converts `self` to `LeafData` or throws an error if `self`
     /// cannot be converted.
-    func convertToTemplateData() throws -> TemplateData
+    func convertToLeafData() throws -> LeafData
 }
 
 // MARK: Default Conformances
 
-extension String: TemplateDataRepresentable {
-    /// See `TemplateDataRepresentable`
-    public func convertToTemplateData() throws -> TemplateData {
+extension String: LeafDataRepresentable {
+    /// See `LeafDataRepresentable`
+    public func convertToLeafData() throws -> LeafData {
         return .string(self)
     }
 }
 
 extension FixedWidthInteger {
-    /// See `TemplateDataRepresentable`
-    public func convertToTemplateData() throws -> TemplateData {
+    /// See `LeafDataRepresentable`
+    public func convertToLeafData() throws -> LeafData {
         guard self > Int.min && self < Int.max else {
             throw "todo" //TemplateKitError(identifier: "intSize", reason: "\(Self.self) \(self) cannot be represented by an Int.")
         }
@@ -26,29 +26,29 @@ extension FixedWidthInteger {
     }
 }
 
-extension Int8: TemplateDataRepresentable { }
-extension Int16: TemplateDataRepresentable { }
-extension Int32: TemplateDataRepresentable { }
-extension Int64: TemplateDataRepresentable { }
-extension Int: TemplateDataRepresentable { }
-extension UInt8: TemplateDataRepresentable { }
-extension UInt16: TemplateDataRepresentable { }
-extension UInt32: TemplateDataRepresentable { }
-extension UInt64: TemplateDataRepresentable { }
-extension UInt: TemplateDataRepresentable { }
+extension Int8: LeafDataRepresentable { }
+extension Int16: LeafDataRepresentable { }
+extension Int32: LeafDataRepresentable { }
+extension Int64: LeafDataRepresentable { }
+extension Int: LeafDataRepresentable { }
+extension UInt8: LeafDataRepresentable { }
+extension UInt16: LeafDataRepresentable { }
+extension UInt32: LeafDataRepresentable { }
+extension UInt64: LeafDataRepresentable { }
+extension UInt: LeafDataRepresentable { }
 
 extension Optional {
-    /// See `TemplateDataRepresentable`
-    public func convertToTemplateData() throws -> TemplateData {
+    /// See `LeafDataRepresentable`
+    public func convertToLeafData() throws -> LeafData {
         guard let wrapped = self else { return .null }
         fatalError()
 //        if let wrapped = self.wrapped {
-//            if let data = wrapped as? TemplateDataRepresentable {
-//                return try data.convertToTemplateData()
+//            if let data = wrapped as? LeafDataRepresentable {
+//                return try data.convertToLeafData()
 //            } else {
 //                throw TemplateKitError(
 //                    identifier: "convertOptional",
-//                    reason: "Optional type `\(Self.self)` is not `TemplateDataRepresentable`"
+//                    reason: "Optional type `\(Self.self)` is not `LeafDataRepresentable`"
 //                )
 //            }
 //        } else {
@@ -57,39 +57,39 @@ extension Optional {
     }
 }
 
-extension Optional: TemplateDataRepresentable { }
+extension Optional: LeafDataRepresentable { }
 
-extension Bool: TemplateDataRepresentable {
-    /// See `TemplateDataRepresentable`
-    public func convertToTemplateData() throws -> TemplateData {
+extension Bool: LeafDataRepresentable {
+    /// See `LeafDataRepresentable`
+    public func convertToLeafData() throws -> LeafData {
         return .bool(self)
     }
 }
 
-extension Double: TemplateDataRepresentable {
-    /// See `TemplateDataRepresentable`
-    public func convertToTemplateData() throws -> TemplateData {
+extension Double: LeafDataRepresentable {
+    /// See `LeafDataRepresentable`
+    public func convertToLeafData() throws -> LeafData {
         return .double(self)
     }
 }
 
-extension Float: TemplateDataRepresentable {
-    /// See `TemplateDataRepresentable`
-    public func convertToTemplateData() throws -> TemplateData {
+extension Float: LeafDataRepresentable {
+    /// See `LeafDataRepresentable`
+    public func convertToLeafData() throws -> LeafData {
         return .double(Double(self))
     }
 }
 
-extension UUID: TemplateDataRepresentable {
-    /// See `TemplateDataRepresentable`
-    public func convertToTemplateData() throws -> TemplateData {
+extension UUID: LeafDataRepresentable {
+    /// See `LeafDataRepresentable`
+    public func convertToLeafData() throws -> LeafData {
         return .string(description)
     }
 }
 
-extension Date: TemplateDataRepresentable {
-    /// See `TemplateDataRepresentable`
-    public func convertToTemplateData() throws -> TemplateData {
+extension Date: LeafDataRepresentable {
+    /// See `LeafDataRepresentable`
+    public func convertToLeafData() throws -> LeafData {
         return .double(timeIntervalSince1970)
     }
 }
