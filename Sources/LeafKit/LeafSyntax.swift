@@ -2,7 +2,7 @@ indirect enum Syntax {
     case raw(ByteBuffer)
     case variable(Variable)
     
-    case custom(CustomTag)
+    case custom(CustomTagDeclaration)
     
     case conditional(Conditional)
     case loop(Loop)
@@ -49,7 +49,6 @@ func indent(_ depth: Int) -> String {
     }
     return buffer
 }
-
 
 extension Syntax {
     struct Import {
@@ -248,7 +247,7 @@ extension Syntax {
         }
     }
     
-    struct CustomTag {
+    struct CustomTagDeclaration {
         let name: String
         let params: [ProcessedParameter]
         let body: [Syntax]?

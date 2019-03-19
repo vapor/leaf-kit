@@ -21,6 +21,25 @@ final class Cache: LeafCache {
     }
 }
 
+struct LeafContext {
+    let params: [ProcessedParameter]
+    let data: [String: LeafData]
+    let body: [Syntax]?
+}
+
+protocol LeafTag {
+    func render(_ ctx: LeafContext) throws -> LeafData
+}
+
+struct Lowercased: LeafTag {
+    func render(_ ctx: LeafContext) throws -> LeafData {
+        let resolver = ParameterResolver(params: ctx.params, data: ctx.data)
+        let resolved = try resolver.resolve()
+        guard let str = resolved.first?.result.string else { throw "unable to lowercase unexpected data" }
+        return .init(.string(str.lowercased()))
+    }
+}
+
 public final class LeafRenderer {
     let config: LeafConfig
     let file: NonBlockingFileIO
@@ -44,7 +63,8 @@ public final class LeafRenderer {
         let expanded = config.rootDirectory + path
         let document = fetch(path: expanded)
         return document.flatMapThrowing { document in
-            throw "todo: serialize document w/ context"
+            var serializer = LeafSerializer(ast: document.ast, context: context)
+            return try serializer.serialize()
         }
     }
     

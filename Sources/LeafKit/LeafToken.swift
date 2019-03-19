@@ -1,5 +1,5 @@
 enum Keyword: String, Equatable {
-    case `in`, `true`, `false`, `self`, `nil`
+    case `in`, `true`, `false`, `self`, `nil`, `yes`, `no`
 }
 
 enum Operator: String, Equatable, CustomStringConvertible {
@@ -12,13 +12,41 @@ enum Operator: String, Equatable, CustomStringConvertible {
     
     case plus = "+"
     case minus = "-"
-    case plusEquals = "+="
-    case minusEquals = "-="
+    case divide = "/"
+    case multiply = "*"
     
     case and = "&&"
     case or = "||"
     
     var description: String { return rawValue }
+}
+
+extension Operator {
+    var priority: Int {
+        switch self {
+        case .multiply, .divide: return 0
+        case .plus, .minus: return 1
+        default: return 2
+        }
+    }
+}
+
+extension Operator {
+    var isBooleanOperator: Bool {
+        switch self {
+        case .equals,
+             .notEquals,
+             .greaterThan,
+             .greaterThanOrEquals,
+             .lessThan,
+             .lessThanOrEquals,
+             .and,
+             .or:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 enum Constant: CustomStringConvertible, Equatable {
@@ -33,18 +61,10 @@ enum Constant: CustomStringConvertible, Equatable {
     }
 }
 
-struct Expression {
-    let raw: [ProcessedParameter]
-
-    func process() {
-        //
-    }
-}
-
-indirect enum ProcessedParameter: CustomStringConvertible, Equatable {
+indirect enum ProcessedParameter: CustomStringConvertible {
     case parameter(Parameter)
     case expression([ProcessedParameter])
-    case tag(name: String, params: [ProcessedParameter])
+    case tag(Syntax.CustomTagDeclaration)
     
     var description: String {
         switch self {
@@ -52,8 +72,8 @@ indirect enum ProcessedParameter: CustomStringConvertible, Equatable {
             return p.description
         case .expression(let p):
             return name + "(" + p.map { $0.short }.joined(separator: " ") + ")"
-        case .tag(let tag, let p):
-            return "tag(" + tag + ": " + p.map { $0.short } .joined(separator: ",") + ")"
+        case .tag(let tag):
+            return "tag(" + tag.name + ": " + tag.params.map { $0.short } .joined(separator: ",") + ")"
         }
     }
     
@@ -63,8 +83,8 @@ indirect enum ProcessedParameter: CustomStringConvertible, Equatable {
             return p.short
         case .expression(let p):
             return p.map { $0.short }.joined(separator: " ")
-        case .tag(let name, let p):
-            return name + "(" + p.map { $0.short }.joined(separator: " ") + ")"
+        case .tag(let tag):
+            return tag.name + "(" + tag.params.map { $0.short }.joined(separator: " ") + ")"
         }
     }
     

@@ -1,6 +1,6 @@
 import Foundation
 
-internal enum TemplateDataStorage {
+internal enum LeafDataStorage {
     /// A `Bool`.
     ///
     ///     true
@@ -31,14 +31,14 @@ internal enum TemplateDataStorage {
     ///
     case data(Data)
 
-    /// A nestable `[String: TemplateData]` dictionary.
-    case dictionary([String: TemplateData])
+    /// A nestable `[String: LeafData]` dictionary.
+    case dictionary([String: LeafData])
 
-    /// A nestable `[TemplateData]` array.
-    case array([TemplateData])
+    /// A nestable `[LeafData]` array.
+    case array([LeafData])
 
-    /// A lazily-resolvable `TemplateData`.
-    case lazy(() -> (TemplateData))
+    /// A lazily-resolvable `LeafData`.
+    case lazy(() -> (LeafData))
 
     /// Null.
     case null
