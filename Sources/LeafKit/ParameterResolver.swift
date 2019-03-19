@@ -103,32 +103,43 @@ struct ParameterResolver {
         case .greaterThanOrEquals:
             guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
             return .init(.bool(lhs >= rhs))
-        case .plus, .minus, .multiply, .divide:
-            fatalError("todo: concat string, add nums, etc...")
+        case .plus:
+            return try plus(lhs: lhs, rhs: rhs)
+        case .minus:
+            return try minus(lhs: lhs, rhs: rhs)
+        case .multiply:
+            return try multiply(lhs: lhs, rhs: rhs)
+        case .divide:
+            return try divide(lhs: lhs, rhs: rhs)
         }
     }
     
-    private func plus(lhs: LeafData, rhs: LeafData) -> LeafData {
+    private func plus(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
         case .array(let arr):
             let rhs = rhs.array ?? []
-            return .init(.array(arr + rhs))
+            return .array(arr + rhs)
         case .data(let data):
             let rhs = rhs.data ?? Data()
-            return .init(.data(data + rhs))
+            return .data(data + rhs)
         case .string(let s):
             let rhs = rhs.string ?? ""
-            return .init(.string(s + rhs))
+            return .string(s + rhs)
         case .int(let i):
-            // todo: if either is double, be double
-            let rhs = rhs.int ?? 0
-            return .init(.int(i + rhs))
+            // if either is double, be double
+            if case .double(let d) = rhs.storage {
+                let sum = Double(i) + d
+                return .double(sum)
+            } else {
+                let rhs = rhs.int ?? 0
+                return .int(i + rhs)
+            }
         case .double(let d):
             let rhs = rhs.double ?? 0
-            return .init(.double(d + rhs))
+            return .double(d + rhs)
         case .lazy(let load):
             let l = load()
-            return plus(lhs: l, rhs: rhs)
+            return try plus(lhs: l, rhs: rhs)
         case .dictionary(let lhs):
             var rhs = rhs.dictionary ?? [:]
             lhs.forEach { key, val in
@@ -136,9 +147,79 @@ struct ParameterResolver {
             }
             return .init(.dictionary(rhs))
         case .null:
-            return .null
-        case .bool:
-            return .null
+            throw "unable to concatenate `null` with `\(rhs)'"
+        case .bool(let b):
+            throw "unable to concatenate bool `\(b)` with `\(rhs)', maybe you meant &&"
+        }
+    }
+    
+    private func minus(lhs: LeafData, rhs: LeafData) throws -> LeafData {
+        switch lhs.storage {
+        case .array(let arr):
+            let rhs = rhs.array ?? []
+            let new = arr.filter { !rhs.contains($0) }
+            return .array(new)
+        case .int(let i):
+            // if either is double, be double
+            if case .double(let d) = rhs.storage {
+                let oppositeOfSum = Double(i) - d
+                return .double(oppositeOfSum)
+            } else {
+                let rhs = rhs.int ?? 0
+                return .int(i - rhs)
+            }
+        case .double(let d):
+            let rhs = rhs.double ?? 0
+            return .double(d - rhs)
+        case .lazy(let load):
+            let l = load()
+            return try minus(lhs: l, rhs: rhs)
+        case .data, .string, .dictionary, .null, .bool:
+            throw "unable to subtract from \(lhs)"
+        }
+    }
+    
+    private func multiply(lhs: LeafData, rhs: LeafData) throws -> LeafData {
+        switch lhs.storage {
+        case .int(let i):
+            // if either is double, be double
+            if case .double(let d) = rhs.storage {
+                let product = Double(i) * d
+                return .double(product)
+            } else {
+                let rhs = rhs.int ?? 0
+                return .int(i * rhs)
+            }
+        case .double(let d):
+            let rhs = rhs.double ?? 0
+            return .double(d * rhs)
+        case .lazy(let load):
+            let l = load()
+            return try multiply(lhs: l, rhs: rhs)
+        case .data, .array, .string, .dictionary, .null, .bool:
+            throw "unable to multiply this type `\(lhs)`"
+        }
+    }
+    
+    private func divide(lhs: LeafData, rhs: LeafData) throws -> LeafData {
+        switch lhs.storage {
+        case .int(let i):
+            // if either is double, be double
+            if case .double(let d) = rhs.storage {
+                let product = Double(i) / d
+                return .double(product)
+            } else {
+                let rhs = rhs.int ?? 0
+                return .int(i / rhs)
+            }
+        case .double(let d):
+            let rhs = rhs.double ?? 0
+            return .double(d / rhs)
+        case .lazy(let load):
+            let l = load()
+            return try divide(lhs: l, rhs: rhs)
+        case .data, .array, .string, .dictionary, .null, .bool:
+            throw "unable to multiply this type `\(lhs)`"
         }
     }
     
