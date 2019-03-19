@@ -1,5 +1,4 @@
-var customTags: [String: CustomTagProtocol] = [
-    "lowercase" : Lowercased(),
+var customTags: [String: LeafTag] = [
     "lowercased" : Lowercased(),
 ]
 
@@ -7,13 +6,13 @@ struct LeafSerializer {
     private let ast: [Syntax]
     private var offset: Int
     private var buffer: ByteBuffer
-    private var context: [String: TemplateData]
+    private var data: [String: TemplateData]
     
     init(ast: [Syntax], context: [String: TemplateData]) {
         self.ast = ast
         self.offset = 0
         self.buffer = ByteBufferAllocator().buffer(capacity: 0)
-        self.context = context
+        self.data = context
     }
     
     mutating func serialize() throws -> ByteBuffer {
@@ -58,7 +57,7 @@ struct LeafSerializer {
             return
         }
         
-        let resolver = ParameterResolver(context: context, params: list)
+        let resolver = ParameterResolver(params: list, data: data)
         let satisfied = try resolver.resolve().map { $0.result.bool ?? false } .reduce(false) { $0 || $1 }
         if satisfied {
             try serialize(body: conditional.body)
@@ -68,20 +67,21 @@ struct LeafSerializer {
     }
     
     mutating func serialize(_ tag: Syntax.CustomTagDeclaration) throws {
-        let rendered = try customTags[tag.name]?.render(params: tag.params, body: tag.body, context: context)
+        let sub = LeafContext(params: tag.params, data: data, body: tag.body)
+        let rendered = try customTags[tag.name]?.render(sub)
             ?? .init(.null)
         serialize(rendered)
     }
     
     mutating func serialize(_ variable: Syntax.Variable) {
-        let data = self.context[variable.name] ?? .null
+        let data = self.data[variable.name] ?? .null
         self.serialize(data)
     }
     
     mutating func serialize(_ loop: Syntax.Loop) throws {
-        guard let array = context[loop.array]?.array else { throw "expected array at key: \(loop.array)" }
+        guard let array = data[loop.array]?.array else { throw "expected array at key: \(loop.array)" }
         for (idx, item) in array.enumerated() {
-            var innerContext = self.context
+            var innerContext = self.data
             
             if idx == 0 { innerContext["isFirst"] = .bool(true) }
             else if idx == array.count - 1 { innerContext["isLast"] = .bool(true) }

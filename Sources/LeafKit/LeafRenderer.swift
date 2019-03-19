@@ -21,15 +21,19 @@ final class Cache: LeafCache {
     }
 }
 
-protocol CustomTagProtocol {
-    func render(params: [ProcessedParameter],
-                   body: [Syntax]?,
-                   context: [String: TemplateData]) throws -> TemplateData
+struct LeafContext {
+    let params: [ProcessedParameter]
+    let data: [String: TemplateData]
+    let body: [Syntax]?
 }
 
-struct Lowercased: CustomTagProtocol {
-    func render(params: [ProcessedParameter], body: [Syntax]?, context: [String : TemplateData]) throws -> TemplateData {
-        let resolver = ParameterResolver(context: context, params: params)
+protocol LeafTag {
+    func render(_ ctx: LeafContext) throws -> TemplateData
+}
+
+struct Lowercased: LeafTag {
+    func render(_ ctx: LeafContext) throws -> TemplateData {
+        let resolver = ParameterResolver(params: ctx.params, data: ctx.data)
         let resolved = try resolver.resolve()
         guard let str = resolved.first?.result.string else { throw "unable to lowercase unexpected data" }
         return .init(.string(str.lowercased()))

@@ -6,8 +6,8 @@ struct ResolvedParameter {
 }
 
 struct ParameterResolver {
-    let context: [String: TemplateData]
     let params: [ProcessedParameter]
+    let data: [String: TemplateData]
     
     func resolve() throws -> [ResolvedParameter] {
         return try params.map(resolve)
@@ -21,7 +21,8 @@ struct ParameterResolver {
         case .parameter(let p):
             result = try resolve(param: p)
         case .tag(let t):
-            result = try customTags[t.name]?.render(params: t.params, body: t.body, context: context)
+            let ctx = LeafContext(params: t.params, data: data, body: t.body)
+            result = try customTags[t.name]?.render(ctx)
                 ?? .init(.null)
         }
         return .init(param: param, result: result)
@@ -37,10 +38,10 @@ struct ParameterResolver {
         case .stringLiteral(let s):
             return .init(.string(s))
         case .variable(let v):
-            return context[v] ?? .init(.null)
+            return data[v] ?? .init(.null)
         case .keyword(let k):
             switch k {
-            case .self: return .init(.dictionary(context))
+            case .self: return .init(.dictionary(data))
             case .nil: return .init(.null)
             case .true, .yes: return .init(.bool(true))
             case .false, .no: return .init(.bool(false))
