@@ -157,7 +157,7 @@ indirect enum Parameter: Equatable, CustomStringConvertible {
 
 enum LeafToken: CustomStringConvertible, Equatable  {
     
-    case raw(ByteBuffer)
+    case raw(String)
     
     case tagIndicator
     case tag(name: String)
@@ -174,9 +174,8 @@ enum LeafToken: CustomStringConvertible, Equatable  {
     
     var description: String {
         switch self {
-        case .raw(var byteBuffer):
-            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-            return "raw(\(string.debugDescription))"
+        case .raw(let str):
+            return "raw(\(str.debugDescription))"
         case .tagIndicator:
             return "tagIndicator"
         case .tag(let name):

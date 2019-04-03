@@ -397,10 +397,7 @@ final class PrintTests: XCTestCase {
     }
     
     func parse(_ str: String) -> [Syntax] {
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.writeString(str)
-        
-        var lexer = LeafLexer(template: buffer)
+        var lexer = LeafLexer(template: str)
         let tokens = try! lexer.lex()
         var parser = LeafParser.init(tokens: tokens)
         return try! parser.parse()
@@ -564,19 +561,13 @@ final class LexerTests: XCTestCase {
 }
 
 func lex(_ str: String) throws -> [LeafToken] {
-    var buffer = ByteBufferAllocator().buffer(capacity: 0)
-    buffer.writeString(str)
-    
-    var lexer = LeafLexer(template: buffer)
+    var lexer = LeafLexer(template: str)
     return try lexer.lex().dropWhitespace()
 }
 
 
 func altParse(_ str: String) throws -> [Syntax] {
-    var buffer = ByteBufferAllocator().buffer(capacity: 0)
-    buffer.writeString(str)
-    
-    var lexer = LeafLexer(template: buffer)
+    var lexer = LeafLexer(template: str)
     let tokens = try! lexer.lex()
     var parser = LeafParser.init(tokens: tokens)
     let syntax = try! parser.parse()
@@ -664,10 +655,8 @@ final class LeafKitTests: XCTestCase {
 //        789
 //        #endif
 //        """
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.writeString(template)
         
-        var lexer = LeafLexer(template: buffer)
+        var lexer = LeafLexer(template: template)
         let tokens = try lexer.lex()
         print()
         print("Tokens:")

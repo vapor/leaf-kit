@@ -263,9 +263,9 @@ struct LeafParser {
     
     private mutating func collectRaw() throws -> ByteBuffer {
         var raw = ByteBufferAllocator().buffer(capacity: 0)
-        while let peek = peek(), case .raw(var val) = peek {
+        while let peek = peek(), case .raw(let val) = peek {
             pop()
-            raw.writeBuffer(&val)
+            raw.writeString(val)
         }
         return raw
     }

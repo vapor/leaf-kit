@@ -1,3 +1,35 @@
+extension Character {
+    var isValidInTagName: Bool {
+        return self.isLowercaseLetter
+            || self.isUppercaseLetter
+    }
+    
+    var isValidInParameter: Bool {
+        return self.isLowercaseLetter
+            || self.isUppercaseLetter
+            || self.isValidOperator
+            || (.zero ... .nine) ~= self
+    }
+    
+    var isValidOperator: Bool {
+        switch self {
+        case .plus,
+             .minus,
+             .star,
+             .forwardSlash,
+             .equals,
+             .exclamation,
+             .lessThan,
+             .greaterThan,
+             .ampersand,
+             .vertical:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 extension UInt8 {
     var isValidInTagName: Bool {
         return self.isLowercaseLetter
@@ -44,17 +76,21 @@ struct LeafLexer {
     
     var state: State
     
+    private var template: [String.Element]
     private var buffer: ByteBuffer
 
-    init(string: String) {
+    init(template string: String) {
         var buffer = ByteBufferAllocator().buffer(capacity: 0)
         buffer.writeString(string)
-        self.init(template: buffer)
+        self.buffer = buffer
+        self.template = .init(string)
+        self.state = .normal
     }
     
     init(template buffer: ByteBuffer) {
         self.state = .normal
         self.buffer = buffer
+        fatalError()
     }
     
     mutating func lex() throws -> [LeafToken] {
@@ -67,6 +103,7 @@ struct LeafLexer {
     
     mutating func nextToken() throws -> LeafToken? {
         guard let next = peek() else { return nil }
+        
         switch state {
         case .normal:
             switch next {
@@ -78,7 +115,9 @@ struct LeafLexer {
                     pop()
                 }
                 // either way, add raw '#' or '\' to registry
-                return buffer.readSlice(length: 1).map(LeafToken.raw)
+                let raw = template.removeFirst()
+                return .raw(.init(raw))
+//                return buffer.readSlice(length: 1).map(LeafToken.raw)
             case .octothorpe:
                 // consume `#`
                 pop()
@@ -86,8 +125,8 @@ struct LeafLexer {
                 return .tagIndicator
             default:
                 // read until next event
-                let slice = readSliceWhile { $0 != .octothorpe && $0 != .backSlash }
-                return slice.map(LeafToken.raw)
+                let slice = readWhile { $0 != .octothorpe && $0 != .backSlash } ?? ""
+                return .raw(slice)
             }
         case .tag:
             switch next {
@@ -107,7 +146,7 @@ struct LeafLexer {
                 
                 return .tag(name: name)
             default:
-                fatalError("unexpected token: \(String(bytes: [next], encoding: .utf8) ?? "<unknown>")")
+                fatalError("unexpected token: \(String(next))")
             }
         case .parameters(let depth):
             switch next {
@@ -163,7 +202,7 @@ struct LeafLexer {
                 // unknown param type.. var
                 return .parameter(.variable(name: name))
             default:
-                let val = String(bytes: [next], encoding: .utf8) ?? "unknown<\(next)>"
+                let val = String(next)
                 fatalError("todo: unable to process '\(val)' as param, throw error")
             }
         case .body:
@@ -176,37 +215,50 @@ struct LeafLexer {
     
     // MARK: byte buffer methods
     
-    mutating func readWhile(_ check: (UInt8) -> Bool) -> String? {
-        guard let length = countMatching(check: check) else {
-            return nil
-        }
-        return buffer.readString(length: length)
+    mutating func readWhile(_ check: (Character) -> Bool) -> String? {
+        return readSliceWhile(check).flatMap { String($0) }
+//        guard let length = countMatching(check: check) else {
+//            return nil
+//        }
+//        return buffer.readString(length: length)
     }
     
-    mutating func readSliceWhile(_ check: (UInt8) -> Bool) -> ByteBuffer? {
-        guard let length = countMatching(check: check) else {
-            return nil
+    mutating func readSliceWhile(_ check: (Character) -> Bool) -> [Character]? {
+        var str = [Character]()
+        while let next = peek() {
+            guard check(next) else { return str }
+            pop()
+            str.append(next)
         }
-        return buffer.readSlice(length: length)
+        return str
+//        guard let length = countMatching(check: check) else {
+//            return nil
+//        }
+//        return buffer.readSlice(length: length)
     }
     
-    func peek(aheadBy offset: Int = 0) -> UInt8? {
-        return self.buffer.getInteger(at: self.buffer.readerIndex + offset)
+    func peek(aheadBy offset: Int = 0) -> Character? {
+        return template.first
+//        return self.buffer.getInteger(at: self.buffer.readerIndex + offset)
     }
     
     mutating func pop() {
-        self.buffer.moveReaderIndex(forwardBy: 1)
+        self.template.removeFirst()
+//        self.buffer.moveReaderIndex(forwardBy: 1)
     }
     
-    func countMatching(check isMatch: (UInt8) -> (Bool)) -> Int? {
-        guard buffer.readableBytes > 0 else { return nil }
-        var copy = buffer
-        while let curr = copy.readInteger(as: UInt8.self) {
-            if !isMatch(curr) {
-                let matchedIndex = copy.readerIndex - 1
-                return matchedIndex - buffer.readerIndex
-            }
-        }
-        return copy.readerIndex - self.buffer.readerIndex
-    }
+//    func countMatching(check isMatch: (Character) -> (Bool)) -> Int? {
+//        //        guard buffer.readableBytes > 0 else { return nil }
+//        //        var copy = buffer
+//        //        while let curr = copy.readInteger(as: UInt8.self) {
+//        //            if !isMatch(curr) {
+//        //                let matchedIndex = copy.readerIndex - 1
+//        //                return matchedIndex - buffer.readerIndex
+//        //            }
+//        //        }
+//        //        return copy.readerIndex - self.buffer.readerIndex
+//        guard !template.isEmpty else { return nil }
+//        var copy = template
+//        while let curr = copy.removefi
+//    }
 }
