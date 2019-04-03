@@ -237,8 +237,9 @@ struct LeafLexer {
 //        return buffer.readSlice(length: length)
     }
     
-    func peek(aheadBy offset: Int = 0) -> Character? {
-        return template.first
+    func peek(aheadBy idx: Int = 0) -> Character? {
+        guard idx < template.count else { return nil }
+        return template[idx]
 //        return self.buffer.getInteger(at: self.buffer.readerIndex + offset)
     }
     

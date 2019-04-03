@@ -483,6 +483,7 @@ final class LexerTests: XCTestCase {
      "\#(name)" == '#(name)'
      */
     func testEscaping() throws {
+        // input is really '\#' w/ escaping
         let input = "\\#"
         let output = try lex(input).map { $0.description } .reduce("", +)
         XCTAssertEqual(output, "raw(\"#\")")
