@@ -111,21 +111,21 @@ struct LeafLexer {
                 // consume '\' only in event of '\#'
                 // otherwise allow it to remain for other
                 // escapes, a la javascript
-                if peek(aheadBy: 1) == .octothorpe {
+                if peek(aheadBy: 1) == .tagIndicator {
                     pop()
                 }
                 // either way, add raw '#' or '\' to registry
                 let raw = template.removeFirst()
                 return .raw(.init(raw))
 //                return buffer.readSlice(length: 1).map(LeafToken.raw)
-            case .octothorpe:
+            case .tagIndicator:
                 // consume `#`
                 pop()
                 state = .tag
                 return .tagIndicator
             default:
                 // read until next event
-                let slice = readWhile { $0 != .octothorpe && $0 != .backSlash } ?? ""
+                let slice = readWhile { $0 != .tagIndicator && $0 != .backSlash } ?? ""
                 return .raw(slice)
             }
         case .tag:

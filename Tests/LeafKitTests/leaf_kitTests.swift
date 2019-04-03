@@ -489,6 +489,33 @@ final class LexerTests: XCTestCase {
         XCTAssertEqual(output, "raw(\"#\")")
     }
     
+    func testTagIndicator() throws {
+        Character.tagIndicator = "🤖"
+        let input = """
+        🤖extend("base"):
+            🤖export("title", "Welcome")
+            🤖export("body"):
+                Hello, 🤖(name)!
+            🤖endexport
+        🤖endextend
+        """
+        
+        let expectation = """
+        extend("base"):
+          export("body"):
+            raw("\\n        Hello, ")
+            variable(name)
+            raw("!\\n    ")
+          export("title"):
+            raw("Welcome")
+        """
+        
+        let rawAlt = try! altParse(input)
+        let output = rawAlt.map { $0.description } .joined(separator: "\n")
+        XCTAssertEqual(output, expectation)
+        Character.tagIndicator = .octothorpe
+    }
+    
     func testParameters() throws {
         let input = "#(foo == 40, and, \"literal\")"
         let expectation = """

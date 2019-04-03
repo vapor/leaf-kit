@@ -1,6 +1,8 @@
 @_exported import NIO
 
 extension Character {
+    public static var tagIndicator: Character = .octothorpe
+    
     static let newLine = "\n".first!
     static let quote = "\"".first!
     static let octothorpe = "#".first!
@@ -28,10 +30,6 @@ extension Character {
     static let greaterThan = ">".first!
     static let ampersand = "&".first!
     static let vertical = "|".first!
-    
-//    var scalar: Unicode.Scalar {
-//        return Unicode.Scalar(UInt8(self))
-//    }
     
     var isUppercaseLetter: Bool {
         return (.A ... .Z).contains(self)
