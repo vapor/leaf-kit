@@ -806,7 +806,7 @@ final class LeafKitTests: XCTestCase {
     }
     
     func _testRenderer() throws {
-        let threadPool = BlockingIOThreadPool(numberOfThreads: 1)
+        let threadPool = NIOThreadPool(numberOfThreads: 1)
         threadPool.start()
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let config = LeafConfig(rootDirectory: templateFolder)

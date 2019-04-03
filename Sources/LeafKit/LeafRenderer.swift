@@ -50,7 +50,7 @@ public final class LeafRenderer {
     
     public init(
         config: LeafConfig,
-        threadPool: BlockingIOThreadPool,
+        threadPool: NIOThreadPool,
         eventLoop: EventLoop
     ) {
         self.config = config
