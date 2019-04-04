@@ -30,35 +30,47 @@ extension Character {
     }
 }
 
-extension UInt8 {
-    var isValidInTagName: Bool {
-        return self.isLowercaseLetter
-            || self.isUppercaseLetter
+struct TemplateSource {
+    private(set) var line = 0
+    private(set) var column = 0
+    
+    private var body: [Character]
+    
+    init(_ str: String) {
+        self.body = .init(str)
     }
     
-    var isValidInParameter: Bool {
-        return self.isLowercaseLetter
-            || self.isUppercaseLetter
-            || self.isValidOperator
-            || (.zero ... .nine) ~= self
+    mutating func readWhile(_ check: (Character) -> Bool) -> String? {
+        return readSliceWhile(check).flatMap { String($0) }
     }
     
-    var isValidOperator: Bool {
-        switch self {
-        case .plus,
-             .minus,
-             .star,
-             .forwardSlash,
-             .equals,
-             .exclamation,
-             .lessThan,
-             .greaterThan,
-             .ampersand,
-             .vertical:
-            return true
-        default:
-            return false
+    mutating func readSliceWhile(_ check: (Character) -> Bool) -> [Character]? {
+        var str = [Character]()
+        while let next = peek() {
+            guard check(next) else { return str }
+            pop()
+            str.append(next)
         }
+        return str
+    }
+    
+    func peek(aheadBy idx: Int = 0) -> Character? {
+        guard idx < body.count else { return nil }
+        return body[idx]
+    }
+    
+    @discardableResult
+    mutating func pop() -> Character? {
+        guard !body.isEmpty else { return nil }
+        let popped = body.removeFirst()
+        switch popped {
+        case .newLine:
+            line += 1
+            column = 0
+        default:
+            column += 1
+        }
+        return popped
     }
 }
 
@@ -76,21 +88,11 @@ struct LeafLexer {
     
     var state: State
     
-    private var template: [String.Element]
-    private var buffer: ByteBuffer
+    private var template: TemplateSource
 
     init(template string: String) {
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.writeString(string)
-        self.buffer = buffer
         self.template = .init(string)
         self.state = .normal
-    }
-    
-    init(template buffer: ByteBuffer) {
-        self.state = .normal
-        self.buffer = buffer
-        fatalError()
     }
     
     mutating func lex() throws -> [LeafToken] {
@@ -102,7 +104,7 @@ struct LeafLexer {
     }
     
     mutating func nextToken() throws -> LeafToken? {
-        guard let next = peek() else { return nil }
+        guard let next = template.peek() else { return nil }
         
         switch state {
         case .normal:
@@ -111,21 +113,19 @@ struct LeafLexer {
                 // consume '\' only in event of '\#'
                 // otherwise allow it to remain for other
                 // escapes, a la javascript
-                if peek(aheadBy: 1) == .tagIndicator {
-                    pop()
+                if template.peek(aheadBy: 1) == .tagIndicator {
+                    template.pop()
                 }
                 // either way, add raw '#' or '\' to registry
-                let raw = template.removeFirst()
-                return .raw(.init(raw))
-//                return buffer.readSlice(length: 1).map(LeafToken.raw)
+                return template.pop().flatMap { .raw(.init($0)) }
             case .tagIndicator:
                 // consume `#`
-                pop()
+                template.pop()
                 state = .tag
                 return .tagIndicator
             default:
                 // read until next event
-                let slice = readWhile { $0 != .tagIndicator && $0 != .backSlash } ?? ""
+                let slice = template.readWhile { $0 != .tagIndicator && $0 != .backSlash } ?? ""
                 return .raw(slice)
             }
         case .tag:
@@ -136,29 +136,29 @@ struct LeafLexer {
                 return .tag(name: "")
             case let x where x.isValidInTagName:
                 // collect the named tag, letters only
-                let val = readWhile { $0.isValidInTagName }
+                let val = template.readWhile { $0.isValidInTagName }
                 guard let name = val else { fatalError("switch case should disallow this") }
                 
-                let trailing = peek()
+                let trailing = template.peek()
                 if trailing == .colon { state = .body }
                 else if trailing == .leftParenthesis { state = .parameters(depth: 0) }
                 else { state = .normal }
                 
                 return .tag(name: name)
             default:
-                fatalError("unexpected token: \(String(next))")
+                throw "invalid tag token: \(String(next))"
             }
         case .parameters(let depth):
             switch next {
             case .leftParenthesis:
-                pop()
+                template.pop()
                 state = .parameters(depth: depth + 1)
                 return .parametersStart
             case .rightParenthesis:
                 // must pop before subsequent peek
-                pop()
+                template.pop()
                 if depth <= 1 {
-                    if peek() == .colon {
+                    if template.peek() == .colon {
                         state = .body
                     } else {
                         state = .normal
@@ -168,30 +168,29 @@ struct LeafLexer {
                 }
                 return .parametersEnd
             case .comma:
-                pop()
+                template.pop()
                 return .parameterDelimiter
             case .quote:
-                let source = LeafSource.start(at: buffer)
                 // consume first quote
-                pop()
-                let read = readWhile { $0 != .quote && $0 != .newLine }
-                guard let string = read else { fatalError("todo: expected string literal in parameters list") }
-                guard peek() == .quote else {
-                    throw LeafError(.unterminatedStringLiteral, source: source.end(at: buffer))
+                template.pop()
+                let read = template.readWhile { $0 != .quote && $0 != .newLine }
+                guard let string = read else { throw "expected string literal \(template.line):\(template.column)" }
+                guard template.peek() == .quote else {
+                    throw "unterminated string literal \(template.line):\(template.column)"
                 }
                 // consume final quote
-                pop()
+                template.pop()
                 return .parameter(.stringLiteral(string))
             case .space:
                 // skip whitespace
-                let read = readWhile { $0 == .space }
+                let read = template.readWhile { $0 == .space }
                 guard let space = read else { fatalError("disallowed by switch") }
                 return .whitespace(length: space.count)
             case let x where x.isValidInParameter:
-                let read = readWhile { $0.isValidInParameter }
-                guard let name = read else { fatalError("switch case should disallow this") }
+                let read = template.readWhile { $0.isValidInParameter }
+                guard let name = read else { fatalError("disallowed by switch") }
                 // this parameter is a tag
-                if peek() == .leftParenthesis { return .parameter(.tag(name: name)) }
+                if template.peek() == .leftParenthesis { return .parameter(.tag(name: name)) }
                 
                 // check if expected parameter type
                 if let keyword = Keyword(rawValue: name) { return .parameter(.keyword(keyword)) }
@@ -203,63 +202,13 @@ struct LeafLexer {
                 return .parameter(.variable(name: name))
             default:
                 let val = String(next)
-                fatalError("todo: unable to process '\(val)' as param, throw error")
+                throw "invalid parameter token: \(val) at \(template.line):\(template.column)"
             }
         case .body:
             guard next == .colon else { fatalError("state should only be set to .body when a colon is in queue") }
-            pop()
+            template.pop()
             state = .normal
             return .tagBodyIndicator
         }
     }
-    
-    // MARK: byte buffer methods
-    
-    mutating func readWhile(_ check: (Character) -> Bool) -> String? {
-        return readSliceWhile(check).flatMap { String($0) }
-//        guard let length = countMatching(check: check) else {
-//            return nil
-//        }
-//        return buffer.readString(length: length)
-    }
-    
-    mutating func readSliceWhile(_ check: (Character) -> Bool) -> [Character]? {
-        var str = [Character]()
-        while let next = peek() {
-            guard check(next) else { return str }
-            pop()
-            str.append(next)
-        }
-        return str
-//        guard let length = countMatching(check: check) else {
-//            return nil
-//        }
-//        return buffer.readSlice(length: length)
-    }
-    
-    func peek(aheadBy idx: Int = 0) -> Character? {
-        guard idx < template.count else { return nil }
-        return template[idx]
-//        return self.buffer.getInteger(at: self.buffer.readerIndex + offset)
-    }
-    
-    mutating func pop() {
-        self.template.removeFirst()
-//        self.buffer.moveReaderIndex(forwardBy: 1)
-    }
-    
-//    func countMatching(check isMatch: (Character) -> (Bool)) -> Int? {
-//        //        guard buffer.readableBytes > 0 else { return nil }
-//        //        var copy = buffer
-//        //        while let curr = copy.readInteger(as: UInt8.self) {
-//        //            if !isMatch(curr) {
-//        //                let matchedIndex = copy.readerIndex - 1
-//        //                return matchedIndex - buffer.readerIndex
-//        //            }
-//        //        }
-//        //        return copy.readerIndex - self.buffer.readerIndex
-//        guard !template.isEmpty else { return nil }
-//        var copy = template
-//        while let curr = copy.removefi
-//    }
 }

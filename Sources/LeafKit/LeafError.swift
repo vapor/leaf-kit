@@ -55,9 +55,10 @@ extension ByteBuffer {
         var i = self.readerIndex
         
         while i >= 0, let check = self.getInteger(at: i, as: UInt8.self) {
-            if check == .newLine {
-                return i
-            }
+            fatalError()
+//            if check == .newLine {
+//                return i
+//            }
             i -= 1
         }
         return nil
@@ -66,9 +67,10 @@ extension ByteBuffer {
     var nextNewlineIndex: Int? {
         var i = self.readerIndex
         while let check = self.getInteger(at: i, as: UInt8.self) {
-            if check == .newLine {
-                return i
-            }
+            fatalError()
+//            if check == .newLine {
+//                return i
+//            }
             i += 1
         }
         return nil

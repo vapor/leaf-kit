@@ -81,7 +81,9 @@ public final class LeafRenderer {
         let raw = readBytes(file: file)
         
         let syntax = raw.flatMapThrowing { raw -> [Syntax] in
-            var lexer = LeafLexer(template: raw)
+            var raw = raw
+            guard let template = raw.readString(length: raw.readableBytes) else { return [] }
+            var lexer = LeafLexer(template: template)
             let tokens = try lexer.lex()
             var parser = LeafParser(tokens: tokens)
             return try parser.parse()

@@ -36,7 +36,7 @@ struct ResolvedDocument {
     }
 }
 
-struct ExtendResolver {
+internal struct ExtendResolver {
     private let document: UnresolvedDocument
     private let dependencies: [String: ResolvedDocument]
     
@@ -79,7 +79,7 @@ struct ExtendResolver {
 }
 
 // MARK: Testing Only
-final class DocumentLoader {
+internal final class DocumentLoader {
     private var fileAccess: FileAccessProtocol
     private var resolved: [String: ResolvedDocument] = [:]
     private var unresolved: [String: UnresolvedDocument] = [:]
