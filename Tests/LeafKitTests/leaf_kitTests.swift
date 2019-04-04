@@ -761,7 +761,7 @@ final class LeafKitTests: XCTestCase {
         print()
     }
     
-    func __testParser() throws {
+    func testParserasdf() throws {
         let template = """
         Hello #(name)!
 
@@ -796,7 +796,7 @@ final class LeafKitTests: XCTestCase {
         """
         
         var lexer = LeafLexer(template: template)
-        let tokens = try lexer.lex()
+        let tokens = try! lexer.lex()
         print()
         print("Tokens:")
         tokens.forEach { print($0) }
