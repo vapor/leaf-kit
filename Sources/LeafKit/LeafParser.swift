@@ -175,9 +175,9 @@ struct LeafParser {
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
     private mutating func readTagDeclaration() throws -> TagDeclaration {
         // consume tag indicator
-        guard let first = read(), first == .tagIndicator else { throw "expected tag indicator" }
+        guard let first = read(), first == .tagIndicator else { throw "expected .tagIndicator(\(Character.tagIndicator))" }
         // a tag should ALWAYS follow a tag indicator
-        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag following a `#` indicator" }
+        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag name following a tag indicator" }
         
         // if no further, then we've ended w/ a tag
         guard let next = peek() else { return TagDeclaration(name: name, parameters: nil, expectsBody: false) }
@@ -253,7 +253,6 @@ struct LeafParser {
                 pop()
                 continue
             default:
-                print("breaking outer, found: \(next)")
                 break outer
             }
         }

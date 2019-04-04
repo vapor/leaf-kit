@@ -50,7 +50,6 @@ struct ParameterResolver {
         // these should all have been removed in processing
         case .tag: throw "unexpected tag"
         case .operator: throw "unexpected operator"
-        case .expression: throw "unexpected expression"
         }
     }
     
