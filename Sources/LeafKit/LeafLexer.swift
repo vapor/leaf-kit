@@ -74,8 +74,26 @@ struct TemplateSource {
     }
 }
 
+public struct LexerError: Error {
+    public enum Reason {
+        case invalidTagToken(Character)
+        case invalidParameterToken(Character)
+        case unterminatedStringLiteral
+    }
+    
+    public let line: Int
+    public let column: Int
+    public let reason: Reason
+    
+    internal init(src: TemplateSource, reason: Reason) {
+        self.line = src.line
+        self.column = src.column
+        self.reason = reason
+    }
+}
+
 struct LeafLexer {
-    enum State {
+    private enum State {
         // parses as raw, until it finds `#` (excluding escaped `\#`)
         case normal
         // found a `#`
@@ -86,12 +104,12 @@ struct LeafLexer {
         case body
     }
     
-    var state: State
+    private var state: State
     
-    private var template: TemplateSource
+    private var src: TemplateSource
 
     init(template string: String) {
-        self.template = .init(string)
+        self.src = .init(string)
         self.state = .normal
     }
     
@@ -103,8 +121,8 @@ struct LeafLexer {
         return tokens
     }
     
-    mutating func nextToken() throws -> LeafToken? {
-        guard let next = template.peek() else { return nil }
+    private mutating func nextToken() throws -> LeafToken? {
+        guard let next = src.peek() else { return nil }
         
         switch state {
         case .normal:
@@ -113,19 +131,19 @@ struct LeafLexer {
                 // consume '\' only in event of '\#'
                 // otherwise allow it to remain for other
                 // escapes, a la javascript
-                if template.peek(aheadBy: 1) == .tagIndicator {
-                    template.pop()
+                if src.peek(aheadBy: 1) == .tagIndicator {
+                    src.pop()
                 }
                 // either way, add raw '#' or '\' to registry
-                return template.pop().flatMap { .raw(.init($0)) }
+                return src.pop().flatMap { .raw(.init($0)) }
             case .tagIndicator:
                 // consume `#`
-                template.pop()
+                src.pop()
                 state = .tag
                 return .tagIndicator
             default:
                 // read until next event
-                let slice = template.readWhile { $0 != .tagIndicator && $0 != .backSlash } ?? ""
+                let slice = src.readWhile { $0 != .tagIndicator && $0 != .backSlash } ?? ""
                 return .raw(slice)
             }
         case .tag:
@@ -136,29 +154,29 @@ struct LeafLexer {
                 return .tag(name: "")
             case let x where x.isValidInTagName:
                 // collect the named tag, letters only
-                let val = template.readWhile { $0.isValidInTagName }
+                let val = src.readWhile { $0.isValidInTagName }
                 guard let name = val else { fatalError("switch case should disallow this") }
                 
-                let trailing = template.peek()
+                let trailing = src.peek()
                 if trailing == .colon { state = .body }
                 else if trailing == .leftParenthesis { state = .parameters(depth: 0) }
                 else { state = .normal }
                 
                 return .tag(name: name)
             default:
-                throw "invalid tag token: \(String(next))"
+                throw LexerError(src: src, reason: .invalidTagToken(next))
             }
         case .parameters(let depth):
             switch next {
             case .leftParenthesis:
-                template.pop()
+                src.pop()
                 state = .parameters(depth: depth + 1)
                 return .parametersStart
             case .rightParenthesis:
                 // must pop before subsequent peek
-                template.pop()
+                src.pop()
                 if depth <= 1 {
-                    if template.peek() == .colon {
+                    if src.peek() == .colon {
                         state = .body
                     } else {
                         state = .normal
@@ -168,29 +186,29 @@ struct LeafLexer {
                 }
                 return .parametersEnd
             case .comma:
-                template.pop()
+                src.pop()
                 return .parameterDelimiter
             case .quote:
                 // consume first quote
-                template.pop()
-                let read = template.readWhile { $0 != .quote && $0 != .newLine }
-                guard let string = read else { throw "expected string literal \(template.line):\(template.column)" }
-                guard template.peek() == .quote else {
-                    throw "unterminated string literal \(template.line):\(template.column)"
+                src.pop()
+                let read = src.readWhile { $0 != .quote && $0 != .newLine }
+                guard let string = read else { fatalError("disallowed by switch") }
+                guard src.peek() == .quote else {
+                    throw LexerError(src: src, reason: .unterminatedStringLiteral)
                 }
                 // consume final quote
-                template.pop()
+                src.pop()
                 return .parameter(.stringLiteral(string))
             case .space:
                 // skip whitespace
-                let read = template.readWhile { $0 == .space }
+                let read = src.readWhile { $0 == .space }
                 guard let space = read else { fatalError("disallowed by switch") }
                 return .whitespace(length: space.count)
             case let x where x.isValidInParameter:
-                let read = template.readWhile { $0.isValidInParameter }
+                let read = src.readWhile { $0.isValidInParameter }
                 guard let name = read else { fatalError("disallowed by switch") }
                 // this parameter is a tag
-                if template.peek() == .leftParenthesis { return .parameter(.tag(name: name)) }
+                if src.peek() == .leftParenthesis { return .parameter(.tag(name: name)) }
                 
                 // check if expected parameter type
                 if let keyword = Keyword(rawValue: name) { return .parameter(.keyword(keyword)) }
@@ -201,12 +219,11 @@ struct LeafLexer {
                 // unknown param type.. var
                 return .parameter(.variable(name: name))
             default:
-                let val = String(next)
-                throw "invalid parameter token: \(val) at \(template.line):\(template.column)"
+                throw LexerError(src: src, reason: .invalidParameterToken(next))
             }
         case .body:
             guard next == .colon else { fatalError("state should only be set to .body when a colon is in queue") }
-            template.pop()
+            src.pop()
             state = .normal
             return .tagBodyIndicator
         }
