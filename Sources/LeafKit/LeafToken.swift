@@ -61,9 +61,9 @@ enum Constant: CustomStringConvertible, Equatable {
     }
 }
 
-indirect enum ProcessedParameter: CustomStringConvertible {
+indirect enum ParameterDeclaration: CustomStringConvertible {
     case parameter(Parameter)
-    case expression([ProcessedParameter])
+    case expression([ParameterDeclaration])
     case tag(Syntax.CustomTagDeclaration)
     
     var description: String {

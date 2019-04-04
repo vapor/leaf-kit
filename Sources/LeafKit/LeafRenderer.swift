@@ -22,7 +22,7 @@ final class Cache: LeafCache {
 }
 
 struct LeafContext {
-    let params: [ProcessedParameter]
+    let params: [ParameterDeclaration]
     let data: [String: LeafData]
     let body: [Syntax]?
 }

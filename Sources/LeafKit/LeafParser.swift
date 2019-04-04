@@ -2,7 +2,7 @@ extension String: Error {}
 
 private struct TagDeclaration {
     let name: String
-    let parameters: [ProcessedParameter]?
+    let parameters: [ParameterDeclaration]?
     let expectsBody: Bool
 }
 
@@ -208,12 +208,12 @@ struct LeafParser {
         }
     }
     
-    private mutating func readParameters() throws -> [ProcessedParameter] {
+    private mutating func readParameters() throws -> [ParameterDeclaration] {
         // ensure open parameters
         guard read() == .parametersStart else { throw "expected parameters start" }
         
-        var group = [ProcessedParameter]()
-        var paramsList = [ProcessedParameter]()
+        var group = [ParameterDeclaration]()
+        var paramsList = [ParameterDeclaration]()
         func dump() {
             defer { group = [] }
 

@@ -12,8 +12,8 @@ indirect enum Syntax {
 }
 
 enum ConditionalSyntax {
-    case `if`([ProcessedParameter])
-    case `elseif`([ProcessedParameter])
+    case `if`([ParameterDeclaration])
+    case `elseif`([ParameterDeclaration])
     case `else`
 }
 
@@ -53,7 +53,7 @@ func indent(_ depth: Int) -> String {
 extension Syntax {
     struct Import {
         let key: String
-        init(_ params: [ProcessedParameter]) throws {
+        init(_ params: [ParameterDeclaration]) throws {
             guard params.count == 1 else { throw "import only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "expected parameter" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
@@ -70,7 +70,7 @@ extension Syntax {
         // TODO: RANDOM ORDER FAILS TEST, OK?
         let exports: [String: Export]
         
-        init(_ params: [ProcessedParameter], body: [Syntax]) throws {
+        init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard params.count == 1 else { throw "extend only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
@@ -104,7 +104,7 @@ extension Syntax {
         let key: String
         let body: [Syntax]
         
-        init(_ params: [ProcessedParameter], body: [Syntax]) throws {
+        init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard (1...2).contains(params.count) else { throw "export expects 1 or 2 params" }
             guard case .parameter(let p) = params[0] else { throw "expected parameter" }
             guard case .stringLiteral(let s) = p else { throw "export only supports string literals" }
@@ -197,7 +197,7 @@ extension Syntax {
         let body: [Syntax]
         
         /// initialize a new loop
-        init(_ params: [ProcessedParameter], body: [Syntax]) throws {
+        init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard
                 params.count == 1,
                 case .expression(let list) = params[0],
@@ -232,7 +232,7 @@ extension Syntax {
     struct Variable {
         let name: String
         
-        init(_ params: [ProcessedParameter]) throws {
+        init(_ params: [ParameterDeclaration]) throws {
             guard params.count == 1 else { throw "only single parameter variable supported currently" }
             guard case .parameter(let p) = params[0] else { throw "expected single parameter" }
             switch p {
@@ -249,7 +249,7 @@ extension Syntax {
     
     struct CustomTagDeclaration {
         let name: String
-        let params: [ProcessedParameter]
+        let params: [ParameterDeclaration]
         let body: [Syntax]?
         
         func print(depth: Int) -> String {

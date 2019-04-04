@@ -1,19 +1,19 @@
 import Foundation
 
 struct ResolvedParameter {
-    let param: ProcessedParameter
+    let param: ParameterDeclaration
     let result: LeafData
 }
 
 struct ParameterResolver {
-    let params: [ProcessedParameter]
+    let params: [ParameterDeclaration]
     let data: [String: LeafData]
     
     func resolve() throws -> [ResolvedParameter] {
         return try params.map(resolve)
     }
     
-    private func resolve(_ param: ProcessedParameter) throws -> ResolvedParameter {
+    private func resolve(_ param: ParameterDeclaration) throws -> ResolvedParameter {
         let result: LeafData
         switch param {
         case .expression(let e):
@@ -55,7 +55,7 @@ struct ParameterResolver {
     }
     
     // #if(lowercase(first(name == "admin")) == "welcome")
-    private func resolve(expression: [ProcessedParameter]) throws -> LeafData {
+    private func resolve(expression: [ParameterDeclaration]) throws -> LeafData {
         // todo: to support nested expressions, ie:
         // file == name + ".jpg"
         // should resolve to:
