@@ -84,11 +84,13 @@ public struct LexerError: Error {
     public let line: Int
     public let column: Int
     public let reason: Reason
+    public let lexed: [LeafToken]
     
-    internal init(src: TemplateSource, reason: Reason) {
+    internal init(src: TemplateSource, lexed: [LeafToken], reason: Reason) {
         self.line = src.line
         self.column = src.column
         self.reason = reason
+        self.lexed = lexed
     }
 }
 
@@ -105,7 +107,7 @@ struct LeafLexer {
     }
     
     private var state: State
-    
+    private var lexed: [LeafToken] = []
     private var src: TemplateSource
 
     init(template string: String) {
@@ -114,11 +116,10 @@ struct LeafLexer {
     }
     
     mutating func lex() throws -> [LeafToken] {
-        var tokens: [LeafToken] = []
         while let next = try self.nextToken() {
-            tokens.append(next)
+            lexed.append(next)
         }
-        return tokens
+        return lexed
     }
     
     private mutating func nextToken() throws -> LeafToken? {
@@ -164,7 +165,7 @@ struct LeafLexer {
                 
                 return .tag(name: name)
             default:
-                throw LexerError(src: src, reason: .invalidTagToken(next))
+                throw LexerError(src: src, lexed: lexed, reason: .invalidTagToken(next))
             }
         case .parameters(let depth):
             switch next {
@@ -194,7 +195,7 @@ struct LeafLexer {
                 let read = src.readWhile { $0 != .quote && $0 != .newLine }
                 guard let string = read else { fatalError("disallowed by switch") }
                 guard src.peek() == .quote else {
-                    throw LexerError(src: src, reason: .unterminatedStringLiteral)
+                    throw LexerError(src: src, lexed: lexed, reason: .unterminatedStringLiteral)
                 }
                 // consume final quote
                 src.pop()
@@ -219,7 +220,7 @@ struct LeafLexer {
                 // unknown param type.. var
                 return .parameter(.variable(name: name))
             default:
-                throw LexerError(src: src, reason: .invalidParameterToken(next))
+                throw LexerError(src: src, lexed: lexed, reason: .invalidParameterToken(next))
             }
         case .body:
             guard next == .colon else { fatalError("state should only be set to .body when a colon is in queue") }

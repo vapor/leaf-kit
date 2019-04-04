@@ -138,7 +138,7 @@ public indirect enum Parameter: Equatable, CustomStringConvertible {
     }
 }
 
-enum LeafToken: CustomStringConvertible, Equatable  {
+public enum LeafToken: CustomStringConvertible, Equatable  {
     
     case raw(String)
     
@@ -155,7 +155,7 @@ enum LeafToken: CustomStringConvertible, Equatable  {
     case stringLiteral(String)
     case whitespace(length: Int)
     
-    var description: String {
+    public var description: String {
         switch self {
         case .raw(let str):
             return "raw(\(str.debugDescription))"
