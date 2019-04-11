@@ -74,8 +74,6 @@ struct LeafSerializer {
     }
     
     mutating func serialize(_ variable: Syntax.Variable) {
-        print(variable)
-        print(self.data)
         let data: LeafData
         switch variable.path.count {
         case 0: data = .null
