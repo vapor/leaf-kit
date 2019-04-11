@@ -2,7 +2,8 @@ import Foundation
 
 /// TemplateKit's supported serializable data types.
 /// - note: This is different from types supported in the AST.
-public struct LeafData: Equatable, LeafDataRepresentable {
+public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionaryLiteral, ExpressibleByStringLiteral {
+
     // MARK: Equatable
 
     /// See `Equatable`.
@@ -85,6 +86,16 @@ public struct LeafData: Equatable, LeafDataRepresentable {
     /// Creates a new null `LeafData`.
     public static var null: LeafData {
         return .init(.null)
+    }
+
+    // MARK: Literal
+
+    public init(dictionaryLiteral elements: (String, LeafData)...) {
+        self = .dictionary(.init(uniqueKeysWithValues: elements))
+    }
+
+    public init(stringLiteral value: String) {
+        self = .string(value)
     }
 
     // MARK: Fuzzy
@@ -236,7 +247,7 @@ public struct LeafData: Equatable, LeafDataRepresentable {
     // MARK: Convertible
 
     /// See `LeafDataRepresentable`
-    public func convertToLeafData() throws -> LeafData {
+    public var leafData: LeafData? {
         return self
     }
 }

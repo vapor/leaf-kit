@@ -43,7 +43,7 @@ struct Lowercased: LeafTag {
 public final class LeafRenderer {
     let config: LeafConfig
     let file: NonBlockingFileIO
-    let eventLoop: EventLoop
+    public let eventLoop: EventLoop
     
     // TODO: More Cache Options
     let cache: LeafCache = Cache()

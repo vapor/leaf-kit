@@ -586,6 +586,36 @@ final class LexerTests: XCTestCase {
         let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
         XCTAssertEqual(output, expectation)
     }
+
+    func testNestedEcho() throws {
+        let input = """
+        #(todo)
+        #(todo.title)
+        #(todo.user.name.first)
+        """
+        let expectation = """
+        tagIndicator
+        tag(name: "")
+        parametersStart
+        param(variable(todo))
+        parametersEnd
+        raw("\\n")
+        tagIndicator
+        tag(name: "")
+        parametersStart
+        param(variable(todo.title))
+        parametersEnd
+        raw("\\n")
+        tagIndicator
+        tag(name: "")
+        parametersStart
+        param(variable(todo.user.name.first))
+        parametersEnd
+
+        """
+        let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
+        XCTAssertEqual(output, expectation)
+    }
 }
 
 func lex(_ str: String) throws -> [LeafToken] {
@@ -819,6 +849,19 @@ final class LeafKitTests: XCTestCase {
         //        print(string)
         //        print()
     }
+
+    func testNestedEcho() throws {
+        let input = """
+        Todo: #(todo.title)
+        """
+        var lexer = LeafLexer(template: input)
+        let tokens = try lexer.lex()
+        var parser = LeafParser(tokens: tokens)
+        let ast = try parser.parse()
+        var serializer = LeafSerializer(ast: ast, context: ["todo": ["title": "Leaf!"]])
+        let view = try serializer.serialize()
+        XCTAssertEqual(view.string, "Todo: Leaf!")
+    }
     
     func _testRenderer() throws {
         let threadPool = NIOThreadPool(numberOfThreads: 1)
@@ -833,6 +876,12 @@ final class LeafKitTests: XCTestCase {
         
         try threadPool.syncShutdownGracefully()
         try group.syncShutdownGracefully()
+    }
+}
+
+extension ByteBuffer {
+    var string: String? {
+        return self.getString(at: self.readerIndex, length: self.readableBytes)
     }
 }
 

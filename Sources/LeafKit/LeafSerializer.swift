@@ -74,7 +74,20 @@ struct LeafSerializer {
     }
     
     mutating func serialize(_ variable: Syntax.Variable) {
-        let data = self.data[variable.name] ?? .null
+        print(variable)
+        print(self.data)
+        let data: LeafData
+        switch variable.path.count {
+        case 0: data = .null
+        case 1: data = self.data[variable.path[0]] ?? .null
+        default:
+            var current = self.data[variable.path[0]] ?? .null
+            var iterator = variable.path.dropFirst().makeIterator()
+            while let path = iterator.next() {
+                current = current.dictionary?[path] ?? .null
+            }
+            data = current
+        }
         self.serialize(data)
     }
     

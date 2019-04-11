@@ -1,7 +1,8 @@
 import XCTest
 
-import leaf_kitTests
+import LeafKitTests
 
 var tests = [XCTestCaseEntry]()
-tests += leaf_kitTests.allTests()
+tests += LeafKitTests.__allTests()
+
 XCTMain(tests)
