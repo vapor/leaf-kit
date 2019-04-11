@@ -1,8 +1,8 @@
-enum Keyword: String, Equatable {
+public enum Keyword: String, Equatable {
     case `in`, `true`, `false`, `self`, `nil`, `yes`, `no`
 }
 
-enum Operator: String, Equatable, CustomStringConvertible {
+public enum Operator: String, Equatable, CustomStringConvertible {
     case equals = "=="
     case notEquals = "!="
     case greaterThan = ">"
@@ -18,17 +18,7 @@ enum Operator: String, Equatable, CustomStringConvertible {
     case and = "&&"
     case or = "||"
     
-    var description: String { return rawValue }
-}
-
-extension Operator {
-    var priority: Int {
-        switch self {
-        case .multiply, .divide: return 0
-        case .plus, .minus: return 1
-        default: return 2
-        }
-    }
+    public var description: String { return rawValue }
 }
 
 extension Operator {
@@ -49,11 +39,11 @@ extension Operator {
     }
 }
 
-enum Constant: CustomStringConvertible, Equatable {
+public enum Constant: CustomStringConvertible, Equatable {
     case int(Int)
     case double(Double)
     
-    var description: String {
+    public var description: String {
         switch self {
         case .int(let i): return i.description
         case .double(let d): return d.description
@@ -61,12 +51,12 @@ enum Constant: CustomStringConvertible, Equatable {
     }
 }
 
-indirect enum ProcessedParameter: CustomStringConvertible {
+public indirect enum ParameterDeclaration: CustomStringConvertible {
     case parameter(Parameter)
-    case expression([ProcessedParameter])
+    case expression([ParameterDeclaration])
     case tag(Syntax.CustomTagDeclaration)
     
-    var description: String {
+    public var description: String {
         switch self {
         case .parameter(let p):
             return p.description
@@ -100,7 +90,7 @@ indirect enum ProcessedParameter: CustomStringConvertible {
     }
 }
 
-indirect enum Parameter: Equatable, CustomStringConvertible {
+public indirect enum Parameter: Equatable, CustomStringConvertible {
     case stringLiteral(String)
     case constant(Constant)
     case variable(name: String)
@@ -108,11 +98,8 @@ indirect enum Parameter: Equatable, CustomStringConvertible {
     case `operator`(Operator)
     case tag(name: String)
     
-    // TODO: RM, NOT A TOKEN
-    case expression([Parameter])
-    
     // case
-    var description: String {
+    public var description: String {
         return name + "(" + short + ")"
     }
     
@@ -130,8 +117,6 @@ indirect enum Parameter: Equatable, CustomStringConvertible {
             return "operator"
         case .tag:
             return "tag"
-        case .expression:
-            return "expression"
         }
     }
     
@@ -149,15 +134,13 @@ indirect enum Parameter: Equatable, CustomStringConvertible {
             return "\(o)"
         case .tag(let t):
             return "\"\(t)\""
-        case .expression(let list):
-            return list.map { $0.short } .reduce("") { $0 + ", " + $1 }
         }
     }
 }
 
-enum LeafToken: CustomStringConvertible, Equatable  {
+public enum LeafToken: CustomStringConvertible, Equatable  {
     
-    case raw(ByteBuffer)
+    case raw(String)
     
     case tagIndicator
     case tag(name: String)
@@ -172,11 +155,10 @@ enum LeafToken: CustomStringConvertible, Equatable  {
     case stringLiteral(String)
     case whitespace(length: Int)
     
-    var description: String {
+    public var description: String {
         switch self {
-        case .raw(var byteBuffer):
-            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-            return "raw(\(string.debugDescription))"
+        case .raw(let str):
+            return "raw(\(str.debugDescription))"
         case .tagIndicator:
             return "tagIndicator"
         case .tag(let name):

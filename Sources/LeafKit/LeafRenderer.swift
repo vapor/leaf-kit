@@ -21,13 +21,13 @@ final class Cache: LeafCache {
     }
 }
 
-struct LeafContext {
-    let params: [ProcessedParameter]
+public struct LeafContext {
+    let params: [ParameterDeclaration]
     let data: [String: LeafData]
     let body: [Syntax]?
 }
 
-protocol LeafTag {
+public protocol LeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData
 }
 
@@ -62,10 +62,12 @@ public final class LeafRenderer {
         let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
         let expanded = config.rootDirectory + path
         let document = fetch(path: expanded)
-        return document.flatMapThrowing { document in
-            var serializer = LeafSerializer(ast: document.ast, context: context)
-            return try serializer.serialize()
-        }
+        return document.flatMapThrowing { try self.render($0, context: context) }
+    }
+    
+    func render(_ doc: ResolvedDocument, context: [String: LeafData]) throws -> ByteBuffer {
+        var serializer = LeafSerializer(ast: doc.ast, context: context)
+        return try serializer.serialize()
     }
     
     private func fetch(path: String) -> EventLoopFuture<ResolvedDocument> {
@@ -81,7 +83,9 @@ public final class LeafRenderer {
         let raw = readBytes(file: file)
         
         let syntax = raw.flatMapThrowing { raw -> [Syntax] in
-            var lexer = LeafLexer(template: raw)
+            var raw = raw
+            guard let template = raw.readString(length: raw.readableBytes) else { return [] }
+            var lexer = LeafLexer(template: template)
             let tokens = try lexer.lex()
             var parser = LeafParser(tokens: tokens)
             return try parser.parse()

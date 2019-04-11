@@ -1,4 +1,4 @@
-extension UInt8 {
+extension Character {
     var isValidInTagName: Bool {
         return self.isLowercaseLetter
             || self.isUppercaseLetter
@@ -30,8 +30,72 @@ extension UInt8 {
     }
 }
 
+struct TemplateSource {
+    private(set) var line = 0
+    private(set) var column = 0
+    
+    private var body: [Character]
+    
+    init(_ str: String) {
+        self.body = .init(str)
+    }
+    
+    mutating func readWhile(_ check: (Character) -> Bool) -> String? {
+        return readSliceWhile(check).flatMap { String($0) }
+    }
+    
+    mutating func readSliceWhile(_ check: (Character) -> Bool) -> [Character]? {
+        var str = [Character]()
+        while let next = peek() {
+            guard check(next) else { return str }
+            pop()
+            str.append(next)
+        }
+        return str
+    }
+    
+    func peek(aheadBy idx: Int = 0) -> Character? {
+        guard idx < body.count else { return nil }
+        return body[idx]
+    }
+    
+    @discardableResult
+    mutating func pop() -> Character? {
+        guard !body.isEmpty else { return nil }
+        let popped = body.removeFirst()
+        switch popped {
+        case .newLine:
+            line += 1
+            column = 0
+        default:
+            column += 1
+        }
+        return popped
+    }
+}
+
+public struct LexerError: Error {
+    public enum Reason {
+        case invalidTagToken(Character)
+        case invalidParameterToken(Character)
+        case unterminatedStringLiteral
+    }
+    
+    public let line: Int
+    public let column: Int
+    public let reason: Reason
+    public let lexed: [LeafToken]
+    
+    internal init(src: TemplateSource, lexed: [LeafToken], reason: Reason) {
+        self.line = src.line
+        self.column = src.column
+        self.reason = reason
+        self.lexed = lexed
+    }
+}
+
 struct LeafLexer {
-    enum State {
+    private enum State {
         // parses as raw, until it finds `#` (excluding escaped `\#`)
         case normal
         // found a `#`
@@ -42,31 +106,25 @@ struct LeafLexer {
         case body
     }
     
-    var state: State
-    
-    private var buffer: ByteBuffer
+    private var state: State
+    private var lexed: [LeafToken] = []
+    private var src: TemplateSource
 
-    init(string: String) {
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.writeString(string)
-        self.init(template: buffer)
-    }
-    
-    init(template buffer: ByteBuffer) {
+    init(template string: String) {
+        self.src = .init(string)
         self.state = .normal
-        self.buffer = buffer
     }
     
     mutating func lex() throws -> [LeafToken] {
-        var tokens: [LeafToken] = []
         while let next = try self.nextToken() {
-            tokens.append(next)
+            lexed.append(next)
         }
-        return tokens
+        return lexed
     }
     
-    mutating func nextToken() throws -> LeafToken? {
-        guard let next = peek() else { return nil }
+    private mutating func nextToken() throws -> LeafToken? {
+        guard let next = src.peek() else { return nil }
+        
         switch state {
         case .normal:
             switch next {
@@ -74,20 +132,20 @@ struct LeafLexer {
                 // consume '\' only in event of '\#'
                 // otherwise allow it to remain for other
                 // escapes, a la javascript
-                if peek(aheadBy: 1) == .octothorpe {
-                    pop()
+                if src.peek(aheadBy: 1) == .tagIndicator {
+                    src.pop()
                 }
                 // either way, add raw '#' or '\' to registry
-                return buffer.readSlice(length: 1).map(LeafToken.raw)
-            case .octothorpe:
+                return src.pop().flatMap { .raw(.init($0)) }
+            case .tagIndicator:
                 // consume `#`
-                pop()
+                src.pop()
                 state = .tag
                 return .tagIndicator
             default:
                 // read until next event
-                let slice = readSliceWhile { $0 != .octothorpe && $0 != .backSlash }
-                return slice.map(LeafToken.raw)
+                let slice = src.readWhile { $0 != .tagIndicator && $0 != .backSlash } ?? ""
+                return .raw(slice)
             }
         case .tag:
             switch next {
@@ -97,29 +155,29 @@ struct LeafLexer {
                 return .tag(name: "")
             case let x where x.isValidInTagName:
                 // collect the named tag, letters only
-                let val = readWhile { $0.isValidInTagName }
+                let val = src.readWhile { $0.isValidInTagName }
                 guard let name = val else { fatalError("switch case should disallow this") }
                 
-                let trailing = peek()
+                let trailing = src.peek()
                 if trailing == .colon { state = .body }
                 else if trailing == .leftParenthesis { state = .parameters(depth: 0) }
                 else { state = .normal }
                 
                 return .tag(name: name)
             default:
-                fatalError("unexpected token: \(String(bytes: [next], encoding: .utf8) ?? "<unknown>")")
+                throw LexerError(src: src, lexed: lexed, reason: .invalidTagToken(next))
             }
         case .parameters(let depth):
             switch next {
             case .leftParenthesis:
-                pop()
+                src.pop()
                 state = .parameters(depth: depth + 1)
                 return .parametersStart
             case .rightParenthesis:
                 // must pop before subsequent peek
-                pop()
+                src.pop()
                 if depth <= 1 {
-                    if peek() == .colon {
+                    if src.peek() == .colon {
                         state = .body
                     } else {
                         state = .normal
@@ -129,30 +187,29 @@ struct LeafLexer {
                 }
                 return .parametersEnd
             case .comma:
-                pop()
+                src.pop()
                 return .parameterDelimiter
             case .quote:
-                let source = LeafSource.start(at: buffer)
                 // consume first quote
-                pop()
-                let read = readWhile { $0 != .quote && $0 != .newLine }
-                guard let string = read else { fatalError("todo: expected string literal in parameters list") }
-                guard peek() == .quote else {
-                    throw LeafError(.unterminatedStringLiteral, source: source.end(at: buffer))
+                src.pop()
+                let read = src.readWhile { $0 != .quote && $0 != .newLine }
+                guard let string = read else { fatalError("disallowed by switch") }
+                guard src.peek() == .quote else {
+                    throw LexerError(src: src, lexed: lexed, reason: .unterminatedStringLiteral)
                 }
                 // consume final quote
-                pop()
+                src.pop()
                 return .parameter(.stringLiteral(string))
             case .space:
                 // skip whitespace
-                let read = readWhile { $0 == .space }
+                let read = src.readWhile { $0 == .space }
                 guard let space = read else { fatalError("disallowed by switch") }
                 return .whitespace(length: space.count)
             case let x where x.isValidInParameter:
-                let read = readWhile { $0.isValidInParameter }
-                guard let name = read else { fatalError("switch case should disallow this") }
+                let read = src.readWhile { $0.isValidInParameter }
+                guard let name = read else { fatalError("disallowed by switch") }
                 // this parameter is a tag
-                if peek() == .leftParenthesis { return .parameter(.tag(name: name)) }
+                if src.peek() == .leftParenthesis { return .parameter(.tag(name: name)) }
                 
                 // check if expected parameter type
                 if let keyword = Keyword(rawValue: name) { return .parameter(.keyword(keyword)) }
@@ -163,50 +220,13 @@ struct LeafLexer {
                 // unknown param type.. var
                 return .parameter(.variable(name: name))
             default:
-                let val = String(bytes: [next], encoding: .utf8) ?? "unknown<\(next)>"
-                fatalError("todo: unable to process '\(val)' as param, throw error")
+                throw LexerError(src: src, lexed: lexed, reason: .invalidParameterToken(next))
             }
         case .body:
             guard next == .colon else { fatalError("state should only be set to .body when a colon is in queue") }
-            pop()
+            src.pop()
             state = .normal
             return .tagBodyIndicator
         }
-    }
-    
-    // MARK: byte buffer methods
-    
-    mutating func readWhile(_ check: (UInt8) -> Bool) -> String? {
-        guard let length = countMatching(check: check) else {
-            return nil
-        }
-        return buffer.readString(length: length)
-    }
-    
-    mutating func readSliceWhile(_ check: (UInt8) -> Bool) -> ByteBuffer? {
-        guard let length = countMatching(check: check) else {
-            return nil
-        }
-        return buffer.readSlice(length: length)
-    }
-    
-    func peek(aheadBy offset: Int = 0) -> UInt8? {
-        return self.buffer.getInteger(at: self.buffer.readerIndex + offset)
-    }
-    
-    mutating func pop() {
-        self.buffer.moveReaderIndex(forwardBy: 1)
-    }
-    
-    func countMatching(check isMatch: (UInt8) -> (Bool)) -> Int? {
-        guard buffer.readableBytes > 0 else { return nil }
-        var copy = buffer
-        while let curr = copy.readInteger(as: UInt8.self) {
-            if !isMatch(curr) {
-                let matchedIndex = copy.readerIndex - 1
-                return matchedIndex - buffer.readerIndex
-            }
-        }
-        return copy.readerIndex - self.buffer.readerIndex
     }
 }

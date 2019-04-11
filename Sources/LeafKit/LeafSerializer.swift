@@ -46,7 +46,7 @@ struct LeafSerializer {
     }
     
     mutating func serialize(_ conditional: Syntax.Conditional) throws {
-        let list: [ProcessedParameter]
+        let list: [ParameterDeclaration]
         switch conditional.condition {
         case .if(let l):
             list = l

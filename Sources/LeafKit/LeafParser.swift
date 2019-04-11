@@ -2,7 +2,7 @@ extension String: Error {}
 
 private struct TagDeclaration {
     let name: String
-    let parameters: [ProcessedParameter]?
+    let parameters: [ParameterDeclaration]?
     let expectsBody: Bool
 }
 
@@ -175,9 +175,9 @@ struct LeafParser {
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
     private mutating func readTagDeclaration() throws -> TagDeclaration {
         // consume tag indicator
-        guard let first = read(), first == .tagIndicator else { throw "expected tag indicator" }
+        guard let first = read(), first == .tagIndicator else { throw "expected .tagIndicator(\(Character.tagIndicator))" }
         // a tag should ALWAYS follow a tag indicator
-        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag following a `#` indicator" }
+        guard let tag = read(), case .tag(let name) = tag else { throw "expected tag name following a tag indicator" }
         
         // if no further, then we've ended w/ a tag
         guard let next = peek() else { return TagDeclaration(name: name, parameters: nil, expectsBody: false) }
@@ -208,12 +208,12 @@ struct LeafParser {
         }
     }
     
-    private mutating func readParameters() throws -> [ProcessedParameter] {
+    private mutating func readParameters() throws -> [ParameterDeclaration] {
         // ensure open parameters
         guard read() == .parametersStart else { throw "expected parameters start" }
         
-        var group = [ProcessedParameter]()
-        var paramsList = [ProcessedParameter]()
+        var group = [ParameterDeclaration]()
+        var paramsList = [ParameterDeclaration]()
         func dump() {
             defer { group = [] }
 
@@ -253,7 +253,6 @@ struct LeafParser {
                 pop()
                 continue
             default:
-                print("breaking outer, found: \(next)")
                 break outer
             }
         }
@@ -263,9 +262,9 @@ struct LeafParser {
     
     private mutating func collectRaw() throws -> ByteBuffer {
         var raw = ByteBufferAllocator().buffer(capacity: 0)
-        while let peek = peek(), case .raw(var val) = peek {
+        while let peek = peek(), case .raw(let val) = peek {
             pop()
-            raw.writeBuffer(&val)
+            raw.writeString(val)
         }
         return raw
     }

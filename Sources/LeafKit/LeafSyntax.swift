@@ -1,4 +1,4 @@
-indirect enum Syntax {
+public indirect enum Syntax {
     case raw(ByteBuffer)
     case variable(Variable)
     
@@ -11,9 +11,9 @@ indirect enum Syntax {
     case export(Export)
 }
 
-enum ConditionalSyntax {
-    case `if`([ProcessedParameter])
-    case `elseif`([ProcessedParameter])
+public enum ConditionalSyntax {
+    case `if`([ParameterDeclaration])
+    case `elseif`([ParameterDeclaration])
     case `else`
 }
 
@@ -51,9 +51,9 @@ func indent(_ depth: Int) -> String {
 }
 
 extension Syntax {
-    struct Import {
-        let key: String
-        init(_ params: [ProcessedParameter]) throws {
+    public struct Import {
+        public let key: String
+        public init(_ params: [ParameterDeclaration]) throws {
             guard params.count == 1 else { throw "import only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "expected parameter" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
@@ -65,12 +65,11 @@ extension Syntax {
         }
     }
     
-    struct Extend {
-        let key: String
-        // TODO: RANDOM ORDER FAILS TEST, OK?
-        let exports: [String: Export]
+    public struct Extend {
+        public let key: String
+        public let exports: [String: Export]
         
-        init(_ params: [ProcessedParameter], body: [Syntax]) throws {
+        public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard params.count == 1 else { throw "extend only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
@@ -100,11 +99,11 @@ extension Syntax {
         }
     }
     
-    struct Export {
-        let key: String
-        let body: [Syntax]
+    public struct Export {
+        public let key: String
+        public let body: [Syntax]
         
-        init(_ params: [ProcessedParameter], body: [Syntax]) throws {
+        public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard (1...2).contains(params.count) else { throw "export expects 1 or 2 params" }
             guard case .parameter(let p) = params[0] else { throw "expected parameter" }
             guard case .stringLiteral(let s) = p else { throw "export only supports string literals" }
@@ -133,17 +132,17 @@ extension Syntax {
         }
     }
     
-    final class Conditional {
-        let condition: ConditionalSyntax
-        let body: [Syntax]
-        private(set) var next: Conditional?
+    public final class Conditional {
+        public let condition: ConditionalSyntax
+        public let body: [Syntax]
+        public private(set) var next: Conditional?
         
-        init(_ condition: ConditionalSyntax, body: [Syntax]) {
+        public init(_ condition: ConditionalSyntax, body: [Syntax]) {
             self.condition = condition
             self.body = body
         }
         
-        func attach(_ new: Conditional) throws {
+        internal func attach(_ new: Conditional) throws {
             var tail = self
             while let next = tail.next {
                 tail = next
@@ -159,7 +158,7 @@ extension Syntax {
             return print
         }
         
-        func _print(depth: Int) -> String {
+        private func _print(depth: Int) -> String {
             let buffer = indent(depth)
             
             var print = ""
@@ -187,17 +186,17 @@ extension Syntax {
         }
     }
     
-    struct Loop: CustomStringConvertible {
+    public struct Loop {
         /// the key to use when accessing items
-        let item: String
+        public let item: String
         /// the key to use to access the array
-        let array: String
+        public let array: String
         
         /// the body of the looop
-        let body: [Syntax]
+        public let body: [Syntax]
         
         /// initialize a new loop
-        init(_ params: [ProcessedParameter], body: [Syntax]) throws {
+        public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard
                 params.count == 1,
                 case .expression(let list) = params[0],
@@ -217,10 +216,6 @@ extension Syntax {
             self.body = body
         }
         
-        var description: String {
-            return print(depth: 0)
-        }
-        
         func print(depth: Int) -> String {
             var print = indent(depth)
             print += "for(" + item + " in " + array + "):\n"
@@ -229,10 +224,10 @@ extension Syntax {
         }
     }
     
-    struct Variable {
-        let name: String
+    public struct Variable {
+        public let name: String
         
-        init(_ params: [ProcessedParameter]) throws {
+        public init(_ params: [ParameterDeclaration]) throws {
             guard params.count == 1 else { throw "only single parameter variable supported currently" }
             guard case .parameter(let p) = params[0] else { throw "expected single parameter" }
             switch p {
@@ -247,10 +242,10 @@ extension Syntax {
         }
     }
     
-    struct CustomTagDeclaration {
-        let name: String
-        let params: [ProcessedParameter]
-        let body: [Syntax]?
+    public struct CustomTagDeclaration {
+        public let name: String
+        public let params: [ParameterDeclaration]
+        public let body: [Syntax]?
         
         func print(depth: Int) -> String {
             var print = indent(depth)
@@ -264,8 +259,7 @@ extension Syntax {
 }
 
 extension Syntax: CustomStringConvertible {
-    
-    var description: String {
+    public var description: String {
         return print(depth: 0)
     }
     

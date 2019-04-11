@@ -37,28 +37,6 @@ extension UInt32: LeafDataRepresentable { }
 extension UInt64: LeafDataRepresentable { }
 extension UInt: LeafDataRepresentable { }
 
-extension Optional {
-    /// See `LeafDataRepresentable`
-    public func convertToLeafData() throws -> LeafData {
-        guard let wrapped = self else { return .null }
-        fatalError()
-//        if let wrapped = self.wrapped {
-//            if let data = wrapped as? LeafDataRepresentable {
-//                return try data.convertToLeafData()
-//            } else {
-//                throw TemplateKitError(
-//                    identifier: "convertOptional",
-//                    reason: "Optional type `\(Self.self)` is not `LeafDataRepresentable`"
-//                )
-//            }
-//        } else {
-//            return .null
-//        }
-    }
-}
-
-extension Optional: LeafDataRepresentable { }
-
 extension Bool: LeafDataRepresentable {
     /// See `LeafDataRepresentable`
     public func convertToLeafData() throws -> LeafData {

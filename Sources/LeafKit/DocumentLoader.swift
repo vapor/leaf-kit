@@ -36,7 +36,7 @@ struct ResolvedDocument {
     }
 }
 
-struct ExtendResolver {
+internal struct ExtendResolver {
     private let document: UnresolvedDocument
     private let dependencies: [String: ResolvedDocument]
     
@@ -79,7 +79,29 @@ struct ExtendResolver {
 }
 
 // MARK: Testing Only
-final class DocumentLoader {
+import Foundation
+
+protocol FileAccessProtocol {
+    func load(name: String) throws -> ByteBuffer
+    func fload(name: String) throws -> EventLoopFuture<ByteBuffer>
+}
+
+// TODO: Take things like view directory
+final class FileAccessor: FileAccessProtocol {
+    func fload(name: String) throws -> EventLoopFuture<ByteBuffer> {
+        fatalError()
+    }
+
+    func load(name: String) throws -> ByteBuffer {
+        // todo: support things like view directory
+        guard let data = FileManager.default.contents(atPath: name) else { throw "no document found at path \(name)" }
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        buffer.writeBytes(data)
+        return buffer
+    }
+}
+
+internal final class DocumentLoader {
     private var fileAccess: FileAccessProtocol
     private var resolved: [String: ResolvedDocument] = [:]
     private var unresolved: [String: UnresolvedDocument] = [:]
@@ -114,7 +136,9 @@ final class DocumentLoader {
     
     /// parse a raw body into an unresolved document
     private func parse(name: String, raw: ByteBuffer) throws -> UnresolvedDocument {
-        var lexer = LeafLexer(template: raw)
+        var raw = raw
+        guard let str = raw.readString(length: raw.readableBytes) else { throw "unable to read document" }
+        var lexer = LeafLexer(template: str)
         let tokens = try lexer.lex()
         var parser = LeafParser(tokens: tokens)
         let syntax = try parser.parse()
