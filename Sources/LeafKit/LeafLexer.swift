@@ -9,6 +9,7 @@ extension Character {
             || self.isUppercaseLetter
             || self.isValidOperator
             || (.zero ... .nine) ~= self
+            || self == .period
     }
     
     var isValidOperator: Bool {

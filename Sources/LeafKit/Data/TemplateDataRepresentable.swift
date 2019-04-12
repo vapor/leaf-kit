@@ -2,25 +2,24 @@ import Foundation
 
 /// Capable of being encoded as `LeafData`.
 public protocol LeafDataRepresentable {
-    /// Converts `self` to `LeafData` or throws an error if `self`
-    /// cannot be converted.
-    func convertToLeafData() throws -> LeafData
+    /// Converts `self` to `LeafData`, returning `nil` if the conversion is not possible.
+    var leafData: LeafData? { get }
 }
 
 // MARK: Default Conformances
 
 extension String: LeafDataRepresentable {
     /// See `LeafDataRepresentable`
-    public func convertToLeafData() throws -> LeafData {
+    public var leafData: LeafData? {
         return .string(self)
     }
 }
 
 extension FixedWidthInteger {
     /// See `LeafDataRepresentable`
-    public func convertToLeafData() throws -> LeafData {
+    public var leafData: LeafData? {
         guard self > Int.min && self < Int.max else {
-            throw "todo" //TemplateKitError(identifier: "intSize", reason: "\(Self.self) \(self) cannot be represented by an Int.")
+            return nil
         }
         return .int(Int(self))
     }
@@ -39,35 +38,35 @@ extension UInt: LeafDataRepresentable { }
 
 extension Bool: LeafDataRepresentable {
     /// See `LeafDataRepresentable`
-    public func convertToLeafData() throws -> LeafData {
+    public var leafData: LeafData? {
         return .bool(self)
     }
 }
 
 extension Double: LeafDataRepresentable {
     /// See `LeafDataRepresentable`
-    public func convertToLeafData() throws -> LeafData {
+    public var leafData: LeafData? {
         return .double(self)
     }
 }
 
 extension Float: LeafDataRepresentable {
     /// See `LeafDataRepresentable`
-    public func convertToLeafData() throws -> LeafData {
+    public var leafData: LeafData? {
         return .double(Double(self))
     }
 }
 
 extension UUID: LeafDataRepresentable {
     /// See `LeafDataRepresentable`
-    public func convertToLeafData() throws -> LeafData {
+    public var leafData: LeafData? {
         return .string(description)
     }
 }
 
 extension Date: LeafDataRepresentable {
     /// See `LeafDataRepresentable`
-    public func convertToLeafData() throws -> LeafData {
+    public var leafData: LeafData? {
         return .double(timeIntervalSince1970)
     }
 }

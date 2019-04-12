@@ -12,6 +12,7 @@ extension Character {
     static let comma = ",".first!
     static let space = " ".first!
     static let colon = ":".first!
+    static let period = ".".first!
     static let A = "A".first!
     static let Z = "Z".first!
     static let a = "a".first!
