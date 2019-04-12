@@ -2,7 +2,7 @@ import Foundation
 
 /// TemplateKit's supported serializable data types.
 /// - note: This is different from types supported in the AST.
-public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionaryLiteral, ExpressibleByStringLiteral {
+public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionaryLiteral, ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, ExpressibleByBooleanLiteral, ExpressibleByArrayLiteral {
 
     // MARK: Equatable
 
@@ -96,6 +96,18 @@ public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionar
 
     public init(stringLiteral value: String) {
         self = .string(value)
+    }
+
+    public init(integerLiteral value: Int) {
+        self = .int(value)
+    }
+
+    public init(booleanLiteral value: Bool) {
+        self = .bool(value)
+    }
+
+    public init(arrayLiteral elements: LeafData...) {
+        self = .array(elements)
     }
 
     // MARK: Fuzzy
