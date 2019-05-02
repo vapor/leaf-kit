@@ -59,8 +59,9 @@ public final class LeafRenderer {
     }
     
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
-        let expanded = config.rootDirectory + path
+//        let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
+//        let expanded = config.rootDirectory + path
+        let expanded = expand(path: path)
         let document = fetch(path: expanded)
         return document.flatMapThrowing { try self.render($0, context: context) }
     }
@@ -70,9 +71,23 @@ public final class LeafRenderer {
         return try serializer.serialize()
     }
     
+    private func expand(path: String) -> String {
+        var path = path
+        // ignore files that already have a type
+        if path.split(separator: ".").count < 2, !path.hasSuffix(".leaf") {
+            path += ".leaf"
+        }
+        
+        if !path.hasPrefix("/") {
+            path = config.rootDirectory.trailSlash + path
+        }
+        return path
+    }
+    
     private func fetch(path: String) -> EventLoopFuture<ResolvedDocument> {
-        let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
-        let expanded = config.rootDirectory + path
+//        let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
+//        let expanded = config.rootDirectory + path
+        let expanded = expand(path: path)
         return cache.load(path: expanded, on: eventLoop).flatMap { cached in
             guard let cached = cached else { return self.read(file: path) }
             return self.eventLoop.makeSucceededFuture(cached)
@@ -85,9 +100,9 @@ public final class LeafRenderer {
         let syntax = raw.flatMapThrowing { raw -> [Syntax] in
             var raw = raw
             guard let template = raw.readString(length: raw.readableBytes) else { return [] }
-            var lexer = LeafLexer(template: template)
+            var lexer = LeafLexer(name: file, template: template)
             let tokens = try lexer.lex()
-            var parser = LeafParser(tokens: tokens)
+            var parser = LeafParser(name: file, tokens: tokens)
             return try parser.parse()
         }
         
@@ -141,5 +156,12 @@ extension Array where Element == Syntax {
             default: return nil
             }
         }
+    }
+}
+
+extension String {
+    internal var trailSlash: String {
+        if hasSuffix("/") { return self }
+        else { return self + "/" }
     }
 }
