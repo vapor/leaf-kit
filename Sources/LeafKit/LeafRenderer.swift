@@ -85,8 +85,6 @@ public final class LeafRenderer {
     }
     
     private func fetch(path: String) -> EventLoopFuture<ResolvedDocument> {
-//        let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
-//        let expanded = config.rootDirectory + path
         let expanded = expand(path: path)
         return cache.load(path: expanded, on: eventLoop).flatMap { cached in
             guard let cached = cached else { return self.read(file: path) }
