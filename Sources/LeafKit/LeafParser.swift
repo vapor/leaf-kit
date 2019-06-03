@@ -190,6 +190,7 @@ struct LeafParser {
         // .raw - tag is complete
         // .tagBodyIndicator - ready to read body
         // .parametersStart - start parameters
+        // .tagIndicator - a new tag started
         switch next {
         case .raw:
             // a basic tag, something like `#date` w/ no params, and no body
@@ -207,6 +208,9 @@ struct LeafParser {
                 pop()
             }
             return TagDeclaration(name: name, parameters: params, expectsBody: expectsBody)
+        case .tagIndicator:
+            // a basic tag, something like `#date` w/ no params, and no body
+            return TagDeclaration(name: name, parameters: nil, expectsBody: false)
         default:
             throw "found unexpected token " + next.description
         }

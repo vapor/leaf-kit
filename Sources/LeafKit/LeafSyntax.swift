@@ -233,7 +233,7 @@ extension Syntax {
             switch p {
             case .variable(let n):
                 self.path = n.split(separator: ".").map(String.init)
-            default: throw "todo: implement constant and literal? maybe process earlier as not variable, but raw"
+            default: throw "todo: implement constant and literal? maybe process earlier as not variable, but raw.. \(p)"
             }
         }
         

@@ -397,9 +397,9 @@ final class PrintTests: XCTestCase {
     }
     
     func parse(_ str: String) -> [Syntax] {
-        var lexer = LeafLexer(template: str)
+        var lexer = LeafLexer(name: "test-lex", template: str)
         let tokens = try! lexer.lex()
-        var parser = LeafParser.init(tokens: tokens)
+        var parser = LeafParser(name: "parse", tokens: tokens)
         return try! parser.parse()
     }
 }
@@ -619,15 +619,15 @@ final class LexerTests: XCTestCase {
 }
 
 func lex(_ str: String) throws -> [LeafToken] {
-    var lexer = LeafLexer(template: str)
+    var lexer = LeafLexer(name: "lex-test", template: str)
     return try lexer.lex().dropWhitespace()
 }
 
 
 func altParse(_ str: String) throws -> [Syntax] {
-    var lexer = LeafLexer(template: str)
+    var lexer = LeafLexer(name: "alt-parse", template: str)
     let tokens = try! lexer.lex()
-    var parser = LeafParser.init(tokens: tokens)
+    var parser = LeafParser(name: "alt-parse", tokens: tokens)
     let syntax = try! parser.parse()
     
     return syntax
@@ -714,7 +714,7 @@ final class LeafKitTests: XCTestCase {
 //        #endif
 //        """
         
-        var lexer = LeafLexer(template: template)
+        var lexer = LeafLexer(name: "test-parser", template: template)
         let tokens = try lexer.lex()
         print()
         print("Tokens:")
@@ -825,14 +825,14 @@ final class LeafKitTests: XCTestCase {
         More stuff here!
         """
         
-        var lexer = LeafLexer(template: template)
+        var lexer = LeafLexer(name: "test-parseasdf", template: template)
         let tokens = try! lexer.lex()
         print()
         print("Tokens:")
         tokens.forEach { print($0) }
         print()
         
-        var parser = LeafParser(tokens: tokens)
+        var parser = LeafParser(name: "test-parseasdf", tokens: tokens)
         let ast = try! parser.parse()
         print("AST:")
         ast.forEach { print($0) }
@@ -854,9 +854,9 @@ final class LeafKitTests: XCTestCase {
         let input = """
         Todo: #(todo.title)
         """
-        var lexer = LeafLexer(template: input)
+        var lexer = LeafLexer(name: "nested-echo", template: input)
         let tokens = try lexer.lex()
-        var parser = LeafParser(tokens: tokens)
+        var parser = LeafParser(name: "nested-echo", tokens: tokens)
         let ast = try parser.parse()
         var serializer = LeafSerializer(ast: ast, context: ["todo": ["title": "Leaf!"]])
         let view = try serializer.serialize()

@@ -411,10 +411,10 @@ final class LeafTests: XCTestCase {
 //    }
 }
 
-private func render(_ template: String, _ context: [String: LeafData] = [:]) throws -> String {
-    var lexer = LeafLexer(template: template)
+private func render(name: String = "test-render", _ template: String, _ context: [String: LeafData] = [:]) throws -> String {
+    var lexer = LeafLexer(name: name, template: template)
     let tokens = try lexer.lex()
-    var parser = LeafParser(tokens: tokens)
+    var parser = LeafParser(name: name, tokens: tokens)
     let ast = try parser.parse()
     var serializer = LeafSerializer(ast: ast, context: context)
     let view = try serializer.serialize()
