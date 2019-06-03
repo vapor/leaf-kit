@@ -32,13 +32,16 @@ extension Character {
 }
 
 struct TemplateSource {
+    let name: String
+    
     private(set) var line = 0
     private(set) var column = 0
     
     private var body: [Character]
     
-    init(_ str: String) {
-        self.body = .init(str)
+    init(name: String, src: String) {
+        self.name = name
+        self.body = .init(src)
     }
     
     mutating func readWhile(_ check: (Character) -> Bool) -> String? {
@@ -84,6 +87,7 @@ public struct LexerError: Error {
     
     public let line: Int
     public let column: Int
+    public let name: String
     public let reason: Reason
     public let lexed: [LeafToken]
     
@@ -92,6 +96,7 @@ public struct LexerError: Error {
         self.column = src.column
         self.reason = reason
         self.lexed = lexed
+        self.name = src.name
     }
 }
 
@@ -110,9 +115,11 @@ struct LeafLexer {
     private var state: State
     private var lexed: [LeafToken] = []
     private var src: TemplateSource
+    private var name: String
 
-    init(template string: String) {
-        self.src = .init(string)
+    init(name: String, template string: String) {
+        self.name = name
+        self.src = .init(name: name, src: string)
         self.state = .normal
     }
     

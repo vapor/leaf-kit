@@ -72,10 +72,12 @@ extension TagDeclaration {
 
 
 struct LeafParser {
+    let name: String
     private let tokens: [LeafToken]
     private var offset: Int
     
-    init(tokens: [LeafToken]) {
+    init(name: String, tokens: [LeafToken]) {
+        self.name = name
         self.tokens = tokens
         self.offset = 0
     }
@@ -135,9 +137,11 @@ struct LeafParser {
     }
     
     private mutating func close(with terminator: TagDeclaration) throws {
-        guard !awaitingBody.isEmpty else { throw "found terminator \(terminator), with no corresponding tag" }
+        guard !awaitingBody.isEmpty else {
+            throw "\(name): found terminator \(terminator), with no corresponding tag"
+        }
         let willClose = awaitingBody.removeLast()
-        guard willClose.parent.matches(terminator: terminator) else { throw "unable to match \(willClose.parent) with \(terminator)" }
+        guard willClose.parent.matches(terminator: terminator) else { throw "\(name): unable to match \(willClose.parent) with \(terminator)" }
         
         // closed body
         let newSyntax = try willClose.parent.makeSyntax(body: willClose.body)

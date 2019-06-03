@@ -138,9 +138,9 @@ internal final class DocumentLoader {
     private func parse(name: String, raw: ByteBuffer) throws -> UnresolvedDocument {
         var raw = raw
         guard let str = raw.readString(length: raw.readableBytes) else { throw "unable to read document" }
-        var lexer = LeafLexer(template: str)
+        var lexer = LeafLexer(name: name, template: str)
         let tokens = try lexer.lex()
-        var parser = LeafParser(tokens: tokens)
+        var parser = LeafParser(name: name, tokens: tokens)
         let syntax = try parser.parse()
         return UnresolvedDocument(name: name, raw: syntax)
     }
