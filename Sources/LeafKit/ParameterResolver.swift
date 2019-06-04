@@ -5,6 +5,23 @@ struct ResolvedParameter {
     let result: LeafData
 }
 
+extension Dictionary where Key == String, Value == LeafData {
+    public subscript(keyPath keyPath: String) -> LeafData? {
+        let comps = keyPath.split(separator: ".").map(String.init)
+        return self[keyPath: comps]
+    }
+
+    public subscript(keyPath comps: [String]) -> LeafData? {
+        if comps.isEmpty { return nil }
+        else if comps.count == 1 { return self[comps[0]] }
+
+        var comps = comps
+        let key = comps.removeFirst()
+        guard let val = self[key]?.dictionary else { return nil }
+        return val[keyPath: comps]
+    }
+}
+
 struct ParameterResolver {
     let params: [ParameterDeclaration]
     let data: [String: LeafData]
@@ -38,7 +55,7 @@ struct ParameterResolver {
         case .stringLiteral(let s):
             return .init(.string(s))
         case .variable(let v):
-            return data[v] ?? .init(.null)
+            return data[keyPath: v] ?? .init(.null)
         case .keyword(let k):
             switch k {
             case .self: return .init(.dictionary(data))
