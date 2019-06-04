@@ -26,9 +26,9 @@ final class LeafTests: XCTestCase {
 
     func testNested() throws {
         let template = """
-        <p>#(embed(foo))</p>
+        <p>#(lowercased(foo))</p>
         """
-        try XCTAssertEqual(render(template, ["foo": "bar"]), "<p>You have loaded bar.leaf!\n</p>")
+        try XCTAssertEqual(render(template, ["foo": "BAR"]), "<p>bar</p>")
     }
 
     func testExpression() throws {
