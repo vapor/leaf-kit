@@ -3,6 +3,7 @@ public enum Keyword: String, Equatable {
 }
 
 public enum Operator: String, Equatable, CustomStringConvertible {
+    case not = "!"
     case equals = "=="
     case notEquals = "!="
     case greaterThan = ">"

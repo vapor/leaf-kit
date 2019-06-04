@@ -115,7 +115,7 @@ final class LeafTests: XCTestCase {
         let template = """
         #if(!false):Good#endif#if(!true):Bad#endif
         """
-        try XCTAssertEqual(render(template), "Good ")
+        try XCTAssertEqual(render(template), "Good")
     }
 
     func testNestedBodies() throws {
