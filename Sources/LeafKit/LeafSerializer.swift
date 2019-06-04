@@ -36,11 +36,21 @@ struct LeafSerializer {
             try self.serialize(c)
         case .loop(let loop):
             try self.serialize(loop)
+        case .expression(let exp):
+            try serialize(expression: exp)
         case .import, .extend, .export:
             throw "syntax \(syntax) should have been resolved BEFORE serialization"
         }
     }
-    
+
+    mutating func serialize(expression: [ParameterDeclaration]) throws {
+        let resolver = ParameterResolver(params: [.expression(expression)], data: data)
+        let resolved = try resolver.resolve()
+        guard resolved.count == 1 else { throw "expressions should resolve to single value" }
+        let data = resolved[0].result
+        serialize(data)
+    }
+
     mutating func serialize(body: [Syntax]) throws {
         try body.forEach { try serialize($0) }
     }
@@ -105,8 +115,13 @@ struct LeafSerializer {
     }
     
     mutating func serialize(_ data: LeafData) {
-        guard let raw = data.data else { return }
-        self.buffer.writeBytes(raw)
+        if let raw = data.data {
+            self.buffer.writeBytes(raw)
+        } else if let raw = data.string {
+            self.buffer.writeString(raw)
+        } else {
+            return
+        }
     }
     
     func peek() -> Syntax? {

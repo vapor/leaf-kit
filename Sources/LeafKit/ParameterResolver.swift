@@ -140,16 +140,32 @@ struct ParameterResolver {
             return .init(.bool(lhs != rhs))
         case .lessThan:
             guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
-            return .init(.bool(lhs < rhs))
+            if let lhs = Double(lhs), let rhs = Double(rhs) {
+                return .init(.bool(lhs < rhs))
+            } else {
+                return .init(.bool(lhs < rhs))
+            }
         case .lessThanOrEquals:
             guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
-            return .init(.bool(lhs <= rhs))
+            if let lhs = Double(lhs), let rhs = Double(rhs) {
+                return .init(.bool(lhs <= rhs))
+            } else {
+                return .init(.bool(lhs <= rhs))
+            }
         case .greaterThan:
             guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
-            return .init(.bool(lhs > rhs))
+            if let lhs = Double(lhs), let rhs = Double(rhs) {
+                return .init(.bool(lhs > rhs))
+            } else {
+                return .init(.bool(lhs > rhs))
+            }
         case .greaterThanOrEquals:
             guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
-            return .init(.bool(lhs >= rhs))
+            if let lhs = Double(lhs), let rhs = Double(rhs) {
+                return .init(.bool(lhs >= rhs))
+            } else {
+                return .init(.bool(lhs >= rhs))
+            }
         case .plus:
             return try plus(lhs: lhs, rhs: rhs)
         case .minus:

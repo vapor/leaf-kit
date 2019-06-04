@@ -22,7 +22,17 @@ extension TagDeclaration {
         case let n where n.starts(with: "end"):
             throw "unable to convert terminator to syntax"
         case "":
-            return try .variable(.init(params))
+            guard params.count == 1 else {
+                throw "only single parameter support, should be broken earlier"
+            }
+            switch params[0] {
+            case .parameter:
+                // todo: can prevent some duplication here
+                return try .variable(.init(params))
+            case .expression(let e):
+                return .expression(e)
+            case .tag: throw "unsupported param"
+            }
         case "if":
             return .conditional(.init(.if(params), body: body))
         case "elseif":

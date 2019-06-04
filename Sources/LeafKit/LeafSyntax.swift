@@ -1,7 +1,7 @@
 public indirect enum Syntax {
     case raw(ByteBuffer)
     case variable(Variable)
-    
+    case expression([ParameterDeclaration])
     case custom(CustomTagDeclaration)
     
     case conditional(Conditional)
@@ -229,7 +229,7 @@ extension Syntax {
         
         public init(_ params: [ParameterDeclaration]) throws {
             guard params.count == 1 else { throw "only single parameter variable supported currently" }
-            guard case .parameter(let p) = params[0] else { throw "expected single parameter" }
+            guard case .parameter(let p) = params[0] else { throw "expected single parameter, got: \(params)" }
             switch p {
             case .variable(let n):
                 self.path = n.split(separator: ".").map(String.init)
@@ -268,6 +268,8 @@ extension Syntax: CustomStringConvertible {
         case .raw(var byteBuffer):
             let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
             return indent(depth) + "raw(\(string.debugDescription))"
+        case .expression(let exp):
+            return "\(exp)"
         case .variable(let v):
             return v.print(depth: depth)
         case .custom(let custom):
