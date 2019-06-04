@@ -2,79 +2,11 @@
 import XCTest
 
 final class LeafTests: XCTestCase {
-    func testRaw() throws {
-        let template = "Hello!"
-        try XCTAssertEqual(render(template), "Hello!")
-    }
-
-    func testPrint() throws {
-        let template = "Hello, #(name)!"
-        try XCTAssertEqual(render(template, ["name": "Tanner"]), "Hello, Tanner!")
-    }
-
-    func testConstant() throws {
-        let template = "<h1>#(42)</h1>"
-        try XCTAssertEqual(render(template), "<h1>42</h1>")
-    }
-
     func testInterpolated() throws {
         let template = """
         <p>#("foo: #(foo)")</p>
         """
         try XCTAssertEqual(render(template, ["foo": "bar"]), "<p>foo: bar</p>")
-    }
-
-    func testNested() throws {
-        let template = """
-        <p>#(lowercased(foo))</p>
-        """
-        try XCTAssertEqual(render(template, ["foo": "BAR"]), "<p>bar</p>")
-    }
-
-    func testExpression() throws {
-        let template = "#(age > 99)"
-        try XCTAssertEqual(render(template, ["age": 21]), "false")
-        try XCTAssertEqual(render(template, ["age": 150]), "true")
-    }
-
-    func testBody() throws {
-        let template = """
-        #if(show):hi#endif
-        """
-        try XCTAssertEqual(render(template, ["show": false]), "")
-        try XCTAssertEqual(render(template, ["show": true]), "hi")
-    }
-
-    func testEmbed() throws {
-        let template = """
-        #embed("hello")
-        """
-        try XCTAssertEqual(render(template), "Hello, world!\n")
-    }
-
-    func testForSugar() throws {
-        let template = """
-        <p>
-            <ul>
-                #for(name in names):<li>#(name)</li>#endfor
-            </ul>
-        </p>
-        """
-        let expect = """
-        <p>
-            <ul>
-                <li>Vapor</li><li>Leaf</li><li>Bits</li>
-            </ul>
-        </p>
-        """
-        try XCTAssertEqual(render(template, ["names": ["Vapor", "Leaf", "Bits"]]), expect)
-    }
-
-    func testIfSugar() throws {
-        let template = """
-        #if(false):Bad#elseif(true):Good#else:Bad#endif
-        """
-        try XCTAssertEqual(render(template), "Good")
     }
 
     func testCommentSugar() throws {
@@ -100,6 +32,67 @@ final class LeafTests: XCTestCase {
         #("hi") #thisIsNotATag...
         """
         try XCTAssertEqual(render(template), "hi #thisIsNotATag...")
+    }
+    
+    func testRaw() throws {
+        let template = "Hello!"
+        try XCTAssertEqual(render(template), "Hello!")
+    }
+
+    func testPrint() throws {
+        let template = "Hello, #(name)!"
+        try XCTAssertEqual(render(template, ["name": "Tanner"]), "Hello, Tanner!")
+    }
+
+    func testConstant() throws {
+        let template = "<h1>#(42)</h1>"
+        try XCTAssertEqual(render(template), "<h1>42</h1>")
+    }
+
+    func testNested() throws {
+        let template = """
+        <p>#(lowercased(foo))</p>
+        """
+        try XCTAssertEqual(render(template, ["foo": "BAR"]), "<p>bar</p>")
+    }
+
+    func testExpression() throws {
+        let template = "#(age > 99)"
+        try XCTAssertEqual(render(template, ["age": 21]), "false")
+        try XCTAssertEqual(render(template, ["age": 150]), "true")
+    }
+
+    func testBody() throws {
+        let template = """
+        #if(show):hi#endif
+        """
+        try XCTAssertEqual(render(template, ["show": false]), "")
+        try XCTAssertEqual(render(template, ["show": true]), "hi")
+    }
+
+    func testForSugar() throws {
+        let template = """
+        <p>
+            <ul>
+                #for(name in names):<li>#(name)</li>#endfor
+            </ul>
+        </p>
+        """
+        let expect = """
+        <p>
+            <ul>
+                <li>Vapor</li><li>Leaf</li><li>Bits</li>
+            </ul>
+        </p>
+        """
+        try XCTAssertEqual(render(template, ["names": ["Vapor", "Leaf", "Bits"]]), expect)
+    }
+
+    func testIfSugar() throws {
+        let template = """
+        #if(false):Bad#elseif(true):Good#else:Bad#endif
+        """
+        try XCTAssertEqual(render(template), "Good")
     }
 
     func testNot() throws {
