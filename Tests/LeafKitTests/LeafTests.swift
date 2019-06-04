@@ -134,9 +134,9 @@ final class LeafTests: XCTestCase {
 
     func testEqual() throws {
         let template = """
-        #if(user.id == 42):User 42!#endif#if(user.id != 42):Shouldn't show up#endif
+        #if(id == 42):User 42!#endif#if(id != 42):Shouldn't show up#endif
         """
-        try XCTAssertEqual(render(template, ["user": ["id": 42, "name": "Tanner"]]), "User 42!")
+        try XCTAssertEqual(render(template, ["id": 42, "name": "Tanner"]), "User 42!")
     }
 //
 //    func testEscapeExtraneousBody() throws {
