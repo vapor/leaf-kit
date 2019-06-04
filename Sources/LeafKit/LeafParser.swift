@@ -44,7 +44,8 @@ extension TagDeclaration {
                 // todo: can prevent some duplication here
             case .expression(let e):
                 return .expression(e)
-            case .tag: throw "unsupported param"
+            case .tag(let t):
+                return .custom(t)
             }
         case "if":
             return .conditional(.init(.if(params), body: body))
