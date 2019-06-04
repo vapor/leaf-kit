@@ -45,15 +45,6 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["show": true]), "hi")
     }
 
-    func testRuntime() throws {
-        // FIXME: need to run var/exports first and in order
-        let template = """
-            #set("foo", "bar")
-            Runtime: #(foo)
-        """
-        try XCTAssert(render(template).contains("Runtime: bar"))
-    }
-
     func testEmbed() throws {
         let template = """
         #embed("hello")
