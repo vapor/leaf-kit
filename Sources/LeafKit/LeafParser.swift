@@ -26,9 +26,22 @@ extension TagDeclaration {
                 throw "only single parameter support, should be broken earlier"
             }
             switch params[0] {
-            case .parameter:
+            case .parameter(let p):
+                switch p {
+                case .variable(name: let n):
+                    return .variable(.init(path: n))
+                case .constant(let c):
+                    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+                    buffer.writeString(c.description)
+                    return .raw(buffer)
+                case .stringLiteral(let st):
+                    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+                    buffer.writeString(st)
+                    return .raw(buffer)
+                default:
+                    throw "unsupported parameter \(p)"
+                }
                 // todo: can prevent some duplication here
-                return try .variable(.init(params))
             case .expression(let e):
                 return .expression(e)
             case .tag: throw "unsupported param"
