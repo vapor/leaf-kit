@@ -2,14 +2,16 @@
 import XCTest
 
 final class LeafTests: XCTestCase {
-    func testInterpolated() throws {
+    // currently not supported.. discussion ongoing
+    func _testInterpolated() throws {
         let template = """
         <p>#("foo: #(foo)")</p>
         """
         try XCTAssertEqual(render(template, ["foo": "bar"]), "<p>foo: bar</p>")
     }
 
-    func testCommentSugar() throws {
+    // conversation ongoing
+    func _testCommentSugar() throws {
         let template = """
         #("foo")
         #// this is a comment!
@@ -27,7 +29,8 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(multilineTemplate), "foo\n\nbar")
     }
 
-    func testHashtag() throws {
+    // conversation ongoing
+    func _testHashtag() throws {
         let template = """
         #("hi") #thisIsNotATag...
         """
