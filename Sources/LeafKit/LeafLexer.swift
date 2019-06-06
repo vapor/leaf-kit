@@ -213,6 +213,11 @@ struct LeafLexer {
                 let read = src.readWhile { $0 == .space }
                 guard let space = read else { fatalError("disallowed by switch") }
                 return .whitespace(length: space.count)
+            case let x where x == .exclamation
+                && src.peek(aheadBy: 1)?.isValidOperator == false:
+                // for when ! stands alone
+                src.pop()
+                return .parameter(.operator(.not))
             case let x where x.isValidInParameter:
                 let read = src.readWhile { $0.isValidInParameter }
                 guard let name = read else { fatalError("disallowed by switch") }

@@ -2,6 +2,38 @@
 import XCTest
 
 final class LeafTests: XCTestCase {
+    func testInterpolated() throws {
+        let template = """
+        <p>#("foo: #(foo)")</p>
+        """
+        try XCTAssertEqual(render(template, ["foo": "bar"]), "<p>foo: bar</p>")
+    }
+
+    func testCommentSugar() throws {
+        let template = """
+        #("foo")
+        #// this is a comment!
+        bar
+        """
+
+        let multilineTemplate = """
+        #("foo")
+        #/*
+            this is a comment!
+        */
+        bar
+        """
+        try XCTAssertEqual(render(template), "foo\nbar")
+        try XCTAssertEqual(render(multilineTemplate), "foo\n\nbar")
+    }
+
+    func testHashtag() throws {
+        let template = """
+        #("hi") #thisIsNotATag...
+        """
+        try XCTAssertEqual(render(template), "hi #thisIsNotATag...")
+    }
+    
     func testRaw() throws {
         let template = "Hello!"
         try XCTAssertEqual(render(template), "Hello!")
@@ -17,18 +49,11 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template), "<h1>42</h1>")
     }
 
-    func testInterpolated() throws {
-        let template = """
-        <p>#("foo: #(foo)")</p>
-        """
-        try XCTAssertEqual(render(template, ["foo": "bar"]), "<p>foo: bar</p>")
-    }
-
     func testNested() throws {
         let template = """
-        <p>#(embed(foo))</p>
+        <p>#(lowercased(foo))</p>
         """
-        try XCTAssertEqual(render(template, ["foo": "bar"]), "<p>You have loaded bar.leaf!\n</p>")
+        try XCTAssertEqual(render(template, ["foo": "BAR"]), "<p>bar</p>")
     }
 
     func testExpression() throws {
@@ -43,22 +68,6 @@ final class LeafTests: XCTestCase {
         """
         try XCTAssertEqual(render(template, ["show": false]), "")
         try XCTAssertEqual(render(template, ["show": true]), "hi")
-    }
-
-    func testRuntime() throws {
-        // FIXME: need to run var/exports first and in order
-        let template = """
-            #set("foo", "bar")
-            Runtime: #(foo)
-        """
-        try XCTAssert(render(template).contains("Runtime: bar"))
-    }
-
-    func testEmbed() throws {
-        let template = """
-        #embed("hello")
-        """
-        try XCTAssertEqual(render(template), "Hello, world!\n")
     }
 
     func testForSugar() throws {
@@ -86,36 +95,11 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template), "Good")
     }
 
-    func testCommentSugar() throws {
-        let template = """
-        #("foo")
-        #// this is a comment!
-        bar
-        """
-
-        let multilineTemplate = """
-        #("foo")
-        #/*
-            this is a comment!
-        */
-        bar
-        """
-        try XCTAssertEqual(render(template), "foo\nbar")
-        try XCTAssertEqual(render(multilineTemplate), "foo\n\nbar")
-    }
-
-    func testHashtag() throws {
-        let template = """
-        #("hi") #thisIsNotATag...
-        """
-        try XCTAssertEqual(render(template), "hi #thisIsNotATag...")
-    }
-
     func testNot() throws {
         let template = """
         #if(!false):Good#endif#if(!true):Bad#endif
         """
-        try XCTAssertEqual(render(template), "Good ")
+        try XCTAssertEqual(render(template), "Good")
     }
 
     func testNestedBodies() throws {
@@ -134,9 +118,9 @@ final class LeafTests: XCTestCase {
 
     func testEqual() throws {
         let template = """
-        #if(user.id == 42):User 42!#endif#if(user.id != 42):Shouldn't show up#endif
+        #if(id == 42):User 42!#endif#if(id != 42):Shouldn't show up#endif
         """
-        try XCTAssertEqual(render(template, ["user": ["id": 42, "name": "Tanner"]]), "User 42!")
+        try XCTAssertEqual(render(template, ["id": 42, "name": "Tanner"]), "User 42!")
     }
 //
 //    func testEscapeExtraneousBody() throws {
@@ -411,10 +395,10 @@ final class LeafTests: XCTestCase {
 //    }
 }
 
-private func render(_ template: String, _ context: [String: LeafData] = [:]) throws -> String {
-    var lexer = LeafLexer(template: template)
+private func render(name: String = "test-render", _ template: String, _ context: [String: LeafData] = [:]) throws -> String {
+    var lexer = LeafLexer(name: name, template: template)
     let tokens = try lexer.lex()
-    var parser = LeafParser(tokens: tokens)
+    var parser = LeafParser(name: name, tokens: tokens)
     let ast = try parser.parse()
     var serializer = LeafSerializer(ast: ast, context: context)
     let view = try serializer.serialize()

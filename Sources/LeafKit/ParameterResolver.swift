@@ -5,6 +5,30 @@ struct ResolvedParameter {
     let result: LeafData
 }
 
+extension Dictionary where Key == String, Value == LeafData {
+    public subscript(keyPath keyPath: String) -> LeafData? {
+        let comps = keyPath.split(separator: ".").map(String.init)
+        return self[keyPath: comps]
+    }
+
+    public subscript(keyPath comps: [String]) -> LeafData? {
+        if comps.isEmpty { return nil }
+        else if comps.count == 1 { return self[comps[0]] }
+
+        var comps = comps
+        let key = comps.removeFirst()
+        guard let val = self[key]?.dictionary else { return nil }
+        return val[keyPath: comps]
+    }
+}
+
+extension ParameterDeclaration {
+    func `operator`() -> Operator? {
+        guard case .parameter(let p) = self else { return nil }
+        guard case .operator(let o) = p else { return nil }
+        return o
+    }
+}
 struct ParameterResolver {
     let params: [ParameterDeclaration]
     let data: [String: LeafData]
@@ -38,7 +62,7 @@ struct ParameterResolver {
         case .stringLiteral(let s):
             return .init(.string(s))
         case .variable(let v):
-            return data[v] ?? .init(.null)
+            return data[keyPath: v] ?? .init(.null)
         case .keyword(let k):
             switch k {
             case .self: return .init(.dictionary(data))
@@ -55,29 +79,53 @@ struct ParameterResolver {
     
     // #if(lowercase(first(name == "admin")) == "welcome")
     private func resolve(expression: [ParameterDeclaration]) throws -> LeafData {
-        // todo: to support nested expressions, ie:
-        // file == name + ".jpg"
-        // should resolve to:
-        // param(file) == expression(name + ".jpg")
-        // based on priorities in such a way that each expression
-        // is 3 variables, lhs, functor, rhs
-        guard expression.count == 3 else { throw "multiple expressions not currently supported" }
-        let lhs = try resolve(expression[0]).result
-        let functor = expression[1]
-        let rhs = try resolve(expression[2]).result
-        guard case .parameter(let p) = functor else { throw "expected keyword or operator" }
-        switch p {
-        case .keyword(let k):
-            return try resolve(lhs: lhs, key: k, rhs: rhs)
-        case .operator(let o):
-            return try resolve(lhs: lhs, op: o, rhs: rhs)
-        default:
-            throw "unexpected parameter: \(p)"
+        if expression.count == 2 {
+            if let lho = expression[0].operator() {
+                let rhs = try resolve(expression[1]).result
+                return try resolve(op: lho, rhs: rhs)
+            } else if let rho = expression[1].operator() {
+                throw "right hand expressions not currently supported"
+            } else {
+                throw "two part expression expected to include at least one operator"
+            }
+        } else if expression.count == 3 {
+            // file == name + ".jpg"
+            // should resolve to:
+            // param(file) == expression(name + ".jpg")
+            // based on priorities in such a way that each expression
+            // is 3 variables, lhs, functor, rhs
+            guard expression.count == 3 else { throw "multiple expressions not currently supported: \(expression)" }
+            let lhs = try resolve(expression[0]).result
+            let functor = expression[1]
+            let rhs = try resolve(expression[2]).result
+            guard case .parameter(let p) = functor else { throw "expected keyword or operator" }
+            switch p {
+            case .keyword(let k):
+                return try resolve(lhs: lhs, key: k, rhs: rhs)
+            case .operator(let o):
+                return try resolve(lhs: lhs, op: o, rhs: rhs)
+            default:
+                throw "unexpected parameter: \(p)"
+            }
+        } else {
+            throw "unsupported expression, expected 2 or 3 components: \(expression)"
         }
     }
-    
+
+    private func resolve(op: Operator, rhs: LeafData) throws -> LeafData {
+        switch op {
+        case .not:
+            let result = rhs.bool ?? false
+            return .init(.bool(!result))
+        default:
+            throw "unexpected left hand operator not supported: \(op)"
+        }
+    }
+
     private func resolve(lhs: LeafData, op: Operator, rhs: LeafData) throws -> LeafData {
         switch op {
+        case .not:
+            throw "single expression operator"
         case .and:
             let lhs = lhs.bool ?? false
             let rhs = rhs.bool ?? false
@@ -92,16 +140,32 @@ struct ParameterResolver {
             return .init(.bool(lhs != rhs))
         case .lessThan:
             guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
-            return .init(.bool(lhs < rhs))
+            if let lhs = Double(lhs), let rhs = Double(rhs) {
+                return .init(.bool(lhs < rhs))
+            } else {
+                return .init(.bool(lhs < rhs))
+            }
         case .lessThanOrEquals:
             guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
-            return .init(.bool(lhs <= rhs))
+            if let lhs = Double(lhs), let rhs = Double(rhs) {
+                return .init(.bool(lhs <= rhs))
+            } else {
+                return .init(.bool(lhs <= rhs))
+            }
         case .greaterThan:
             guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
-            return .init(.bool(lhs > rhs))
+            if let lhs = Double(lhs), let rhs = Double(rhs) {
+                return .init(.bool(lhs > rhs))
+            } else {
+                return .init(.bool(lhs > rhs))
+            }
         case .greaterThanOrEquals:
             guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
-            return .init(.bool(lhs >= rhs))
+            if let lhs = Double(lhs), let rhs = Double(rhs) {
+                return .init(.bool(lhs >= rhs))
+            } else {
+                return .init(.bool(lhs >= rhs))
+            }
         case .plus:
             return try plus(lhs: lhs, rhs: rhs)
         case .minus:

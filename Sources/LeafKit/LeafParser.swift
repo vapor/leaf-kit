@@ -22,7 +22,31 @@ extension TagDeclaration {
         case let n where n.starts(with: "end"):
             throw "unable to convert terminator to syntax"
         case "":
-            return try .variable(.init(params))
+            guard params.count == 1 else {
+                throw "only single parameter support, should be broken earlier"
+            }
+            switch params[0] {
+            case .parameter(let p):
+                switch p {
+                case .variable(name: let n):
+                    return .variable(.init(path: n))
+                case .constant(let c):
+                    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+                    buffer.writeString(c.description)
+                    return .raw(buffer)
+                case .stringLiteral(let st):
+                    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+                    buffer.writeString(st)
+                    return .raw(buffer)
+                default:
+                    throw "unsupported parameter \(p)"
+                }
+                // todo: can prevent some duplication here
+            case .expression(let e):
+                return .expression(e)
+            case .tag(let t):
+                return .custom(t)
+            }
         case "if":
             return .conditional(.init(.if(params), body: body))
         case "elseif":
@@ -190,6 +214,7 @@ struct LeafParser {
         // .raw - tag is complete
         // .tagBodyIndicator - ready to read body
         // .parametersStart - start parameters
+        // .tagIndicator - a new tag started
         switch next {
         case .raw:
             // a basic tag, something like `#date` w/ no params, and no body
@@ -207,6 +232,9 @@ struct LeafParser {
                 pop()
             }
             return TagDeclaration(name: name, parameters: params, expectsBody: expectsBody)
+        case .tagIndicator:
+            // a basic tag, something like `#date` w/ no params, and no body
+            return TagDeclaration(name: name, parameters: nil, expectsBody: false)
         default:
             throw "found unexpected token " + next.description
         }
