@@ -52,13 +52,16 @@ internal struct ExtendResolver {
     
     /// an individual object resolution
     /// could probably be optimized
-    func resolve() throws -> ResolvedDocument {
-        guard canSatisfyAllDependencies() else { throw "unable to resolve \(document)" }
+    func resolve(withRoot root: String) throws -> ResolvedDocument {
+        guard canSatisfyAllDependencies(rootDir: root) else {
+            throw "unable to resolve \(document)"
+        }
         
         var processed: [Syntax] = []
         document.raw.forEach { syntax in
             if case .extend(let e) = syntax {
-                guard let base = dependencies[e.key] else { fatalError("disallowed by guard") }
+                let key = e.key.expand(withRootDirectory: root)
+                guard let base = dependencies[key] else { fatalError("disallowed by guard") }
                 let extended = e.extend(base: base.ast)
                 processed += extended
             } else {
@@ -70,11 +73,27 @@ internal struct ExtendResolver {
     }
     
     
-    private func canSatisfyAllDependencies() -> Bool {
+    private func canSatisfyAllDependencies(rootDir: String) -> Bool {
+
         // no deps, easily satisfy
         return document.unresolvedDependencies.isEmpty
             // see if all dependencies necessary have already been compiled
-            || document.unresolvedDependencies.allSatisfy(dependencies.keys.contains)
+            || document.unresolvedDependencies.map { $0.expand(withRootDirectory: rootDir) }.allSatisfy(dependencies.keys.contains)
+    }
+}
+
+extension String {
+    func expand(withRootDirectory root: String) -> String {
+        var path = self
+        // ignore files that already have a type
+        if path.split(separator: ".").count < 2, !path.hasSuffix(".leaf") {
+            path += ".leaf"
+        }
+
+        if !path.hasPrefix("/") {
+            path = root.trailSlash + path
+        }
+        return path
     }
 }
 
@@ -162,7 +181,9 @@ internal final class DocumentLoader {
     private func resolve(_ doc: UnresolvedDocument) throws -> ResolvedDocument {
         unresolved[doc.name] = nil
         try resolve([doc])
-        guard let value = resolved[doc.name] else { throw "unable to resolve \(doc)" }
+        guard let value = resolved[doc.name] else {
+            throw "unable to resolve \(doc)"
+        }
         return value
     }
     
