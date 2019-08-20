@@ -59,8 +59,6 @@ public final class LeafRenderer {
     }
     
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-//        let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
-//        let expanded = config.rootDirectory + path
         let expanded = expand(path: path)
         let document = fetch(path: expanded)
         return document.flatMapThrowing { try self.render($0, context: context) }
@@ -93,6 +91,7 @@ public final class LeafRenderer {
     }
     
     private func read(file: String) -> EventLoopFuture<ResolvedDocument> {
+        print("reading \(file)")
         let raw = readBytes(file: file)
         
         let syntax = raw.flatMapThrowing { raw -> [Syntax] in
@@ -130,9 +129,10 @@ public final class LeafRenderer {
     }
     
     private func readBytes(file: String) -> EventLoopFuture<ByteBuffer> {
-        print("opening " + file)
-        let openFile  = self.file.openFile(path: file, eventLoop: self.eventLoop)
-        return openFile.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
+        let openFile = self.file.openFile(path: file, eventLoop: self.eventLoop)
+        return openFile.flatMapErrorThrowing { error in
+            throw "unable to open file \(file)"
+        }.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
             let allocator = ByteBufferAllocator()
             let read = self.file.read(fileRegion: region, allocator: allocator, eventLoop: self.eventLoop)
             return read.flatMapThrowing { (buffer)  in
