@@ -15,10 +15,8 @@ final class SomeTests: XCTestCase {
         struct Foo: Codable {
             let foo: String
         }
-        
-        
-        let a = Foo(foo: "afds")
-        
+
+        // let a = Foo(foo: "afds")
     }
 }
 
@@ -259,7 +257,7 @@ final class ParserTests: XCTestCase {
     }
     
     func testPPP() throws {
-        var it = [0, 1, 2, 3, 4] // .reversed().makeIterator()
+        let it = [0, 1, 2, 3, 4] // .reversed().makeIterator()
         let stripped = it.drop(while: { $0 > 2 })
         print(Array(stripped))
         print("")
@@ -272,7 +270,7 @@ final class PrintTests: XCTestCase {
         hello, raw text
         """
         let v = parse(template).first!
-        guard case .raw(let test) = v else { throw "nope" }
+        guard case .raw = v else { throw "nope" }
         
         let expectation = """
         raw(\"hello, raw text\")
@@ -418,7 +416,7 @@ final class LexerTests: XCTestCase {
         #if(if(foo):bar#endif == "bar", "value")
         """
         
-        let output = try lex(home).map { $0.description + "\n" } .reduce("", +)
+        _ = try lex(home).map { $0.description + "\n" } .reduce("", +)
         //        XCTAssertEqual(output, expectation)
         print("")
     }
@@ -727,7 +725,7 @@ final class LeafKitTests: XCTestCase {
         print("AST")
         rawAlt.forEach { print($0) }
         print()
-        let alt = rawAlt.map { $0.description } .joined(separator: "\n")
+        _ = rawAlt.map { $0.description } .joined(separator: "\n")
 //        print("AST:")
 //        ast.forEach { print($0) }
         print("")

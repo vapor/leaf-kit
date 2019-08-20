@@ -83,7 +83,7 @@ struct ParameterResolver {
             if let lho = expression[0].operator() {
                 let rhs = try resolve(expression[1]).result
                 return try resolve(op: lho, rhs: rhs)
-            } else if let rho = expression[1].operator() {
+            } else if let _ = expression[1].operator() {
                 throw "right hand expressions not currently supported"
             } else {
                 throw "two part expression expected to include at least one operator"
