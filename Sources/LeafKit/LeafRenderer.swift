@@ -108,7 +108,7 @@ public final class LeafRenderer {
             let resolved = dependencies.flatMapThrowing { dependencies -> ResolvedDocument in
                 let unresolved = UnresolvedDocument(name: file, raw: syntax)
                 let resolver = ExtendResolver(document: unresolved, dependencies: dependencies)
-                return try resolver.resolve(withRoot: self.config.rootDirectory)
+                return try resolver.resolve(rootDirectory: self.config.rootDirectory)
             }
             
             return resolved.flatMap { resolved in self.cache.insert(resolved, on: self.eventLoop) }

@@ -52,15 +52,15 @@ internal struct ExtendResolver {
     
     /// an individual object resolution
     /// could probably be optimized
-    func resolve(withRoot root: String) throws -> ResolvedDocument {
-        guard canSatisfyAllDependencies(rootDir: root) else {
+    func resolve(rootDirectory: String) throws -> ResolvedDocument {
+        guard canSatisfyAllDependencies(rootDirectory: rootDirectory) else {
             throw "unable to resolve \(document)"
         }
         
         var processed: [Syntax] = []
         document.raw.forEach { syntax in
             if case .extend(let e) = syntax {
-                let key = e.key.expand(withRootDirectory: root)
+                let key = e.key.expand(rootDirectory: rootDirectory)
                 guard let base = dependencies[key] else { fatalError("disallowed by guard") }
                 let extended = e.extend(base: base.ast)
                 processed += extended
@@ -73,17 +73,17 @@ internal struct ExtendResolver {
     }
     
     
-    private func canSatisfyAllDependencies(rootDir: String) -> Bool {
+    private func canSatisfyAllDependencies(rootDirectory: String) -> Bool {
 
         // no deps, easily satisfy
         return document.unresolvedDependencies.isEmpty
             // see if all dependencies necessary have already been compiled
-            || document.unresolvedDependencies.map { $0.expand(withRootDirectory: rootDir) }.allSatisfy(dependencies.keys.contains)
+            || document.unresolvedDependencies.map { $0.expand(rootDirectory: rootDirectory) }.allSatisfy(dependencies.keys.contains)
     }
 }
 
 extension String {
-    func expand(withRootDirectory root: String) -> String {
+    func expand(rootDirectory: String) -> String {
         var path = self
         // ignore files that already have a type
         if path.split(separator: ".").count < 2, !path.hasSuffix(".leaf") {
@@ -91,7 +91,7 @@ extension String {
         }
 
         if !path.hasPrefix("/") {
-            path = root.trailSlash + path
+            path = rootDirectory.trailSlash + path
         }
         return path
     }
