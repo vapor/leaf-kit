@@ -59,8 +59,6 @@ public final class LeafRenderer {
     }
     
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-//        let path = path.hasSuffix(".leaf") ? path : path + ".leaf"
-//        let expanded = config.rootDirectory + path
         let expanded = expand(path: path)
         let document = fetch(path: expanded)
         return document.flatMapThrowing { try self.render($0, context: context) }
@@ -87,12 +85,13 @@ public final class LeafRenderer {
     private func fetch(path: String) -> EventLoopFuture<ResolvedDocument> {
         let expanded = expand(path: path)
         return cache.load(path: expanded, on: eventLoop).flatMap { cached in
-            guard let cached = cached else { return self.read(file: path) }
+            guard let cached = cached else { return self.read(file: expanded) }
             return self.eventLoop.makeSucceededFuture(cached)
         }
     }
     
     private func read(file: String) -> EventLoopFuture<ResolvedDocument> {
+        print("reading \(file)")
         let raw = readBytes(file: file)
         
         let syntax = raw.flatMapThrowing { raw -> [Syntax] in
@@ -109,7 +108,7 @@ public final class LeafRenderer {
             let resolved = dependencies.flatMapThrowing { dependencies -> ResolvedDocument in
                 let unresolved = UnresolvedDocument(name: file, raw: syntax)
                 let resolver = ExtendResolver(document: unresolved, dependencies: dependencies)
-                return try resolver.resolve()
+                return try resolver.resolve(rootDirectory: self.config.rootDirectory)
             }
             
             return resolved.flatMap { resolved in self.cache.insert(resolved, on: self.eventLoop) }
@@ -130,8 +129,10 @@ public final class LeafRenderer {
     }
     
     private func readBytes(file: String) -> EventLoopFuture<ByteBuffer> {
-        let openFile  = self.file.openFile(path: file, eventLoop: self.eventLoop)
-        return openFile.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
+        let openFile = self.file.openFile(path: file, eventLoop: self.eventLoop)
+        return openFile.flatMapErrorThrowing { error in
+            throw "unable to open file \(file)"
+        }.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
             let allocator = ByteBufferAllocator()
             let read = self.file.read(fileRegion: region, allocator: allocator, eventLoop: self.eventLoop)
             return read.flatMapThrowing { (buffer)  in
