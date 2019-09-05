@@ -148,8 +148,15 @@ struct LeafLexer {
             case .tagIndicator:
                 // consume `#`
                 src.pop()
-                state = .tag
-                return .tagIndicator
+
+                // if tag indicator is followed by a space, ignore.
+                if src.peek() == .space {
+                    state = .normal
+                    return .raw(Character.tagIndicator.description)
+                } else {
+                    state = .tag
+                    return .tagIndicator
+                }
             default:
                 // read until next event
                 let slice = src.readWhile { $0 != .tagIndicator && $0 != .backSlash } ?? ""
