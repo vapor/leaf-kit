@@ -169,37 +169,82 @@ struct LeafParser {
         
         // closed body
         let newSyntax = try willClose.parent.makeSyntax(body: willClose.body)
-        
-        // if another element exists, then we are in
-        // a nested body context, attach new syntax
-        // as body element to this new context
-        if var newTail = awaitingBody.last {
-            newTail.body.append(newSyntax)
-            awaitingBody.removeLast()
-            awaitingBody.append(newTail)
-        // if the new syntax is a conditional, it may need to be attached
-        // to the last parsed conditional
-        } else if case .conditional(let new) = newSyntax {
+
+//        if case .conditional(let new) = newSyntax {
+//            print("found conditional: \(new)")
+//            switch new.condition {
+//            // a new if, never attaches to a previous
+//            case .if:
+//                print("if")
+//            case .elseif:
+//                print("elseif")
+//            case .else:
+//                print("else")
+//            }
+//            print()
+//        }
+
+        func append(_ syntax: Syntax) {
+            if var newTail = awaitingBody.last {
+                 newTail.body.append(syntax)
+                 awaitingBody.removeLast()
+                 awaitingBody.append(newTail)
+                 // if the new syntax is a conditional, it may need to be attached
+                 // to the last parsed conditional
+             } else {
+                 finished.append(syntax)
+             }
+        }
+
+        if case .conditional(let new) = newSyntax {
             switch new.condition {
             // a new if, never attaches to a previous
             case .if:
-                finished.append(newSyntax)
+                append(newSyntax)
             case .elseif, .else:
                 // elseif and else ALWAYS attach
                 // ensure there is a leading conditional to
-                // attach to
-                guard let last = finished.last, case .conditional(let tail) = last else {
+                // attach to, prioritize waiting bodies
+                let _last = awaitingBody.last?.body.last ?? finished.last
+                guard let last = _last, case .conditional(let tail) = last else {
                     throw "unable to attach \(new.condition) to \(finished.last?.description ?? "<>")"
                 }
                 try tail.attach(new)
             }
         } else {
-            // if there's no open contexts,
-            // then we can just store
-            finished.append(newSyntax)
+            append(newSyntax)
         }
+
+        // if another element exists, then we are in
+        // a nested body context, attach new syntax
+        // as body element to this new context
+//        if var newTail = awaitingBody.last {
+//            newTail.body.append(newSyntax)
+//            awaitingBody.removeLast()
+//            awaitingBody.append(newTail)
+//        // if the new syntax is a conditional, it may need to be attached
+//        // to the last parsed conditional
+//        } else if case .conditional(let new) = newSyntax {
+//            switch new.condition {
+//            // a new if, never attaches to a previous
+//            case .if:
+//                finished.append(newSyntax)
+//            case .elseif, .else:
+//                // elseif and else ALWAYS attach
+//                // ensure there is a leading conditional to
+//                // attach to
+//                guard let last = finished.last, case .conditional(let tail) = last else {
+//                    throw "unable to attach \(new.condition) to \(finished.last?.description ?? "<>")"
+//                }
+//                try tail.attach(new)
+//            }
+//        } else {
+//            // if there's no open contexts,
+//            // then we can just store
+//            finished.append(newSyntax)
+//        }
     }
-    
+
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
     private mutating func readTagDeclaration() throws -> TagDeclaration {
         // consume tag indicator

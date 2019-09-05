@@ -40,27 +40,17 @@ final class LeafTests: XCTestCase {
     // conversation ongoing
     func testComplexIf() throws {
         let template = """
-        #if(fluent):
-        /// Configure a #(fluentdb) database
-        services.register { c -> #(fluentdb)Database in
-            #if(fluentdb == "SQLite"):
-            return try #(fluentdb)Database(storage: .memory) #else:
-            return try #(fluentdb)Database(config: c.make()) #endif
-        }
-
-        #endif
+        #if(a): #if(b): hallo #else: ballo #endif #endif
         """
 
         let expectation = """
-        /// Configure a SQLite database
-        services.register { c -> SQLiteDatabase in
-
-            return try SQLiteDatabase(storage: .memory)
-            return try SQLiteDatabase(config: c.make())
-        }
+        ballo
         """
-        let rendered = try render(template, ["fluent": .string("true"), "fluentdb": .string("SQLite")])
-        try XCTAssertEqual(render(template), expectation)
+        let rendered = try render(template, ["a": .string("true")])
+        XCTAssertEqual(
+            rendered.trimmingCharacters(in: .whitespacesAndNewlines),
+            expectation.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
     
     func testRaw() throws {
