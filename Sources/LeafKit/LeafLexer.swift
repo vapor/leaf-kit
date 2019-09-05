@@ -149,14 +149,15 @@ struct LeafLexer {
                 // consume `#`
                 src.pop()
 
-                // if tag indicator is followed by a space, ignore.
-                if src.peek() == .space {
-                    state = .normal
-                    return .raw(Character.tagIndicator.description)
-                } else {
-                    state = .tag
-                    return .tagIndicator
-                }
+                // if tag indicator is followed by an invalid token, assume that it is unrelated to leaf
+                  guard let next = src.peek() else { throw "can not terminate document with tag indicator" }
+                  if next.isValidInTagName || next == .leftParenthesis {
+                      state = .tag
+                      return .tagIndicator
+                  } else {
+                      state = .normal
+                      return .raw(Character.tagIndicator.description)
+                  }
             default:
                 // read until next event
                 let slice = src.readWhile { $0 != .tagIndicator && $0 != .backSlash } ?? ""
