@@ -36,6 +36,24 @@ final class LeafTests: XCTestCase {
         """
         try XCTAssertEqual(render(template), "hi #thisIsNotATag...")
     }
+
+    // conversation ongoing
+    func testComplexIf() throws {
+        let template = """
+        #if(fluent):
+        /// Configure a #(fluentdb) database
+        services.register { c -> #(fluentdb)Database in
+            #if(fluentdb == "SQLite"):
+            return try #(fluentdb)Database(storage: .memory) #else:
+            return try #(fluentdb)Database(config: c.make())
+            #endif
+        }
+
+        #endif
+        """
+        let rendered = try render(template, ["fluent": .string("true"), "fluentdb": .string("SQLite")])
+        try XCTAssertEqual(render(template), "hi #thisIsNotATag...")
+    }
     
     func testRaw() throws {
         let template = "Hello!"
