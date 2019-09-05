@@ -40,7 +40,7 @@ final class LeafTests: XCTestCase {
     // conversation ongoing
     func testComplexIf() throws {
         let template = """
-        #if(a): #if(b): hallo #else: ballo #endif #endif
+        #if(a): #if(b): hallo #else: #if(c): dallo #else: ballo #endif #endif #endif
         """
 
         let expectation = """
