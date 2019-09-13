@@ -1,5 +1,5 @@
 var customTags: [String: LeafTag] = [
-    "lowercased" : Lowercased(),
+    "lowercased": Lowercased(),
 ]
 
 struct LeafSerializer {

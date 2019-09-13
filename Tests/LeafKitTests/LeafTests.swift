@@ -36,6 +36,22 @@ final class LeafTests: XCTestCase {
         """
         try XCTAssertEqual(render(template), "hi #thisIsNotATag...")
     }
+
+    // conversation ongoing
+    func testComplexIf() throws {
+        let template = """
+        #if(a): #if(b): hallo #else: #if(c): dallo #else: ballo #endif #endif #endif
+        """
+
+        let expectation = """
+        ballo
+        """
+        let rendered = try render(template, ["a": .string("true")])
+        XCTAssertEqual(
+            rendered.trimmingCharacters(in: .whitespacesAndNewlines),
+            expectation.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
     
     func testRaw() throws {
         let template = "Hello!"
