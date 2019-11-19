@@ -16,7 +16,7 @@ struct UnresolvedDocument {
     }
 }
 
-struct ResolvedDocument {
+public struct ResolvedDocument {
     let name: String
     let ast: [Syntax]
     
