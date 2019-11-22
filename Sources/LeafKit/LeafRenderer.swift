@@ -14,7 +14,7 @@ public protocol LeafCache {
         on loop: EventLoop
     ) -> EventLoopFuture<ResolvedDocument>
     func load(
-        path: String,
+        documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<ResolvedDocument?>
 }
@@ -39,12 +39,12 @@ public final class DefaultLeafCache: LeafCache {
     }
     
     public func load(
-        path: String,
+        documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<ResolvedDocument?> {
         self.lock.lock()
         defer { self.lock.unlock() }
-        return loop.makeSucceededFuture(self.cache[path])
+        return loop.makeSucceededFuture(self.cache[documentName])
     }
 }
 
@@ -111,7 +111,7 @@ public final class LeafRenderer {
     
     private func fetch(path: String) -> EventLoopFuture<ResolvedDocument> {
         let expanded = expand(path: path)
-        return cache.load(path: expanded, on: eventLoop).flatMap { cached in
+        return cache.load(documentName: expanded, on: eventLoop).flatMap { cached in
             guard let cached = cached else { return self.read(file: expanded) }
             return self.eventLoop.makeSucceededFuture(cached)
         }
