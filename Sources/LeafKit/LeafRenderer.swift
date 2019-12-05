@@ -1,4 +1,6 @@
-public struct LeafConfig {
+import NIOConcurrencyHelpers
+
+public struct LeafConfiguration {
     public var rootDirectory: String
     
     public init(rootDirectory: String) {
@@ -6,18 +8,43 @@ public struct LeafConfig {
     }
 }
 
-protocol LeafCache {
-    func insert(_ document: ResolvedDocument, on loop: EventLoop) -> EventLoopFuture<ResolvedDocument>
-    func load(path: String, on loop: EventLoop) -> EventLoopFuture<ResolvedDocument?>
+public protocol LeafCache {
+    func insert(
+        _ document: ResolvedDocument,
+        on loop: EventLoop
+    ) -> EventLoopFuture<ResolvedDocument>
+    func load(
+        documentName: String,
+        on loop: EventLoop
+    ) -> EventLoopFuture<ResolvedDocument?>
 }
 
-final class Cache: LeafCache {
-    func insert(_ document: ResolvedDocument, on loop: EventLoop) -> EventLoopFuture<ResolvedDocument> {
+public final class DefaultLeafCache: LeafCache {
+    let lock: Lock
+    var cache: [String: ResolvedDocument]
+    
+    public init() {
+        self.lock = .init()
+        self.cache = [:]
+    }
+    
+    public func insert(
+        _ document: ResolvedDocument,
+        on loop: EventLoop
+    ) -> EventLoopFuture<ResolvedDocument> {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.cache[document.name] = document
         return loop.makeSucceededFuture(document)
     }
     
-    func load(path: String, on loop: EventLoop) -> EventLoopFuture<ResolvedDocument?> {
-        return loop.makeSucceededFuture(nil)
+    public func load(
+        documentName: String,
+        on loop: EventLoop
+    ) -> EventLoopFuture<ResolvedDocument?> {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return loop.makeSucceededFuture(self.cache[documentName])
     }
 }
 
@@ -41,20 +68,20 @@ struct Lowercased: LeafTag {
 }
 
 public final class LeafRenderer {
-    let config: LeafConfig
-    let file: NonBlockingFileIO
+    public let configuration: LeafConfiguration
+    public let cache: LeafCache
+    public let fileio: NonBlockingFileIO
     public let eventLoop: EventLoop
     
-    // TODO: More Cache Options
-    let cache: LeafCache = Cache()
-    
     public init(
-        config: LeafConfig,
-        threadPool: NIOThreadPool,
+        configuration: LeafConfiguration,
+        cache: LeafCache = DefaultLeafCache(),
+        fileio: NonBlockingFileIO,
         eventLoop: EventLoop
     ) {
-        self.config = config
-        self.file = .init(threadPool: threadPool)
+        self.configuration = configuration
+        self.cache = cache
+        self.fileio = fileio
         self.eventLoop = eventLoop
     }
     
@@ -77,14 +104,14 @@ public final class LeafRenderer {
         }
         
         if !path.hasPrefix("/") {
-            path = config.rootDirectory.trailSlash + path
+            path = self.configuration.rootDirectory.trailSlash + path
         }
         return path
     }
     
     private func fetch(path: String) -> EventLoopFuture<ResolvedDocument> {
         let expanded = expand(path: path)
-        return cache.load(path: expanded, on: eventLoop).flatMap { cached in
+        return cache.load(documentName: expanded, on: eventLoop).flatMap { cached in
             guard let cached = cached else { return self.read(file: expanded) }
             return self.eventLoop.makeSucceededFuture(cached)
         }
@@ -108,7 +135,7 @@ public final class LeafRenderer {
             let resolved = dependencies.flatMapThrowing { dependencies -> ResolvedDocument in
                 let unresolved = UnresolvedDocument(name: file, raw: syntax)
                 let resolver = ExtendResolver(document: unresolved, dependencies: dependencies)
-                return try resolver.resolve(rootDirectory: self.config.rootDirectory)
+                return try resolver.resolve(rootDirectory: self.configuration.rootDirectory)
             }
             
             return resolved.flatMap { resolved in self.cache.insert(resolved, on: self.eventLoop) }
@@ -129,12 +156,12 @@ public final class LeafRenderer {
     }
     
     private func readBytes(file: String) -> EventLoopFuture<ByteBuffer> {
-        let openFile = self.file.openFile(path: file, eventLoop: self.eventLoop)
+        let openFile = self.fileio.openFile(path: file, eventLoop: self.eventLoop)
         return openFile.flatMapErrorThrowing { error in
             throw "unable to open file \(file)"
         }.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
             let allocator = ByteBufferAllocator()
-            let read = self.file.read(fileRegion: region, allocator: allocator, eventLoop: self.eventLoop)
+            let read = self.fileio.read(fileRegion: region, allocator: allocator, eventLoop: self.eventLoop)
             return read.flatMapThrowing { (buffer)  in
                 try handle.close()
                 return buffer

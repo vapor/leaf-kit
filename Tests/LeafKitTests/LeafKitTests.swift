@@ -864,9 +864,10 @@ final class LeafKitTests: XCTestCase {
     func _testRenderer() throws {
         let threadPool = NIOThreadPool(numberOfThreads: 1)
         threadPool.start()
+        let fileio = NonBlockingFileIO(threadPool: threadPool)
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        let config = LeafConfig(rootDirectory: templateFolder)
-        let renderer = LeafRenderer(config: config, threadPool: threadPool, eventLoop: group.next())
+        let config = LeafConfiguration(rootDirectory: templateFolder)
+        let renderer = LeafRenderer(configuration: config, fileio: fileio, eventLoop: group.next())
         
         var buffer = try! renderer.render(path: "test", context: [:]).wait()
         let string = buffer.readString(length: buffer.readableBytes)!
