@@ -195,6 +195,18 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["namelist": [.string("Tanner")]]), expectedName)
         try XCTAssertEqual(render(template), expectedNoName)
     }
+    
+    func testCount() throws {
+        let template = """
+        countArray: #count(array), countDict: #count(dict)
+        """
+        let expected = """
+        countArray: 4, countDict: 2
+        """
+        try XCTAssertEqual(render(template,
+                                  ["array": .array([.null, .null, .null, .null]),
+                                   "dict": .dictionary(["1": "1", "2": "2"])]), expected)
+    }
 //
 //    func testEscapeExtraneousBody() throws {
 //        let template = """
@@ -221,16 +233,6 @@ final class LeafTests: XCTestCase {
 //        try XCTAssertEqual(renderer.testRender(template, .null), expected)
 //    }
 //
-//    func testCount() throws {
-//        let template = """
-//        count: #count(array)
-//        """
-//        let expected = """
-//        count: 4
-//        """
-//        let context = TemplateData.dictionary(["array": .array([.null, .null, .null, .null])])
-//        try XCTAssertEqual(renderer.testRender(template, context), expected)
-//    }
 //
 //    func testNestedSet() throws {
 //        let template = """

@@ -67,6 +67,27 @@ struct Lowercased: LeafTag {
     }
 }
 
+struct Count: LeafTag {
+    func render(_ ctx: LeafContext) throws -> LeafData {
+        let resolver = ParameterResolver(params: ctx.params, data: ctx.data)
+        let resolved = try resolver.resolve()
+        
+        guard resolved.count == 1,
+            let storage = resolved.first?.result.storage
+        else { throw "unable to count expected one parameter" }
+        
+        let count: LeafDataStorage
+        
+        switch storage {
+        case .dictionary(let dict): count = .int(dict.values.count)
+        case .array(let arr): count = .int(arr.count)
+        default: throw "unable to count expected array or dictionary"
+        }
+        
+        return .init(count)
+    }
+}
+
 public final class LeafRenderer {
     public let configuration: LeafConfiguration
     public let cache: LeafCache

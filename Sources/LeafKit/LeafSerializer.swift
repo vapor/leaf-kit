@@ -1,5 +1,6 @@
 var customTags: [String: LeafTag] = [
     "lowercased": Lowercased(),
+    "count": Count(),
 ]
 
 struct LeafSerializer {
