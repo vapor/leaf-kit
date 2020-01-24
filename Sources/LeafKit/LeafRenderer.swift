@@ -17,11 +17,13 @@ public protocol LeafCache {
         documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<ResolvedDocument?>
+    var useCache : Bool { get set }
 }
 
 public final class DefaultLeafCache: LeafCache {
     let lock: Lock
     var cache: [String: ResolvedDocument]
+    public var useCache: Bool = true
     
     public init() {
         self.lock = .init()
@@ -34,7 +36,9 @@ public final class DefaultLeafCache: LeafCache {
     ) -> EventLoopFuture<ResolvedDocument> {
         self.lock.lock()
         defer { self.lock.unlock() }
-        self.cache[document.name] = document
+       if useCache {
+            self.cache[document.name] = document
+        }
         return loop.makeSucceededFuture(document)
     }
     
