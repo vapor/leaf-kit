@@ -1,10 +1,10 @@
-// swift-tools-version:5.1
+// swift-tools-version:5.2
 import PackageDescription
 
 let package = Package(
     name: "leaf-kit",
     platforms: [
-       .macOS(.v10_14)
+       .macOS(.v10_15)
     ],
     products: [
         .library(name: "LeafKit", targets: ["LeafKit"]),
@@ -13,7 +13,11 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.2.0"),
     ],
     targets: [
-        .target(name: "LeafKit", dependencies: ["NIO"]),
-        .testTarget(name: "LeafKitTests", dependencies: ["LeafKit"]),
+        .target(name: "LeafKit", dependencies: [
+            .product(name: "NIO", package: "swift-nio"),
+        ]),
+        .testTarget(name: "LeafKitTests", dependencies: [
+            .target(name: "LeafKit"),
+        ]),
     ]
 )
