@@ -141,6 +141,60 @@ final class LeafTests: XCTestCase {
         """
         try XCTAssertEqual(render(template, ["id": 42, "name": "Tanner"]), "User 42!")
     }
+    
+    func testStringIf() throws {
+        let template = """
+        #if(name):Hello, #(name)!#else:No Name!#endif
+        """
+        let expectedName = "Hello, Tanner!"
+        let expectedNoName = "No Name!"
+        try XCTAssertEqual(render(template, ["name": .string("Tanner")]), expectedName)
+        try XCTAssertEqual(render(template), expectedNoName)
+    }
+    
+    func testEqualIf() throws {
+        let template = """
+        #if(string1 == string2):Good#else:Bad#endif
+        """
+        let expectedGood = "Good"
+        let expectedBad = "Bad"
+        try XCTAssertEqual(render(template, ["string1": .string("Tanner"), "string2": .string("Tanner")]), expectedGood)
+        try XCTAssertEqual(render(template, ["string1": .string("Tanner"), "string2": .string("n/a")]), expectedBad)
+    }
+    
+    func testAndStringIf() throws {
+        let template = """
+        #if(name && one):Hello, #(name)#(one)!#elseif(name):Hello, #(name)!#else:No Name!#endif
+        """
+        let expectedNameOne = "Hello, Tanner1!"
+        let expectedName = "Hello, Tanner!"
+        let expectedNoName = "No Name!"
+        try XCTAssertEqual(render(template, ["name": .string("Tanner"), "one": .string("1")]), expectedNameOne)
+        try XCTAssertEqual(render(template, ["name": .string("Tanner")]), expectedName)
+        try XCTAssertEqual(render(template), expectedNoName)
+    }
+    
+    func testOrStringIf() throws {
+        let template = """
+        #if(name || one):Hello, #(name)#(one)!#else:No Name!#endif
+        """
+        let expectedName = "Hello, Tanner!"
+        let expectedOne = "Hello, 1!"
+        let expectedNoName = "No Name!"
+        try XCTAssertEqual(render(template, ["name": .string("Tanner")]), expectedName)
+        try XCTAssertEqual(render(template, ["one": .string("1")]), expectedOne)
+        try XCTAssertEqual(render(template), expectedNoName)
+    }
+    
+    func testArrayIf() throws {
+        let template = """
+        #if(namelist):#for(name in namelist):Hello, #(name)!#endfor#else:No Name!#endif
+        """
+        let expectedName = "Hello, Tanner!"
+        let expectedNoName = "No Name!"
+        try XCTAssertEqual(render(template, ["namelist": [.string("Tanner")]]), expectedName)
+        try XCTAssertEqual(render(template), expectedNoName)
+    }
 //
 //    func testEscapeExtraneousBody() throws {
 //        let template = """
@@ -202,13 +256,6 @@ final class LeafTests: XCTestCase {
 //        let context = TemplateData.dictionary(["foo": .double(1_337_000)])
 //        try XCTAssertEqual(renderer.testRender(template, context), expected)
 //
-//    }
-//
-//    func testStringIf() throws {
-//        let template = "#if(name){Hello, #(name)!}"
-//        let expected = "Hello, Tanner!"
-//        let context = TemplateData.dictionary(["name": .string("Tanner")])
-//        try XCTAssertEqual(renderer.testRender(template, context), expected)
 //    }
 //
 //    func testEmptyForLoop() throws {

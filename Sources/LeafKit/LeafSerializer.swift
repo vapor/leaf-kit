@@ -68,7 +68,7 @@ struct LeafSerializer {
         }
         
         let resolver = ParameterResolver(params: list, data: data)
-        let satisfied = try resolver.resolve().map { $0.result.bool ?? false } .reduce(false) { $0 || $1 }
+        let satisfied = try resolver.resolve().map { $0.result.bool ?? !$0.result.isNull } .reduce(true) { $0 && $1 }
         if satisfied {
             try serialize(body: conditional.body)
         } else if let next = conditional.next {
