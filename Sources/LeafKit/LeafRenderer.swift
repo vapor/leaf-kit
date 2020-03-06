@@ -1,5 +1,9 @@
 import NIOConcurrencyHelpers
 
+public var defaultTags: [String: LeafTag] = [
+    "lowercased": Lowercased(),
+]
+
 public struct LeafConfiguration {
     public var rootDirectory: String
     
@@ -53,9 +57,22 @@ public final class DefaultLeafCache: LeafCache {
 }
 
 public struct LeafContext {
-    let params: [ParameterDeclaration]
-    let data: [String: LeafData]
-    let body: [Syntax]?
+    public let parameters: [LeafData]
+    public let data: [String: LeafData]
+    public let body: [Syntax]?
+    public let userInfo: [AnyHashable: Any]
+
+    init(
+        parameters: [LeafData],
+        data: [String: LeafData],
+        body: [Syntax]?,
+        userInfo: [AnyHashable: Any]
+    ) throws {
+        self.parameters = parameters
+        self.data = data
+        self.body = body
+        self.userInfo = userInfo
+    }
 }
 
 public protocol LeafTag {
@@ -64,29 +81,61 @@ public protocol LeafTag {
 
 struct Lowercased: LeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData {
-        let resolver = ParameterResolver(params: ctx.params, data: ctx.data)
-        let resolved = try resolver.resolve()
-        guard let str = resolved.first?.result.string else { throw "unable to lowercase unexpected data" }
+        guard let str = ctx.parameters.first?.string else {
+            throw "unable to lowercase unexpected data"
+        }
         return .init(.string(str.lowercased()))
+    }
+}
+
+public protocol LeafFiles {
+    func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer>
+}
+
+public struct NIOLeafFiles: LeafFiles {
+    let fileio: NonBlockingFileIO
+
+    public init(fileio: NonBlockingFileIO) {
+        self.fileio = fileio
+    }
+    
+    public func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+        let openFile = self.fileio.openFile(path: path, eventLoop: eventLoop)
+        return openFile.flatMapErrorThrowing { error in
+            throw "unable to open file \(path)"
+        }.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
+            let allocator = ByteBufferAllocator()
+            let read = self.fileio.read(fileRegion: region, allocator: allocator, eventLoop: eventLoop)
+            return read.flatMapThrowing { (buffer)  in
+                try handle.close()
+                return buffer
+            }
+        }
     }
 }
 
 public final class LeafRenderer {
     public let configuration: LeafConfiguration
+    public let tags: [String: LeafTag]
     public let cache: LeafCache
-    public let fileio: NonBlockingFileIO
+    public let files: LeafFiles
     public let eventLoop: EventLoop
+    public let userInfo: [AnyHashable: Any]
     
     public init(
         configuration: LeafConfiguration,
+        tags: [String: LeafTag] = defaultTags,
         cache: LeafCache = DefaultLeafCache(),
-        fileio: NonBlockingFileIO,
-        eventLoop: EventLoop
+        files: LeafFiles,
+        eventLoop: EventLoop,
+        userInfo: [AnyHashable: Any] = [:]
     ) {
         self.configuration = configuration
+        self.tags = tags
         self.cache = cache
-        self.fileio = fileio
+        self.files = files
         self.eventLoop = eventLoop
+        self.userInfo = userInfo
     }
     
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
@@ -96,7 +145,12 @@ public final class LeafRenderer {
     }
     
     func render(_ doc: ResolvedDocument, context: [String: LeafData]) throws -> ByteBuffer {
-        var serializer = LeafSerializer(ast: doc.ast, context: context)
+        var serializer = LeafSerializer(
+            ast: doc.ast,
+            context: context,
+            tags: self.tags,
+            userInfo: self.userInfo
+        )
         return try serializer.serialize()
     }
     
@@ -122,7 +176,6 @@ public final class LeafRenderer {
     }
     
     private func read(file: String) -> EventLoopFuture<ResolvedDocument> {
-        print("reading \(file)")
         let raw = readBytes(file: file)
         
         let syntax = raw.flatMapThrowing { raw -> [Syntax] in
@@ -160,17 +213,7 @@ public final class LeafRenderer {
     }
     
     private func readBytes(file: String) -> EventLoopFuture<ByteBuffer> {
-        let openFile = self.fileio.openFile(path: file, eventLoop: self.eventLoop)
-        return openFile.flatMapErrorThrowing { error in
-            throw "unable to open file \(file)"
-        }.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
-            let allocator = ByteBufferAllocator()
-            let read = self.fileio.read(fileRegion: region, allocator: allocator, eventLoop: self.eventLoop)
-            return read.flatMapThrowing { (buffer)  in
-                try handle.close()
-                return buffer
-            }
-        }
+        self.files.file(path: file, on: self.eventLoop)
     }
 }
 
