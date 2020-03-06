@@ -128,7 +128,7 @@ struct ParameterResolver {
     private func resolve(op: Operator, rhs: LeafData) throws -> LeafData {
         switch op {
         case .not:
-            let result = rhs.bool ?? false
+            let result = rhs.bool ?? !rhs.isNull
             return .init(.bool(!result))
         default:
             throw "unexpected left hand operator not supported: \(op)"
@@ -140,12 +140,12 @@ struct ParameterResolver {
         case .not:
             throw "single expression operator"
         case .and:
-            let lhs = lhs.bool ?? false
-            let rhs = rhs.bool ?? false
+            let lhs = lhs.bool ?? !lhs.isNull
+            let rhs = rhs.bool ?? !rhs.isNull
             return .init(.bool(lhs && rhs))
         case .or:
-            let lhs = lhs.bool ?? false
-            let rhs = rhs.bool ?? false
+            let lhs = lhs.bool ?? !lhs.isNull
+            let rhs = rhs.bool ?? !rhs.isNull
             return .init(.bool(lhs || rhs))
         case .equals:
             return .init(.bool(lhs == rhs))
