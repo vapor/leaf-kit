@@ -73,6 +73,29 @@ public struct LeafContext {
         self.body = body
         self.userInfo = userInfo
     }
+
+    /// Throws an error if the parameter count does not equal the supplied number `n`.
+    public func requireParameterCount(_ n: Int) throws {
+        guard parameters.count == n else {
+            throw "Invalid parameter count: \(parameters.count)/\(n)"
+        }
+    }
+
+    /// Throws an error if this tag does not include a body.
+    public func requireBody() throws -> [Syntax] {
+        guard let body = body else {
+            throw "Missing body"
+        }
+
+        return body
+    }
+
+    /// Throws an error if this tag includes a body.
+    public func requireNoBody() throws {
+        guard body == nil else {
+            throw "Extraneous body"
+        }
+    }
 }
 
 public protocol LeafTag {
