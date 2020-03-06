@@ -73,7 +73,7 @@ struct LeafSerializer {
         }
 
         let satisfied = try self.resolve(parameters: list).map {
-            $0.bool ?? !$0.result.isNull
+            $0.bool ?? !$0.isNull
         }.reduce(true) { $0 && $1 }
         if satisfied {
             try serialize(body: conditional.body)
