@@ -32,6 +32,8 @@ extension ParameterDeclaration {
 struct ParameterResolver {
     let params: [ParameterDeclaration]
     let data: [String: LeafData]
+    let tags: [String: LeafTag]
+    let userInfo: [AnyHashable: Any]
     
     func resolve() throws -> [ResolvedParameter] {
         return try params.map(resolve)
@@ -45,8 +47,19 @@ struct ParameterResolver {
         case .parameter(let p):
             result = try resolve(param: p)
         case .tag(let t):
-            let ctx = LeafContext(params: t.params, data: data, body: t.body)
-            result = try customTags[t.name]?.render(ctx)
+            let resolver = ParameterResolver(
+                params: t.params,
+                data: self.data,
+                tags: self.tags,
+                userInfo: self.userInfo
+            )
+            let ctx = try LeafContext(
+                parameters: resolver.resolve().map { $0.result },
+                data: data,
+                body: t.body,
+                userInfo: self.userInfo
+            )
+            result = try self.tags[t.name]?.render(ctx)
                 ?? .init(.null)
         }
         return .init(param: param, result: result)

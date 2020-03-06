@@ -1,18 +1,23 @@
-var customTags: [String: LeafTag] = [
-    "lowercased": Lowercased(),
-]
-
 struct LeafSerializer {
     private let ast: [Syntax]
     private var offset: Int
     private var buffer: ByteBuffer
     private var data: [String: LeafData]
+    private let tags: [String: LeafTag]
+    private let userInfo: [AnyHashable: Any]
     
-    init(ast: [Syntax], context: [String: LeafData]) {
+    init(
+        ast: [Syntax],
+        context data: [String: LeafData],
+        tags: [String: LeafTag] = defaultTags,
+        userInfo: [AnyHashable: Any] = [:]
+    ) {
         self.ast = ast
         self.offset = 0
         self.buffer = ByteBufferAllocator().buffer(capacity: 0)
-        self.data = context
+        self.data = data
+        self.tags = tags
+        self.userInfo = userInfo
     }
     
     mutating func serialize() throws -> ByteBuffer {
@@ -44,11 +49,11 @@ struct LeafSerializer {
     }
 
     mutating func serialize(expression: [ParameterDeclaration]) throws {
-        let resolver = ParameterResolver(params: [.expression(expression)], data: data)
-        let resolved = try resolver.resolve()
-        guard resolved.count == 1 else { throw "expressions should resolve to single value" }
-        let data = resolved[0].result
-        serialize(data)
+        let resolved = try self.resolve(parameters: [.expression(expression)])
+        guard resolved.count == 1 else {
+            throw "expressions should resolve to single value"
+        }
+        serialize(resolved[0])
     }
 
     mutating func serialize(body: [Syntax]) throws {
@@ -66,9 +71,10 @@ struct LeafSerializer {
             try serialize(body: conditional.body)
             return
         }
-        
-        let resolver = ParameterResolver(params: list, data: data)
-        let satisfied = try resolver.resolve().map { $0.result.bool ?? !$0.result.isNull } .reduce(true) { $0 && $1 }
+
+        let satisfied = try self.resolve(parameters: list).map {
+            $0.bool ?? !$0.isNull
+        }.reduce(true) { $0 && $1 }
         if satisfied {
             try serialize(body: conditional.body)
         } else if let next = conditional.next {
@@ -77,8 +83,13 @@ struct LeafSerializer {
     }
     
     mutating func serialize(_ tag: Syntax.CustomTagDeclaration) throws {
-        let sub = LeafContext(params: tag.params, data: data, body: tag.body)
-        let rendered = try customTags[tag.name]?.render(sub)
+        let sub = try LeafContext(
+            parameters: self.resolve(parameters: tag.params),
+            data: data,
+            body: tag.body,
+            userInfo: self.userInfo
+        )
+        let rendered = try self.tags[tag.name]?.render(sub)
             ?? .init(.null)
         serialize(rendered)
     }
@@ -130,7 +141,12 @@ struct LeafSerializer {
             else if idx == array.count - 1 { innerContext["isLast"] = .bool(true) }
             innerContext[loop.item] = item
             
-            var serializer = LeafSerializer(ast: loop.body, context: innerContext)
+            var serializer = LeafSerializer(
+                ast: loop.body,
+                context: innerContext,
+                tags: self.tags,
+                userInfo: self.userInfo
+            )
             var loopBody = try serializer.serialize()
             self.buffer.writeBuffer(&loopBody)
         }
@@ -144,6 +160,16 @@ struct LeafSerializer {
         } else {
             return
         }
+    }
+
+    private func resolve(parameters: [ParameterDeclaration]) throws -> [LeafData] {
+        let resolver = ParameterResolver(
+            params: parameters,
+            data: data,
+            tags: self.tags,
+            userInfo: userInfo
+        )
+        return try resolver.resolve().map { $0.result }
     }
     
     func peek() -> Syntax? {

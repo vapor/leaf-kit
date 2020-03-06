@@ -867,7 +867,11 @@ final class LeafKitTests: XCTestCase {
         let fileio = NonBlockingFileIO(threadPool: threadPool)
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let config = LeafConfiguration(rootDirectory: templateFolder)
-        let renderer = LeafRenderer(configuration: config, fileio: fileio, eventLoop: group.next())
+        let renderer = LeafRenderer(
+            configuration: config,
+            files: NIOLeafFiles(fileio: fileio),
+            eventLoop: group.next()
+        )
         
         var buffer = try! renderer.render(path: "test", context: [:]).wait()
         let string = buffer.readString(length: buffer.readableBytes)!
@@ -876,11 +880,63 @@ final class LeafKitTests: XCTestCase {
         try threadPool.syncShutdownGracefully()
         try group.syncShutdownGracefully()
     }
+
+    func testRendererContext() throws {
+        var test = TestFiles()
+        test.files["/foo.leaf"] = """
+        Hello #custom(name)
+        """
+
+        struct CustomTag: LeafTag {
+            func render(_ ctx: LeafContext) throws -> LeafData {
+                let prefix = ctx.userInfo["prefix"] as? String ?? ""
+                let param = ctx.parameters.first?.string ?? ""
+                return .string(prefix + param)
+            }
+        }
+
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            tags: [
+                "custom": CustomTag()
+            ],
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop(),
+            userInfo: [
+                "prefix": "bar"
+            ]
+        )
+        let view = try renderer.render(path: "foo", context: [
+            "name": "vapor"
+        ]).wait()
+
+        XCTAssertEqual(view.string, "Hello barvapor")
+    }
+}
+
+struct TestFiles: LeafFiles {
+    var files: [String: String]
+
+    init() {
+        files = [:]
+    }
+
+
+    func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+        if let file = self.files[path] {
+            var buffer = ByteBufferAllocator().buffer(capacity: 0)
+            buffer.writeString(file)
+            return eventLoop.makeSucceededFuture(buffer)
+        } else {
+            return eventLoop.makeFailedFuture("no test file: \(path)")
+        }
+    }
 }
 
 extension ByteBuffer {
-    var string: String? {
-        return self.getString(at: self.readerIndex, length: self.readableBytes)
+    var string: String {
+        String(decoding: self.readableBytesView, as: UTF8.self)
     }
 }
 

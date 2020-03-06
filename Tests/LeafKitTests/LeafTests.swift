@@ -466,7 +466,10 @@ private func render(name: String = "test-render", _ template: String, _ context:
     let tokens = try lexer.lex()
     var parser = LeafParser(name: name, tokens: tokens)
     let ast = try parser.parse()
-    var serializer = LeafSerializer(ast: ast, context: context)
+    var serializer = LeafSerializer(
+        ast: ast,
+        context: context
+    )
     let view = try serializer.serialize()
     return view.getString(at: view.readerIndex, length: view.readableBytes) ?? ""
 }
