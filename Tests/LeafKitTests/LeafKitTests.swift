@@ -515,7 +515,7 @@ final class LexerTests: XCTestCase {
     }
     
     func testParameters() throws {
-        let input = "#(foo == 40, and, \"literal\")"
+        let input = "#(foo == 40, and, \"literal\", and, foo_bar)"
         let expectation = """
         tagIndicator
         tag(name: "")
@@ -527,6 +527,10 @@ final class LexerTests: XCTestCase {
         param(variable(and))
         parameterDelimiter
         param(stringLiteral("literal"))
+        parameterDelimiter
+        param(variable(and))
+        parameterDelimiter
+        param(variable(foo_bar))
         parametersEnd
 
         """
