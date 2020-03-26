@@ -913,6 +913,54 @@ final class LeafKitTests: XCTestCase {
 
         XCTAssertEqual(view.string, "Hello barvapor")
     }
+	
+	func testCachePurging() throws {
+        var state = false
+        var test = ReplacingFiles(state: &state)
+        
+        test.baseFiles["/foo.leaf"] = """
+        Goodbye
+        """
+        test.baseFiles["/bar.leaf"] = """
+        #extend("foo") cache control
+        """
+        test.newFiles["/foo.leaf"] = """
+        Hello
+        """
+        test.newFiles["/bar.leaf"] = """
+        #extend("foo") purging
+        """
+        test.newFiles["/baz.leaf"] = """
+        #extend("foo") cache control
+        """
+        
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+        
+        // baseFiles templates are used for reference
+        var view = try renderer.render(path: "bar", context: [:]).wait()
+		XCTAssertEqual(view.string, "Goodbye cache control")
+
+        // newFiles templates are now used for reference, but cache maintains old ones
+        state = true
+        
+        // foo.leaf cache is purged but remains inlined to bar
+        // but will appear refreshed in baz
+        renderer.cache.purge("/foo.leaf", on: renderer.eventLoop)
+        view = try renderer.render(path: "bar", context: [:]).wait()
+        XCTAssertEqual(view.string, "Goodbye cache control")
+        view = try renderer.render(path: "baz", context: [:]).wait()
+        XCTAssertEqual(view.string, "Hello cache control")
+      
+        // purging bar.leaf cache will re-inline with new foo
+        renderer.cache.purge("/bar.leaf", on: renderer.eventLoop)
+        view = try renderer.render(path: "bar", context: [:]).wait()
+        XCTAssertEqual(view.string, "Hello purging")
+	}
 }
 
 struct TestFiles: LeafFiles {
@@ -925,6 +973,32 @@ struct TestFiles: LeafFiles {
 
     func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
         if let file = self.files[path] {
+            var buffer = ByteBufferAllocator().buffer(capacity: 0)
+            buffer.writeString(file)
+            return eventLoop.makeSucceededFuture(buffer)
+        } else {
+            return eventLoop.makeFailedFuture("no test file: \(path)")
+        }
+    }
+}
+
+struct ReplacingFiles: LeafFiles {
+    var baseFiles: [String: String]
+    var newFiles: [String: String]
+    var state: UnsafePointer<Bool>
+    
+    init(state: UnsafePointer<Bool>) {
+        baseFiles = [:]
+        newFiles = [:]
+        self.state = state
+    }
+    
+    func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+        var files: [String: String]
+        if (state.pointee == false) { files = baseFiles }
+            else { files = newFiles }
+        
+        if let file = files[path] {
             var buffer = ByteBufferAllocator().buffer(capacity: 0)
             buffer.writeString(file)
             return eventLoop.makeSucceededFuture(buffer)
