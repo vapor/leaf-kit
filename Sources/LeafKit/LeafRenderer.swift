@@ -26,11 +26,11 @@ public protocol LeafCache {
     /// - return nil if cache entry didn't exist in the first place, true if purged
     /// - will never return false in this design but should be capable of it
     ///   in the event a cache implements dependency tracking between templates
-	func remove(
+    func remove(
         _ documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<Bool?>
-	
+
     var isEnabled : Bool { get set }
 }
 
@@ -64,7 +64,7 @@ public final class DefaultLeafCache: LeafCache {
         defer { self.lock.unlock() }
         return loop.makeSucceededFuture(self.cache[documentName])
     }
-	
+
     public func remove(
         _ documentName: String,
         on loop: EventLoop
@@ -75,7 +75,7 @@ public final class DefaultLeafCache: LeafCache {
         guard self.cache[documentName] != nil else { return loop.makeSucceededFuture(nil) }
         self.cache[documentName] = nil
         return loop.makeSucceededFuture(true)
-	}
+    }
 }
 
 public struct LeafContext {
