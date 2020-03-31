@@ -882,7 +882,7 @@ final class LeafKitTests: XCTestCase {
     }
 
     func testRendererContext() throws {
-        var test = TestFiles()
+        let test = TestFiles()
         test.files["/foo.leaf"] = """
         Hello #custom(name)
         """
@@ -913,92 +913,53 @@ final class LeafKitTests: XCTestCase {
 
         XCTAssertEqual(view.string, "Hello barvapor")
     }
-	
-	func testCachePurging() throws {
-        var state = false
-        var test = ReplacingFiles(state: &state)
-        
-        test.baseFiles["/foo.leaf"] = """
-        Goodbye
-        """
-        test.baseFiles["/bar.leaf"] = """
-        #extend("foo") cache control
-        """
-        test.newFiles["/foo.leaf"] = """
-        Hello
-        """
-        test.newFiles["/bar.leaf"] = """
-        #extend("foo") purging
-        """
-        test.newFiles["/baz.leaf"] = """
-        #extend("foo") cache control
-        """
-        
+    
+    func testCachePurging() throws {
+        let test = TestFiles()
+
+        test.files["/foo.leaf"] = "Goodbye"
+        test.files["/bar.leaf"] = "#extend(\"foo\") cache control"
+        test.files["/baz.leaf"] = "#extend(\"foo\") cache control"
+
         let renderer = LeafRenderer(
             configuration: .init(rootDirectory: "/"),
             cache: DefaultLeafCache(),
             files: test,
             eventLoop: EmbeddedEventLoop()
         )
-        
-        // baseFiles templates are used for reference
-        var view = try renderer.render(path: "bar", context: [:]).wait()
-		XCTAssertEqual(view.string, "Goodbye cache control")
 
-        // newFiles templates are now used for reference, but cache maintains old ones
-        state = true
-        
+        // bar extends foo, so both are cached at this point
+        var view = try renderer.render(path: "bar", context: [:]).wait()
+        XCTAssertEqual(view.string, "Goodbye cache control")
+
         // foo.leaf cache is purged but remains inlined to bar
         // but will appear refreshed in baz
-        renderer.cache.purge("/foo.leaf", on: renderer.eventLoop)
+        try _ = renderer.cache.remove("/foo.leaf", on: renderer.eventLoop).wait()
+
+        test.files["/foo.leaf"] = "Hello"
         view = try renderer.render(path: "bar", context: [:]).wait()
         XCTAssertEqual(view.string, "Goodbye cache control")
         view = try renderer.render(path: "baz", context: [:]).wait()
         XCTAssertEqual(view.string, "Hello cache control")
-      
+
         // purging bar.leaf cache will re-inline with new foo
-        renderer.cache.purge("/bar.leaf", on: renderer.eventLoop)
+        try _ = renderer.cache.remove("/bar.leaf", on: renderer.eventLoop).wait()
+
+        test.files["/bar.leaf"] = "#extend(\"foo\") purging"
         view = try renderer.render(path: "bar", context: [:]).wait()
         XCTAssertEqual(view.string, "Hello purging")
-	}
+    }
 }
 
-struct TestFiles: LeafFiles {
+class TestFiles: LeafFiles {
     var files: [String: String]
 
     init() {
         files = [:]
     }
 
-
     func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
         if let file = self.files[path] {
-            var buffer = ByteBufferAllocator().buffer(capacity: 0)
-            buffer.writeString(file)
-            return eventLoop.makeSucceededFuture(buffer)
-        } else {
-            return eventLoop.makeFailedFuture("no test file: \(path)")
-        }
-    }
-}
-
-struct ReplacingFiles: LeafFiles {
-    var baseFiles: [String: String]
-    var newFiles: [String: String]
-    var state: UnsafePointer<Bool>
-    
-    init(state: UnsafePointer<Bool>) {
-        baseFiles = [:]
-        newFiles = [:]
-        self.state = state
-    }
-    
-    func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
-        var files: [String: String]
-        if (state.pointee == false) { files = baseFiles }
-            else { files = newFiles }
-        
-        if let file = files[path] {
             var buffer = ByteBufferAllocator().buffer(capacity: 0)
             buffer.writeString(file)
             return eventLoop.makeSucceededFuture(buffer)
