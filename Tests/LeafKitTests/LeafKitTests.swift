@@ -949,6 +949,67 @@ final class LeafKitTests: XCTestCase {
         view = try renderer.render(path: "bar", context: [:]).wait()
         XCTAssertEqual(view.string, "Hello purging")
     }
+    
+    func testCacheSpeedLinear() {
+        self.measure {
+            self._testCacheSpeedLinear(templates: 10, iterations: 100)
+        }
+    }
+    
+    func _testCacheSpeedLinear(templates: Int, iterations: Int) {
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        let test = TestFiles()
+        for name in 1...templates { test.files["/\(name).leaf"] = "Template \(name)" }
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: group.next()
+        )
+        
+        for _ in 1...iterations {
+            for key in test.files.keys { _ = renderer.render(path: key, context: [:]) }
+        }
+        
+        try! group.syncShutdownGracefully()
+    }
+    
+    func testCacheSpeedRandom() {
+        self.measure {
+            self._testCacheSpeedRandom(layer1: 10, layer2: 10, layer3: 5, iterations: 100)
+        }
+    }
+    
+    func _testCacheSpeedRandom(layer1: Int, layer2: Int, layer3: Int, iterations: Int) {
+            let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+            let test = TestFiles()
+            
+            for name in 1..<layer3 { test.files["/\(name).3.leaf"] = "Template \(name)"}
+            for name in 1..<layer2 { test.files["/\(name).2.leaf"] = "Template \(name) -> #extend(\"\(name%(layer2/layer3)).3\")"}
+            for name in 1..<layer1 { test.files["/\(name).leaf"] = "Template \(name) -> #extend(\"\(Int.random(in: 1..<layer2)).2\") & #extend(\"\(Int.random(in: 1..<layer2)).2\")" }
+            
+            let allKeys: [String] = test.files.keys.map{$0}.shuffled()
+            var hitList = allKeys
+            let totalTemplates = allKeys.count
+            let ratio = iterations / allKeys.count
+            
+            let renderer = LeafRenderer(
+                configuration: .init(rootDirectory: "/"),
+                cache: DefaultLeafCache(),
+                files: test,
+                eventLoop: group.next()
+            )
+            
+            var template: String
+            
+            for x in (0..<iterations).reversed() {
+                if x / ratio < hitList.count { template = hitList.removeFirst() }
+                else { template = allKeys[Int.random(in: (Int(hitList.count * 3 / 4) ..< totalTemplates))] }
+                _ = renderer.render(path: template, context: [:])
+            }
+            
+            try! group.syncShutdownGracefully()
+    }
 }
 
 class TestFiles: LeafFiles {

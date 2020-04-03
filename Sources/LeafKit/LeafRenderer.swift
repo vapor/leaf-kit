@@ -1,4 +1,5 @@
 import NIOConcurrencyHelpers
+import Foundation
 
 public var defaultTags: [String: LeafTag] = [
     "lowercased": Lowercased(),
@@ -13,11 +14,19 @@ public struct LeafConfiguration {
 }
 
 public protocol LeafCache {
+    // Superseded by insert with remove: parameter - Remove in Leaf-Kit 2?
+    @available(*, deprecated, message: "Use insert with replace parameter instead")
     func insert(
         _ document: ResolvedDocument,
         on loop: EventLoop
     ) -> EventLoopFuture<ResolvedDocument>
 
+    func insert(
+        _ document: ResolvedDocument,
+        on loop: EventLoop,
+        replace: Bool
+    ) -> EventLoopFuture<ResolvedDocument>
+    
     func load(
         documentName: String,
         on loop: EventLoop
@@ -44,14 +53,28 @@ public final class DefaultLeafCache: LeafCache {
         self.cache = [:]
     }
     
-    public func insert(
+    // Superseded by insert with remove: parameter - Remove in Leaf-Kit 2?
+     public func insert(
         _ document: ResolvedDocument,
         on loop: EventLoop
     ) -> EventLoopFuture<ResolvedDocument> {
+        self.insert(document, on: loop, replace: false)
+    }
+    
+    public func insert(
+        _ document: ResolvedDocument,
+        on loop: EventLoop,
+        replace: Bool = false
+    ) -> EventLoopFuture<ResolvedDocument> {
+        // future fails if caching is enabled
+        guard isEnabled else { return loop.makeFailedFuture(LeafCacheError.cachingDisabled) }
+        
         self.lock.lock()
         defer { self.lock.unlock() }
-        if isEnabled {
-            self.cache[document.name] = document
+        // return an error if replace is false and the document name is already in cache
+        switch (self.cache.keys.contains(document.name),replace) {
+            case (true, false): return loop.makeFailedFuture(LeafCacheError.keyExists(document.name))
+            default: self.cache[document.name] = document
         }
         return loop.makeSucceededFuture(document)
     }
@@ -60,6 +83,7 @@ public final class DefaultLeafCache: LeafCache {
         documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<ResolvedDocument?> {
+        guard isEnabled == true else { return loop.makeFailedFuture(LeafCacheError.cachingDisabled) }
         self.lock.lock()
         defer { self.lock.unlock() }
         return loop.makeSucceededFuture(self.cache[documentName])
@@ -69,6 +93,8 @@ public final class DefaultLeafCache: LeafCache {
         _ documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<Bool?> {
+        guard isEnabled == true else { return loop.makeFailedFuture(LeafCacheError.cachingDisabled) }
+        
         self.lock.lock()
         defer { self.lock.unlock() }
 
@@ -184,9 +210,9 @@ public final class LeafRenderer {
     }
     
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        let expanded = expand(path: path)
-        let document = fetch(path: expanded)
-        return document.flatMapThrowing { try self.render($0, context: context) }
+        let document = fetch(path: path)
+        return document.flatMapThrowing { document in
+            try self.render(document, context: context) }
     }
     
     func render(_ doc: ResolvedDocument, context: [String: LeafData]) throws -> ByteBuffer {
@@ -214,7 +240,12 @@ public final class LeafRenderer {
     
     private func fetch(path: String) -> EventLoopFuture<ResolvedDocument> {
         let expanded = expand(path: path)
-        return cache.load(documentName: expanded, on: eventLoop).flatMap { cached in
+      
+        // if caching is off immediately read file
+        guard cache.isEnabled else { return self.read(file: expanded) }
+        // if caching is on, attempt to load cached ResolvedDocument.
+        // if cached is nil, read file, otherwise return cached file.        
+        return cache.load(documentName: expanded, on: eventLoop).flatMap { [unowned self] cached in
             guard let cached = cached else { return self.read(file: expanded) }
             return self.eventLoop.makeSucceededFuture(cached)
         }
@@ -232,21 +263,25 @@ public final class LeafRenderer {
             return try parser.parse()
         }
         
-        return syntax.flatMap { syntax in
+        return syntax.flatMap { [unowned self] syntax in
             let dependencies = self.readDependencies(syntax.dependencies)
             let resolved = dependencies.flatMapThrowing { dependencies -> ResolvedDocument in
                 let unresolved = UnresolvedDocument(name: file, raw: syntax)
                 let resolver = ExtendResolver(document: unresolved, dependencies: dependencies)
                 return try resolver.resolve(rootDirectory: self.configuration.rootDirectory)
             }
+
+            guard self.cache.isEnabled else { return resolved }
             
-            return resolved.flatMap { resolved in self.cache.insert(resolved, on: self.eventLoop) }
+            return resolved.flatMap { [unowned self] resolved in
+                self.cache.insert(resolved, on: self.eventLoop, replace: false)
+            }
         }
     }
     
     private func readDependencies(_ dependencies: [String]) -> EventLoopFuture<[ResolvedDocument]> {
         let fetchRequests = dependencies.map(self.fetch)
-        let results = EventLoopFuture.whenAllComplete(fetchRequests, on: self.eventLoop)
+        let results = EventLoopFuture.whenAllComplete(fetchRequests, on: eventLoop)
         return results.flatMapThrowing { results in
             return try results.map { result -> ResolvedDocument in
                 switch result {
@@ -281,5 +316,50 @@ extension String {
     internal var trailSlash: String {
         if hasSuffix("/") { return self }
         else { return self + "/" }
+    }
+}
+
+extension LeafCache {
+    /// default implementation of remove to avoid breaking custom LeafCache adopters
+    func remove(
+        _ documentName: String,
+        on loop: EventLoop
+    ) -> EventLoopFuture<Bool?>
+    {
+        return loop.makeFailedFuture( LeafCacheError.unsupportedFeature("Protocol adopter does not support removing entries") )
+    }
+    
+    /// default implementation of remove to avoid breaking custom LeafCache adopters
+    ///     throws an error if used with replace == true
+    func insert(
+        _ documentName: String,
+        on loop: EventLoop,
+        replace: Bool = false
+    ) -> EventLoopFuture<ResolvedDocument>
+    {
+        if replace { return loop.makeFailedFuture( LeafCacheError.unsupportedFeature("Protocol adopter does not support replacing entries") ) }
+        else { return self.insert(documentName, on: loop) }
+    }
+}
+
+public enum LeafCacheError: LocalizedError {
+    // throw if protocol adopter doesn't support requested feature, with optional message
+    case unsupportedFeature(String)
+    // throw on RW attempts when cache is globably disabled
+    case cachingDisabled
+    // throw on lazy cache write attempts where entry exists
+    case keyExists(String)
+    
+    var errorDescription: String {
+        switch self {
+            case .unsupportedFeature(let message): return message
+            case .cachingDisabled: return "Caching is globablly disabled"
+            case .keyExists(let key): return "Existing entry \(key): use insert with replace=true to overrride"
+        }
+    }
+    
+    // cast unspecified errors to
+    init(_ message: String) {
+        self = .unsupportedFeature(message)
     }
 }
