@@ -245,7 +245,7 @@ public final class LeafRenderer {
         guard cache.isEnabled else { return self.read(file: expanded) }
         // if caching is on, attempt to load cached ResolvedDocument.
         // if cached is nil, read file, otherwise return cached file.        
-        return cache.load(documentName: expanded, on: eventLoop).flatMap { [unowned self] cached in
+        return cache.load(documentName: expanded, on: eventLoop).flatMap { cached in
             guard let cached = cached else { return self.read(file: expanded) }
             return self.eventLoop.makeSucceededFuture(cached)
         }
@@ -263,7 +263,7 @@ public final class LeafRenderer {
             return try parser.parse()
         }
         
-        return syntax.flatMap { [unowned self] syntax in
+        return syntax.flatMap { syntax in
             let dependencies = self.readDependencies(syntax.dependencies)
             let resolved = dependencies.flatMapThrowing { dependencies -> ResolvedDocument in
                 let unresolved = UnresolvedDocument(name: file, raw: syntax)
@@ -273,7 +273,7 @@ public final class LeafRenderer {
 
             guard self.cache.isEnabled else { return resolved }
             
-            return resolved.flatMap { [unowned self] resolved in
+            return resolved.flatMap { resolved in
                 self.cache.insert(resolved, on: self.eventLoop, replace: false)
             }
         }
