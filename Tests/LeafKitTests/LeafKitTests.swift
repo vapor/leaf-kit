@@ -24,25 +24,7 @@ extension UInt8 {
     var str: String { return String(bytes: [self], encoding: .utf8)! }
 }
 final class ParserTests: XCTestCase {
-    func testNesting() throws {
-        let input = """
-        #if(lowercase(first(name == "admin")) == "welcome"):
-        foo
-        #endif
-        """
-        
-        let expectation = """
-        conditional:
-          if(expression(lowercase(first(name == "admin")) == "welcome")):
-            raw("\\nfoo\\n")
-        """
-        
-        let loader = DocumentLoader()
-        try loader.insert(name: "test", raw: input)
-        let document = try loader.load("test")
-        let output = document.ast.map { $0.description } .joined(separator: "\n")
-        XCTAssertEqual(output, expectation)
-    }
+//    func testNesting()... *removed - identical to testParsingNesting()
     
     func testParsingNesting() throws {
         let input = """
@@ -57,7 +39,7 @@ final class ParserTests: XCTestCase {
             raw("\\nfoo\\n")
         """
         
-        let syntax = try altParse(input)
+        let syntax = try parse(input)
         let output = syntax.map { $0.description } .joined(separator: "\n")
         XCTAssertEqual(output, expectation)
     }
@@ -79,7 +61,7 @@ final class ParserTests: XCTestCase {
             raw("\\nfoo\\n")
         """
         
-        let syntax = try! altParse(input)
+        let syntax = try! parse(input)
         let output = syntax.map { $0.description } .joined(separator: "\n")
         XCTAssertEqual(output, expectation)
     }
@@ -110,7 +92,7 @@ final class ParserTests: XCTestCase {
             raw("\\n    foo\\n")
         """
         
-        let output = try altParse(input).map { $0.description } .joined(separator: "\n")
+        let output = try parse(input).map { $0.description } .joined(separator: "\n")
         XCTAssertEqual(output, expectation)
     }
     
@@ -140,26 +122,20 @@ final class ParserTests: XCTestCase {
             raw("\\n    foo\\n")
         """
         
-        let output = try altParse(input).map { $0.description } .joined(separator: "\n")
+        let output = try parse(input).map { $0.description } .joined(separator: "\n")
         XCTAssertEqual(output, expectation)
     }
     
-    func testShouldThrowCantResolve() throws {
+    func testUnresolvedAST() throws {
         let base = """
         #extend("header")
         <title>#import("title")</title>
         #import("body")
         """
         
-        
-        let loader = DocumentLoader(FileAccessor())
-        try loader.insert(name: "base", raw: base)
-        do {
-            let _ = try loader.load("base")
-            XCTFail("should throw, can't resolve")
-        } catch {
-            XCTAssert(true)
-        }
+        let syntax = try! parse(base)
+        let ast = LeafAST(name: "base", ast: syntax)
+        XCTAssertFalse(ast.unresolvedRefs.count == 0, "Unresolved template")
     }
     
     func testInsertResolution() throws {
@@ -172,12 +148,11 @@ final class ParserTests: XCTestCase {
         #import("body")
         """
         
-        let loader = DocumentLoader(FileAccessor())
-        try loader.insert(name: "base", raw: base)
-        try loader.insert(name: "header", raw: header)
-        
-        let resolved = try loader.load("base")
-        let output = resolved.ast.map { $0.description } .joined(separator: "\n")
+        let baseAST = try LeafAST(name: "base", ast: parse(base))
+        let headerAST = try LeafAST(name: "header", ast: parse(header))
+        let baseResolvedAST = LeafAST(from: baseAST, referencing: ["header": headerAST])
+
+        let output = baseResolvedAST.ast.map { $0.description } .joined(separator: "\n")
 
         let expectation = """
         raw("<h1>Hi!</h1>")
@@ -209,13 +184,14 @@ final class ParserTests: XCTestCase {
         #endextend
         """
         
-        let loader = DocumentLoader(FileAccessor())
-        try loader.insert(name: "header", raw: header)
-        try loader.insert(name: "base", raw: base)
-        try loader.insert(name: "home", raw: home)
+        let headerAST = try LeafAST(name: "header", ast: parse(header))
+        let baseAST = try LeafAST(name: "base", ast: parse(base))
+        let homeAST = try LeafAST(name: "home", ast: parse(home))
         
-        let homeDoc = try loader.load("home")
-        let output = homeDoc.ast.map { $0.description } .joined(separator: "\n")
+        let baseResolved = LeafAST(from: baseAST, referencing: ["header": headerAST])
+        let homeResolved = LeafAST(from: homeAST, referencing: ["base": baseResolved])
+  
+        let output = homeResolved.ast.map { $0.description } .joined(separator: "\n")
         let expectation = """
         raw("<h1>")
         import("header")
@@ -251,7 +227,7 @@ final class ParserTests: XCTestCase {
             raw("Welcome")
         """
         
-        let rawAlt = try! altParse(input)
+        let rawAlt = try! parse(input)
         let output = rawAlt.map { $0.description } .joined(separator: "\n")
         XCTAssertEqual(output, expectation)
     }
@@ -508,7 +484,7 @@ final class LexerTests: XCTestCase {
             raw("Welcome")
         """
         
-        let rawAlt = try! altParse(input)
+        let rawAlt = try! parse(input)
         let output = rawAlt.map { $0.description } .joined(separator: "\n")
         XCTAssertEqual(output, expectation)
         Character.tagIndicator = .octothorpe
@@ -626,7 +602,7 @@ func lex(_ str: String) throws -> [LeafToken] {
 }
 
 
-func altParse(_ str: String) throws -> [Syntax] {
+func parse(_ str: String) throws -> [Syntax] {
     var lexer = LeafLexer(name: "alt-parse", template: str)
     let tokens = try! lexer.lex()
     var parser = LeafParser(name: "alt-parse", tokens: tokens)
@@ -635,33 +611,7 @@ func altParse(_ str: String) throws -> [Syntax] {
     return syntax
 }
 
-func parse(_ str: String) throws -> [Syntax] {
-    return try altParse(str)
-//    var buffer = ByteBufferAllocator().buffer(capacity: 0)
-//    buffer.writeString(str)
-//
-//    var lexer = LeafLexer(template: buffer)
-//    let tokens = try! lexer.lex()
-//    var parser = _LeafParser.init(tokens: tokens)
-//    let syntax = try! parser.parse()
-//
-//    return syntax
-}
-
-//func compile(_ str: String) throws -> [_Block] {
-//    var buffer = ByteBufferAllocator().buffer(capacity: 0)
-//    buffer.writeString(str)
-//
-//    var lexer = LeafLexer(template: buffer)
-//    let tokens = try! lexer.lex()
-//    var parser = _LeafParser.init(tokens: tokens)
-//    let syntax = try! parser.parse()
-//
-//    fatalError()
-////    var compiler = _Compiler(syntax: syntax)
-////    let elements = try compiler.compile()
-////    return elements
-//}
+//func parse(... *removed as pass-through to altParse (now parse)
 
 final class LeafKitTests: XCTestCase {
     func testParser() throws {
@@ -725,7 +675,7 @@ final class LeafKitTests: XCTestCase {
         
 //        var parser = _LeafParser(tokens: tokens)
 //        let ast = try! parser.altParse().map { $0.description } .joined(separator: "\n")
-        let rawAlt = try! altParse(template)
+        let rawAlt = try! parse(template)
         print("AST")
         rawAlt.forEach { print($0) }
         print()
@@ -746,52 +696,7 @@ final class LeafKitTests: XCTestCase {
         //        print()
     }
     
-    func testLoader() throws {
-        let template = """
-        Hello #(name)!
-
-        Hello #get(name)!
-
-        #set(name):
-            Hello #get(name)
-        #endset!
-
-        #if(a):b#endif
-
-        #if(foo):
-        123
-        #elseif(bar):
-        456
-        #else:
-        789
-        #endif
-
-        #import("title")
-
-        #import("body")
-
-        #extend("base"):
-            #export("title", "Welcome")
-            #export("body"):
-                Hello, #(name)!
-            #endexport
-        #endextend
-
-        More stuff here!
-        """
-        
-        let loader = DocumentLoader(FileAccessor())
-        let unresolved = try loader.insert(name: "foo", raw: template)
-        do {
-            _ = try loader.load("foo")
-            XCTFail("shouldn't resolve,missing base")
-        } catch {
-            XCTAssert(true)
-        }
-        
-        unresolved.raw.forEach { print($0) }
-        print()
-    }
+//    func testLoader()... *removed as non-useful test (duplicates testUnresolvedAST)
     
     func testParserasdf() throws {
         let template = """

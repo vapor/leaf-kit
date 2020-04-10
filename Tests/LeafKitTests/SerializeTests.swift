@@ -19,7 +19,7 @@ final class SerializerTests: XCTestCase {
         #endif
         """
         
-        let syntax = try! altParse(input)
+        let syntax = try! parse(input)
         let name = LeafData(.string("vapor"))
         
         let me = LeafData(.string("LOGAN"))
@@ -46,7 +46,7 @@ final class SerializerTests: XCTestCase {
         #endfor
         """
         
-        let syntax = try! altParse(input)
+        let syntax = try! parse(input)
         let people = LeafData(.array([
             LeafData(.dictionary([
                 "name": "LOGAN",
@@ -81,7 +81,7 @@ final class SerializerTests: XCTestCase {
         #endfor
         """
         
-        let syntax = try! altParse(input)
+        let syntax = try! parse(input)
         let people = LeafData(.array([
             LeafData(.dictionary([
                 "name": "LOGAN",
