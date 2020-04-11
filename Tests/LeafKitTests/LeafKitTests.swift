@@ -822,6 +822,30 @@ final class LeafKitTests: XCTestCase {
 
         XCTAssertEqual(view.string, "Hello barvapor")
     }
+    
+    func testCacheSpeedLinear() {
+        self.measure {
+            self._testCacheSpeedLinear(templates: 10, iterations: 100_000)
+        }
+    }
+    
+    func _testCacheSpeedLinear(templates: Int, iterations: Int) {
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        var test = TestFiles()
+        for name in 1...templates { test.files["/\(name).leaf"] = "Template \(name)" }
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: group.next()
+        )
+        
+        for _ in 1...iterations {
+            for key in test.files.keys { _ = renderer.render(path: key, context: [:]) }
+        }
+        
+        try! group.syncShutdownGracefully()
+    }
 }
 
 struct TestFiles: LeafFiles {

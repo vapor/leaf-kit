@@ -191,11 +191,20 @@ public final class LeafRenderer {
     }
 
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        let document = fetchFlat(template: path)
-        return document.flatMapThrowing { try self.render($0, context: context) }
+        return self.cache.load(documentName: path, on: self.eventLoop).flatMapThrowing { cached in
+            guard let cached = cached else { throw LeafError.noValueForKey(path) }
+            guard cached.flat else { throw LeafError.unresolvedAST(path) }
+            return try self.serialize(cached, context: context)
+        }.flatMapError { e in
+            return self.fetch(template: path).flatMapThrowing { ast in
+                guard let ast = ast else { throw LeafError.noTemplateExists(path) }
+                guard ast.flat else { throw LeafError.unresolvedAST(path) }
+                return try self.serialize(ast, context: context)
+            }
+        }
     }
 
-    func render(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
+    func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
         guard doc.flat == true else { throw LeafError.unresolvedAST(doc.name) }
 
         var serializer = LeafSerializer(
@@ -218,14 +227,6 @@ public final class LeafRenderer {
             path = self.configuration.rootDirectory.trailSlash + path
         }
         return path
-    }
-
-    private func fetchFlat(template: String) -> EventLoopFuture<LeafAST> {
-        return self.fetch(template: template).flatMapThrowing { ast in
-            guard let ast = ast else { throw LeafError.noTemplateExists(template) }
-            guard ast.flat else { throw LeafError.unresolvedAST(template) }
-            return ast
-        }
     }
 
     private func fetch(template: String, chain: Set<String> = .init()) -> EventLoopFuture<LeafAST?> {

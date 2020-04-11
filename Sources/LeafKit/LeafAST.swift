@@ -26,7 +26,7 @@ public struct LeafAST: Hashable {
         updateRefs()
     }
     
-    init(from: LeafAST, referencing externals: [String: LeafAST]) {
+     init(from: LeafAST, referencing externals: [String: LeafAST]) {
         self.name = from.name
         self.ast = from.ast
         self.rawAST = from.rawAST
