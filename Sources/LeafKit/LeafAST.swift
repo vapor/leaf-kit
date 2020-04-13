@@ -1,7 +1,8 @@
+public typealias ResolvedDocument = LeafAST
+
 // Internal combination of rawAST = nil indicates no external references
 // rawAST non-nil & flat = false : unresolved with external references, and public AST is not flat
 // rawAST non-nil & flat = true : resolved with external references, and public AST is flat
-
 public struct LeafAST: Hashable {
     public func hash(into hasher: inout Hasher) { hasher.combine(name) }
     public static func == (lhs: LeafAST, rhs: LeafAST) -> Bool { lhs.name == rhs.name }
@@ -47,7 +48,7 @@ public struct LeafAST: Hashable {
             case (.none, .some): fatalError("Invalid state: rawAST shouldn't hold a value if flatness isn't known")
             case (.some(false), .none): fatalError("Invalid state: rawAST must hold a value if flatness is false")
             case (.none, .none): firstRun = true
-            default: break // Either first run or known not flat
+            default: break
         }
         
         unresolvedRefs.removeAll()
@@ -60,7 +61,10 @@ public struct LeafAST: Hashable {
         flat = unresolvedRefs.count == 0
         flatState = flat
         
-        if firstRun && flat { rawAST = ast }
+        if firstRun == true {
+            if flat == false { rawAST = ast }
+            externalRefs = unresolvedRefs
+        }
     }
     
     mutating private func inlineRefs(_ externals: [String: LeafAST]) {
@@ -68,6 +72,7 @@ public struct LeafAST: Hashable {
         unresolvedRefs.removeAll()
         var pos = ast.startIndex
         
+        // inline provided externals
         while pos < ast.endIndex {
             if case .extend(let e) = ast[pos]  {
                 let key = e.key
@@ -83,8 +88,21 @@ public struct LeafAST: Hashable {
             pos += 1
         }
         
-        flat = unresolvedRefs.count == 0
-        flatState = flat
+        // compress raws
+        pos = ast.startIndex
+        while pos < ast.endIndex {
+            if case .raw(var syntax) = ast[pos], pos + 1 < ast.endIndex {
+                guard case .raw(var add) = ast[pos+1] else { pos += 1; break }
+                var buffer = ByteBufferAllocator().buffer(capacity: 0)
+                buffer.writeBuffer(&syntax)
+                buffer.writeBuffer(&add)
+                ast[pos] = .raw(buffer)
+                ast.remove(at: pos + 1)
+            } else { pos += 1 }
+        }
+        
+        // update refs as new externals may have been introduced through extension
+        updateRefs()
     }
 }
 

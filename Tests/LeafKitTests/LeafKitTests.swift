@@ -155,13 +155,12 @@ final class ParserTests: XCTestCase {
         let output = baseResolvedAST.ast.map { $0.description } .joined(separator: "\n")
 
         let expectation = """
-        raw("<h1>Hi!</h1>")
-        raw("\\n<title>")
+        raw("<h1>Hi!</h1>\\n<title>")
         import("title")
         raw("</title>\\n")
         import("body")
         """
-        XCTAssertEqual(output, expectation)
+        XCTAssertEqual(output.description, expectation)
     }
     
     func testDocumentResolveExtend() throws {
@@ -823,16 +822,91 @@ final class LeafKitTests: XCTestCase {
         XCTAssertEqual(view.string, "Hello barvapor")
     }
     
+    func testCyclicalError() {
+        var test = TestFiles()
+        test.files["/a.leaf"] = "#extend(\"b\")"
+        test.files["/b.leaf"] = "#extend(\"c\")"
+        test.files["/c.leaf"] = "#extend(\"a\")"
+        
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+        
+        do {
+            _ = try renderer.render(path: "a", context: [:]).wait()
+            XCTFail("Should have thrown LeafError.cyclicalReference")
+        } catch {
+            guard let e = error as? LeafError else { XCTFail("Wrong error: \(error.localizedDescription)"); return }
+            // list of chain references may be out of order
+            XCTAssertEqual(e.localizedDescription, LeafError.cyclicalReference("a", "a -> b -> c -> a").localizedDescription)
+        }
+    }
+    
+    func testDependencyError() {
+        var test = TestFiles()
+        test.files["/a.leaf"] = "#extend(\"b\")"
+        test.files["/b.leaf"] = "#extend(\"c\")"
+        test.files["/c.leaf"] = "#extend(\"d\")"
+        
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+        
+        do {
+            _ = try renderer.render(path: "a", context: [:]).wait()
+            XCTFail("Should have thrown LeafError.cyclicalReference")
+        } catch {
+            guard let e = error as? LeafError else { XCTFail("Wrong error: \(error.localizedDescription)"); return }
+            // list of chain references may be out of order
+            XCTAssertEqual(e.localizedDescription, LeafError.noTemplateExists("/d.leaf").localizedDescription)
+        }
+    }
+    
+    func testImportResolve() {
+        var test = TestFiles()
+        test.files["/a.leaf"] = """
+        #extend("b"):
+        #export("variable"):Hello#endexport
+        #endextend
+        """
+        test.files["/b.leaf"] = """
+        #import("variable")
+        """
+        
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+        
+        do {
+            let output = try renderer.render(path: "a", context: [:]).wait().string
+            XCTAssertEqual(output, "Hello")
+        } catch {
+            let e = error as! LeafError
+            XCTFail(e.localizedDescription)
+        }
+    }
+    
+    
     func testCacheSpeedLinear() {
         self.measure {
-            self._testCacheSpeedLinear(templates: 10, iterations: 100_000)
+            self._testCacheSpeedLinear(templates: 10, iterations: 1_000_000)
         }
     }
     
     func _testCacheSpeedLinear(templates: Int, iterations: Int) {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
         var test = TestFiles()
-        for name in 1...templates { test.files["/\(name).leaf"] = "Template \(name)" }
+       
+        for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf" }
         let renderer = LeafRenderer(
             configuration: .init(rootDirectory: "/"),
             cache: DefaultLeafCache(),
@@ -841,10 +915,54 @@ final class LeafKitTests: XCTestCase {
         )
         
         for _ in 1...iterations {
-            for key in test.files.keys { _ = renderer.render(path: key, context: [:]) }
+            let key = String((iterations % templates) + 1)
+            _ = renderer.render(path: key, context: [:])
         }
         
-        try! group.syncShutdownGracefully()
+        group.shutdownGracefully { shutdown in
+            guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
+            XCTAssertEqual(renderer.cache.entryCount(), templates)
+        }
+    }
+    
+    func testCacheSpeedRandom() {
+        self.measure {
+            // layer1 > layer2 > layer3
+            self._testCacheSpeedRandom(layer1: 1_000, layer2: 200, layer3: 50, iterations: 1_000_000)
+        }
+    }
+    
+    func _testCacheSpeedRandom(layer1: Int, layer2: Int, layer3: Int, iterations: Int) {
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        var test = TestFiles()
+        
+        for name in 1...layer3 { test.files["/\(name)-3.leaf"] = "Template \(name)"}
+        for name in 1...layer2 { test.files["/\(name)-2.leaf"] = "Template \(name) -> #extend(\"\((name % layer3)+1)-3\")"}
+        for name in 1...layer1 { test.files["/\(name).leaf"] = "Template \(name) -> #extend(\"\(Int.random(in: 1...layer2))-2\") & #extend(\"\(Int.random(in: 1...layer2))-2\")" }
+        
+        let allKeys: [String] = test.files.keys.map{ String($0.dropFirst().dropLast(5)) }.shuffled()
+        var hitList = allKeys
+        let totalTemplates = allKeys.count
+        let ratio = iterations / allKeys.count
+        
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: group.next()
+        )
+        
+        for x in (0..<iterations).reversed() {
+            let template: String
+            if x / ratio < hitList.count { template = hitList.removeFirst() }
+            else { template = allKeys[Int.random(in: 0 ..< totalTemplates)] }
+            _ = renderer.render(path: template, context: [:])
+        }
+        
+        group.shutdownGracefully { shutdown in
+            guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
+            XCTAssertEqual(renderer.cache.entryCount(), layer1+layer2+layer3)
+        }
     }
 }
 
@@ -862,7 +980,7 @@ struct TestFiles: LeafFiles {
             buffer.writeString(file)
             return eventLoop.makeSucceededFuture(buffer)
         } else {
-            return eventLoop.makeFailedFuture("no test file: \(path)")
+            return eventLoop.makeFailedFuture(LeafError.noTemplateExists(path))
         }
     }
 }
