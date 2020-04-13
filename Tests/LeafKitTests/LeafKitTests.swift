@@ -914,8 +914,8 @@ final class LeafKitTests: XCTestCase {
             eventLoop: group.next()
         )
         
-        for _ in 1...iterations {
-            let key = String((iterations % templates) + 1)
+        for iteration in 1...iterations {
+            let key = String((iteration % templates) + 1)
             _ = renderer.render(path: key, context: [:])
         }
         
