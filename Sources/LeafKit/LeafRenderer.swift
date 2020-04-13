@@ -99,7 +99,7 @@ public final class DefaultLeafCache: LeafCache {
         replace: Bool = false
     ) -> EventLoopFuture<ResolvedDocument> {
         // future fails if caching is enabled
-        guard isEnabled else { return loop.makeFailedFuture(LeafError.cachingDisabled) }
+        guard isEnabled else { return loop.makeSucceededFuture(document) }
         
         self.lock.lock()
         defer { self.lock.unlock() }
@@ -115,7 +115,7 @@ public final class DefaultLeafCache: LeafCache {
         documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<ResolvedDocument?> {
-        guard isEnabled == true else { return loop.makeFailedFuture(LeafError.cachingDisabled) }
+        guard isEnabled == true else { return loop.makeSucceededFuture(nil) }
         self.lock.lock()
         defer { self.lock.unlock() }
         return loop.makeSucceededFuture(self.cache[documentName])

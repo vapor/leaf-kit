@@ -900,7 +900,7 @@ final class LeafKitTests: XCTestCase {
     
     func testCacheSpeedLinear() {
         self.measure {
-            self._testCacheSpeedLinear(templates: 10, iterations: 1_000)
+            self._testCacheSpeedLinear(templates: 10, iterations: 100)
         }
     }
     
@@ -930,7 +930,7 @@ final class LeafKitTests: XCTestCase {
     func testCacheSpeedRandom() {
         self.measure {
             // layer1 > layer2 > layer3
-            self._testCacheSpeedRandom(layer1: 100, layer2: 20, layer3: 10, iterations: 1_000)
+            self._testCacheSpeedRandom(layer1: 100, layer2: 20, layer3: 10, iterations: 130)
         }
     }
     
