@@ -418,6 +418,19 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, [:]), expected)
     }
     
+    // Current implementation favors context keys over tag keys, so
+    // defining a key for isFirst in context will override accessing registered
+    // LeafTags with the same name.
+    // More reason to introduce scoping tag keys!!
+    func testTagContextOverride() throws {
+        let template = """
+            #if(isFirst):Wrong (Maybe)#else:Right#endif
+            """
+            let expected = "Wrong (Maybe)"
+        
+        try XCTAssertEqual(render(template, ["isFirst": true]), expected)
+    }
+    
 //
 //    // https://github.com/vapor/leaf/issues/99
 //    func testGH99() throws {
