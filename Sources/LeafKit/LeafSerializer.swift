@@ -137,8 +137,9 @@ struct LeafSerializer {
         for (idx, item) in array.enumerated() {
             var innerContext = self.data
             
-            if idx == 0 { innerContext["isFirst"] = .bool(true) }
-            else if idx == array.count - 1 { innerContext["isLast"] = .bool(true) }
+            innerContext["isFirst"] = .bool(idx == 0)
+            innerContext["isLast"] = .bool(idx == array.count - 1)
+            innerContext["index"] = .int(idx)
             innerContext[loop.item] = item
             
             var serializer = LeafSerializer(

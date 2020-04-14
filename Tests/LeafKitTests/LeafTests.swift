@@ -365,6 +365,59 @@ final class LeafTests: XCTestCase {
 //            ])
 //        try XCTAssertEqual(renderer.testRender(template, data), expected)
 //    }
+    
+    func testLoopIndices() throws {
+        let template = """
+        #for(name in names):
+            #(name) - index=#(index) last=#(isLast) first=#(isFirst)
+        #endfor
+        """
+        let expected = """
+
+            tanner - index=0 last=false first=true
+
+            ziz - index=1 last=false first=false
+
+            vapor - index=2 last=true first=false
+
+        """
+    
+        try XCTAssertEqual(render(template, ["names": ["tanner", "ziz", "vapor"]]), expected)
+    }
+    
+    func testNestedLoopIndices() throws {
+        let template = """
+        #for(array in arrays):
+        Array#(index) - [#for(element in array): #(index)#if(isFirst):(first)#elseif(isLast):(last)#endif : "#(element)"#if(!isLast):, #endif#endfor]#endfor
+        """
+        let expected = """
+
+        Array0 - [ 0(first) : "zero",  1 : "one",  2(last) : "two"]
+        Array1 - [ 0(first) : "a",  1 : "b",  2(last) : "c"]
+        Array2 - [ 0(first) : "red fish",  1 : "blue fish",  2(last) : "green fish"]
+        """
+        
+        let data = LeafData.array([
+            LeafData.array(["zero", "one", "two"]),
+            LeafData.array(["a", "b", "c"]),
+            LeafData.array(["red fish", "blue fish", "green fish"])
+        ])
+        
+        try XCTAssertEqual(render(template, ["arrays": data]), expected)
+    }
+    
+    // It would be nice if a pre-render phase could catch things like calling
+    // tags that would normally ALWAYS throw in serializing (eg, calling index
+    // when not in a loop) so that warnings can be provided and AST can be minimized.
+    func testLoopTagsInvalid() throws {
+        let template = """
+            #if(isFirst):Wrong#else:Right#endif
+            """
+            let expected = "Right"
+        
+        try XCTAssertEqual(render(template, [:]), expected)
+    }
+    
 //
 //    // https://github.com/vapor/leaf/issues/99
 //    func testGH99() throws {
