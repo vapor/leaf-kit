@@ -8,7 +8,7 @@ public indirect enum LeafError: Error {
     case noValueForKey(String)
     case unresolvedAST(String, String)
     case noTemplateExists(String)
-    case cyclicalReference(String, String)
+    case cyclicalReference(String, [String])
     case lexerError(LexerError)
 
     var localizedDescription: String {
@@ -21,7 +21,8 @@ public indirect enum LeafError: Error {
             case .unresolvedAST(let key, let dependencies):
                 return "Flat AST expected; \(key) has unresolved dependencies: \(dependencies)"
             case .noTemplateExists(let key): return "No template found named \(key)"
-            case .cyclicalReference(let key, let chain): return "\(key) was referenced in [\(chain)], causing a cyclical loop"
+            case .cyclicalReference(let key, let chain):
+                return "\(key) was referenced in [\(chain.joined(separator: " -> "))], causing a cyclical loop"
             case .lexerError(let e): return e.localizedDescription
         }
     }
@@ -312,7 +313,7 @@ public final class LeafRenderer {
         guard intersect.count == 0 else {
             let badRef = intersect.first ?? ""
             _ = chain.append(badRef)
-            return self.eventLoop.makeFailedFuture(LeafError.cyclicalReference(badRef, chain.joined(separator: " -> ")))
+            return self.eventLoop.makeFailedFuture(LeafError.cyclicalReference(badRef, chain))
         }
 
         let fetchRequests = ast.unresolvedRefs.map { self.fetch(template: $0, chain: chain) }
