@@ -843,7 +843,7 @@ final class LeafKitTests: XCTestCase {
         } catch {
             guard let e = error as? LeafError else { XCTFail("Wrong error: \(error.localizedDescription)"); return }
             // list of chain references may be out of order
-            XCTAssertEqual(e.localizedDescription, LeafError.cyclicalReference("a", "a -> b -> c -> a").localizedDescription)
+            XCTAssertEqual(e.localizedDescription, LeafError.cyclicalReference("a", ["a","b","c","a"]).localizedDescription)
         }
     }
     
@@ -930,7 +930,7 @@ final class LeafKitTests: XCTestCase {
     func testCacheSpeedRandom() {
         self.measure {
             // layer1 > layer2 > layer3
-            self._testCacheSpeedRandom(layer1: 100, layer2: 20, layer3: 10, iterations: 130)
+            self._testCacheSpeedRandom(layer1: 1000, layer2: 200, layer3: 50, iterations: 1_000_000)
         }
     }
     
