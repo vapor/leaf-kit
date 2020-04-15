@@ -58,17 +58,17 @@ public struct LeafAST: Hashable {
                 default: break
             }
         }
-        flat = unresolvedRefs.count == 0
+        flat = unresolvedRefs.isEmpty
         flatState = flat
         
-        if firstRun == true {
-            if flat == false { rawAST = ast }
+        if firstRun {
+            if !flat { rawAST = ast }
             externalRefs = unresolvedRefs
         }
     }
     
     mutating private func inlineRefs(_ externals: [String: LeafAST]) {
-        guard externals.count > 0 else { return }
+        guard !externals.isEmpty else { return }
         unresolvedRefs.removeAll()
         var pos = ast.startIndex
         
@@ -78,27 +78,26 @@ public struct LeafAST: Hashable {
                 let key = e.key
                 if let insert = externals[key] {
                     let inlined = e.extend(base: insert.ast)
-                    ast.remove(at: pos)
-                    ast.insert(contentsOf: inlined, at: pos)
-                    pos += inlined.count
+                    ast.replaceSubrange(pos...pos, with: inlined)
+                    pos = ast.index(pos, offsetBy: inlined.count)
                 } else {
                     unresolvedRefs.insert(key)
                 }
-            }
-            pos += 1
+            } else { pos = ast.index(after: pos) }
         }
         
         // compress raws
         pos = ast.startIndex
-        while pos < ast.endIndex {
-            if case .raw(var syntax) = ast[pos], pos + 1 < ast.endIndex {
-                guard case .raw(var add) = ast[pos+1] else { pos += 1; break }
-                var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        while pos < ast.index(before: ast.endIndex) {
+            if case .raw(var syntax) = ast[pos] {
+                guard case .raw(var add) = ast[ast.index(after: pos)]
+                    else { pos = ast.index(after: pos); break }
+                var buffer = ByteBufferAllocator().buffer(capacity: syntax.readableBytes + add.readableBytes)
                 buffer.writeBuffer(&syntax)
                 buffer.writeBuffer(&add)
                 ast[pos] = .raw(buffer)
-                ast.remove(at: pos + 1)
-            } else { pos += 1 }
+                ast.remove(at: ast.index(after: pos) )
+            } else { pos = ast.index(after: pos) }
         }
         
         // update refs as new externals may have been introduced through extension
