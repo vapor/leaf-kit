@@ -917,7 +917,7 @@ final class LeafKitTests: XCTestCase {
         )
         
         for iteration in 1...iterations {
-            let key = String((iteration % templates) + 1)
+            let template = String((iteration % templates) + 1)
             group.next().execute {
                 _ = renderer.render(path: template, context: [:])
             }
