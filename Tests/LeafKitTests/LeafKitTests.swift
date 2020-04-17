@@ -918,7 +918,9 @@ final class LeafKitTests: XCTestCase {
         
         for iteration in 1...iterations {
             let key = String((iteration % templates) + 1)
-            _ = renderer.render(path: key, context: [:])
+            group.next().execute {
+                _ = renderer.render(path: template, context: [:])
+            }
         }
         
         group.shutdownGracefully { shutdown in
@@ -930,7 +932,7 @@ final class LeafKitTests: XCTestCase {
     func testCacheSpeedRandom() {
         self.measure {
             // layer1 > layer2 > layer3
-            self._testCacheSpeedRandom(layer1: 1000, layer2: 200, layer3: 50, iterations: 1_000_000)
+            self._testCacheSpeedRandom(layer1: 100, layer2: 20, layer3: 10, iterations: 130)
         }
     }
     
@@ -958,7 +960,9 @@ final class LeafKitTests: XCTestCase {
             let template: String
             if x / ratio < hitList.count { template = hitList.removeFirst() }
             else { template = allKeys[Int.random(in: 0 ..< totalTemplates)] }
-            _ = renderer.render(path: template, context: [:])
+            group.next().execute {
+                _ = renderer.render(path: template, context: [:])
+            }
         }
         
         group.shutdownGracefully { shutdown in
