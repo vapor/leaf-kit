@@ -916,16 +916,25 @@ final class LeafKitTests: XCTestCase {
             eventLoop: group.next()
         )
         
+        var progress = ProgressLock(iterations)
+        var done = progress.done
+        
         for iteration in 1...iterations {
             let template = String((iteration % templates) + 1)
-            _ = group.next().submit {
-                renderer.render(path: template, context: [:])
-            }
+            group.next()
+                .submit { renderer.render(path: template, context: [:]) }
+                .whenComplete { result in progress.increment() }
         }
         
-        group.shutdownGracefully { shutdown in
-            guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
-            XCTAssertEqual(renderer.cache.entryCount(), templates)
+        while !done {
+            let status = progress.status
+            let delay = UInt32((status.1 - status.0) * 10)
+            guard delay == 0 else { usleep(delay); break }
+            done = true
+            group.shutdownGracefully { shutdown in
+                guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
+                XCTAssertEqual(renderer.cache.entryCount(), templates)
+            }
         }
     }
     
@@ -956,18 +965,27 @@ final class LeafKitTests: XCTestCase {
             eventLoop: group.next()
         )
         
+        var progress = ProgressLock(iterations)
+        var done = progress.done
+        
         for x in (0..<iterations).reversed() {
             let template: String
             if x / ratio < hitList.count { template = hitList.removeFirst() }
             else { template = allKeys[Int.random(in: 0 ..< totalTemplates)] }
-            _ = group.next().submit {
-                renderer.render(path: template, context: [:])
-            }
+            group.next()
+                .submit { renderer.render(path: template, context: [:]) }
+                .whenComplete { result in progress.increment() }
         }
         
-        group.shutdownGracefully { shutdown in
-            guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
-            XCTAssertEqual(renderer.cache.entryCount(), layer1+layer2+layer3)
+        while !done {
+            let status = progress.status
+            let delay = UInt32((status.1 - status.0) * 10)
+            guard delay == 0 else { usleep(delay); break }
+            done = true
+            group.shutdownGracefully { shutdown in
+                guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
+                XCTAssertEqual(renderer.cache.entryCount(), layer1+layer2+layer3)
+            }
         }
     }
 }
@@ -1004,4 +1022,33 @@ extension ByteBuffer {
 var templateFolder: String {
     let folder = #file.split(separator: "/").dropLast().joined(separator: "/")
     return "/" + folder + "/Templates/"
+}
+
+private struct ProgressLock {
+    let lock: Lock
+    let totalTasks: Int
+    var doneTasks: Int
+    
+    var status: (Int, Int, Double) {
+        self.lock.withLock {
+            return (
+                doneTasks,
+                totalTasks,
+                Double((totalTasks - doneTasks) / totalTasks)
+            )
+        }
+    }
+    var done: Bool {
+        self.lock.withLock { return doneTasks == totalTasks }
+    }
+    
+    init(_ tasks: Int) {
+        self.totalTasks = tasks
+        self.doneTasks = 0
+        self.lock = .init()
+    }
+    
+    mutating func increment(_ add: Int = 1) {
+        self.lock.withLock { doneTasks += add }
+    }
 }
