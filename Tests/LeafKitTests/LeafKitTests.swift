@@ -916,20 +916,21 @@ final class LeafKitTests: XCTestCase {
             eventLoop: group.next()
         )
         
-        var progress = ProgressLock(iterations)
-        var done = progress.done
+        let progressLock = Lock()
+        var progress = 0
+        var done = false
+        var delay = 0
         
         for iteration in 1...iterations {
             let template = String((iteration % templates) + 1)
             group.next()
                 .submit { renderer.render(path: template, context: [:]) }
-                .whenComplete { result in progress.increment() }
+                .whenComplete { result in progressLock.withLock { progress += 1 } }
         }
         
         while !done {
-            let status = progress.status
-            let delay = UInt32((status.1 - status.0) * 10)
-            guard delay == 0 else { usleep(delay); break }
+            progressLock.withLock { delay = (iterations - progress) * 10 }
+            guard delay == 0 else { usleep(UInt32(delay)); break }
             done = true
             group.shutdownGracefully { shutdown in
                 guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
@@ -965,8 +966,10 @@ final class LeafKitTests: XCTestCase {
             eventLoop: group.next()
         )
         
-        var progress = ProgressLock(iterations)
-        var done = progress.done
+        let progressLock = Lock()
+        var progress = 0
+        var done = false
+        var delay = 0
         
         for x in (0..<iterations).reversed() {
             let template: String
@@ -974,13 +977,12 @@ final class LeafKitTests: XCTestCase {
             else { template = allKeys[Int.random(in: 0 ..< totalTemplates)] }
             group.next()
                 .submit { renderer.render(path: template, context: [:]) }
-                .whenComplete { result in progress.increment() }
+                .whenComplete { result in progressLock.withLock { progress += 1 } }
         }
         
         while !done {
-            let status = progress.status
-            let delay = UInt32((status.1 - status.0) * 10)
-            guard delay == 0 else { usleep(delay); break }
+            progressLock.withLock { delay = (iterations - progress) * 10  }
+            guard delay == 0 else { usleep(UInt32(delay)); break }
             done = true
             group.shutdownGracefully { shutdown in
                 guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
@@ -1022,33 +1024,4 @@ extension ByteBuffer {
 var templateFolder: String {
     let folder = #file.split(separator: "/").dropLast().joined(separator: "/")
     return "/" + folder + "/Templates/"
-}
-
-private struct ProgressLock {
-    let lock: Lock
-    let totalTasks: Int
-    var doneTasks: Int
-    
-    var status: (Int, Int, Double) {
-        self.lock.withLock {
-            return (
-                doneTasks,
-                totalTasks,
-                Double((totalTasks - doneTasks) / totalTasks)
-            )
-        }
-    }
-    var done: Bool {
-        self.lock.withLock { return doneTasks == totalTasks }
-    }
-    
-    init(_ tasks: Int) {
-        self.totalTasks = tasks
-        self.doneTasks = 0
-        self.lock = .init()
-    }
-    
-    mutating func increment(_ add: Int = 1) {
-        self.lock.withLock { doneTasks += add }
-    }
 }
