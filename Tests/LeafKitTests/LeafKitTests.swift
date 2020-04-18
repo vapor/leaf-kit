@@ -918,8 +918,8 @@ final class LeafKitTests: XCTestCase {
         
         for iteration in 1...iterations {
             let template = String((iteration % templates) + 1)
-            group.next().execute {
-                _ = renderer.render(path: template, context: [:])
+            _ = group.next().submit {
+                renderer.render(path: template, context: [:])
             }
         }
         
@@ -960,8 +960,8 @@ final class LeafKitTests: XCTestCase {
             let template: String
             if x / ratio < hitList.count { template = hitList.removeFirst() }
             else { template = allKeys[Int.random(in: 0 ..< totalTemplates)] }
-            group.next().execute {
-                _ = renderer.render(path: template, context: [:])
+            _ = group.next().submit {
+                renderer.render(path: template, context: [:])
             }
         }
         
