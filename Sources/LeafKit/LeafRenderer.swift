@@ -32,10 +32,6 @@ public indirect enum LeafError: Error {
     }
 }
 
-public var defaultTags: [String: LeafTag] = [
-    "lowercased": Lowercased(),
-]
-
 public struct LeafConfiguration {
     public var rootDirectory: String
 
@@ -182,19 +178,6 @@ public struct LeafContext {
         guard body == nil else {
             throw "Extraneous body"
         }
-    }
-}
-
-public protocol LeafTag {
-    func render(_ ctx: LeafContext) throws -> LeafData
-}
-
-struct Lowercased: LeafTag {
-    func render(_ ctx: LeafContext) throws -> LeafData {
-        guard let str = ctx.parameters.first?.string else {
-            throw "unable to lowercase unexpected data"
-        }
-        return .init(.string(str.lowercased()))
     }
 }
 
