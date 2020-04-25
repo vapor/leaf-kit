@@ -79,28 +79,6 @@ struct TemplateSource {
     }
 }
 
-public struct LexerError: Error {
-    public enum Reason {
-        case invalidTagToken(Character)
-        case invalidParameterToken(Character)
-        case unterminatedStringLiteral
-    }
-    
-    public let line: Int
-    public let column: Int
-    public let name: String
-    public let reason: Reason
-    public let lexed: [LeafToken]
-    
-    internal init(src: TemplateSource, lexed: [LeafToken], reason: Reason) {
-        self.line = src.line
-        self.column = src.column
-        self.reason = reason
-        self.lexed = lexed
-        self.name = src.name
-    }
-}
-
 struct LeafLexer {
     private enum State {
         // parses as raw, until it finds `#` (excluding escaped `\#`)

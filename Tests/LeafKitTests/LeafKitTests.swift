@@ -840,10 +840,13 @@ final class LeafKitTests: XCTestCase {
         do {
             _ = try renderer.render(path: "a", context: [:]).wait()
             XCTFail("Should have thrown LeafError.cyclicalReference")
+        } catch let error as LeafError {
+            switch error.reason {
+                case .cyclicalReference(let name, let cycle): XCTAssertEqual([name:cycle],["a":["a","b","c","a"]])
+                default: XCTFail("Wrong error: \(error.localizedDescription)")
+            }
         } catch {
-            guard let e = error as? LeafError else { XCTFail("Wrong error: \(error.localizedDescription)"); return }
-            // list of chain references may be out of order
-            XCTAssertEqual(e.localizedDescription, LeafError.cyclicalReference("a", ["a","b","c","a"]).localizedDescription)
+            XCTFail("Wrong error: \(error.localizedDescription)")
         }
     }
     
@@ -860,13 +863,17 @@ final class LeafKitTests: XCTestCase {
             eventLoop: EmbeddedEventLoop()
         )
         
+        
         do {
             _ = try renderer.render(path: "a", context: [:]).wait()
-            XCTFail("Should have thrown LeafError.cyclicalReference")
+            XCTFail("Should have thrown LeafError.noTemplateExists")
+        } catch let error as LeafError {
+            switch error.reason {
+                case .noTemplateExists(let name): XCTAssertEqual(name,"/d.leaf")
+                default: XCTFail("Wrong error: \(error.localizedDescription)")
+            }
         } catch {
-            guard let e = error as? LeafError else { XCTFail("Wrong error: \(error.localizedDescription)"); return }
-            // list of chain references may be out of order
-            XCTAssertEqual(e.localizedDescription, LeafError.noTemplateExists("/d.leaf").localizedDescription)
+            XCTFail("Wrong error: \(error.localizedDescription)")
         }
     }
     
@@ -1053,7 +1060,7 @@ struct TestFiles: LeafFiles {
             buffer.writeString(file)
             return eventLoop.makeSucceededFuture(buffer)
         } else {
-            return eventLoop.makeFailedFuture(LeafError.noTemplateExists(path))
+            return eventLoop.makeFailedFuture(LeafError(.noTemplateExists(path)))
         }
     }
 }
