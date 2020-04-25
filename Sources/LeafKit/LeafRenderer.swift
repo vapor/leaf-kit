@@ -314,9 +314,16 @@ public final class LeafRenderer {
                     case .failure(let e): return self.eventLoop.makeFailedFuture(e)
                 }
             }
-            // return new inlined AST that may potentially still have references that can't be resolved
+            // create new AST with loaded references
             let new = LeafAST(from: ast, referencing: externals)
-            return self.cache.insert(new, on: self.eventLoop, replace: true )
+            // Check new AST's unresolved refs to see if extension introduced new refs
+            if !new.unresolvedRefs.subtracting(ast.unresolvedRefs).isEmpty {
+                // AST has new references - try to resolve again recursively
+                return self.resolve(ast: new, chain: chain)
+            } else {
+                // Cache extended AST & return - AST is either flat or unresolvable
+                return self.cache.insert(new, on: self.eventLoop, replace: true)
+            }
         }
     }
 

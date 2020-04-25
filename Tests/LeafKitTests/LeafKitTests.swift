@@ -990,6 +990,49 @@ final class LeafKitTests: XCTestCase {
             }
         }
     }
+    
+    func testGH33() {
+        var test = TestFiles()
+        test.files["/base.leaf"] = """
+        <body>
+            Directly extended snippet
+            #extend("partials/picture.svg"):#endextend
+            #import("body")
+        </body>
+        """
+        test.files["/page.leaf"] = """
+        #extend("base"):
+            #export("body"):
+            Snippet added through export/import
+            #extend("partials/picture.svg"):#endextend
+        #endexport
+        #endextend
+        """
+        test.files["/partials/picture.svg"] = """
+        <svg><path d="M0..."></svg>
+        """
+        
+        let expected = """
+        <body>
+            Directly extended snippet
+            <svg><path d="M0..."></svg>
+            
+            Snippet added through export/import
+            <svg><path d="M0..."></svg>
+
+        </body>
+        """
+        
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+        
+            let page = try! renderer.render(path: "page", context: [:]).wait()
+            XCTAssertEqual(page.string, expected)
+    }    
 }
 
 struct TestFiles: LeafFiles {
