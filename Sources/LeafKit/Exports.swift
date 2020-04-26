@@ -14,12 +14,18 @@ extension Character {
     static let colon = ":".first!
     static let period = ".".first!
     static let A = "A".first!
+    static let F = "F".first!
     static let Z = "Z".first!
     static let a = "a".first!
     static let z = "z".first!
     
     static let zero = "0".first!
+    static let one = "1".first!
+    static let seven = "7".first!
     static let nine = "9".first!
+    static let binaryNotation = "b".first!
+    static let octalNotation = "o".first!
+    static let hexNotation = "x".first!
     
     static let plus = "+".first!
     static let minus = "-".first!
@@ -32,6 +38,22 @@ extension Character {
     static let ampersand = "&".first!
     static let vertical = "|".first!
     static let underscore = "_".first!
+    
+    var isHexidecimal: Bool {
+        return (.zero ... .nine).contains(self)
+            || (.A ... .F).contains(self.uppercased().first!)
+            || self == .hexNotation
+    }
+    
+    var isOctal: Bool {
+        return (.zero ... .seven).contains(self)
+        || self == .octalNotation
+    }
+    
+    var isBinary: Bool {
+        return (.zero ... .one).contains(self)
+        || self == .binaryNotation
+    }
     
     var isUppercaseLetter: Bool {
         return (.A ... .Z).contains(self)

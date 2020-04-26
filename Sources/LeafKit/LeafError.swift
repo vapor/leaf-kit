@@ -80,6 +80,8 @@ public struct LexerError: Error {
         case invalidTagToken(Character)
         case invalidParameterToken(Character)
         case unterminatedStringLiteral
+        // Use below in place of fatalError to indicate extreme issue
+        case internalError(String)
     }
     
     public let line: Int
@@ -87,13 +89,20 @@ public struct LexerError: Error {
     public let name: String
     public let reason: Reason
     public let lexed: [LeafToken]
+    internal let recoverable: Bool
     
-    internal init(src: TemplateSource, lexed: [LeafToken], reason: Reason) {
+    internal init(
+        _ reason: Reason,
+        src: TemplateSource,
+        lexed: [LeafToken] = [],
+        recoverable: Bool = false
+    ) {
         self.line = src.line
         self.column = src.column
         self.reason = reason
         self.lexed = lexed
         self.name = src.name
+        self.recoverable = recoverable
     }
     
     var localizedDescription: String {

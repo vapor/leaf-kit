@@ -2,6 +2,7 @@
 import XCTest
 
 final class LeafTests: XCTestCase {
+    
     // currently not supported.. discussion ongoing
     func _testInterpolated() throws {
         let template = """
@@ -195,69 +196,54 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["namelist": [.string("Tanner")]]), expectedName)
         try XCTAssertEqual(render(template), expectedNoName)
     }
-//
-//    func testEscapeExtraneousBody() throws {
-//        let template = """
-//        extension #("User") \\{
-//
-//        }
-//        """
-//        let expected = """
-//        extension User {
-//
-//        }
-//        """
-//        try XCTAssertEqual(renderer.testRender(template, .null), expected)
-//    }
-//
-//
-//    func testEscapeTag() throws {
-//        let template = """
-//        #("foo") \\#("bar")
-//        """
-//        let expected = """
-//        foo #("bar")
-//        """
-//        try XCTAssertEqual(renderer.testRender(template, .null), expected)
-//    }
-//
-//    func testCount() throws {
-//        let template = """
-//        count: #count(array)
-//        """
-//        let expected = """
-//        count: 4
-//        """
-//        let context = TemplateData.dictionary(["array": .array([.null, .null, .null, .null])])
-//        try XCTAssertEqual(renderer.testRender(template, context), expected)
-//    }
-//
-//    func testNestedSet() throws {
-//        let template = """
-//        #if(a){#set("title"){A}}title: #get(title)
-//        """
-//        let expected = """
-//        title: A
-//        """
-//
-//        let context = TemplateData.dictionary(["a": .bool(true)])
-//        try XCTAssertEqual(renderer.testRender(template, context), expected)
-//    }
-//
-//    func testDateFormat() throws {
-//        let template = """
-//        Date: #date(foo, "yyyy-MM-dd")
-//        """
-//
-//        let expected = """
-//        Date: 1970-01-16
-//        """
-//
-//        let context = TemplateData.dictionary(["foo": .double(1_337_000)])
-//        try XCTAssertEqual(renderer.testRender(template, context), expected)
-//
-//    }
-//
+
+//    func testEscapeExtraneousBody()... removed as obviated by syntax change
+
+    func testEscapeTag() throws {
+        let template = """
+        #("foo") \\#("bar")
+        """
+        let expected = """
+        foo #("bar")
+        """
+        try XCTAssertEqual(render(template, [:]), expected)
+    }
+    
+    // TODO: Reimplement #count
+    func _testCount() throws {
+        let template = """
+        count: #count(array)
+        """
+        let expected = """
+        count: 4
+        """
+        try XCTAssertEqual(render(template, ["array": ["","","",""]]), expected)
+    }
+    
+    // TODO: Are set/get totally deprecated?
+    func _testNestedSet() throws {
+        let template = """
+        #if(a){#set("title"){A}}title: #get(title)
+        """
+        let expected = """
+        title: A
+        """
+        try XCTAssertEqual(render(template, ["a": true]), expected)
+    }
+
+    // TODO: Reimplement #date
+    func _testDateFormat() throws {
+        let template = """
+        Date: #date(foo, "yyyy-MM-dd")
+        """
+
+        let expected = """
+        Date: 1970-01-16
+        """
+        try XCTAssertEqual(render(template, ["foo": 1_337_000]), expected)
+
+    }
+
 //    func testEmptyForLoop() throws {
 //        let template = """
 //        #for(category in categories) {
@@ -277,7 +263,7 @@ final class LeafTests: XCTestCase {
 //
 //        let context = Context(categories: [])
 //        let data = try TemplateDataEncoder().testEncode(context)
-//        try XCTAssertEqual(renderer.testRender(template, data), expected)
+//        try XCTAssertEqual(render(template, data), expected)
 //
 //    }
 //
@@ -295,76 +281,60 @@ final class LeafTests: XCTestCase {
 //
 //        let context = Stuff(title: "foo")
 //        let data = try TemplateDataEncoder().testEncode(context)
-//        try XCTAssertEqual(renderer.testRender(template, data), expected)
+//        try XCTAssertEqual(render(template, data), expected)
 //    }
-//
-//    func testInvalidForSyntax() throws {
-//        let data = try TemplateDataEncoder().testEncode(["names": ["foo"]])
-//        do {
-//            _ = try renderer.testRender("#for( name in names) {}", data)
-//            XCTFail("Whitespace not allowed here")
-//        } catch {
-//            XCTAssert("\(error)".contains("space not allowed"))
-//        }
-//
-//        do {
-//            _ = try renderer.testRender("#for(name in names ) {}", data)
-//            XCTFail("Whitespace not allowed here")
-//        } catch {
-//            XCTAssert("\(error)".contains("space not allowed"))
-//        }
-//
-//        do {
-//            _ = try renderer.testRender("#for( name in names ) {}", data)
-//            XCTFail("Whitespace not allowed here")
-//        } catch {
-//            XCTAssert("\(error)".contains("space not allowed"))
-//        }
-//
-//        do {
-//            _ = try renderer.testRender("#for(name in names) {}", data)
-//        } catch {
-//            XCTFail("\(error)")
-//        }
-//    }
-//
-//    func testTemplating() throws {
-//        let home = """
-//        #set("title", "Home")#set("body"){<p>#(foo)</p>}#embed("base")
-//        """
-//        let expected = """
-//        <title>Home</title>
-//        <body><p>bar</p></body>
-//
-//        """
-//        renderer.astCache = ASTCache()
-//        defer { renderer.astCache = nil }
-//        let data = try TemplateDataEncoder().testEncode(["foo": "bar"])
-//        try XCTAssertEqual(renderer.testRender(home, data), expected)
-//        try XCTAssertEqual(renderer.testRender(home, data), expected)
-//    }
-//
-//    // https://github.com/vapor/leaf/issues/96
-//    func testGH96() throws {
-//        let template = """
-//        #for(name in names) {
-//            #(name): index=#(index) last=#(isLast) first=#(isFirst)
-//        }
-//        """
-//        let expected = """
-//
-//            tanner: index=0 last=false first=true
-//
-//            ziz: index=1 last=false first=false
-//
-//            vapor: index=2 last=true first=false
-//
-//        """
-//        let data = try TemplateDataEncoder().testEncode([
-//            "names": ["tanner", "ziz", "vapor"]
-//            ])
-//        try XCTAssertEqual(renderer.testRender(template, data), expected)
-//    }
+
+    // TODO: WHY is whitespace not allowed here?!?
+    func _testInvalidForSyntax() throws {
+        let data: [String: LeafData] = ["names": LeafData(arrayLiteral: "foo")]
+        do {
+            _ = try render("#for( name in names):Hi#endfor", data)
+            XCTFail("Whitespace not allowed here")
+        } catch {
+            XCTAssert("\(error)".contains("space not allowed"))
+        }
+
+        do {
+            _ = try render("#for(name in names ):Hi#endfor", data)
+            XCTFail("Whitespace not allowed here")
+        } catch {
+            XCTAssert("\(error)".contains("space not allowed"))
+        }
+
+        do {
+            _ = try render("#for( name in names ):Hi#endfor", data)
+            XCTFail("Whitespace not allowed here")
+        } catch {
+            XCTAssert("\(error)".contains("space not allowed"))
+        }
+
+        do {
+            _ = try render("#for(name in names):Hi#endfor", data)
+        } catch {
+            XCTFail("\(error)")
+        }
+    }
+
+//    func testTemplating()... * Removed as obviated by newer LeafCache tests
+
+    // https://github.com/vapor/leaf/issues/96
+    func testGH96() throws {
+        let template = """
+        #for(name in names):
+            #(name): index=#(index) last=#(isLast) first=#(isFirst)
+        #endfor
+        """
+        let expected = """
+
+            tanner: index=0 last=false first=true
+
+            ziz: index=1 last=false first=false
+
+            vapor: index=2 last=true first=false
+
+        """
+        try XCTAssertEqual(render(template, ["names": ["tanner", "ziz", "vapor"]]), expected)
+    }
     
     func testLoopIndices() throws {
         let template = """
@@ -431,100 +401,91 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["isFirst": true]), expected)
     }
     
-//
-//    // https://github.com/vapor/leaf/issues/99
-//    func testGH99() throws {
-//        let template = """
-//        Hi #(first) #(last)
-//        """
-//        let expected = """
-//        Hi Foo Bar
-//        """
-//        let data = try TemplateDataEncoder().testEncode([
-//            "first": "Foo", "last": "Bar"
-//            ])
-//        try XCTAssertEqual(renderer.testRender(template, data), expected)
-//    }
-//
-//    // https://github.com/vapor/leaf/issues/101
-//    func testGH101() throws {
-//        let template = """
-//        #for(foo in foos){#(index+1):#(foo)}
-//        """
-//        let expected = "1:A2:B3:C"
-//        let data = try TemplateDataEncoder().testEncode([
-//            "foos": ["A", "B", "C"]
-//            ])
-//        try XCTAssertEqual(renderer.testRender(template, data), expected)
-//    }
-//
-//    // https://github.com/vapor/leaf/issues/105
-//    func testGH105() throws {
-//        do {
-//            let template = """
-//            #if(1 + 1 == 2) {hi}
-//            """
-//            let expected = "hi"
-//            let data = try TemplateDataEncoder().testEncode(["a": "a"])
-//            try XCTAssertEqual(renderer.testRender(template, data), expected)
-//        }
-//        do {
-//            let template = """
-//            #if(2 == 1 + 1) {hi}
-//            """
-//            let expected = "hi"
-//            let data = try TemplateDataEncoder().testEncode(["a": "a"])
-//            try XCTAssertEqual(renderer.testRender(template, data), expected)
-//        }
-//        do {
-//            let template = """
-//            #if(1 == 1 + 1 || 1 == 2 - 1) {hi}
-//            """
-//            let expected = "hi"
-//            let data = try TemplateDataEncoder().testEncode(["a": "a"])
-//            try XCTAssertEqual(renderer.testRender(template, data), expected)
-//        }
-//    }
-//
-//    // https://github.com/vapor/leaf/issues/127
-//    func testGH127Inline() throws {
-//        do {
-//            let template = """
-//            <html>
-//            <head>
-//            <title></title>#// Translate all copy!!!!!
-//            <style>
-//            """
-//            let expected = """
-//            <html>
-//            <head>
-//            <title></title>
-//            <style>
-//            """
-//            let data = try TemplateDataEncoder().testEncode(["a": "a"])
-//            try XCTAssertEqual(renderer.testRender(template, data), expected)
-//        }
-//    }
-//
-//    func testGH127SingleLine() throws {
-//        do {
-//            let template = """
-//            <html>
-//            <head>
-//            <title></title>
-//            #// Translate all copy!!!!!
-//            <style>
-//            """
-//            let expected = """
-//            <html>
-//            <head>
-//            <title></title>
-//            <style>
-//            """
-//            let data = try TemplateDataEncoder().testEncode(["a": "a"])
-//            try XCTAssertEqual(renderer.testRender(template, data), expected)
-//        }
-//    }
+
+    // https://github.com/vapor/leaf/issues/99
+    func testGH99() throws {
+        let template = """
+        Hi #(first) #(last)
+        """
+        let expected = """
+        Hi Foo Bar
+        """
+        try XCTAssertEqual(render(template, ["first": "Foo", "last": "Bar"]), expected)
+    }
+
+    // https://github.com/vapor/leaf/issues/101
+    func testGH101() throws {
+        let template = """
+        #for(foo in foos):#(index+1):#(foo)#endfor
+        """
+        let expected = "1:A2:B3:C"
+        try XCTAssertEqual(render(template, ["foos": ["A", "B", "C"]]), expected)
+    }
+
+    // https://github.com/vapor/leaf/issues/105
+    // FIXME: Parser is not resolving expressions
+    func _testGH105() throws {
+        do {
+            let template = """
+            #if(1 + 1 == 2):hi#endif
+            """
+            let expected = "hi"
+            try XCTAssertEqual(render(template, ["a": "a"]), expected)
+        }
+        do {
+            let template = """
+            #if(2 == 1 + 1):hi#endif
+            """
+            let expected = "hi"
+            try XCTAssertEqual(render(template, ["a": "a"]), expected)
+        }
+        do {
+            let template = """
+            #if(1 == 1 + 1 || 1 == 2 - 1):hi#endif
+            """
+            let expected = "hi"
+            try XCTAssertEqual(render(template, ["a": "a"]), expected)
+        }
+    }
+
+    // https://github.com/vapor/leaf/issues/127
+    // TODO: This commenting style is not used anymore but needs a replacement
+    func _testGH127Inline() throws {
+        do {
+            let template = """
+            <html>
+            <head>
+            <title></title>#// Translate all copy!!!!!
+            <style>
+            """
+            let expected = """
+            <html>
+            <head>
+            <title></title>
+            <style>
+            """
+            try XCTAssertEqual(render(template, ["a": "a"]), expected)
+        }
+    }
+    // TODO: This commenting style is not used anymore but needs a replacement
+    func _testGH127SingleLine() throws {
+        do {
+            let template = """
+            <html>
+            <head>
+            <title></title>
+            #// Translate all copy!!!!!
+            <style>
+            """
+            let expected = """
+            <html>
+            <head>
+            <title></title>
+            <style>
+            """
+            try XCTAssertEqual(render(template, ["a": "a"]), expected)
+        }
+    }
 }
 
 private func render(name: String = "test-render", _ template: String, _ context: [String: LeafData] = [:]) throws -> String {

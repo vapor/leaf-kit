@@ -448,6 +448,47 @@ final class LexerTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
     
+    func testNoWhitespace() throws {
+        let input1 = "#if(!one||!two)"
+        let input2 = "#if(!one || !two)"
+        let input3 = "#if(! one||! two)"
+        let input4 = "#if(! one || ! two)"
+
+        let output1 = try lex(input1).map { $0.description + "\n" } .reduce("", +)
+        let output2 = try lex(input2).map { $0.description + "\n" } .reduce("", +)
+        let output3 = try lex(input3).map { $0.description + "\n" } .reduce("", +)
+        let output4 = try lex(input4).map { $0.description + "\n" } .reduce("", +)
+        XCTAssertEqual(output1, output2)
+        XCTAssertEqual(output2, output3)
+        XCTAssertEqual(output3, output4)
+    }
+    
+    
+    // Base2/8/10/16 lexing for Int constants, Base10/16 for Double
+    func testNonDecimals() throws {
+        let input = "#(0b0101010 0o052 42 0_042 0x02A 0b0101010.0 0o052.0 42.0 0_042.0 0x02A.0)"
+        let expectation = """
+        tagIndicator
+        tag(name: "")
+        parametersStart
+        param(constant(42))
+        param(constant(42))
+        param(constant(42))
+        param(constant(42))
+        param(constant(42))
+        param(variable(0b0101010.0))
+        param(variable(0o052.0))
+        param(constant(42.0))
+        param(constant(42.0))
+        param(constant(42.0))
+        parametersEnd
+
+        """
+
+        let output = try lex(input).map { $0.description + "\n" } .reduce("", +)
+        XCTAssertEqual(output, expectation)
+    }
+    
     /*
      // TODO:
      

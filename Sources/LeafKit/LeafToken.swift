@@ -23,19 +23,34 @@ public enum Operator: String, Equatable, CustomStringConvertible {
 }
 
 extension Operator {
-    var isBooleanOperator: Bool {
+    var isBoolean: Bool {
         switch self {
-        case .equals,
-             .notEquals,
-             .greaterThan,
-             .greaterThanOrEquals,
-             .lessThan,
-             .lessThanOrEquals,
-             .and,
-             .or:
-            return true
-        default:
-            return false
+            case .not,
+                 .equals,
+                 .notEquals,
+                 .greaterThan,
+                 .greaterThanOrEquals,
+                 .lessThan,
+                 .lessThanOrEquals,
+                 .and,
+                 .or:
+                return true
+            default:
+                return false
+        }
+    }
+    
+    var isBinary: Bool {
+        switch self {
+            case .not: return false
+            default: return true
+        }
+    }
+    
+    var isUnaryPrefix: Bool {
+        switch self {
+            case .not: return true
+            default: return false
         }
     }
 }
@@ -46,8 +61,8 @@ public enum Constant: CustomStringConvertible, Equatable {
     
     public var description: String {
         switch self {
-        case .int(let i): return i.description
-        case .double(let d): return d.description
+            case .int(let i): return i.description
+            case .double(let d): return d.description
         }
     }
 }
@@ -152,7 +167,7 @@ public enum LeafToken: CustomStringConvertible, Equatable  {
     case parameter(Parameter)
     case parametersEnd
     
-    // TODO: RM IF POASIBLE
+    // TODO: RM IF POSSIBLE
     case stringLiteral(String)
     case whitespace(length: Int)
     
