@@ -36,7 +36,7 @@ final class ParserTests: XCTestCase {
         
         let expectation = """
         conditional:
-          if(expression(lowercase(first(name == "admin")) == "welcome")):
+          if(expression(lowercase(first([name == "admin"])) == "welcome")):
             raw("\\nfoo\\n")
         """
         
@@ -1080,7 +1080,7 @@ final class LeafKitTests: XCTestCase {
         
             let page = try! renderer.render(path: "page", context: [:]).wait()
             XCTAssertEqual(page.string, expected)
-    }    
+    }
 }
 
 struct TestFiles: LeafFiles {

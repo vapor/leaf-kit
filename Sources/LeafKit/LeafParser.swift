@@ -38,6 +38,11 @@ extension TagDeclaration {
                     var buffer = ByteBufferAllocator().buffer(capacity: 0)
                     buffer.writeString(st)
                     return .raw(buffer)
+                case .keyword(let kw) :
+                    guard kw.isBooleanValued else { fallthrough }
+                    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+                    buffer.writeString(kw.rawValue)
+                    return .raw(buffer)
                 default:
                     throw "unsupported parameter \(p)"
                 }
@@ -223,9 +228,16 @@ struct LeafParser {
         // .parametersStart - start parameters
         // .tagIndicator - a new tag started
         switch next {
-        case .raw:
+        // MARK: no param, no body case should be re-evaluated?
+        // we require that tags have parameter notation INSIDE parameters even when they're
+        // empty - eg `#tag(anotherTag())` - so `#anotherTag()` should be required, not
+        // `#anotherTag`. If that's enforced, the only acceptable non-decaying noparam/nobody
+        // use would be `#endTag` to close a body
+        case .raw,
+             .tagIndicator:
             // a basic tag, something like `#date` w/ no params, and no body
             return TagDeclaration(name: name, parameters: nil, expectsBody: false)
+        // MARK: anonymous tBI (`#:`) probably should decay tagIndicator to raw?
         case .tagBodyIndicator:
             if !name.isEmpty { pop() } else { replace(with: .raw(":")) }
             return TagDeclaration(name: name, parameters: nil, expectsBody: true)
@@ -243,9 +255,6 @@ struct LeafParser {
                 }
             }
             return TagDeclaration(name: name, parameters: params, expectsBody: expectsBody)
-        case .tagIndicator:
-            // a basic tag, something like `#date` w/ no params, and no body
-            return TagDeclaration(name: name, parameters: nil, expectsBody: false)
         default:
             throw "found unexpected token " + next.description
         }
@@ -257,12 +266,13 @@ struct LeafParser {
         
         var group = [ParameterDeclaration]()
         var paramsList = [ParameterDeclaration]()
+        
         func dump() {
             defer { group = [] }
-
             if group.isEmpty { return }
-            else if group.count == 1 { paramsList.append(group.first!) }
-            else { paramsList.append(.expression(group)) }
+            group.evaluate()
+            if group.count > 1 { paramsList.append(.expression(group)) }
+            else { paramsList.append(group.first!) }
         }
         
         outer: while let next = peek() {
@@ -272,7 +282,8 @@ struct LeafParser {
                 // an expression, ie: #if(foo == (bar + car))
                 let params = try readParameters()
                 // parameter tags not permitted to have bodies
-                group.append(.expression(params))
+                if params.count > 1  { group.append(.expression(params)) }
+                else { group.append(params.first!) }
             case .parameter(let p):
                 pop()
                 switch p {
@@ -300,6 +311,7 @@ struct LeafParser {
             }
         }
         
+        paramsList.evaluate()
         return paramsList
     }
     

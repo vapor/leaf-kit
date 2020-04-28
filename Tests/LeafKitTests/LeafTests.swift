@@ -486,6 +486,99 @@ final class LeafTests: XCTestCase {
             try XCTAssertEqual(render(template, ["a": "a"]), expected)
         }
     }
+    
+    // Validate parse resolution of negative numbers
+    func testNegatives() throws {
+        let input = """
+        #(10)
+        #(-10)
+        """
+        
+        let syntax = """
+        raw("10")
+        raw("-10")
+        """
+        
+        let expectation = """
+        10
+        -10
+        """
+        
+        let parsed = try parse(input)
+            .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
+            .joined(separator: "\n")
+        XCTAssertEqual(parsed, syntax)
+        try XCTAssertEqual(render(input), expectation)
+    }
+    
+    // Validate parse resolution of evaluable expressions
+    func testComplexParameters() throws {
+        let input = """
+        #(index-5)
+        #(10-5)
+        #(10 - 5)
+        #(-5)
+        """
+        
+        let syntax = """
+        [variable(index), operator(-), constant(5)]
+        [constant(10), operator(-), constant(5)]
+        [constant(10), operator(-), constant(5)]
+        raw("-5")
+        """
+
+        let expectation = """
+        5
+        5
+        5
+        -5
+        """
+        
+        let parsed = try parse(input)
+            .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
+            .joined(separator: "\n")
+        XCTAssertEqual(parsed, syntax)
+        try XCTAssertEqual(render(input,["index":10]), expectation)
+    }
+    
+    // Validate parse resolution of negative numbers
+    func testOperandGrouping() throws {
+        let input = """
+        #(!true&&!false)
+        #((!true) || (!false))
+        #((true) && (!false))
+        #((!true) || (false))
+        #(!true || !false)
+        #(true)
+        #(-5 + 10 - 20 / 2 + 9 * -3 == 90 / 3 + 0b010 * -0xA)
+        """
+        
+        let syntax = """
+        [keyword(false), operator(&&), keyword(true)]
+        [keyword(false), operator(||), keyword(true)]
+        [keyword(true), operator(&&), keyword(true)]
+        [keyword(false), operator(||), keyword(false)]
+        [keyword(false), operator(||), keyword(true)]
+        raw("true")
+        [expression(-5 + [10 - [[20 / 2] + [9 * -3]]]), operator(==), expression([90 / 3] + [2 * -10])]
+        """
+        
+        let expectation = """
+        false
+        true
+        true
+        false
+        true
+        true
+        false
+        """
+        
+        let parsed = try parse(input)
+            .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
+            .joined(separator: "\n")
+        XCTAssertEqual(parsed, syntax)
+        try XCTAssertEqual(render(input), expectation)
+    }
 }
 
 private func render(name: String = "test-render", _ template: String, _ context: [String: LeafData] = [:]) throws -> String {

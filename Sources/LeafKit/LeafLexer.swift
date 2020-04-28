@@ -123,6 +123,7 @@ struct LeafLexer {
     
     private var state: State
     private var depth: Int = 0
+    private var offset = 0
     private var lexed: [LeafToken] = []
     private var src: TemplateSource
     private var name: String
@@ -136,6 +137,7 @@ struct LeafLexer {
     mutating func lex() throws -> [LeafToken] {
         while let next = try self.nextToken() {
             lexed.append(next)
+            offset += 1
         }
         return lexed
     }
@@ -280,15 +282,31 @@ struct LeafLexer {
         // for Ints and base 10/16 for decimal through native Swift initialization
         // Will not adequately decay to handle things like `0b0A` and recognize as invalid.
         if current.canStartNumeric {
-            let next = src.peek()!
-            let peekRaw = String(current) + (src.peekWhile { $0.isValidInNumeric } ?? "")
-            var peekNum = peekRaw.replacingOccurrences(of: String(.underscore), with: "")
-            // 1 character string must be an integer
-            guard peekNum.count > 1 else { return .parameter(.constant(.int(Int(peekNum)!))) }
-                        
             var testInt: Int?
             var testDouble: Double?
             var radix: Int?
+            var sign = 1
+            
+            let next = src.peek()!
+            let peekRaw = String(current) + (src.peekWhile { $0.isValidInNumeric } ?? "")
+            var peekNum = peekRaw.replacingOccurrences(of: String(.underscore), with: "")
+            // We must be immediately preceeded by a minus to flip the sign
+            // And only flip back if immediately preceeded by a const, tag or variable
+            // (which we assume will provide a numeric). Grammatical errors in the
+            // template (eg, keyword-numeric) may throw here
+            if case .parameter(let p) = lexed[offset - 1], case .operator(let op) = p, op == .minus {
+                switch lexed[offset - 2] {
+                    case .parameter(let p):
+                        switch p {
+                            case .constant,
+                                 .tag,
+                                 .variable: sign = 1
+                            default: throw LexerError(.invalidParameterToken("-"), src: src)
+                        }
+                    case .stringLiteral: throw LexerError(.invalidParameterToken("-"), src: src)
+                    default: sign = -1
+                }
+            }
             
             switch (peekNum.contains(.period), next, peekNum.count > 2) {
                 case (true, _, _) : testDouble = Double(peekNum)
@@ -305,9 +323,11 @@ struct LeafLexer {
             }
             
             if testInt != nil || testDouble != nil {
+                // discard the minus
+                if sign == -1 { self.lexed.removeLast(); offset -= 1 }
                 _ = src.popWhile { $0.isValidInNumeric }
-                if testInt != nil { return .parameter(.constant(.int(testInt!))) }
-                else { return .parameter(.constant(.double(testDouble!))) }
+                if testInt != nil { return .parameter(.constant(.int(testInt! * sign))) }
+                else { return .parameter(.constant(.double(testDouble! * Double(sign)))) }
             }
         }
         
