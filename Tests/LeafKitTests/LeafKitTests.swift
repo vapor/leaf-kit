@@ -195,11 +195,7 @@ final class ParserTests: XCTestCase {
         let expectation = """
         raw("<h1>")
         import("header")
-        raw("</h1>")
-        raw("\\n<title>")
-        raw("Welcome")
-        raw("</title>\\n")
-        raw("\\n        Hello, ")
+        raw("</h1>\\n<title>Welcome</title>\\n\\n        Hello, ")
         variable(name)
         raw("!\\n    ")
         """
@@ -1032,7 +1028,42 @@ final class LeafKitTests: XCTestCase {
         
             let page = try! renderer.render(path: "page", context: [:]).wait()
             XCTAssertEqual(page.string, expected)
-    }    
+    }
+    
+    func testGH50() {
+        var test = TestFiles()
+        test.files["/a.leaf"] = """
+        #extend("a/b"):
+        #export("body"):#for(challenge in challenges):
+        #extend("a/b-c-d"):#endextend#endfor
+        #endexport
+        #endextend
+        """
+        test.files["/a/b.leaf"] = """
+        #import("body")
+        """
+        test.files["/a/b-c-d.leaf"] = """
+        HI
+        """
+        
+        let expected = """
+
+        HI
+        HI
+        HI
+
+        """
+        
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+        
+        let page = try! renderer.render(path: "a", context: ["challenges":["","",""]]).wait()
+            XCTAssertEqual(page.string, expected)
+    }
 }
 
 struct TestFiles: LeafFiles {

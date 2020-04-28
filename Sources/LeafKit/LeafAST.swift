@@ -74,34 +74,39 @@ public struct LeafAST: Hashable {
         
         // inline provided externals
         while pos < ast.endIndex {
-            if case .extend(let e) = ast[pos]  {
-                let key = e.key
-                if let insert = externals[key] {
-                    let inlined = e.extend(base: insert.ast)
-                    ast.replaceSubrange(pos...pos, with: inlined)
-                    pos = ast.index(pos, offsetBy: inlined.count)
-                } else {
-                    unresolvedRefs.insert(key)
-                }
-            } else { pos = ast.index(after: pos) }
+            switch ast[pos] {
+                case .extend(let e):
+                    let key = e.key
+                    if let insert = externals[key] {
+                        let inlined = e.extend(base: insert.ast)
+                        ast.replaceSubrange(pos...pos, with: inlined)
+                    } else {
+                        unresolvedRefs.insert(key)
+                        pos = ast.index(after: pos)
+                    }
+                default:
+                    var new: Syntax? = nil
+                    unresolvedRefs.formUnion(ast[pos].inlineRefs(externals, &new))
+                    if let new = new { ast[pos] = new }
+                    pos = ast.index(after: pos)
+            }
         }
         
         // compress raws
         pos = ast.startIndex
         while pos < ast.index(before: ast.endIndex) {
             if case .raw(var syntax) = ast[pos] {
-                guard case .raw(var add) = ast[ast.index(after: pos)]
-                    else { pos = ast.index(after: pos); break }
-                var buffer = ByteBufferAllocator().buffer(capacity: syntax.readableBytes + add.readableBytes)
-                buffer.writeBuffer(&syntax)
-                buffer.writeBuffer(&add)
-                ast[pos] = .raw(buffer)
-                ast.remove(at: ast.index(after: pos) )
+                if case .raw(var add) = ast[ast.index(after: pos)] {
+                    var buffer = ByteBufferAllocator().buffer(capacity: syntax.readableBytes + add.readableBytes)
+                    buffer.writeBuffer(&syntax)
+                    buffer.writeBuffer(&add)
+                    ast[pos] = .raw(buffer)
+                    ast.remove(at: ast.index(after: pos) )
+                } else { pos = ast.index(after: pos) }
             } else { pos = ast.index(after: pos) }
         }
         
-        // update refs as new externals may have been introduced through extension
-        updateRefs()
+        flat = unresolvedRefs.isEmpty ? true : false
     }
 }
 

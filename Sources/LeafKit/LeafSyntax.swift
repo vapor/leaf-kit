@@ -67,7 +67,7 @@ extension Syntax {
     
     public struct Extend {
         public let key: String
-        public let exports: [String: Export]
+        public private(set) var exports: [String: Export]
         
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard params.count == 1 else { throw "extend only supports single param \(params)" }
@@ -101,7 +101,7 @@ extension Syntax {
     
     public struct Export {
         public let key: String
-        public let body: [Syntax]
+        public internal(set) var body: [Syntax]
         
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard (1...2).contains(params.count) else { throw "export expects 1 or 2 params" }
@@ -134,7 +134,7 @@ extension Syntax {
     
     public final class Conditional {
         public let condition: ConditionalSyntax
-        public let body: [Syntax]
+        public internal(set) var body: [Syntax]
         public private(set) var next: Conditional?
         
         public init(_ condition: ConditionalSyntax, body: [Syntax]) {
@@ -193,7 +193,7 @@ extension Syntax {
         public let array: String
         
         /// the body of the looop
-        public let body: [Syntax]
+        public internal(set) var body: [Syntax]
         
         /// initialize a new loop
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
@@ -249,7 +249,7 @@ extension Syntax {
     public struct CustomTagDeclaration {
         public let name: String
         public let params: [ParameterDeclaration]
-        public let body: [Syntax]?
+        public internal(set) var body: [Syntax]?
         
         func print(depth: Int) -> String {
             var print = indent(depth)
@@ -290,4 +290,113 @@ extension Syntax: CustomStringConvertible {
             return export.print(depth: depth)
         }
     }
+}
+
+extension Syntax {
+    mutating func inlineRefs(_ externals: [String: LeafAST], _ new: inout Syntax?) -> Set<String> {
+        var changed = false
+        var rf = Set<String>()
+
+        switch self {
+            case .conditional(let co):
+                var tail: Syntax.Conditional? = co
+                while tail != nil {
+                    var i = tail!.body.startIndex
+                    while i < tail!.body.endIndex {
+                        switch tail!.body[i] {
+                            case .extend(let ex):
+                                let key = ex.key
+                                if let insert = externals[key] {
+                                    let inlined = ex.extend(base: insert.ast)
+                                    tail!.body.replaceSubrange(i...i, with: inlined)
+                                    changed = true
+                                } else {
+                                    rf.insert(key)
+                                    i = tail!.body.index(after: i)
+                                }
+                            default:
+                                var sub: Syntax? = nil
+                                rf.formUnion(tail!.body[i].inlineRefs(externals, &sub))
+                                if sub != nil { tail!.body[i] = sub!; changed = true}
+                                i = tail!.body.index(after: i)
+                        }
+                    }
+                    tail = tail!.next
+                }
+                if changed || !rf.isEmpty { new = .conditional(tail!) }
+                return rf
+            case .custom(var cu):
+                guard cu.body != nil else { return .init() }
+                var i = cu.body!.startIndex
+                while i < cu.body!.endIndex {
+                    switch cu.body![i] {
+                        case .extend(let ex):
+                            let key = ex.key
+                            if let insert = externals[key] {
+                                let inlined = ex.extend(base: insert.ast)
+                                cu.body!.replaceSubrange(i...i, with: inlined)
+                                changed = true
+                            } else {
+                                rf.insert(key)
+                                i = cu.body!.index(after: i)
+                            }
+                        default:
+                            var sub: Syntax? = nil
+                            rf.formUnion(cu.body![i].inlineRefs(externals, &sub))
+                            if sub != nil { cu.body![i] = sub!; changed = true }
+                            i = cu.body!.index(after: i)
+                    }
+                }
+                if changed || !rf.isEmpty { new = .custom(cu) }
+                return rf
+            case .export(var exp):
+                var i = exp.body.startIndex
+                while i < exp.body.endIndex {
+                    switch exp.body[i] {
+                        case .extend(let ex):
+                            let key = ex.key
+                            if let insert = externals[key] {
+                                let inlined = ex.extend(base: insert.ast)
+                                exp.body.replaceSubrange(i...i, with: inlined)
+                                changed = true
+                            } else {
+                                rf.insert(key)
+                                i = exp.body.index(after: i)
+                            }
+                        default:
+                            var sub: Syntax? = nil
+                            rf.formUnion(exp.body[i].inlineRefs(externals, &sub))
+                            if sub != nil { exp.body[i] = sub!; changed = true}
+                            i = exp.body.index(after: i)
+                    }
+                }
+                if changed || !rf.isEmpty { new = .export(exp) }
+                return rf
+            case .loop(var lo):
+                var i = lo.body.startIndex
+                while i < lo.body.endIndex {
+                    switch lo.body[i] {
+                        case .extend(let ex):
+                            let key = ex.key
+                            if let insert = externals[key] {
+                                let inlined = ex.extend(base: insert.ast)
+                                lo.body.replaceSubrange(i...i, with: inlined)
+                                changed = true
+                            } else {
+                                rf.insert(key)
+                                i = lo.body.index(after: i)
+                            }
+                        default:
+                            var sub: Syntax? = nil
+                            rf.formUnion(lo.body[i].inlineRefs(externals, &sub))
+                            if sub != nil { lo.body[i] = sub!; changed = true }
+                            i = lo.body.index(after: i)
+                    }
+                }
+                if changed || !rf.isEmpty { new = .loop(lo) }
+                return rf
+            default: return .init()
+        }
+    }
+    
 }
