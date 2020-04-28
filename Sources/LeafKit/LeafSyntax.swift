@@ -323,7 +323,7 @@ extension Syntax {
                     }
                     tail = tail!.next
                 }
-                if changed || !rf.isEmpty { new = .conditional(tail!) }
+                if changed || !rf.isEmpty { new = .conditional(co) }
                 return rf
             case .custom(var cu):
                 guard cu.body != nil else { return .init() }

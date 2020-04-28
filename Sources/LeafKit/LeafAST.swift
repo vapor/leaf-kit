@@ -10,7 +10,6 @@ public struct LeafAST: Hashable {
     let name: String
     
     private var rawAST: [Syntax]?
-    private var flatState: Bool?
     
     private(set) var ast: [Syntax]
     private(set) var externalRefs = Set<String>()
@@ -21,10 +20,9 @@ public struct LeafAST: Hashable {
         self.name = name
         self.ast = ast
         self.rawAST = nil
-        self.flatState = nil
         self.flat = false
         
-        updateRefs()
+        updateRefs([:])
     }
     
      init(from: LeafAST, referencing externals: [String: LeafAST]) {
@@ -33,42 +31,14 @@ public struct LeafAST: Hashable {
         self.rawAST = from.rawAST
         self.externalRefs = from.externalRefs
         self.unresolvedRefs = from.unresolvedRefs
-        self.flatState = from.flatState
         self.flat = from.flat
         
-        guard self.flat == false else { return }
-        
-        inlineRefs(externals)
+        updateRefs(externals)
     }
-    
-    mutating private func updateRefs() {
+        
+    mutating private func updateRefs(_ externals: [String: LeafAST]) {
         var firstRun = false
-        switch (flatState, rawAST) {
-            case (.some(true), _): return // known flat, no need to check for refs
-            case (.none, .some): fatalError("Invalid state: rawAST shouldn't hold a value if flatness isn't known")
-            case (.some(false), .none): fatalError("Invalid state: rawAST must hold a value if flatness is false")
-            case (.none, .none): firstRun = true
-            default: break
-        }
-        
-        unresolvedRefs.removeAll()
-        for syntax in ast {
-            switch syntax {
-                case .extend(let e): unresolvedRefs.insert(e.key)
-                default: break
-            }
-        }
-        flat = unresolvedRefs.isEmpty
-        flatState = flat
-        
-        if firstRun {
-            if !flat { rawAST = ast }
-            externalRefs = unresolvedRefs
-        }
-    }
-    
-    mutating private func inlineRefs(_ externals: [String: LeafAST]) {
-        guard !externals.isEmpty else { return }
+        if rawAST == nil, flat == false { rawAST = ast; firstRun = true }
         unresolvedRefs.removeAll()
         var pos = ast.startIndex
         
@@ -107,6 +77,7 @@ public struct LeafAST: Hashable {
         }
         
         flat = unresolvedRefs.isEmpty ? true : false
+        if firstRun, flat { rawAST = nil }
     }
 }
 

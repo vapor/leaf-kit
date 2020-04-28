@@ -1064,6 +1064,34 @@ final class LeafKitTests: XCTestCase {
         let page = try! renderer.render(path: "a", context: ["challenges":["","",""]]).wait()
             XCTAssertEqual(page.string, expected)
     }
+    
+    func testDeepResolve() {
+        var test = TestFiles()
+        test.files["/a.leaf"] = """
+        #for(a in b):#if(false):Hi#elseif(true && false):Hi#else:#extend("b"):#export("derp"):DEEP RESOLUTION #(a)#endexport#endextend#endif#endfor
+        """
+        test.files["/b.leaf"] = """
+        #import("derp")
+        
+        """
+        
+        let expected = """
+        DEEP RESOLUTION 1
+        DEEP RESOLUTION 2
+        DEEP RESOLUTION 3
+
+        """
+        
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+        
+        let page = try! renderer.render(path: "a", context: ["b":["1","2","3"]]).wait()
+            XCTAssertEqual(page.string, expected)
+    }
 }
 
 struct TestFiles: LeafFiles {
