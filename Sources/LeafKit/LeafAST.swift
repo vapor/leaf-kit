@@ -6,25 +6,25 @@ public typealias ResolvedDocument = LeafAST
 public struct LeafAST: Hashable {
     public func hash(into hasher: inout Hasher) { hasher.combine(name) }
     public static func == (lhs: LeafAST, rhs: LeafAST) -> Bool { lhs.name == rhs.name }
-    
+
     let name: String
-    
+
     private var rawAST: [Syntax]?
-    
+
     private(set) var ast: [Syntax]
     private(set) var externalRefs = Set<String>()
     private(set) var unresolvedRefs = Set<String>()
     private(set) var flat: Bool
-    
+
     init(name: String, ast: [Syntax]) {
         self.name = name
         self.ast = ast
         self.rawAST = nil
         self.flat = false
-        
+
         updateRefs([:])
     }
-    
+
      init(from: LeafAST, referencing externals: [String: LeafAST]) {
         self.name = from.name
         self.ast = from.ast
@@ -32,16 +32,16 @@ public struct LeafAST: Hashable {
         self.externalRefs = from.externalRefs
         self.unresolvedRefs = from.unresolvedRefs
         self.flat = from.flat
-        
+
         updateRefs(externals)
     }
-        
+
     mutating private func updateRefs(_ externals: [String: LeafAST]) {
         var firstRun = false
         if rawAST == nil, flat == false { rawAST = ast; firstRun = true }
         unresolvedRefs.removeAll()
         var pos = ast.startIndex
-        
+
         // inline provided externals
         while pos < ast.endIndex {
             switch ast[pos] {
@@ -61,7 +61,7 @@ public struct LeafAST: Hashable {
                     pos = ast.index(after: pos)
             }
         }
-        
+
         // compress raws
         pos = ast.startIndex
         while pos < ast.index(before: ast.endIndex) {
@@ -75,29 +75,8 @@ public struct LeafAST: Hashable {
                 } else { pos = ast.index(after: pos) }
             } else { pos = ast.index(after: pos) }
         }
-        
+
         flat = unresolvedRefs.isEmpty ? true : false
-        if firstRun, flat { rawAST = nil }
+        if firstRun && flat { rawAST = nil }
     }
 }
-
-// struct UnresolvedDocument... *replaced by LeafAST*
-//    let name... *replaced by LeafAST.name*
-//    let raw... *replaced by LeafAST.rawAST? or .ast if inherently flat
-//    var unresolvedDependencies... *replaced by LeafAST.externalRefs*
-
-// public struct ResolvedDocument... *replaced by LeafAST*
-//    let name... *replaced by LeafAST.name*
-//    let ast... *replaced by LeafAST.ast
-
-// internal struct ExtendResolver... *obivated*
-//    init.... *replaced by LeafAST.init(from: LeafAST, referencing externals: [String: LeafAST])*
-//    func resolve... *replaced by LeafRenderer resolve()
-//    private func canSatisfyAllDependencies... *obviated*
-
-//extension String {  func expand ... obviated by LeafRenderer expand()
-
-//protocol FileAccessProtocol...  *removed - unused*
-//final class FileAccessor: FileAccessProtocol...  *removed - unused*
-
-//internal final class DocumentLoader... *removed - obviated*

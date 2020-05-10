@@ -3,7 +3,7 @@ public indirect enum Syntax {
     case variable(Variable)
     case expression([ParameterDeclaration])
     case custom(CustomTagDeclaration)
-    
+
     case conditional(Conditional)
     case loop(Loop)
     case `import`(Import)
@@ -35,7 +35,7 @@ extension Syntax.Extend {
             default:
                 extended.append(syntax)
             }
-            
+
         }
         return extended
     }
@@ -59,22 +59,22 @@ extension Syntax {
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
             self.key = s
         }
-        
+
         func print(depth: Int) -> String {
             return indent(depth) + "import(" + key.debugDescription + ")"
         }
     }
-    
+
     public struct Extend {
         public let key: String
         public private(set) var exports: [String: Export]
-        
+
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard params.count == 1 else { throw "extend only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
             self.key = s
-            
+
             var exports: [String: Export] = [:]
             try body.forEach { syntax in
                 switch syntax {
@@ -88,7 +88,7 @@ extension Syntax {
             }
             self.exports = exports
         }
-        
+
         func print(depth: Int) -> String {
             var print = indent(depth)
             print += "extend(" + key.debugDescription + ")"
@@ -98,17 +98,17 @@ extension Syntax {
             return print
         }
     }
-    
+
     public struct Export {
         public let key: String
         public internal(set) var body: [Syntax]
-        
+
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard (1...2).contains(params.count) else { throw "export expects 1 or 2 params" }
             guard case .parameter(let p) = params[0] else { throw "expected parameter" }
             guard case .stringLiteral(let s) = p else { throw "export only supports string literals" }
             self.key = s
-            
+
             if params.count == 2 {
                 guard case .parameter(let p) = params[1] else { throw "expected parameter" }
                 guard case .stringLiteral(let s) = p else { throw "extend only supports string literals" }
@@ -121,7 +121,7 @@ extension Syntax {
                 self.body = body
             }
         }
-        
+
         func print(depth: Int) -> String {
             var print = indent(depth)
             print += "export(" + key.debugDescription + ")"
@@ -131,36 +131,36 @@ extension Syntax {
             return print
         }
     }
-    
+
     public final class Conditional {
         public let condition: ConditionalSyntax
         public internal(set) var body: [Syntax]
         public private(set) var next: Conditional?
-        
+
         public init(_ condition: ConditionalSyntax, body: [Syntax]) {
             self.condition = condition
             self.body = body
         }
-        
+
         internal func attach(_ new: Conditional) throws {
             var tail = self
             while let next = tail.next {
                 tail = next
             }
-            
+
             // todo: verify that is valid attachment
             tail.next = new
         }
-        
+
         func print(depth: Int) -> String {
             var print = indent(depth) + "conditional:\n"
             print += _print(depth: depth + 1)
             return print
         }
-        
+
         private func _print(depth: Int) -> String {
             let buffer = indent(depth)
-            
+
             var print = ""
             switch condition {
             case .if(let params):
@@ -170,31 +170,30 @@ extension Syntax {
             case .else:
                 print += buffer + "else"
             }
-            
+
             if !body.isEmpty {
                 print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
-            
+
             // todo: remove recursion
             if let next = self.next {
                 print += "\n"
                 print += next._print(depth: depth)
             }
-            
-            
+
             return print
         }
     }
-    
+
     public struct Loop {
         /// the key to use when accessing items
         public let item: String
         /// the key to use to access the array
         public let array: String
-        
+
         /// the body of the looop
         public internal(set) var body: [Syntax]
-        
+
         /// initialize a new loop
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard
@@ -211,11 +210,11 @@ extension Syntax {
                 else { throw "for loops expect single expression, 'name in names'" }
             self.item = item
             self.array = array
-            
+
             guard !body.isEmpty else { throw "for loops require a body" }
             self.body = body
         }
-        
+
         func print(depth: Int) -> String {
             var print = indent(depth)
             print += "for(" + item + " in " + array + "):\n"
@@ -223,7 +222,7 @@ extension Syntax {
             return print
         }
     }
-    
+
     public struct Variable {
         public let path: [String]
 
@@ -240,17 +239,17 @@ extension Syntax {
             default: throw "todo: implement constant and literal? maybe process earlier as not variable, but raw.. \(p)"
             }
         }
-        
+
         func print(depth: Int) -> String {
             return indent(depth) + "variable(" + path.joined(separator: ".") + ")"
         }
     }
-    
+
     public struct CustomTagDeclaration {
         public let name: String
         public let params: [ParameterDeclaration]
         public internal(set) var body: [Syntax]?
-        
+
         func print(depth: Int) -> String {
             var print = indent(depth)
             print += name + "(" + params.map { $0.description } .joined(separator: ", ") + ")"
@@ -266,7 +265,7 @@ extension Syntax: CustomStringConvertible {
     public var description: String {
         return print(depth: 0)
     }
-    
+
     func print(depth: Int) -> String {
         switch self {
         case .raw(var byteBuffer):
@@ -299,29 +298,29 @@ extension Syntax {
 
         switch self {
             case .conditional(let co):
-                var tail: Syntax.Conditional? = co
-                while tail != nil {
-                    var i = tail!.body.startIndex
-                    while i < tail!.body.endIndex {
-                        switch tail!.body[i] {
+                var currentTail: Syntax.Conditional? = co
+                while let tail = currentTail {
+                    var i = tail.body.startIndex
+                    while i < tail.body.endIndex {
+                        switch tail.body[i] {
                             case .extend(let ex):
                                 let key = ex.key
                                 if let insert = externals[key] {
                                     let inlined = ex.extend(base: insert.ast)
-                                    tail!.body.replaceSubrange(i...i, with: inlined)
+                                    tail.body.replaceSubrange(i...i, with: inlined)
                                     changed = true
                                 } else {
                                     rf.insert(key)
-                                    i = tail!.body.index(after: i)
+                                    i = tail.body.index(after: i)
                                 }
                             default:
                                 var sub: Syntax? = nil
-                                rf.formUnion(tail!.body[i].inlineRefs(externals, &sub))
-                                if sub != nil { tail!.body[i] = sub!; changed = true}
-                                i = tail!.body.index(after: i)
+                                rf.formUnion(tail.body[i].inlineRefs(externals, &sub))
+                                if sub != nil { tail.body[i] = sub!; changed = true}
+                                i = tail.body.index(after: i)
                         }
                     }
-                    tail = tail!.next
+                    currentTail = tail.next
                 }
                 if changed || !rf.isEmpty { new = .conditional(co) }
                 return rf
@@ -398,5 +397,4 @@ extension Syntax {
             default: return .init()
         }
     }
-    
 }
