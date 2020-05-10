@@ -20,7 +20,7 @@ extension Character {
             || self == .binaryNotation
             || self == .octalNotation
             || self == .hexNotation
-            || self.isHexidecimal
+            || self.isHexadecimal
             || self == .period
     }
     
@@ -56,19 +56,19 @@ struct TemplateSource {
         self.body = .init(src)
     }
     
-    mutating func readWhile(_ check: (Character) -> Bool) -> String? {
-        return readSliceWhile(pop: true, check).flatMap { String($0) }
+    mutating func readWhile(_ check: (Character) -> Bool) -> String {
+        return String(readSliceWhile(pop: true, check))
     }
     
-    mutating func peekWhile(_ check: (Character) -> Bool) -> String? {
-        return peekSliceWhile(check).flatMap { String($0) }
+    mutating func peekWhile(_ check: (Character) -> Bool) -> String {
+        return String(peekSliceWhile(check))
     }
     
     mutating func popWhile(_ check: (Character) -> Bool) -> Int {
-        return readSliceWhile(pop: true, check)?.count ?? 0
+        return readSliceWhile(pop: true, check).count
     }
     
-    mutating func readSliceWhile(pop: Bool, _ check: (Character) -> Bool) -> [Character]? {
+    mutating func readSliceWhile(pop: Bool, _ check: (Character) -> Bool) -> [Character] {
         var str = [Character]()
         while let next = peek() {
             guard check(next) else { return str }
@@ -78,7 +78,7 @@ struct TemplateSource {
         return str
     }
     
-    mutating func peekSliceWhile(_ check: (Character) -> Bool) -> [Character]? {
+    mutating func peekSliceWhile(_ check: (Character) -> Bool) -> [Character] {
         var str = [Character]()
         var index = 0
         while let next = peek(aheadBy: index) {
@@ -122,7 +122,7 @@ struct LeafLexer {
     }
     
     private var state: State
-    private var depth: Int = 0
+    private var depth = 0
     private var offset = 0
     private var lexed: [LeafToken] = []
     private var src: TemplateSource
@@ -178,7 +178,7 @@ struct LeafLexer {
     }
     
     private mutating func lexNamedTag() -> LeafToken {
-        let name = src.readWhile { $0.isValidInTagName } ?? ""
+        let name = src.readWhile { $0.isValidInTagName }
         let trailing = src.peek()
         state = .raw
         if trailing == .colon { state = .body }
@@ -190,7 +190,7 @@ struct LeafLexer {
     private mutating func lexRaw() -> LeafToken {
         var slice = ""
         while let current = src.peek(), current != .tagIndicator {
-            slice += src.readWhile { $0 != .tagIndicator && $0 != .backSlash } ?? ""
+            slice += src.readWhile { $0 != .tagIndicator && $0 != .backSlash }
             guard let newCurrent = src.peek(), newCurrent == .backSlash else { break }
             if let next = src.peek(aheadBy: 1), next == .tagIndicator {
                 src.pop()
@@ -242,14 +242,14 @@ struct LeafLexer {
             case .comma:
                 return .parameterDelimiter
             case .quote:
-                let read = src.readWhile { $0 != .quote && $0 != .newLine } ?? ""
+                let read = src.readWhile { $0 != .quote && $0 != .newLine }
                 guard src.peek() == .quote else {
                     throw LexerError(.unterminatedStringLiteral, src: src, lexed: lexed)
                 }
                 src.pop() // consume final quote
                 return .parameter(.stringLiteral(read))
             case .space:
-                let read = src.readWhile { $0 == .space } ?? ""
+                let read = src.readWhile { $0 == .space }
                 return .whitespace(length: read.count + 1)
             default: break
         }
@@ -284,11 +284,11 @@ struct LeafLexer {
         if current.canStartNumeric {
             var testInt: Int?
             var testDouble: Double?
-            var radix: Int?
+            var radix: Int? = nil
             var sign = 1
             
             let next = src.peek()!
-            let peekRaw = String(current) + (src.peekWhile { $0.isValidInNumeric } ?? "")
+            let peekRaw = String(current) + (src.peekWhile { $0.isValidInNumeric })
             var peekNum = peekRaw.replacingOccurrences(of: String(.underscore), with: "")
             // We must be immediately preceeded by a minus to flip the sign
             // And only flip back if immediately preceeded by a const, tag or variable
@@ -316,7 +316,7 @@ struct LeafLexer {
                 default: testInt = Int(peekNum)
             }
             
-            if let radix = radix, radix != 10 {
+            if let radix = radix {
                 let start = peekNum.startIndex
                 peekNum.removeSubrange(start ... peekNum.index(after: start))
                 testInt = Int(peekNum, radix: radix)
@@ -333,7 +333,7 @@ struct LeafLexer {
         
         // At this point, just read anything that's parameter valid, but not an operator,
         // Could be handled better and is probably way too aggressive.
-        let name = String(current) + (src.readWhile { $0.isValidInParameter && !$0.isValidOperator } ?? "")
+        let name = String(current) + (src.readWhile { $0.isValidInParameter && !$0.isValidOperator })
         
         // If it's a keyword, return that
         if let keyword = Keyword(rawValue: name) { return .parameter(.keyword(keyword)) }

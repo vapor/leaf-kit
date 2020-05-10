@@ -39,7 +39,7 @@ extension Character {
     static let vertical = "|".first!
     static let underscore = "_".first!
     
-    var isHexidecimal: Bool {
+    var isHexadecimal: Bool {
         return (.zero ... .nine).contains(self)
             || (.A ... .F).contains(self.uppercased().first!)
             || self == .hexNotation

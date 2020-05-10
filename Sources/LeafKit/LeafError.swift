@@ -39,7 +39,7 @@ public struct LeafError: Error {
         
         switch self.reason {
             case .lexerError: verbose += "Lexing error - "
-        default: verbose += "\(file ?? "?").\(function):\(line) - "
+            default: verbose += "\(file ?? "?").\(function):\(line) - "
         }
         
         switch self.reason {
@@ -106,6 +106,6 @@ public struct LexerError: Error {
     }
     
     var localizedDescription: String {
-        return "\"\(name)\"; \(reason) - \(line):\(column)"
+        return "\"\(name)\": \(reason) - \(line):\(column)"
     }
 }

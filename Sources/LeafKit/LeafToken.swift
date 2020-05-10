@@ -4,7 +4,9 @@ public enum Keyword: String, Equatable {
     var isBooleanValued: Bool {
         switch self {
             case .true,
-                 .false
+                 .false,
+                 .yes,
+                 .no
                  : return true
             default: return false
         }
@@ -12,8 +14,8 @@ public enum Keyword: String, Equatable {
     
     var booleanValue: Bool? {
         switch self {
-            case .true: return true
-            case .false: return false
+            case .true, .yes: return true
+            case .false, .no: return false
             default: return nil
         }
     }
@@ -296,10 +298,7 @@ internal extension Array where Element == ParameterDeclaration {
     func binaryOps() -> Int { return reduceOpWhere { $0.isBinary } }
     func reduceOpWhere(_ check: (Operator) -> Bool) -> Int {
         return self.reduce(0, { count, pD  in
-            if let op = pD.operator() {
-                return check(op) ? count + 1 : count
-            }
-            return count
+            return count + (pD.operator().map { check($0) ? 1 : 0 } ?? 0)
         })
     }
     
