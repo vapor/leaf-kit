@@ -1,37 +1,5 @@
 import NIOConcurrencyHelpers
 
-public indirect enum LeafError: Error {
-    case unknownError(String)
-    case unsupportedFeature(String)
-    case cachingDisabled
-    case keyExists(String)
-    case noValueForKey(String)
-    case unresolvedAST(String, String)
-    case noTemplateExists(String)
-    case cyclicalReference(String, [String])
-    case lexerError(LexerError)
-
-    var localizedDescription: String {
-        switch self {
-            case .unknownError(let message): return message
-            case .unsupportedFeature(let feature): return "\(feature) is not implemented"
-            case .cachingDisabled: return "Caching is globablly disabled"
-            case .keyExists(let key): return "Existing entry \(key): use insert with replace=true to overrride"
-            case .noValueForKey(let key): return "No cache entry exists for \(key)"
-            case .unresolvedAST(let key, let dependencies):
-                return "Flat AST expected; \(key) has unresolved dependencies: \(dependencies)"
-            case .noTemplateExists(let key): return "No template found named \(key)"
-            case .cyclicalReference(let key, let chain):
-                return "\(key) was referenced in [\(chain.joined(separator: " -> "))], causing a cyclical loop"
-            case .lexerError(let e): return e.localizedDescription
-        }
-    }
-
-    init(_ message: String) {
-        self = .unknownError(message)
-    }
-}
-
 public struct LeafConfiguration {
     public var rootDirectory: String
 
@@ -102,7 +70,7 @@ public final class DefaultLeafCache: LeafCache {
         defer { self.lock.unlock() }
         // return an error if replace is false and the document name is already in cache
         switch (self.cache.keys.contains(document.name),replace) {
-            case (true, false): return loop.makeFailedFuture(LeafError.keyExists(document.name))
+            case (true, false): return loop.makeFailedFuture(LeafError(.keyExists(document.name)))
             default: self.cache[document.name] = document
         }
         return loop.makeSucceededFuture(document)
@@ -122,7 +90,7 @@ public final class DefaultLeafCache: LeafCache {
         _ documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<Bool?> {
-        guard isEnabled == true else { return loop.makeFailedFuture(LeafError.cachingDisabled) }
+        guard isEnabled == true else { return loop.makeFailedFuture(LeafError(.cachingDisabled)) }
         
         self.lock.lock()
         defer { self.lock.unlock() }
@@ -195,7 +163,7 @@ public struct NIOLeafFiles: LeafFiles {
     public func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
         let openFile = self.fileio.openFile(path: path, eventLoop: eventLoop)
         return openFile.flatMapErrorThrowing { error in
-            throw LeafError.noTemplateExists(path)
+            throw LeafError(.noTemplateExists(path))
         }.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
             let allocator = ByteBufferAllocator()
             let read = self.fileio.read(fileRegion: region, allocator: allocator, eventLoop: eventLoop)
@@ -232,23 +200,23 @@ public final class LeafRenderer {
     }
 
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError.noTemplateExists("(no key provided)")) }
+        guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
         
         return self.cache.load(documentName: path, on: self.eventLoop).flatMapThrowing { cached in
-            guard let cached = cached else { throw LeafError.noValueForKey(path) }
-            guard cached.flat else { throw LeafError.unresolvedAST(path, cached.unresolvedRefs.joined(separator: ", ")) }
+            guard let cached = cached else { throw LeafError(.noValueForKey(path)) }
+            guard cached.flat else { throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs))) }
             return try self.serialize(cached, context: context)
         }.flatMapError { e in
             return self.fetch(template: path).flatMapThrowing { ast in
-                guard let ast = ast else { throw LeafError.noTemplateExists(path) }
-                guard ast.flat else { throw LeafError.unresolvedAST(path, ast.unresolvedRefs.joined(separator: ", ")) }
+                guard let ast = ast else { throw LeafError(.noTemplateExists(path)) }
+                guard ast.flat else { throw LeafError(.unresolvedAST(path, Array(ast.unresolvedRefs))) }
                 return try self.serialize(ast, context: context)
             }
         }
     }
 
     func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
-        guard doc.flat == true else { throw LeafError.unresolvedAST(doc.name, doc.unresolvedRefs.joined(separator: ", ")) }
+        guard doc.flat == true else { throw LeafError(.unresolvedAST(doc.name, Array(doc.unresolvedRefs))) }
 
         var serializer = LeafSerializer(
             ast: doc.ast,
@@ -296,7 +264,7 @@ public final class LeafRenderer {
         guard intersect.count == 0 else {
             let badRef = intersect.first ?? ""
             _ = chain.append(badRef)
-            return self.eventLoop.makeFailedFuture(LeafError.cyclicalReference(badRef, chain))
+            return self.eventLoop.makeFailedFuture(LeafError(.cyclicalReference(badRef, chain)))
         }
 
         let fetchRequests = ast.unresolvedRefs.map { self.fetch(template: $0, chain: chain) }
@@ -380,7 +348,7 @@ extension LeafCache {
         on loop: EventLoop
     ) -> EventLoopFuture<Bool?>
     {
-        return loop.makeFailedFuture( LeafError.unsupportedFeature("Protocol adopter does not support removing entries") )
+        return loop.makeFailedFuture( LeafError(.unsupportedFeature("Protocol adopter does not support removing entries")) )
     }
     
     /// default implementation of remove to avoid breaking custom LeafCache adopters
@@ -391,7 +359,7 @@ extension LeafCache {
         replace: Bool = false
     ) -> EventLoopFuture<ResolvedDocument>
     {
-        if replace { return loop.makeFailedFuture( LeafError.unsupportedFeature("Protocol adopter does not support replacing entries") ) }
+        if replace { return loop.makeFailedFuture( LeafError(.unsupportedFeature("Protocol adopter does not support replacing entries")) ) }
         else { return self.insert(documentName, on: loop) }
     }
 }
