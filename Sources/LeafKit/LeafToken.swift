@@ -285,8 +285,8 @@ internal extension Array where Element == ParameterDeclaration {
         let lhs = self[i-1]
         let rhs = self[i+1]
         // can't wrap if lhs or rhs is an operator
-        if case .parameter(let p) = lhs, case .operator = p { return }
-        if case .parameter(let p) = rhs, case .operator = p { return }
+        if case .parameter(.operator) = lhs { return }
+        if case .parameter(.operator) = rhs { return }
         self[i] = .expression([lhs, self[i], rhs])
         self.remove(at:i+1)
         self.remove(at:i-1)       
