@@ -1,3 +1,4 @@
+// MARK:- --- THIS SECTION TO BE MOVED TO exports.swift ---
 extension Character {
     var isValidInTagName: Bool {
         return self.isLowercaseLetter
@@ -42,7 +43,9 @@ extension Character {
         }
     }
 }
+// MARK: --- END OF SECTION TO BE MOVED ---
 
+// MARK:- --- THIS SECTION TO BE MOVED TO NEW FILE ---
 struct TemplateSource {
     let name: String
 
@@ -108,39 +111,59 @@ struct TemplateSource {
         return popped
     }
 }
+// MARK: --- END OF SECTION TO BE MOVED ---
 
+// MARK: - `LeafLexer` Summary
+
+/// `LeafLexer` is an opaque structure that wraps the lexing logic of Leaf-Kit.
+///
+/// Initialized with a `TemplateSource` (raw string-providing representation of a file or other source),
+/// used by evaluating with `LeafLexer.lex()` and either erroring or returning `[LeafToken]`
 struct LeafLexer {
     private enum State {
-        // parses as raw, until it finds `#` (excluding escaped `\#`)
+        /// Parse as raw, until it finds `#` (but consuming escaped `\#`)
         case raw
-        // found a `#`
+        /// Start attempting to sequence tag-viable tokens (tagName, parameters, etc)
         case tag
-        // found a `(` continues until `)`
+        /// Start attempting to sequence parameters
         case parameters
-        // parses a tag body
+        /// Start attempting to sequence a tag body
         case body
     }
-
+    
+    /// Current state of the Lexer
     private var state: State
+    /// Current parameter depth, when in a Parameter-lexing state
     private var depth = 0
+    /// Current index in `lexed` that we want to insert at
     private var offset = 0
+    /// Streat of `LeafTokens` that have been successfully lexed
     private var lexed: [LeafToken] = []
+    /// The originating template source content (ie, raw characters)
     private var src: TemplateSource
+    /// Name of the template (as opposed to file name) - eg if file = "/views/template.leaf", `template`
     private var name: String
-
+    
+    /// Convenience to initialize `LeafLexer` with a `String` instead of a `TemplateSource`
     init(name: String, template string: String) {
         self.name = name
         self.src = .init(name: name, src: string)
         self.state = .raw
     }
-
+    
+    /// Lex the stored TemplateSource
+    /// - Throws: `LexerError`
+    /// - Returns: An array of fully built `LeafTokens`, to then be parsed by `LeafParser`
     mutating func lex() throws -> [LeafToken] {
+        // FIXME: Adjust to keep lexing if `try` throws a recoverable LexerError
         while let next = try self.nextToken() {
             lexed.append(next)
             offset += 1
         }
         return lexed
     }
+    
+    // MARK: - Internal functions actually implementing the Lexer
 
     private mutating func nextToken() throws -> LeafToken? {
         // if EOF, return nil - no more to read

@@ -182,9 +182,9 @@ public enum Constant: CustomStringConvertible, Equatable {
     }
 }
 
-// MARK: --- THIS SECTION TO BE MOVED ---
+// MARK:- --- THIS SECTION TO BE MOVED TO A NEW FILE ---
 /// `ParameterDeclaration is NOT used at the lexing stage and is not presentable as a LeafToken - it
-/// is built and interpreted during LeafParser.parse. Move to a more appropriate file.
+/// is built and interpreted during LeafParser.parse(). Move to a more appropriate file.
 
 public indirect enum ParameterDeclaration: CustomStringConvertible {
     case parameter(Parameter)

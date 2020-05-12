@@ -4,7 +4,7 @@ import Foundation
 /// - note: This is different from types supported in the AST.
 public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionaryLiteral, ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, ExpressibleByBooleanLiteral, ExpressibleByArrayLiteral {
 
-    // MARK: Equatable
+    // MARK: - Equatable Conformance
 
     /// See `Equatable`.
     public static func ==(lhs: LeafData, rhs: LeafData) -> Bool {
@@ -41,7 +41,7 @@ public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionar
         self.storage = storage
     }
 
-    // MARK: Static
+    // MARK: - Static Conformance
 
     /// Creates a new `LeafData` from a `Bool`.
     public static func bool(_ value: Bool) -> LeafData {
@@ -88,7 +88,7 @@ public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionar
         return .init(.null)
     }
 
-    // MARK: Literal
+    // MARK: - Literal Conformance
 
     public init(dictionaryLiteral elements: (String, LeafData)...) {
         self = .dictionary(.init(uniqueKeysWithValues: elements))
@@ -110,7 +110,7 @@ public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionar
         self = .array(elements)
     }
 
-    // MARK: Fuzzy
+    // MARK: - Fuzzy Conversions
 
     /// Attempts to convert to `Bool` or returns `nil`.
     public var bool: Bool? {

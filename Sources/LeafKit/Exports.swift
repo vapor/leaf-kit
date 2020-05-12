@@ -1,8 +1,12 @@
 @_exported import NIO
 
+/// Various helper observers on `Character` for conveience use
 extension Character {
+    // MARK: - --- Leaf-Kit specific static identities ---
+    /// Global setting of `tagIndicator` for Leaf-Kit - by default, `#`
     public static var tagIndicator: Character = .octothorpe
 
+    // MARK: - --- General purpose `Character` static identities ---
     static let newLine = "\n".first!
     static let quote = "\"".first!
     static let octothorpe = "#".first!
@@ -39,6 +43,7 @@ extension Character {
     static let vertical = "|".first!
     static let underscore = "_".first!
 
+    // MARK: - --- TO BE MOVED UP IN FILE FOR CLARITY ---
     var isHexadecimal: Bool {
         return (.zero ... .nine).contains(self)
             || (.A ... .F).contains(self.uppercased().first!)
@@ -66,4 +71,5 @@ extension Character {
     var isAllowedInVariable: Bool {
         return self.isLowercaseLetter || self.isUppercaseLetter
     }
+    // MARK: --- END OF SECTION TO BE MOVED ---
 }

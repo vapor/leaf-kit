@@ -1,3 +1,6 @@
+// FIXME: - `Syntax` is overly monolithic
+///
+
 public indirect enum Syntax {
     case raw(ByteBuffer)
     case variable(Variable)

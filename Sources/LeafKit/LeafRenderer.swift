@@ -1,3 +1,5 @@
+// FIXME: - LeafRenderer.swift is too cluttered
+
 import NIOConcurrencyHelpers
 
 public struct LeafConfiguration {
@@ -8,6 +10,7 @@ public struct LeafConfiguration {
     }
 }
 
+// MARK:- --- THIS SECTION TO BE MOVED TO CACHE/NEW FILES ---
 public protocol LeafCache {
     // Superseded by insert with remove: parameter - Remove in Leaf-Kit 2?
     @available(*, deprecated, message: "Use insert with replace parameter instead")
@@ -106,6 +109,8 @@ public final class DefaultLeafCache: LeafCache {
         return cache.count
     }
 }
+// MARK: --- END OF SECTION TO BE MOVED ---
+// MARK: -
 
 public struct LeafContext {
     public let parameters: [LeafData]
@@ -149,6 +154,10 @@ public struct LeafContext {
     }
 }
 
+// MARK:- --- THIS SECTION TO BE MOVED TO SOURCES/NEW FILES ---
+// FIXME: `LeafFiles` to be generalized as `LeafSources`
+/// Template sources should be generalized to allow database backends for sourcing templates
+
 public protocol LeafFiles {
     func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer>
 }
@@ -174,6 +183,8 @@ public struct NIOLeafFiles: LeafFiles {
         }
     }
 }
+// MARK: --- END OF SECTION TO BE MOVED ---
+// MARK: -
 
 public final class LeafRenderer {
     public let configuration: LeafConfiguration
@@ -215,7 +226,7 @@ public final class LeafRenderer {
         }
     }
 
-    func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
+    private func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
         guard doc.flat == true else { throw LeafError(.unresolvedAST(doc.name, Array(doc.unresolvedRefs))) }
 
         var serializer = LeafSerializer(
@@ -339,6 +350,8 @@ extension String {
     }
 }
 
+
+// MARK: - --- THIS SECTION TO BE MOVED TO CACHE/NEW FILES ---
 extension LeafCache {
     /// default implementation of remove to avoid breaking custom LeafCache adopters
     func remove(
@@ -361,3 +374,4 @@ extension LeafCache {
         else { return self.insert(documentName, on: loop) }
     }
 }
+// MARK: --- END OF SECTION TO BE MOVED ---
