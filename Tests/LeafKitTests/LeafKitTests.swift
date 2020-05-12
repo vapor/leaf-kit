@@ -1048,7 +1048,7 @@ final class LeafKitTests: XCTestCase {
         <body>
             Directly extended snippet
             <svg><path d="M0..."></svg>
-
+            
             Snippet added through export/import
             <svg><path d="M0..."></svg>
 
