@@ -38,19 +38,17 @@ extension Character {
 
     var isValidOperator: Bool {
         switch self {
-        case .plus,
-             .minus,
-             .star,
-             .forwardSlash,
-             .equals,
-             .exclamation,
-             .lessThan,
-             .greaterThan,
-             .ampersand,
-             .vertical:
-            return true
-        default:
-            return false
+            case .plus,
+                 .minus,
+                 .star,
+                 .forwardSlash,
+                 .equals,
+                 .exclamation,
+                 .lessThan,
+                 .greaterThan,
+                 .ampersand,
+                 .vertical: return true
+            default:        return false
         }
     }
     

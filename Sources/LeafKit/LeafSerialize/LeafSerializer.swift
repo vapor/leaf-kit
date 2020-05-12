@@ -31,20 +31,20 @@ struct LeafSerializer {
 
     mutating func serialize(_ syntax: Syntax) throws {
         switch syntax {
-        case .raw(var byteBuffer):
-            self.buffer.writeBuffer(&byteBuffer)
-        case .variable(let v):
-            self.serialize(v)
-        case .custom(let custom):
-            try self.serialize(custom)
-        case .conditional(let c):
-            try self.serialize(c)
-        case .loop(let loop):
-            try self.serialize(loop)
-        case .expression(let exp):
-            try serialize(expression: exp)
-        case .import, .extend, .export:
-            throw "syntax \(syntax) should have been resolved BEFORE serialization"
+            case .raw(var byteBuffer):
+                self.buffer.writeBuffer(&byteBuffer)
+            case .variable(let v):
+                self.serialize(v)
+            case .custom(let custom):
+                try self.serialize(custom)
+            case .conditional(let c):
+                try self.serialize(c)
+            case .loop(let loop):
+                try self.serialize(loop)
+            case .expression(let exp):
+                try serialize(expression: exp)
+            case .import, .extend, .export:
+                throw "syntax \(syntax) should have been resolved BEFORE serialization"
         }
     }
 
@@ -63,13 +63,13 @@ struct LeafSerializer {
     mutating func serialize(_ conditional: Syntax.Conditional) throws {
         let list: [ParameterDeclaration]
         switch conditional.condition {
-        case .if(let l):
-            list = l
-        case .elseif(let l):
-            list = l
-        case .else:
-            try serialize(body: conditional.body)
-            return
+            case .if(let l):
+                list = l
+            case .elseif(let l):
+                list = l
+            case .else:
+                try serialize(body: conditional.body)
+                return
         }
 
         let satisfied = try self.resolve(parameters: list).map {
@@ -97,15 +97,15 @@ struct LeafSerializer {
     mutating func serialize(_ variable: Syntax.Variable) {
         let data: LeafData
         switch variable.path.count {
-        case 0: data = .null
-        case 1: data = self.data[variable.path[0]] ?? .null
-        default:
-            var current = self.data[variable.path[0]] ?? .null
-            var iterator = variable.path.dropFirst().makeIterator()
-            while let path = iterator.next() {
-                current = current.dictionary?[path] ?? .null
-            }
-            data = current
+            case 0: data = .null
+            case 1: data = self.data[variable.path[0]] ?? .null
+            default:
+                var current = self.data[variable.path[0]] ?? .null
+                var iterator = variable.path.dropFirst().makeIterator()
+                while let path = iterator.next() {
+                    current = current.dictionary?[path] ?? .null
+                }
+                data = current
         }
         self.serialize(data)
     }

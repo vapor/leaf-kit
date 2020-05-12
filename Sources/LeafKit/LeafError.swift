@@ -16,7 +16,7 @@ public struct LeafError: Error {
         case keyExists(String)
         /// Attempt to modify cache for a non-existant key
         /// - Provide template name
-        /// - *NOTE* - NOT used when accessing as Optional returns are adequately clear
+        /// - NOTE: NOT thrown when "reading" from cache - nil Optional returned then
         case noValueForKey(String)
 
         // MARK: Errors related to rendering a template

@@ -56,11 +56,11 @@ struct LeafRawTemplate {
         guard !body.isEmpty else { return nil }
         let popped = body.removeFirst()
         switch popped {
-        case .newLine:
-            line += 1
-            column = 0
-        default:
-            column += 1
+            case .newLine:
+                line += 1
+                column = 0
+            default:
+                column += 1
         }
         return popped
     }

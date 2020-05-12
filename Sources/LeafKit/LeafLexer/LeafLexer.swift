@@ -72,7 +72,7 @@ struct LeafLexer {
             case (.body,       _,   _, true,  _):                return lexBodyIndicator()
             /// Ambiguous case  - `#endTagName#` at EOF. Should this result in `tag(tagName),raw(#)`?
             case (.raw,        true,    _,        _,     .none):
-            throw LexerError(.internalError("Unescaped # at EOF"), src: src, lexed: lexed)
+                throw LexerError(.internalError("Unescaped # at EOF"), src: src, lexed: lexed)
             default:
                 throw LexerError(.internalError("Template cannot be lexed"), src: src, lexed: lexed)
         }
@@ -147,9 +147,9 @@ struct LeafLexer {
                 return .parametersStart
             case .rightParenthesis:
                 switch (depth <= 1, src.peek() == .colon) {
-                    case (true, true): state = .body
+                    case (true, true):  state = .body
                     case (true, false): state = .raw
-                    case (false, _): depth -= 1
+                    case (false, _):    depth -= 1
                 }
                 return .parametersEnd
             case .comma:
@@ -222,11 +222,11 @@ struct LeafLexer {
             }
 
             switch (peekNum.contains(.period), next, peekNum.count > 2) {
-                case (true, _, _) : testDouble = Double(peekNum)
+                case (true, _, _) :                  testDouble = Double(peekNum)
                 case (false, .binaryNotation, true): radix = 2
-                case (false, .octalNotation, true): radix = 8
-                case (false, .hexNotation, true): radix = 16
-                default: testInt = Int(peekNum)
+                case (false, .octalNotation, true):  radix = 8
+                case (false, .hexNotation, true):    radix = 16
+                default:                             testInt = Int(peekNum)
             }
 
             if let radix = radix {
