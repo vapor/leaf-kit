@@ -1,12 +1,87 @@
 @_exported import NIO
 
-/// Various helper observers on `Character` for conveience use
+/// Various helper identities for convenience
 extension Character {
-    // MARK: - --- Leaf-Kit specific static identities ---
+    // MARK: - Leaf-Kit specific static identities (Public)
+    
     /// Global setting of `tagIndicator` for Leaf-Kit - by default, `#`
     public static var tagIndicator: Character = .octothorpe
+    
+    // MARK: - LeafToken specific identities (Internal)
+    
+    var isValidInTagName: Bool {
+        return self.isLowercaseLetter
+            || self.isUppercaseLetter
+    }
+    
+//    var isAllowedInVariable: - Removed
+    
+    var isValidInParameter: Bool {
+        return self.isValidInTagName
+            || self.isValidOperator
+            || self.isValidInNumeric
+    }
 
-    // MARK: - --- General purpose `Character` static identities ---
+    var canStartNumeric: Bool {
+        return (.zero ... .nine) ~= self
+    }
+
+    var isValidInNumeric: Bool {
+        return self.canStartNumeric
+            || self == .underscore
+            || self == .binaryNotation
+            || self == .octalNotation
+            || self == .hexNotation
+            || self.isHexadecimal
+            || self == .period
+    }
+
+    var isValidOperator: Bool {
+        switch self {
+        case .plus,
+             .minus,
+             .star,
+             .forwardSlash,
+             .equals,
+             .exclamation,
+             .lessThan,
+             .greaterThan,
+             .ampersand,
+             .vertical:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    // MARK: - General group-membership identities (Internal)
+    
+    var isHexadecimal: Bool {
+        return (.zero ... .nine).contains(self)
+            || (.A ... .F).contains(self.uppercased().first!)
+            || self == .hexNotation
+    }
+
+    var isOctal: Bool {
+        return (.zero ... .seven).contains(self)
+        || self == .octalNotation
+    }
+
+    var isBinary: Bool {
+        return (.zero ... .one).contains(self)
+        || self == .binaryNotation
+    }
+
+    var isUppercaseLetter: Bool {
+        return (.A ... .Z).contains(self)
+    }
+
+    var isLowercaseLetter: Bool {
+        return (.a ... .z).contains(self)
+    }
+    
+    // MARK: - General static identities (Internal)
+    
     static let newLine = "\n".first!
     static let quote = "\"".first!
     static let octothorpe = "#".first!
@@ -43,33 +118,5 @@ extension Character {
     static let vertical = "|".first!
     static let underscore = "_".first!
 
-    // MARK: - --- TO BE MOVED UP IN FILE FOR CLARITY ---
-    var isHexadecimal: Bool {
-        return (.zero ... .nine).contains(self)
-            || (.A ... .F).contains(self.uppercased().first!)
-            || self == .hexNotation
-    }
-
-    var isOctal: Bool {
-        return (.zero ... .seven).contains(self)
-        || self == .octalNotation
-    }
-
-    var isBinary: Bool {
-        return (.zero ... .one).contains(self)
-        || self == .binaryNotation
-    }
-
-    var isUppercaseLetter: Bool {
-        return (.A ... .Z).contains(self)
-    }
-
-    var isLowercaseLetter: Bool {
-        return (.a ... .z).contains(self)
-    }
-
-    var isAllowedInVariable: Bool {
-        return self.isLowercaseLetter || self.isUppercaseLetter
-    }
-    // MARK: --- END OF SECTION TO BE MOVED ---
+    // Various identifiers moved up in extension for clarity
 }

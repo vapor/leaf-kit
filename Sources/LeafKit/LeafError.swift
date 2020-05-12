@@ -144,7 +144,7 @@ public struct LexerError: Error {
     ///   - recoverable: Flag to say whether the error can potentially be recovered during Parse
     internal init(
         _ reason: Reason,
-        src: TemplateSource,
+        src: LeafRawTemplate,
         lexed: [LeafToken] = [],
         recoverable: Bool = false
     ) {

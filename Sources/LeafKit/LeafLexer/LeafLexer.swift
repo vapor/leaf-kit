@@ -1,123 +1,13 @@
-// MARK:- --- THIS SECTION TO BE MOVED TO exports.swift ---
-extension Character {
-    var isValidInTagName: Bool {
-        return self.isLowercaseLetter
-            || self.isUppercaseLetter
-    }
-
-    var isValidInParameter: Bool {
-        return self.isValidInTagName
-            || self.isValidOperator
-            || self.isValidInNumeric
-    }
-
-    var canStartNumeric: Bool {
-        return (.zero ... .nine) ~= self
-    }
-
-    var isValidInNumeric: Bool {
-        return self.canStartNumeric
-            || self == .underscore
-            || self == .binaryNotation
-            || self == .octalNotation
-            || self == .hexNotation
-            || self.isHexadecimal
-            || self == .period
-    }
-
-    var isValidOperator: Bool {
-        switch self {
-        case .plus,
-             .minus,
-             .star,
-             .forwardSlash,
-             .equals,
-             .exclamation,
-             .lessThan,
-             .greaterThan,
-             .ampersand,
-             .vertical:
-            return true
-        default:
-            return false
-        }
-    }
-}
-// MARK: --- END OF SECTION TO BE MOVED ---
-
-// MARK:- --- THIS SECTION TO BE MOVED TO NEW FILE ---
-struct TemplateSource {
-    let name: String
-
-    private(set) var line = 0
-    private(set) var column = 0
-
-    private var body: [Character]
-
-    init(name: String, src: String) {
-        self.name = name
-        self.body = .init(src)
-    }
-
-    mutating func readWhile(_ check: (Character) -> Bool) -> String {
-        return String(readSliceWhile(pop: true, check))
-    }
-
-    mutating func peekWhile(_ check: (Character) -> Bool) -> String {
-        return String(peekSliceWhile(check))
-    }
-
-    mutating func popWhile(_ check: (Character) -> Bool) -> Int {
-        return readSliceWhile(pop: true, check).count
-    }
-
-    mutating func readSliceWhile(pop: Bool, _ check: (Character) -> Bool) -> [Character] {
-        var str = [Character]()
-        while let next = peek() {
-            guard check(next) else { return str }
-            if pop { self.pop() }
-            str.append(next)
-        }
-        return str
-    }
-
-    mutating func peekSliceWhile(_ check: (Character) -> Bool) -> [Character] {
-        var str = [Character]()
-        var index = 0
-        while let next = peek(aheadBy: index) {
-            guard check(next) else { return str }
-            str.append(next)
-            index += 1
-        }
-        return str
-    }
-
-    func peek(aheadBy idx: Int = 0) -> Character? {
-        guard idx < body.count else { return nil }
-        return body[idx]
-    }
-
-    @discardableResult
-    mutating func pop() -> Character? {
-        guard !body.isEmpty else { return nil }
-        let popped = body.removeFirst()
-        switch popped {
-        case .newLine:
-            line += 1
-            column = 0
-        default:
-            column += 1
-        }
-        return popped
-    }
-}
-// MARK: --- END OF SECTION TO BE MOVED ---
+// MARK: THIS SECTION MOVED TO Exports.swift
+// MARK: END OF MOVED SECTION
+// MARK: THIS SECTION MOVED TO LeafRawSource.swift
+// MARK: END OF MOVED SECTION
 
 // MARK: - `LeafLexer` Summary
 
 /// `LeafLexer` is an opaque structure that wraps the lexing logic of Leaf-Kit.
 ///
-/// Initialized with a `TemplateSource` (raw string-providing representation of a file or other source),
+/// Initialized with a `LeafRawTemplate` (raw string-providing representation of a file or other source),
 /// used by evaluating with `LeafLexer.lex()` and either erroring or returning `[LeafToken]`
 struct LeafLexer {
     private enum State {
@@ -140,18 +30,18 @@ struct LeafLexer {
     /// Streat of `LeafTokens` that have been successfully lexed
     private var lexed: [LeafToken] = []
     /// The originating template source content (ie, raw characters)
-    private var src: TemplateSource
+    private var src: LeafRawTemplate
     /// Name of the template (as opposed to file name) - eg if file = "/views/template.leaf", `template`
     private var name: String
     
-    /// Convenience to initialize `LeafLexer` with a `String` instead of a `TemplateSource`
+    /// Convenience to initialize `LeafLexer` with a `String` instead of a `LeafRawTemplate`
     init(name: String, template string: String) {
         self.name = name
         self.src = .init(name: name, src: string)
         self.state = .raw
     }
     
-    /// Lex the stored TemplateSource
+    /// Lex the stored `LeafRawTemplate`
     /// - Throws: `LexerError`
     /// - Returns: An array of fully built `LeafTokens`, to then be parsed by `LeafParser`
     mutating func lex() throws -> [LeafToken] {

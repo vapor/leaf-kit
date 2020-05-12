@@ -1,4 +1,4 @@
-// TODO: - This needs to be reimplemented? Is this the hack-y thing that let Leaf3 use Futures as data types?
+// TODO: - Should this be reimplemented? This let Leaf3 use Futures as data types?
 
 ///// Converts `Encodable` objects to `LeafData`.
 //public final class LeafDataEncoder {
