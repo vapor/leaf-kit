@@ -1,7 +1,3 @@
-// FIXME: - LeafRenderer.swift is too cluttered
-
-import NIOConcurrencyHelpers
-
 public struct LeafConfiguration {
     public var rootDirectory: String
 
@@ -11,55 +7,10 @@ public struct LeafConfiguration {
 }
 
 // MARK:- THIS SECTION MOVED TO LeafCache/LeafCache.swift
-// MARK:- THIS SECTION MOVED TO LeafCache/DefaultLeafCache.swift
-// MARK: END OF MOVED SECTION
-// MARK: -
-
-public struct LeafContext {
-    public let parameters: [LeafData]
-    public let data: [String: LeafData]
-    public let body: [Syntax]?
-    public let userInfo: [AnyHashable: Any]
-
-    init(
-        parameters: [LeafData],
-        data: [String: LeafData],
-        body: [Syntax]?,
-        userInfo: [AnyHashable: Any]
-    ) throws {
-        self.parameters = parameters
-        self.data = data
-        self.body = body
-        self.userInfo = userInfo
-    }
-
-    /// Throws an error if the parameter count does not equal the supplied number `n`.
-    public func requireParameterCount(_ n: Int) throws {
-        guard parameters.count == n else {
-            throw "Invalid parameter count: \(parameters.count)/\(n)"
-        }
-    }
-
-    /// Throws an error if this tag does not include a body.
-    public func requireBody() throws -> [Syntax] {
-        guard let body = body else {
-            throw "Missing body"
-        }
-
-        return body
-    }
-
-    /// Throws an error if this tag includes a body.
-    public func requireNoBody() throws {
-        guard body == nil else {
-            throw "Extraneous body"
-        }
-    }
-}
-
-// MARK: - THIS SECTION MOVED TO LeafSource/LeafFiles.swift
-// MARK: - THIS SECTION MOVED TO LeafSource/NIOLeafFiles.swift
-// MARK: END OF MOVED SECTION
+// MARK: THIS SECTION MOVED TO LeafCache/DefaultLeafCache.swift
+// MARK: THIS SECTION MOVED TO LeafSerialize/LeafContext.swift
+// MARK: THIS SECTION MOVED TO LeafSource/LeafFiles.swift
+// MARK: THIS SECTION MOVED TO LeafSource/NIOLeafFiles.swift
 
 // MARK: -
 
@@ -205,20 +156,7 @@ public final class LeafRenderer {
     }
 }
 
-extension Array where Element == Syntax {
-    var dependencies: [String] {
-        return extensions.map { $0.key }
-    }
-
-    private var extensions: [Syntax.Extend] {
-        return compactMap {
-            switch $0 {
-            case .extend(let e): return e
-            default: return nil
-            }
-        }
-    }
-}
+// MARK: THIS SECTION REMOVED - Obviated by improved resolver
 
 extension String {
     internal var trailSlash: String {
@@ -227,6 +165,4 @@ extension String {
     }
 }
 
-
 // MARK: - THIS SECTION MOVED TO LeafCache/DefaultLeafCache.swift
-// MARK: END OF MOVED SECTION

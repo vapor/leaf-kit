@@ -1,3 +1,5 @@
+import NIOConcurrencyHelpers
+
 public final class DefaultLeafCache: LeafCache {
     let lock: Lock
     var cache: [String: ResolvedDocument]
