@@ -1,195 +1,55 @@
-public enum Keyword: String, Equatable {
-    case `in`, `true`, `false`, `self`, `nil`, `yes`, `no`
-    
-    var isBooleanValued: Bool {
-        switch self {
-            case .true,
-                 .false,
-                 .yes,
-                 .no
-                 : return true
-            default: return false
-        }
-    }
-    
-    var booleanValue: Bool? {
-        switch self {
-            case .true, .yes: return true
-            case .false, .no: return false
-            default: return nil
-        }
-    }
-}
+// MARK: `LeafToken` Summary
 
-public enum Operator: String, Equatable, CustomStringConvertible {
-    case not = "!"
-    case equals = "=="
-    case notEquals = "!="
-    case greaterThan = ">"
-    case greaterThanOrEquals = ">="
-    case lessThan = "<"
-    case lessThanOrEquals = "<="
-    
-    case plus = "+"
-    case minus = "-"
-    case divide = "/"
-    case multiply = "*"
-    
-    case and = "&&"
-    case or = "||"
-    
-    public var description: String { return rawValue }
-}
-
-extension Operator {
-    var isBoolean: Bool {
-        switch self {
-            case .not,
-                 .equals,
-                 .notEquals,
-                 .greaterThan,
-                 .greaterThanOrEquals,
-                 .lessThan,
-                 .lessThanOrEquals,
-                 .and,
-                 .or:
-                return true
-            default:
-                return false
-        }
-    }
-    
-    var isBinary: Bool {
-        switch self {
-            case .not: return false
-            default: return true
-        }
-    }
-    
-    var isUnaryPrefix: Bool {
-        switch self {
-            case .not: return true
-            default: return false
-        }
-    }
-}
-
-public enum Constant: CustomStringConvertible, Equatable {
-    case int(Int)
-    case double(Double)
-    
-    public var description: String {
-        switch self {
-            case .int(let i): return i.description
-            case .double(let d): return d.description
-        }
-    }
-}
-
-public indirect enum ParameterDeclaration: CustomStringConvertible {
-    case parameter(Parameter)
-    case expression([ParameterDeclaration])
-    case tag(Syntax.CustomTagDeclaration)
-    
-    public var description: String {
-        switch self {
-        case .parameter(let p):
-            return p.description
-        case .expression(let p):
-            return name + "(" + p.map { $0.short }.joined(separator: " ") + ")"
-        case .tag(let tag):
-            return "tag(" + tag.name + ": " + tag.params.map { $0.short } .joined(separator: ",") + ")"
-        }
-    }
-    
-    var short: String {
-        switch self {
-        case .parameter(let p):
-            return p.short
-        case .expression(let p):
-            return "[\(p.map { $0.short }.joined(separator: " "))]"
-        case .tag(let tag):
-            return tag.name + "(" + tag.params.map { $0.short }.joined(separator: " ") + ")"
-        }
-    }
-    
-    var name: String {
-        switch self {
-        case .parameter:
-            return "parameter"
-        case .expression:
-            return "expression"
-        case .tag:
-            return "tag"
-        }
-    }
-}
-
-public indirect enum Parameter: Equatable, CustomStringConvertible {
-    case stringLiteral(String)
-    case constant(Constant)
-    case variable(name: String)
-    case keyword(Keyword)
-    case `operator`(Operator)
-    case tag(name: String)
-    
-    // case
-    public var description: String {
-        return name + "(" + short + ")"
-    }
-    
-    var name: String {
-        switch self {
-        case .stringLiteral:
-            return "stringLiteral"
-        case .constant:
-            return "constant"
-        case .variable:
-            return "variable"
-        case .keyword:
-            return "keyword"
-        case .operator:
-            return "operator"
-        case .tag:
-            return "tag"
-        }
-    }
-    
-    var short: String {
-        switch self {
-        case .stringLiteral(let s):
-            return "\"\(s)\""
-        case .constant(let c):
-            return "\(c)"
-        case .variable(let v):
-            return "\(v)"
-        case .keyword(let k):
-            return "\(k)"
-        case .operator(let o):
-            return "\(o)"
-        case .tag(let t):
-            return "\"\(t)\""
-        }
-    }
-}
+/// `LeafToken` represents the first stage of parsing Leaf templates - a raw file/bytestream `String`
+/// will be read by `LeafLexer` and interpreted into `[LeafToken]` representing a stream of tokens.
+///
+/// # STABLE TOKEN DEFINITIONS
+/// - `.raw`: A variable-length string of data that will eventually be output directly without processing
+/// - `.tagIndicator`: The signal at top-level that a Leaf syntax object will follow. Default is `#` and
+///     while it can be configured to be something else, only rare uses cases may want to do so.
+///     `.tagindicator` can be escaped in source templates with a backslash and will automatically
+///     be consumed by `.raw` if so. May decay to `.raw` at the token parsing stage if a non-
+///     tag/syntax object follows.
+/// - `.tag`: The expected tag name - in `#for(index in array)`, equivalent token is `.tag("for")`
+/// - `.tagBodyIndicator`: Indicates the start of a body-bearing tag - ':'
+/// - `.parametersStart`: Indicates the start of a tag's parameters - `(`
+/// - `.parameterDelimiter`: Indicates a delimter between parameters - `,`
+/// - `.parameter`: Associated value enum storing a valid tag parameter.
+/// - `.parametersEnd`: Indicates the end of a tag's parameters - `)`
+///
+/// # POTENTIALLY UNSTABLE TOKENS
+/// - `.stringLiteral`: Does not appear to be used anywhere?
+/// - `.whitespace`: Only generated when not at top-level, and unclear why maintaining it is useful
+///
+/// # TODO
+/// - LeafTokens would ideally also store the range of their location in the original source template
 
 public enum LeafToken: CustomStringConvertible, Equatable  {
-    
+    /// Holds a variable-length string of data that will be passed through with no processing
     case raw(String)
     
+    /// `#` (or as configured) - Top-level signal that indicates a Leaf tag/syntax object will follow.
     case tagIndicator
+    /// Holds the name of an expected tag or syntax object (eg, `for`) in `#for(index in array)`
     case tag(name: String)
+    /// `:` - Indicates the start of a body for a body-bearing tag
     case tagBodyIndicator
-    
+
+    /// `(` -  Indicates the start of a tag's parameters
     case parametersStart
+    /// `,` -  Indicates separation of a tag's parameters
     case parameterDelimiter
+    /// Holds a `Parameter` enum
     case parameter(Parameter)
+    /// `)` -  Indicates the end of a tag's parameters
     case parametersEnd
-    
-    // TODO: RM IF POSSIBLE
+
+    /// To be removed if possible - avoid using
     case stringLiteral(String)
+    /// To be removed if possible - avoid using
     case whitespace(length: Int)
     
+    /// Returns `"tokenCase"` or `"tokenCase(valueAsString)"` if holding a value
     public var description: String {
         switch self {
         case .raw(let str):
@@ -216,6 +76,155 @@ public enum LeafToken: CustomStringConvertible, Equatable  {
     }
 }
 
+// MARK: - `Parameter` Token Type
+
+/// An associated value enum holding data, objects or values usable as parameters to a `.tag`
+///
+/// # TODO
+/// - This doesn't appear to need to be an indirect.
+/// - Does `stringLiteral` need to exist - should `Constant` have a `String` case or should
+///   `Constant` be renamed `Numeric` for clarity?
+public indirect enum Parameter: Equatable, CustomStringConvertible {
+    case stringLiteral(String)
+    case constant(Constant)
+    case variable(name: String)
+    case keyword(Keyword)
+    case `operator`(Operator)
+    case tag(name: String)
+    
+    /// Returns `parameterCase(parameterValue)`
+    public var description: String {
+        return name + "(" + short + ")"
+    }
+    
+    /// Returns `parameterCase`
+    var name: String {
+        switch self {
+        case .stringLiteral:
+            return "stringLiteral"
+        case .constant:
+            return "constant"
+        case .variable:
+            return "variable"
+        case .keyword:
+            return "keyword"
+        case .operator:
+            return "operator"
+        case .tag:
+            return "tag"
+        }
+    }
+    
+    /// Returns `parameterValue` or `"parameterValue"` as appropriate for type
+    var short: String {
+        switch self {
+        case .stringLiteral(let s):
+            return "\"\(s)\""
+        case .constant(let c):
+            return "\(c)"
+        case .variable(let v):
+            return "\(v)"
+        case .keyword(let k):
+            return "\(k)"
+        case .operator(let o):
+            return "\(o)"
+        case .tag(let t):
+            return "\"\(t)\""
+        }
+    }
+}
+
+// MARK: - `Parameter`-Storable Types
+
+/// `Keyword`s are dentifiers which take precedence over syntax/variable names - may potentially have
+/// representable state themselves as value when used with operators (eg, `true`, `false` when
+/// used with logical operators, `nil` when used with equality operators, and so forth)
+public enum Keyword: String, Equatable {
+    case `in`, `true`, `false`, `self`, `nil`, `yes`, `no`
+}
+
+/// Mathematical and Logical operators
+public enum Operator: String, Equatable, CustomStringConvertible {
+    case not = "!"
+    case equals = "=="
+    case notEquals = "!="
+    case greaterThan = ">"
+    case greaterThanOrEquals = ">="
+    case lessThan = "<"
+    case lessThanOrEquals = "<="
+
+    case plus = "+"
+    case minus = "-"
+    case divide = "/"
+    case multiply = "*"
+
+    case and = "&&"
+    case or = "||"
+    
+    /// Raw string value of the operator - eg `!=`
+    public var description: String { return rawValue }
+}
+
+/// An integer or double constant value parameter (eg `1_000`, `-42.0`)
+///
+/// #TODO
+/// - This is somewhat confusingly named. Possibly would be better to rename as `Numeric`, since
+///   `stringLiteral` *IS* a constant type, or else `stringLiteral` should be moved into this.
+public enum Constant: CustomStringConvertible, Equatable {
+    case int(Int)
+    case double(Double)
+
+    public var description: String {
+        switch self {
+            case .int(let i): return i.description
+            case .double(let d): return d.description
+        }
+    }
+}
+
+// MARK: --- THIS SECTION TO BE MOVED ---
+/// `ParameterDeclaration is NOT used at the lexing stage and is not presentable as a LeafToken - it
+/// is built and interpreted during LeafParser.parse. Move to a more appropriate file.
+
+public indirect enum ParameterDeclaration: CustomStringConvertible {
+    case parameter(Parameter)
+    case expression([ParameterDeclaration])
+    case tag(Syntax.CustomTagDeclaration)
+
+    public var description: String {
+        switch self {
+        case .parameter(let p):
+            return p.description
+        case .expression(let p):
+            return name + "(" + p.map { $0.short }.joined(separator: " ") + ")"
+        case .tag(let tag):
+            return "tag(" + tag.name + ": " + tag.params.map { $0.short } .joined(separator: ",") + ")"
+        }
+    }
+
+    var short: String {
+        switch self {
+        case .parameter(let p):
+            return p.short
+        case .expression(let p):
+            return "[\(p.map { $0.short }.joined(separator: " "))]"
+        case .tag(let tag):
+            return tag.name + "(" + tag.params.map { $0.short }.joined(separator: " ") + ")"
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .parameter:
+            return "parameter"
+        case .expression:
+            return "expression"
+        case .tag:
+            return "tag"
+        }
+    }
+}
+
 internal extension Array where Element == ParameterDeclaration {
     // evaluate a flat array of Parameters ("Expression")
     // returns true if the expression was reduced, false if
@@ -229,7 +238,7 @@ internal extension Array where Element == ParameterDeclaration {
         // check that the last param isn't an op, this is not resolvable
         // since there are no unary postfix options currently
         guard last?.operator() == nil else { return false }
-        
+
         // Priority:
         // Unary: Not
         // Binary Math: Mult/Div -> Plus/Minus
@@ -244,7 +253,7 @@ internal extension Array where Element == ParameterDeclaration {
             (check: { $0 == .equals || $0 == .notEquals } , binary: true), // !, !=
             (check: { $0 == .and || $0 == .or } , binary: true), // &&, ||
         ]
-            
+
         groupOps: for map in precedenceMap {
             while let i = findLastOpWhere(map.check) {
                 if map.binary { wrapBinaryOp(i)}
@@ -254,11 +263,11 @@ internal extension Array where Element == ParameterDeclaration {
                 if operandCount() == 0 { break groupOps }
             }
         }
-        
+
         flatten()
         return ops > 1 ? true : false
     }
-    
+
     mutating func flatten() {
         while count == 1 {
             if case .expression(let e) = self.first! {
@@ -268,7 +277,7 @@ internal extension Array where Element == ParameterDeclaration {
         }
         return
     }
-    
+
     fileprivate mutating func wrapUnaryNot(_ i: Int) {
         let rhs = remove(at: i + 1)
         if case .parameter(let p) = rhs, case .keyword(let key) = p, key.isBooleanValued {
@@ -277,7 +286,7 @@ internal extension Array where Element == ParameterDeclaration {
             self[i] = .expression([self[i],rhs])
         }
     }
-    
+
     // could be smarter and check param types beyond verifying non-op but we're lazy here
     fileprivate mutating func wrapBinaryOp(_ i: Int) {
         // can't wrap unless there's a lhs and rhs
@@ -289,7 +298,7 @@ internal extension Array where Element == ParameterDeclaration {
         if case .parameter(.operator) = rhs { return }
         self[i] = .expression([lhs, self[i], rhs])
         self.remove(at:i+1)
-        self.remove(at:i-1)       
+        self.remove(at:i-1)
     }
 
     // Helper functions
@@ -301,11 +310,73 @@ internal extension Array where Element == ParameterDeclaration {
             return count + (pD.operator().map { check($0) ? 1 : 0 } ?? 0)
         })
     }
-    
+
     func findLastOpWhere(_ check: (Operator) -> Bool) -> Int? {
         for (index, pD) in self.enumerated().reversed() {
             if let op = pD.operator(), check(op) { return index }
         }
         return nil
+    }
+}
+// MARK: --- END OF SECTION TO BE MOVED ---
+
+// MARK: - Observational Helper Extensions to `Parameter` Types
+
+extension Keyword {
+    /// Whether a `Keyword`  can be interpreted as a Boolean values
+    var isBooleanValued: Bool {
+        switch self {
+            case .true,
+                 .false,
+                 .yes,
+                 .no
+                 : return true
+            default: return false
+        }
+    }
+    
+    /// For `Keyword`s which can be interpreted as Boolean values, return that value or nil
+    var booleanValue: Bool? {
+        switch self {
+            case .true, .yes: return true
+            case .false, .no: return false
+            default: return nil
+        }
+    }
+}
+
+extension Operator {
+    /// Whether an operator is a logical operator (ie, takes `Bool` values
+    var isBoolean: Bool {
+        switch self {
+            case .not,
+                 .equals,
+                 .notEquals,
+                 .greaterThan,
+                 .greaterThanOrEquals,
+                 .lessThan,
+                 .lessThanOrEquals,
+                 .and,
+                 .or:
+                return true
+            default:
+                return false
+        }
+    }
+    
+    /// Whether an operator is a binary operator (ie, takes both LHS and RHS arguments)
+    var isBinary: Bool {
+        switch self {
+            case .not: return false
+            default: return true
+        }
+    }
+    
+    /// Whether an operator is a unary prefix operator (ie, takes only a RHS argument)
+    var isUnaryPrefix: Bool {
+        switch self {
+            case .not: return true
+            default: return false
+        }
     }
 }

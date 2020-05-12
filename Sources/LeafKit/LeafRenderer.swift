@@ -15,18 +15,18 @@ public protocol LeafCache {
         _ document: ResolvedDocument,
         on loop: EventLoop
     ) -> EventLoopFuture<ResolvedDocument>
-    
+
     func insert(
         _ document: ResolvedDocument,
         on loop: EventLoop,
         replace: Bool
     ) -> EventLoopFuture<ResolvedDocument>
-    
+
     func load(
         documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<ResolvedDocument?>
-    
+
     /// - return nil if cache entry didn't exist in the first place, true if purged
     /// - will never return false in this design but should be capable of it
     ///   in the event a cache implements dependency tracking between templates
@@ -34,9 +34,9 @@ public protocol LeafCache {
         _ documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<Bool?>
-    
+
     func entryCount() -> Int
-    
+
     var isEnabled : Bool { get set }
 }
 
@@ -49,7 +49,7 @@ public final class DefaultLeafCache: LeafCache {
         self.lock = .init()
         self.cache = [:]
     }
-    
+
     // Superseded by insert with remove: parameter - Remove in Leaf-Kit 2?
     public func insert(
         _ document: ResolvedDocument,
@@ -57,7 +57,7 @@ public final class DefaultLeafCache: LeafCache {
     ) -> EventLoopFuture<ResolvedDocument> {
         self.insert(document, on: loop, replace: false)
     }
-    
+
     public func insert(
         _ document: ResolvedDocument,
         on loop: EventLoop,
@@ -65,7 +65,7 @@ public final class DefaultLeafCache: LeafCache {
     ) -> EventLoopFuture<ResolvedDocument> {
         // future fails if caching is enabled
         guard isEnabled else { return loop.makeSucceededFuture(document) }
-        
+
         self.lock.lock()
         defer { self.lock.unlock() }
         // return an error if replace is false and the document name is already in cache
@@ -85,13 +85,13 @@ public final class DefaultLeafCache: LeafCache {
         defer { self.lock.unlock() }
         return loop.makeSucceededFuture(self.cache[documentName])
     }
-    
+
     public func remove(
         _ documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<Bool?> {
         guard isEnabled == true else { return loop.makeFailedFuture(LeafError(.cachingDisabled)) }
-        
+
         self.lock.lock()
         defer { self.lock.unlock() }
 
@@ -201,7 +201,7 @@ public final class LeafRenderer {
 
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
         guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
-        
+
         return self.cache.load(documentName: path, on: self.eventLoop).flatMapThrowing { cached in
             guard let cached = cached else { throw LeafError(.noValueForKey(path)) }
             guard cached.flat else { throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs))) }
@@ -257,7 +257,7 @@ public final class LeafRenderer {
     private func resolve(ast: LeafAST, chain: [String]) -> EventLoopFuture<LeafAST> {
         // if the ast is already flat, cache it immediately and return
         if ast.flat == true { return self.cache.insert(ast, on: self.eventLoop, replace: true) }
-        
+
         var chain = chain
         _ = chain.append(ast.name)
         let intersect = ast.unresolvedRefs.intersection(Set<String>(chain))
@@ -268,7 +268,7 @@ public final class LeafRenderer {
         }
 
         let fetchRequests = ast.unresolvedRefs.map { self.fetch(template: $0, chain: chain) }
-        
+
         let results = EventLoopFuture.whenAllComplete(fetchRequests, on: self.eventLoop)
         return results.flatMap { results in
             let results = results
@@ -312,8 +312,6 @@ public final class LeafRenderer {
         }
     }
 
-//    private func readDependencies... *obviated by new render/fetch/resolve functions*
-
     private func readBytes(file: String) -> EventLoopFuture<ByteBuffer> {
         self.files.file(path: file, on: self.eventLoop)
     }
@@ -350,7 +348,7 @@ extension LeafCache {
     {
         return loop.makeFailedFuture( LeafError(.unsupportedFeature("Protocol adopter does not support removing entries")) )
     }
-    
+
     /// default implementation of remove to avoid breaking custom LeafCache adopters
     ///     throws an error if used with replace == true
     func insert(

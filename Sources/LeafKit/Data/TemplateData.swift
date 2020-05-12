@@ -227,7 +227,7 @@ public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionar
             return nil
         }
     }
-    
+
     /// Attempts to convert to `[String: LeafData]` or returns `nil`.
     public var dictionary: [String: LeafData]? {
         switch storage {

@@ -2,7 +2,7 @@
 
 extension Character {
     public static var tagIndicator: Character = .octothorpe
-    
+
     static let newLine = "\n".first!
     static let quote = "\"".first!
     static let octothorpe = "#".first!
@@ -18,7 +18,7 @@ extension Character {
     static let Z = "Z".first!
     static let a = "a".first!
     static let z = "z".first!
-    
+
     static let zero = "0".first!
     static let one = "1".first!
     static let seven = "7".first!
@@ -26,7 +26,7 @@ extension Character {
     static let binaryNotation = "b".first!
     static let octalNotation = "o".first!
     static let hexNotation = "x".first!
-    
+
     static let plus = "+".first!
     static let minus = "-".first!
     static let star = "*".first!
@@ -38,31 +38,31 @@ extension Character {
     static let ampersand = "&".first!
     static let vertical = "|".first!
     static let underscore = "_".first!
-    
+
     var isHexadecimal: Bool {
         return (.zero ... .nine).contains(self)
             || (.A ... .F).contains(self.uppercased().first!)
             || self == .hexNotation
     }
-    
+
     var isOctal: Bool {
         return (.zero ... .seven).contains(self)
         || self == .octalNotation
     }
-    
+
     var isBinary: Bool {
         return (.zero ... .one).contains(self)
         || self == .binaryNotation
     }
-    
+
     var isUppercaseLetter: Bool {
         return (.A ... .Z).contains(self)
     }
-    
+
     var isLowercaseLetter: Bool {
         return (.a ... .z).contains(self)
     }
-    
+
     var isAllowedInVariable: Bool {
         return self.isLowercaseLetter || self.isUppercaseLetter
     }

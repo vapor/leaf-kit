@@ -2,7 +2,7 @@
 import XCTest
 
 final class LeafTests: XCTestCase {
-    
+
     // currently not supported.. discussion ongoing
     func _testInterpolated() throws {
         let template = """
@@ -53,7 +53,7 @@ final class LeafTests: XCTestCase {
             expectation.trimmingCharacters(in: .whitespacesAndNewlines)
         )
     }
-    
+
     func testRaw() throws {
         let template = "Hello!"
         try XCTAssertEqual(render(template), "Hello!")
@@ -142,7 +142,7 @@ final class LeafTests: XCTestCase {
         """
         try XCTAssertEqual(render(template, ["id": 42, "name": "Tanner"]), "User 42!")
     }
-    
+
     func testStringIf() throws {
         let template = """
         #if(name):Hello, #(name)!#else:No Name!#endif
@@ -152,7 +152,7 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["name": .string("Tanner")]), expectedName)
         try XCTAssertEqual(render(template), expectedNoName)
     }
-    
+
     func testEqualIf() throws {
         let template = """
         #if(string1 == string2):Good#else:Bad#endif
@@ -162,7 +162,7 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["string1": .string("Tanner"), "string2": .string("Tanner")]), expectedGood)
         try XCTAssertEqual(render(template, ["string1": .string("Tanner"), "string2": .string("n/a")]), expectedBad)
     }
-    
+
     func testAndStringIf() throws {
         let template = """
         #if(name && one):Hello, #(name)#(one)!#elseif(name):Hello, #(name)!#else:No Name!#endif
@@ -174,7 +174,7 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["name": .string("Tanner")]), expectedName)
         try XCTAssertEqual(render(template), expectedNoName)
     }
-    
+
     func testOrStringIf() throws {
         let template = """
         #if(name || one):Hello, #(name)#(one)!#else:No Name!#endif
@@ -186,7 +186,7 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["one": .string("1")]), expectedOne)
         try XCTAssertEqual(render(template), expectedNoName)
     }
-    
+
     func testArrayIf() throws {
         let template = """
         #if(namelist):#for(name in namelist):Hello, #(name)!#endfor#else:No Name!#endif
@@ -197,8 +197,6 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template), expectedNoName)
     }
 
-//    func testEscapeExtraneousBody()... removed as obviated by syntax change
-
     func testEscapeTag() throws {
         let template = """
         #("foo") \\#("bar")
@@ -208,7 +206,7 @@ final class LeafTests: XCTestCase {
         """
         try XCTAssertEqual(render(template, [:]), expected)
     }
-    
+
     // TODO: Reimplement #count
     func _testCount() throws {
         let template = """
@@ -219,7 +217,7 @@ final class LeafTests: XCTestCase {
         """
         try XCTAssertEqual(render(template, ["array": ["","","",""]]), expected)
     }
-    
+
     // TODO: Are set/get totally deprecated?
     func _testNestedSet() throws {
         let template = """
@@ -315,8 +313,6 @@ final class LeafTests: XCTestCase {
         }
     }
 
-//    func testTemplating()... * Removed as obviated by newer LeafCache tests
-
     // https://github.com/vapor/leaf/issues/96
     func testGH96() throws {
         let template = """
@@ -335,7 +331,7 @@ final class LeafTests: XCTestCase {
         """
         try XCTAssertEqual(render(template, ["names": ["tanner", "ziz", "vapor"]]), expected)
     }
-    
+
     func testLoopIndices() throws {
         let template = """
         #for(name in names):
@@ -351,10 +347,10 @@ final class LeafTests: XCTestCase {
             vapor - index=2 last=true first=false
 
         """
-    
+
         try XCTAssertEqual(render(template, ["names": ["tanner", "ziz", "vapor"]]), expected)
     }
-    
+
     func testNestedLoopIndices() throws {
         let template = """
         #for(array in arrays):
@@ -366,16 +362,16 @@ final class LeafTests: XCTestCase {
         Array1 - [ 0(first) : "a",  1 : "b",  2(last) : "c"]
         Array2 - [ 0(first) : "red fish",  1 : "blue fish",  2(last) : "green fish"]
         """
-        
+
         let data = LeafData.array([
             LeafData.array(["zero", "one", "two"]),
             LeafData.array(["a", "b", "c"]),
             LeafData.array(["red fish", "blue fish", "green fish"])
         ])
-        
+
         try XCTAssertEqual(render(template, ["arrays": data]), expected)
     }
-    
+
     // It would be nice if a pre-render phase could catch things like calling
     // tags that would normally ALWAYS throw in serializing (eg, calling index
     // when not in a loop) so that warnings can be provided and AST can be minimized.
@@ -384,10 +380,10 @@ final class LeafTests: XCTestCase {
             #if(isFirst):Wrong#else:Right#endif
             """
             let expected = "Right"
-        
+
         try XCTAssertEqual(render(template, [:]), expected)
     }
-    
+
     // Current implementation favors context keys over tag keys, so
     // defining a key for isFirst in context will override accessing registered
     // LeafTags with the same name.
@@ -397,10 +393,10 @@ final class LeafTests: XCTestCase {
             #if(isFirst):Wrong (Maybe)#else:Right#endif
             """
             let expected = "Wrong (Maybe)"
-        
+
         try XCTAssertEqual(render(template, ["isFirst": true]), expected)
     }
-    
+
 
     // https://github.com/vapor/leaf/issues/99
     func testGH99() throws {
@@ -423,8 +419,7 @@ final class LeafTests: XCTestCase {
     }
 
     // https://github.com/vapor/leaf/issues/105
-    // FIXME: Parser is not resolving expressions
-    func _testGH105() throws {
+    func testGH105() throws {
         do {
             let template = """
             #if(1 + 1 == 2):hi#endif
@@ -486,31 +481,31 @@ final class LeafTests: XCTestCase {
             try XCTAssertEqual(render(template, ["a": "a"]), expected)
         }
     }
-    
+
     // Validate parse resolution of negative numbers
     func testNegatives() throws {
         let input = """
         #(10)
         #(-10)
         """
-        
+
         let syntax = """
         raw("10")
         raw("-10")
         """
-        
+
         let expectation = """
         10
         -10
         """
-        
+
         let parsed = try parse(input)
             .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
             .joined(separator: "\n")
         XCTAssertEqual(parsed, syntax)
         try XCTAssertEqual(render(input), expectation)
     }
-    
+
     // Validate parse resolution of evaluable expressions
     func testComplexParameters() throws {
         let input = """
@@ -519,7 +514,7 @@ final class LeafTests: XCTestCase {
         #(10 - 5)
         #(-5)
         """
-        
+
         let syntax = """
         [variable(index), operator(-), constant(5)]
         [constant(10), operator(-), constant(5)]
@@ -533,14 +528,14 @@ final class LeafTests: XCTestCase {
         5
         -5
         """
-        
+
         let parsed = try parse(input)
             .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
             .joined(separator: "\n")
         XCTAssertEqual(parsed, syntax)
         try XCTAssertEqual(render(input,["index":10]), expectation)
     }
-    
+
     // Validate parse resolution of negative numbers
     func testOperandGrouping() throws {
         let input = """
@@ -552,7 +547,7 @@ final class LeafTests: XCTestCase {
         #(true)
         #(-5 + 10 - 20 / 2 + 9 * -3 == 90 / 3 + 0b010 * -0xA)
         """
-        
+
         let syntax = """
         [keyword(false), operator(&&), keyword(true)]
         [keyword(false), operator(||), keyword(true)]
@@ -562,7 +557,7 @@ final class LeafTests: XCTestCase {
         raw("true")
         [expression(-5 + [10 - [[20 / 2] + [9 * -3]]]), operator(==), expression([90 / 3] + [2 * -10])]
         """
-        
+
         let expectation = """
         false
         true
@@ -572,7 +567,7 @@ final class LeafTests: XCTestCase {
         true
         false
         """
-        
+
         let parsed = try parse(input)
             .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
             .joined(separator: "\n")

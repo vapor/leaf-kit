@@ -83,7 +83,7 @@ extension TagDeclaration {
         default: return false
         }
     }
-    
+
     func matches(terminator: TagDeclaration) -> Bool {
         guard terminator.isTerminator else { return false }
         switch terminator.name {
@@ -99,29 +99,27 @@ extension TagDeclaration {
     }
 }
 
-
 struct LeafParser {
     let name: String
     private var tokens: [LeafToken]
     private var offset: Int
-    
+
     init(name: String, tokens: [LeafToken]) {
         self.name = name
         self.tokens = tokens
         self.offset = 0
     }
 
-    
     private var finished: [Syntax] = []
     private var awaitingBody: [OpenContext] = []
-    
+
     mutating func parse() throws -> [Syntax] {
         while let next = peek() {
             try handle(next: next)
         }
         return finished
     }
-    
+
     private mutating func handle(next: LeafToken) throws {
         switch next {
         case .tagIndicator:
@@ -129,7 +127,7 @@ struct LeafParser {
             // check terminator first
             // always takes priority, especially for dual body/terminator functors
             if declaration.isTerminator { try close(with: declaration) }
-            
+
             // this needs to be a secondary if-statement, and
             // not joined above
             //
@@ -164,14 +162,14 @@ struct LeafParser {
             throw "unexpected token \(next)"
         }
     }
-    
+
     private mutating func close(with terminator: TagDeclaration) throws {
         guard !awaitingBody.isEmpty else {
             throw "\(name): found terminator \(terminator), with no corresponding tag"
         }
         let willClose = awaitingBody.removeLast()
         guard willClose.parent.matches(terminator: terminator) else { throw "\(name): unable to match \(willClose.parent) with \(terminator)" }
-        
+
         // closed body
         let newSyntax = try willClose.parent.makeSyntax(body: willClose.body)
 
@@ -218,10 +216,10 @@ struct LeafParser {
         guard let first = read(), first == .tagIndicator else { throw "expected .tagIndicator(\(Character.tagIndicator))" }
         // a tag should ALWAYS follow a tag indicator
         guard let tag = read(), case .tag(let name) = tag else { throw "expected tag name following a tag indicator" }
-        
+
         // if no further, then we've ended w/ a tag
         guard let next = peek() else { return TagDeclaration(name: name, parameters: nil, expectsBody: false) }
-        
+
         // following a tag can be,
         // .raw - tag is complete
         // .tagBodyIndicator - ready to read body
@@ -259,14 +257,14 @@ struct LeafParser {
             throw "found unexpected token " + next.description
         }
     }
-    
+
     private mutating func readParameters() throws -> [ParameterDeclaration] {
         // ensure open parameters
         guard read() == .parametersStart else { throw "expected parameters start" }
-        
+
         var group = [ParameterDeclaration]()
         var paramsList = [ParameterDeclaration]()
-        
+
         func dump() {
             defer { group = [] }
             if group.isEmpty { return }
@@ -274,7 +272,7 @@ struct LeafParser {
             if group.count > 1 { paramsList.append(.expression(group)) }
             else { paramsList.append(group.first!) }
         }
-        
+
         outer: while let next = peek() {
             switch next {
             case .parametersStart:
@@ -310,11 +308,11 @@ struct LeafParser {
                 break outer
             }
         }
-        
+
         paramsList.evaluate()
         return paramsList
     }
-    
+
     private mutating func collectRaw() throws -> ByteBuffer {
         var raw = ByteBufferAllocator().buffer(capacity: 0)
         while let peek = peek(), case .raw(let val) = peek {
@@ -323,29 +321,29 @@ struct LeafParser {
         }
         return raw
     }
-    
+
     func peek() -> LeafToken? {
         guard self.offset < self.tokens.count else {
             return nil
         }
         return self.tokens[self.offset]
     }
-    
+
     private mutating func pop() {
         self.offset += 1
     }
-    
+
     private mutating func replace(at offset: Int = 0, with new: LeafToken) {
         self.tokens[self.offset + offset] = new
     }
-    
+
     private mutating func read() -> LeafToken? {
         guard self.offset < self.tokens.count else { return nil }
         guard let val = self.peek() else { return nil }
         pop()
         return val
     }
-    
+
     mutating func readWhile(_ check: (LeafToken) -> Bool) -> [LeafToken]? {
         guard self.offset < self.tokens.count else { return nil }
         var matched = [LeafToken]()

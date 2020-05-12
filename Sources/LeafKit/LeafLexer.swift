@@ -3,17 +3,17 @@ extension Character {
         return self.isLowercaseLetter
             || self.isUppercaseLetter
     }
-    
+
     var isValidInParameter: Bool {
         return self.isValidInTagName
             || self.isValidOperator
             || self.isValidInNumeric
     }
-       
+
     var canStartNumeric: Bool {
         return (.zero ... .nine) ~= self
     }
-    
+
     var isValidInNumeric: Bool {
         return self.canStartNumeric
             || self == .underscore
@@ -23,7 +23,7 @@ extension Character {
             || self.isHexadecimal
             || self == .period
     }
-    
+
     var isValidOperator: Bool {
         switch self {
         case .plus,
@@ -45,29 +45,29 @@ extension Character {
 
 struct TemplateSource {
     let name: String
-    
+
     private(set) var line = 0
     private(set) var column = 0
-    
+
     private var body: [Character]
-    
+
     init(name: String, src: String) {
         self.name = name
         self.body = .init(src)
     }
-    
+
     mutating func readWhile(_ check: (Character) -> Bool) -> String {
         return String(readSliceWhile(pop: true, check))
     }
-    
+
     mutating func peekWhile(_ check: (Character) -> Bool) -> String {
         return String(peekSliceWhile(check))
     }
-    
+
     mutating func popWhile(_ check: (Character) -> Bool) -> Int {
         return readSliceWhile(pop: true, check).count
     }
-    
+
     mutating func readSliceWhile(pop: Bool, _ check: (Character) -> Bool) -> [Character] {
         var str = [Character]()
         while let next = peek() {
@@ -77,7 +77,7 @@ struct TemplateSource {
         }
         return str
     }
-    
+
     mutating func peekSliceWhile(_ check: (Character) -> Bool) -> [Character] {
         var str = [Character]()
         var index = 0
@@ -88,12 +88,12 @@ struct TemplateSource {
         }
         return str
     }
-    
+
     func peek(aheadBy idx: Int = 0) -> Character? {
         guard idx < body.count else { return nil }
         return body[idx]
     }
-    
+
     @discardableResult
     mutating func pop() -> Character? {
         guard !body.isEmpty else { return nil }
@@ -120,7 +120,7 @@ struct LeafLexer {
         // parses a tag body
         case body
     }
-    
+
     private var state: State
     private var depth = 0
     private var offset = 0
@@ -133,7 +133,7 @@ struct LeafLexer {
         self.src = .init(name: name, src: string)
         self.state = .raw
     }
-    
+
     mutating func lex() throws -> [LeafToken] {
         while let next = try self.nextToken() {
             lexed.append(next)
@@ -141,7 +141,7 @@ struct LeafLexer {
         }
         return lexed
     }
-    
+
     private mutating func nextToken() throws -> LeafToken? {
         // if EOF, return nil - no more to read
         guard let current = src.peek() else { return nil }
@@ -149,7 +149,7 @@ struct LeafLexer {
         let isTagVal = current.isValidInTagName
         let isCol = current == .colon
         let next = src.peek(aheadBy: 1)
-        
+
         switch   (state,       isTagID, isTagVal, isCol, next) {
             case (.raw,        false,   _,        _,     _):     return lexRaw()
             case (.raw,        true,    _,        _,     .some): return lexCheckTagIndicator()
@@ -164,19 +164,19 @@ struct LeafLexer {
                 throw LexerError(.internalError("Template cannot be lexed"), src: src, lexed: lexed)
         }
     }
-    
+
     // Lexing subroutines that can produce state changes:
     // * to .raw:           lexRaw, lexCheckTagIndicator
     // * to .tag:           lexCheckTagIndicator
     // * to .parameters:    lexAnonymousTag, lexNamedTag
     // * to .body:          lexNamedTag
-    
+
     private mutating func lexAnonymousTag() -> LeafToken {
         state = .parameters
         depth = 0
         return .tag(name: "")
     }
-    
+
     private mutating func lexNamedTag() -> LeafToken {
         let name = src.readWhile { $0.isValidInTagName }
         let trailing = src.peek()
@@ -185,7 +185,7 @@ struct LeafLexer {
         if trailing == .leftParenthesis { state = .parameters; depth = 0 }
         return .tag(name: name)
     }
-    
+
     /// Consume all data until hitting an unescaped `tagIndicator` and return a `.raw` token
     private mutating func lexRaw() -> LeafToken {
         var slice = ""
@@ -199,7 +199,7 @@ struct LeafLexer {
         }
         return .raw(slice)
     }
-    
+
     /// Consume `#`, change state to `.tag` or `.raw`, return appropriate token
     private mutating func lexCheckTagIndicator() -> LeafToken {
         // consume `#`
@@ -214,19 +214,19 @@ struct LeafLexer {
             return .raw(Character.tagIndicator.description)
         }
     }
-        
+
     /// Consume `:`, change state to `.raw`, return `.tagBodyIndicator`
     private mutating func lexBodyIndicator() -> LeafToken {
         src.pop()
         state = .raw
         return .tagBodyIndicator
     }
-    
+
     /// Parameter hot mess
     private mutating func lexParameters() throws -> LeafToken {
         // consume first character regardless of what it is
         let current = src.pop()!
-        
+
         // Simple returning cases - .parametersStart/Delimiter/End, .whitespace, .stringLiteral Parameter
         switch current {
             case .leftParenthesis:
@@ -253,7 +253,7 @@ struct LeafLexer {
                 return .whitespace(length: read.count + 1)
             default: break
         }
-        
+
         // Complex Parameter lexing situations - enhanced to allow non-whitespace separated values
         // Complicated by overlap in acceptable isValidInParameter characters between possible types
         // Process from most restrictive options to least to help prevent overly aggressive tokens
@@ -264,7 +264,7 @@ struct LeafLexer {
         // * Keyword
         // * Tag
         // * Variable
-        
+
         // if current character isn't valid for any kind of parameter, something's majorly wrong
         guard current.isValidInParameter else {
             throw LexerError(.invalidParameterToken(current), src: src, lexed: lexed)
@@ -277,7 +277,7 @@ struct LeafLexer {
             if op == nil { op = Operator(rawValue: String(current)) } else { src.pop() }
             if op != nil { return .parameter(.operator(op!)) }
         }
-        
+
         // Test for numerics next. This is not very intelligent but will read base2/8/10/16
         // for Ints and base 10/16 for decimal through native Swift initialization
         // Will not adequately decay to handle things like `0b0A` and recognize as invalid.
@@ -286,7 +286,7 @@ struct LeafLexer {
             var testDouble: Double?
             var radix: Int? = nil
             var sign = 1
-            
+
             let next = src.peek()!
             let peekRaw = String(current) + (src.peekWhile { $0.isValidInNumeric })
             var peekNum = peekRaw.replacingOccurrences(of: String(.underscore), with: "")
@@ -307,7 +307,7 @@ struct LeafLexer {
                     default: sign = -1
                 }
             }
-            
+
             switch (peekNum.contains(.period), next, peekNum.count > 2) {
                 case (true, _, _) : testDouble = Double(peekNum)
                 case (false, .binaryNotation, true): radix = 2
@@ -315,13 +315,13 @@ struct LeafLexer {
                 case (false, .hexNotation, true): radix = 16
                 default: testInt = Int(peekNum)
             }
-            
+
             if let radix = radix {
                 let start = peekNum.startIndex
                 peekNum.removeSubrange(start ... peekNum.index(after: start))
                 testInt = Int(peekNum, radix: radix)
             }
-            
+
             if testInt != nil || testDouble != nil {
                 // discard the minus
                 if sign == -1 { self.lexed.removeLast(); offset -= 1 }
@@ -330,18 +330,18 @@ struct LeafLexer {
                 else { return .parameter(.constant(.double(testDouble! * Double(sign)))) }
             }
         }
-        
+
         // At this point, just read anything that's parameter valid, but not an operator,
         // Could be handled better and is probably way too aggressive.
         let name = String(current) + (src.readWhile { $0.isValidInParameter && !$0.isValidOperator })
-        
+
         // If it's a keyword, return that
         if let keyword = Keyword(rawValue: name) { return .parameter(.keyword(keyword)) }
         // Assume anything that matches .isValidInTagName is a tag
         // Parse can decay to a variable if necessary - checking for a paren
         // is over-aggressive because a custom tag may not take parameters
         let tagValid = name.compactMap { $0.isValidInTagName ? $0 : nil }.count == name.count
-        
+
         if tagValid && src.peek()! == .leftParenthesis {
             return .parameter(.tag(name: name))
         } else {

@@ -10,7 +10,7 @@ public struct LeafError: Error {
         /// Attempts to modify cache for a non-existant key
         /// *NOTE* NOT used when accessing as Optional returns are adequately clear
         case noValueForKey(String)
-        
+
         /// Errors related to rendering a template
         /// Attempts to render a non-flat AST - provide template name & array of unresolved references
         case unresolvedAST(String, [String])
@@ -18,7 +18,7 @@ public struct LeafError: Error {
         case noTemplateExists(String)
         /// Attempts to render an AST with cyclical external references - provide template name & ordered array of cycle
         case cyclicalReference(String, [String])
-        
+
         /// Errors due to malformed template syntax or grammar
         case lexerError(LexerError)
         /// Errors from protocol adherents that do not support newer features
@@ -26,7 +26,7 @@ public struct LeafError: Error {
         /// Errors only when no existing error reason is adequately clear
         case unknownError(String)
     }
-    
+
     public let file: String
     public let function: String
     public let line: UInt
@@ -36,12 +36,12 @@ public struct LeafError: Error {
     var localizedDescription: String {
         var verbose = ""
         let file = self.file.split(separator: "/").last
-        
+
         switch self.reason {
             case .lexerError: verbose += "Lexing error - "
             default: verbose += "\(file ?? "?").\(function):\(line) - "
         }
-        
+
         switch self.reason {
             case .unknownError(let message): verbose += message
             case .unsupportedFeature(let feature): verbose +=  "\(feature) is not implemented"
@@ -55,7 +55,7 @@ public struct LeafError: Error {
                 verbose +=  "\(key) cyclically referenced in [\(chain.joined(separator: " -> "))]"
             case .lexerError(let e): verbose +=  e.localizedDescription
         }
-        
+
         return verbose
     }
 
@@ -74,7 +74,6 @@ public struct LeafError: Error {
     }
 }
 
-
 public struct LexerError: Error {
     public enum Reason {
         case invalidTagToken(Character)
@@ -83,14 +82,14 @@ public struct LexerError: Error {
         // Use below in place of fatalError to indicate extreme issue
         case internalError(String)
     }
-    
+
     public let line: Int
     public let column: Int
     public let name: String
     public let reason: Reason
     public let lexed: [LeafToken]
     internal let recoverable: Bool
-    
+
     internal init(
         _ reason: Reason,
         src: TemplateSource,
@@ -104,7 +103,7 @@ public struct LexerError: Error {
         self.name = src.name
         self.recoverable = recoverable
     }
-    
+
     var localizedDescription: String {
         return "\"\(name)\": \(reason) - \(line):\(column)"
     }

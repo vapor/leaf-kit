@@ -34,11 +34,11 @@ struct ParameterResolver {
     let data: [String: LeafData]
     let tags: [String: LeafTag]
     let userInfo: [AnyHashable: Any]
-    
+
     func resolve() throws -> [ResolvedParameter] {
         return try params.map(resolve)
     }
-    
+
     private func resolve(_ param: ParameterDeclaration) throws -> ResolvedParameter {
         let result: LeafData
         switch param {
@@ -64,7 +64,7 @@ struct ParameterResolver {
         }
         return .init(param: param, result: result)
     }
-    
+
     private func resolve(param: Parameter) throws -> LeafData {
         switch param {
         case .constant(let c):
@@ -89,7 +89,7 @@ struct ParameterResolver {
         case .operator: throw "unexpected operator"
         }
     }
-    
+
     // #if(lowercase(first(name == "admin")) == "welcome")
     private func resolve(expression: [ParameterDeclaration]) throws -> LeafData {
         if expression.count == 2 {
@@ -189,7 +189,7 @@ struct ParameterResolver {
             return try divide(lhs: lhs, rhs: rhs)
         }
     }
-    
+
     private func plus(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
         case .array(let arr):
@@ -228,7 +228,7 @@ struct ParameterResolver {
             throw "unable to concatenate bool `\(b)` with `\(rhs)', maybe you meant &&"
         }
     }
-    
+
     private func minus(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
         case .array(let arr):
@@ -254,7 +254,7 @@ struct ParameterResolver {
             throw "unable to subtract from \(lhs)"
         }
     }
-    
+
     private func multiply(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
         case .int(let i):
@@ -276,7 +276,7 @@ struct ParameterResolver {
             throw "unable to multiply this type `\(lhs)`"
         }
     }
-    
+
     private func divide(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
         case .int(let i):
@@ -298,7 +298,7 @@ struct ParameterResolver {
             throw "unable to multiply this type `\(lhs)`"
         }
     }
-    
+
     private func resolve(lhs: LeafData, key: Keyword, rhs: LeafData) throws -> LeafData {
         switch key {
         case .in:

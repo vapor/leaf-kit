@@ -5,7 +5,7 @@ struct LeafSerializer {
     private var data: [String: LeafData]
     private let tags: [String: LeafTag]
     private let userInfo: [AnyHashable: Any]
-    
+
     init(
         ast: [Syntax],
         context data: [String: LeafData],
@@ -19,7 +19,7 @@ struct LeafSerializer {
         self.tags = tags
         self.userInfo = userInfo
     }
-    
+
     mutating func serialize() throws -> ByteBuffer {
         self.offset = 0
         while let next = self.peek() {
@@ -28,7 +28,7 @@ struct LeafSerializer {
         }
         return self.buffer
     }
-    
+
     mutating func serialize(_ syntax: Syntax) throws {
         switch syntax {
         case .raw(var byteBuffer):
@@ -59,7 +59,7 @@ struct LeafSerializer {
     mutating func serialize(body: [Syntax]) throws {
         try body.forEach { try serialize($0) }
     }
-    
+
     mutating func serialize(_ conditional: Syntax.Conditional) throws {
         let list: [ParameterDeclaration]
         switch conditional.condition {
@@ -81,7 +81,7 @@ struct LeafSerializer {
             try serialize(next)
         }
     }
-    
+
     mutating func serialize(_ tag: Syntax.CustomTagDeclaration) throws {
         let sub = try LeafContext(
             parameters: self.resolve(parameters: tag.params),
@@ -93,7 +93,7 @@ struct LeafSerializer {
             ?? .init(.null)
         serialize(rendered)
     }
-    
+
     mutating func serialize(_ variable: Syntax.Variable) {
         let data: LeafData
         switch variable.path.count {
@@ -109,39 +109,39 @@ struct LeafSerializer {
         }
         self.serialize(data)
     }
-    
+
     mutating func serialize(_ loop: Syntax.Loop) throws {
         let finalData: [String: LeafData]
         let pathComponents = loop.array.split(separator: ".")
-        
+
         if pathComponents.count > 1 {
             finalData = try pathComponents[0..<(pathComponents.count - 1)].enumerated()
                 .reduce(data) { (innerData, pathContext) -> [String: LeafData] in
                     let key = String(pathContext.element)
-                    
+
                     guard let nextData = innerData[key]?.dictionary else {
                         let currentPath = pathComponents[0...pathContext.offset].joined(separator: ".")
                         throw "expected dictionary at key: \(currentPath)"
                     }
-                    
+
                     return nextData
                 }
         } else {
             finalData = data
         }
-        
+
         guard let array = finalData[String(pathComponents.last!)]?.array else {
             throw "expected array at key: \(loop.array)"
         }
-        
+
         for (idx, item) in array.enumerated() {
             var innerContext = self.data
-            
+
             innerContext["isFirst"] = .bool(idx == array.startIndex)
             innerContext["isLast"] = .bool(idx == array.index(before: array.endIndex))
             innerContext["index"] = .int(idx)
             innerContext[loop.item] = item
-            
+
             var serializer = LeafSerializer(
                 ast: loop.body,
                 context: innerContext,
@@ -152,7 +152,7 @@ struct LeafSerializer {
             self.buffer.writeBuffer(&loopBody)
         }
     }
-    
+
     mutating func serialize(_ data: LeafData) {
         if let raw = data.data {
             self.buffer.writeBytes(raw)
@@ -172,14 +172,14 @@ struct LeafSerializer {
         )
         return try resolver.resolve().map { $0.result }
     }
-    
+
     func peek() -> Syntax? {
         guard self.offset < self.ast.count else {
             return nil
         }
         return self.ast[self.offset]
     }
-    
+
     mutating func pop() {
         self.offset += 1
     }
