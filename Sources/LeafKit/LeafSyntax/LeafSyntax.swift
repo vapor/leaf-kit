@@ -1,3 +1,6 @@
+// FIXME: - `Syntax` is overly monolithic
+///
+
 public indirect enum Syntax {
     case raw(ByteBuffer)
     case variable(Variable)
@@ -23,17 +26,17 @@ extension Syntax.Extend {
         var extended = [Syntax]()
         base.forEach { syntax in
             switch syntax {
-            case .import(let im):
-                if let export = exports[im.key] {
-                    // export exists, inject body
-                    extended += export.body
-                } else {
-                    // any unsatisfied import will continue
-                    // and can be satisfied later
+                case .import(let im):
+                    if let export = exports[im.key] {
+                        // export exists, inject body
+                        extended += export.body
+                    } else {
+                        // any unsatisfied import will continue
+                        // and can be satisfied later
+                        extended.append(syntax)
+                    }
+                default:
                     extended.append(syntax)
-                }
-            default:
-                extended.append(syntax)
             }
 
         }
@@ -78,12 +81,12 @@ extension Syntax {
             var exports: [String: Export] = [:]
             try body.forEach { syntax in
                 switch syntax {
-                // extend can ONLY export, raw space in body ignored
-                case .raw: return
-                case .export(let export):
-                    exports[export.key] = export
-                default:
-                    throw "unexpected token in extend body: \(syntax).. use raw space and `export` only"
+                    // extend can ONLY export, raw space in body ignored
+                    case .raw: return
+                    case .export(let export):
+                        exports[export.key] = export
+                    default:
+                        throw "unexpected token in extend body: \(syntax).. use raw space and `export` only"
                 }
             }
             self.exports = exports
@@ -163,12 +166,12 @@ extension Syntax {
 
             var print = ""
             switch condition {
-            case .if(let params):
-                print += buffer + "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
-            case .elseif(let params):
-                print += buffer + "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
-            case .else:
-                print += buffer + "else"
+                case .if(let params):
+                    print += buffer + "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
+                case .elseif(let params):
+                    print += buffer + "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
+                case .else:
+                    print += buffer + "else"
             }
 
             if !body.isEmpty {
@@ -234,9 +237,9 @@ extension Syntax {
             guard params.count == 1 else { throw "only single parameter variable supported currently" }
             guard case .parameter(let p) = params[0] else { throw "expected single parameter, got: \(params)" }
             switch p {
-            case .variable(let n):
-                self.init(path: n)
-            default: throw "todo: implement constant and literal? maybe process earlier as not variable, but raw.. \(p)"
+                case .variable(let n):
+                    self.init(path: n)
+                default: throw "todo: implement constant and literal? maybe process earlier as not variable, but raw.. \(p)"
             }
         }
 
@@ -268,25 +271,17 @@ extension Syntax: CustomStringConvertible {
 
     func print(depth: Int) -> String {
         switch self {
-        case .raw(var byteBuffer):
-            let string = byteBuffer.readString(length: byteBuffer.readableBytes) ?? ""
-            return indent(depth) + "raw(\(string.debugDescription))"
-        case .expression(let exp):
-            return "\(exp)"
-        case .variable(let v):
-            return v.print(depth: depth)
-        case .custom(let custom):
-            return custom.print(depth: depth)
-        case .conditional(let c):
-            return c.print(depth: depth)
-        case .loop(let loop):
-            return loop.print(depth: depth)
-        case .import(let imp):
-            return imp.print(depth: depth)
-        case .extend(let ext):
-            return ext.print(depth: depth)
-        case .export(let export):
-            return export.print(depth: depth)
+            case .expression(let exp): return "\(exp)"
+            case .variable(let v):     return v.print(depth: depth)
+            case .custom(let custom):  return custom.print(depth: depth)
+            case .conditional(let c):  return c.print(depth: depth)
+            case .loop(let loop):      return loop.print(depth: depth)
+            case .import(let imp):     return imp.print(depth: depth)
+            case .extend(let ext):     return ext.print(depth: depth)
+            case .export(let export):  return export.print(depth: depth)
+            case .raw(var bB):
+                let string = bB.readString(length: bB.readableBytes) ?? ""
+                return indent(depth) + "raw(\(string.debugDescription))"
         }
     }
 }

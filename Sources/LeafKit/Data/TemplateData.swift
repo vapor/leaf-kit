@@ -2,9 +2,22 @@ import Foundation
 
 /// TemplateKit's supported serializable data types.
 /// - note: This is different from types supported in the AST.
-public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionaryLiteral, ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, ExpressibleByBooleanLiteral, ExpressibleByArrayLiteral {
-
-    // MARK: Equatable
+public struct LeafData: LeafDataRepresentable, Equatable,
+                        ExpressibleByDictionaryLiteral,
+                        ExpressibleByStringLiteral,
+                        ExpressibleByIntegerLiteral,
+                        ExpressibleByBooleanLiteral,
+                        ExpressibleByArrayLiteral {
+    
+    /// Actual storage.
+    internal var storage: LeafDataStorage
+    
+    /// Creates a new `LeafData`.
+    internal init(_ storage: LeafDataStorage) {
+        self.storage = storage
+    }
+    
+    // MARK: - Equatable Conformance
 
     /// See `Equatable`.
     public static func ==(lhs: LeafData, rhs: LeafData) -> Bool {
@@ -21,27 +34,19 @@ public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionar
 
         /// Strict compare
         switch (lhs.storage, rhs.storage) {
-        case (.array(let a), .array(let b)): return a == b
-        case (.dictionary(let a), .dictionary(let b)): return a == b
-        case (.bool(let a), .bool(let b)): return a == b
-        case (.string(let a), .string(let b)): return a == b
-        case (.int(let a), .int(let b)): return a == b
-        case (.double(let a), .double(let b)): return a == b
-        case (.data(let a), .data(let b)): return a == b
-        case (.null, .null): return true
-        default: return false
+            case (.array(let a), .array(let b)):           return a == b
+            case (.dictionary(let a), .dictionary(let b)): return a == b
+            case (.bool(let a), .bool(let b)):             return a == b
+            case (.string(let a), .string(let b)):         return a == b
+            case (.int(let a), .int(let b)):               return a == b
+            case (.double(let a), .double(let b)):         return a == b
+            case (.data(let a), .data(let b)):             return a == b
+            case (.null, .null):                           return true
+            default:                                       return false
         }
     }
 
-    /// Actual storage.
-    internal var storage: LeafDataStorage
-
-    /// Creates a new `LeafData`.
-    internal init(_ storage: LeafDataStorage) {
-        self.storage = storage
-    }
-
-    // MARK: Static
+    // MARK: - Static Initializer Conformances
 
     /// Creates a new `LeafData` from a `Bool`.
     public static func bool(_ value: Bool) -> LeafData {
@@ -88,7 +93,7 @@ public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionar
         return .init(.null)
     }
 
-    // MARK: Literal
+    // MARK: - Literal Initializer Conformances
 
     public init(dictionaryLiteral elements: (String, LeafData)...) {
         self = .dictionary(.init(uniqueKeysWithValues: elements))
@@ -110,153 +115,112 @@ public struct LeafData: Equatable, LeafDataRepresentable, ExpressibleByDictionar
         self = .array(elements)
     }
 
-    // MARK: Fuzzy
+    // MARK: - Fuzzy Conversions from Storage to Types
 
     /// Attempts to convert to `Bool` or returns `nil`.
     public var bool: Bool? {
         switch storage {
-        case .int(let i):
-            switch i {
-            case 1:
-                return true
-            case 0:
-                return false
-            default:
-                return nil
-            }
-        case .double(let d):
-            switch d {
-            case 1:
-                return true
-            case 0:
-                return false
-            default:
-                return nil
-            }
-        case .string(let s):
-            return Bool(s)
-        case .bool(let b):
-            return b
-        case .lazy(let lazy):
-            return lazy().bool
-        default:
-            return nil
+            case .int(let i):
+                switch i {
+                    case 1:       return true
+                    case 0:       return false
+                    default:      return nil
+                }
+            case .double(let d):
+                switch d {
+                    case 1:       return true
+                    case 0:       return false
+                    default:      return nil
+                }
+            case .string(let s):  return Bool(s)
+            case .bool(let b):    return b
+            case .lazy(let lazy): return lazy().bool
+            default:              return nil
         }
     }
 
     /// Attempts to convert to `String` or returns `nil`.
     public var string: String? {
         switch storage {
-        case .bool(let bool):
-            return bool.description
-        case .double(let double):
-            return double.description
-        case .int(let int):
-            return int.description
-        case .string(let s):
-            return s
-        case .data(let d):
-            return String(data: d, encoding: .utf8)
-        case .lazy(let lazy):
-            return lazy().string
-        default:
-            return nil
+            case .bool(let bool):     return bool.description
+            case .double(let double): return double.description
+            case .int(let int):       return int.description
+            case .string(let s):      return s
+            case .data(let d):        return String(data: d, encoding: .utf8)
+            case .lazy(let lazy):     return lazy().string
+            default:                  return nil
         }
     }
 
     /// Attempts to convert to `Int` or returns `nil`.
     public var int: Int? {
         switch storage {
-        case .int(let i):
-            return i
-        case .string(let s):
-            return Int(s)
-        case .lazy(let lazy):
-            return lazy().int
-        default:
-            return nil
+            case .int(let i):     return i
+            case .string(let s):  return Int(s)
+            case .lazy(let lazy): return lazy().int
+            default:              return nil
         }
     }
 
     /// Attempts to convert to `Double` or returns `nil`.
     public var double: Double? {
         switch storage {
-        case .int(let i):
-            return Double(i)
-        case .double(let d):
-            return d
-        case .string(let s):
-            return Double(s)
-        case .lazy(let lazy):
-            return lazy().double
-        default:
-            return nil
+            case .int(let i):     return Double(i)
+            case .double(let d):  return d
+            case .string(let s):  return Double(s)
+            case .lazy(let lazy): return lazy().double
+            default:              return nil
         }
     }
 
     /// Attempts to convert to `Data` or returns `nil`.
     public var data: Data? {
         switch storage {
-        case .data(let d):
-            return d
-        case .string(let s):
-            return s.data(using: .utf8)
-        case .lazy(let lazy):
-            return lazy().data
-        case .int(let i):
-            return i.description.data(using: .utf8)
-        case .double(let d):
-            return d.description.data(using: .utf8)
-        case .array(let arr):
-            var data = Data()
-
-            for i in arr {
-                switch i {
-                case .null: break
-                default:
-                    guard let u = i.data else {
-                        return nil
-                    }
-
-                    data += u
+            case .data(let d):            return d
+            case .string(let s):          return s.data(using: .utf8)
+            case .lazy(let lazy):         return lazy().data
+            case .int(let i):             return i.description.data(using: .utf8)
+            case .double(let d):          return d.description.data(using: .utf8)
+            case .dictionary:             return nil
+            case .bool:                   return nil
+            case .null:                   return nil
+            case .array(let arr):
+                var data = Data()
+                for i in arr {
+                    if i.isNull { break }
+                    let u = i.data
+                    guard u != nil else { return nil }
+                    data += u!
                 }
-            }
-
-            return data
-        default:
-            return nil
+                                          return data
         }
     }
-    
+
     /// Attempts to convert to `[String: LeafData]` or returns `nil`.
     public var dictionary: [String: LeafData]? {
         switch storage {
-        case .dictionary(let d):
-            return d
-        default:
-            return nil
+            case .dictionary(let d): return d
+            default:                 return nil
         }
     }
 
     /// Attempts to convert to `[LeafData]` or returns `nil`.
     public var array: [LeafData]? {
         switch storage {
-        case .array(let a):
-            return a
-        default:
-            return nil
+            case .array(let a): return a
+            default:            return nil
         }
     }
 
     /// Returns `true` if the data is `null`.
     public var isNull: Bool {
         switch storage {
-        case .null: return true
-        default: return false
+            case .null: return true
+            default: return false
         }
     }
 
-    // MARK: Convertible
+    // MARK: - LeafDataRepresentable Conformance
 
     /// See `LeafDataRepresentable`
     public var leafData: LeafData? {

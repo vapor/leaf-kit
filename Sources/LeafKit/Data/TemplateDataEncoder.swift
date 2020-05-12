@@ -1,3 +1,5 @@
+// TODO: - Should this be reimplemented? This let Leaf3 use Futures as data types?
+
 ///// Converts `Encodable` objects to `LeafData`.
 //public final class LeafDataEncoder {
 //    /// Create a new `LeafDataEncoder`.
@@ -179,7 +181,7 @@
 //        if let data = value as? LeafDataRepresentable {
 //            try context.data.set(to: .data(data.convertToLeafData()), at: codingPath + [key])
 //        } else {
-//            
+//
 //            let encoder = _LeafDataEncoder(context: context, codingPath: codingPath + [key])
 //            try value.encode(to: encoder)
 //        }

@@ -1,5 +1,3 @@
-import NIOConcurrencyHelpers
-
 public struct LeafConfiguration {
     public var rootDirectory: String
 
@@ -8,172 +6,13 @@ public struct LeafConfiguration {
     }
 }
 
-public protocol LeafCache {
-    // Superseded by insert with remove: parameter - Remove in Leaf-Kit 2?
-    @available(*, deprecated, message: "Use insert with replace parameter instead")
-    func insert(
-        _ document: ResolvedDocument,
-        on loop: EventLoop
-    ) -> EventLoopFuture<ResolvedDocument>
-    
-    func insert(
-        _ document: ResolvedDocument,
-        on loop: EventLoop,
-        replace: Bool
-    ) -> EventLoopFuture<ResolvedDocument>
-    
-    func load(
-        documentName: String,
-        on loop: EventLoop
-    ) -> EventLoopFuture<ResolvedDocument?>
-    
-    /// - return nil if cache entry didn't exist in the first place, true if purged
-    /// - will never return false in this design but should be capable of it
-    ///   in the event a cache implements dependency tracking between templates
-    func remove(
-        _ documentName: String,
-        on loop: EventLoop
-    ) -> EventLoopFuture<Bool?>
-    
-    func entryCount() -> Int
-    
-    var isEnabled : Bool { get set }
-}
+// MARK:- THIS SECTION MOVED TO LeafCache/LeafCache.swift
+// MARK: THIS SECTION MOVED TO LeafCache/DefaultLeafCache.swift
+// MARK: THIS SECTION MOVED TO LeafSerialize/LeafContext.swift
+// MARK: THIS SECTION MOVED TO LeafSource/LeafFiles.swift
+// MARK: THIS SECTION MOVED TO LeafSource/NIOLeafFiles.swift
 
-public final class DefaultLeafCache: LeafCache {
-    let lock: Lock
-    var cache: [String: ResolvedDocument]
-    public var isEnabled: Bool = true
-
-    public init() {
-        self.lock = .init()
-        self.cache = [:]
-    }
-    
-    // Superseded by insert with remove: parameter - Remove in Leaf-Kit 2?
-    public func insert(
-        _ document: ResolvedDocument,
-        on loop: EventLoop
-    ) -> EventLoopFuture<ResolvedDocument> {
-        self.insert(document, on: loop, replace: false)
-    }
-    
-    public func insert(
-        _ document: ResolvedDocument,
-        on loop: EventLoop,
-        replace: Bool = false
-    ) -> EventLoopFuture<ResolvedDocument> {
-        // future fails if caching is enabled
-        guard isEnabled else { return loop.makeSucceededFuture(document) }
-        
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        // return an error if replace is false and the document name is already in cache
-        switch (self.cache.keys.contains(document.name),replace) {
-            case (true, false): return loop.makeFailedFuture(LeafError(.keyExists(document.name)))
-            default: self.cache[document.name] = document
-        }
-        return loop.makeSucceededFuture(document)
-    }
-
-    public func load(
-        documentName: String,
-        on loop: EventLoop
-    ) -> EventLoopFuture<ResolvedDocument?> {
-        guard isEnabled == true else { return loop.makeSucceededFuture(nil) }
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return loop.makeSucceededFuture(self.cache[documentName])
-    }
-    
-    public func remove(
-        _ documentName: String,
-        on loop: EventLoop
-    ) -> EventLoopFuture<Bool?> {
-        guard isEnabled == true else { return loop.makeFailedFuture(LeafError(.cachingDisabled)) }
-        
-        self.lock.lock()
-        defer { self.lock.unlock() }
-
-        guard self.cache[documentName] != nil else { return loop.makeSucceededFuture(nil) }
-        self.cache[documentName] = nil
-        return loop.makeSucceededFuture(true)
-    }
-
-    public func entryCount() -> Int {
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return cache.count
-    }
-}
-
-public struct LeafContext {
-    public let parameters: [LeafData]
-    public let data: [String: LeafData]
-    public let body: [Syntax]?
-    public let userInfo: [AnyHashable: Any]
-
-    init(
-        parameters: [LeafData],
-        data: [String: LeafData],
-        body: [Syntax]?,
-        userInfo: [AnyHashable: Any]
-    ) throws {
-        self.parameters = parameters
-        self.data = data
-        self.body = body
-        self.userInfo = userInfo
-    }
-
-    /// Throws an error if the parameter count does not equal the supplied number `n`.
-    public func requireParameterCount(_ n: Int) throws {
-        guard parameters.count == n else {
-            throw "Invalid parameter count: \(parameters.count)/\(n)"
-        }
-    }
-
-    /// Throws an error if this tag does not include a body.
-    public func requireBody() throws -> [Syntax] {
-        guard let body = body else {
-            throw "Missing body"
-        }
-
-        return body
-    }
-
-    /// Throws an error if this tag includes a body.
-    public func requireNoBody() throws {
-        guard body == nil else {
-            throw "Extraneous body"
-        }
-    }
-}
-
-public protocol LeafFiles {
-    func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer>
-}
-
-public struct NIOLeafFiles: LeafFiles {
-    let fileio: NonBlockingFileIO
-
-    public init(fileio: NonBlockingFileIO) {
-        self.fileio = fileio
-    }
-
-    public func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
-        let openFile = self.fileio.openFile(path: path, eventLoop: eventLoop)
-        return openFile.flatMapErrorThrowing { error in
-            throw LeafError(.noTemplateExists(path))
-        }.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
-            let allocator = ByteBufferAllocator()
-            let read = self.fileio.read(fileRegion: region, allocator: allocator, eventLoop: eventLoop)
-            return read.flatMapThrowing { (buffer)  in
-                try handle.close()
-                return buffer
-            }
-        }
-    }
-}
+// MARK: -
 
 public final class LeafRenderer {
     public let configuration: LeafConfiguration
@@ -201,7 +40,7 @@ public final class LeafRenderer {
 
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
         guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
-        
+
         return self.cache.load(documentName: path, on: self.eventLoop).flatMapThrowing { cached in
             guard let cached = cached else { throw LeafError(.noValueForKey(path)) }
             guard cached.flat else { throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs))) }
@@ -215,7 +54,7 @@ public final class LeafRenderer {
         }
     }
 
-    func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
+    private func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
         guard doc.flat == true else { throw LeafError(.unresolvedAST(doc.name, Array(doc.unresolvedRefs))) }
 
         var serializer = LeafSerializer(
@@ -257,7 +96,7 @@ public final class LeafRenderer {
     private func resolve(ast: LeafAST, chain: [String]) -> EventLoopFuture<LeafAST> {
         // if the ast is already flat, cache it immediately and return
         if ast.flat == true { return self.cache.insert(ast, on: self.eventLoop, replace: true) }
-        
+
         var chain = chain
         _ = chain.append(ast.name)
         let intersect = ast.unresolvedRefs.intersection(Set<String>(chain))
@@ -268,7 +107,7 @@ public final class LeafRenderer {
         }
 
         let fetchRequests = ast.unresolvedRefs.map { self.fetch(template: $0, chain: chain) }
-        
+
         let results = EventLoopFuture.whenAllComplete(fetchRequests, on: self.eventLoop)
         return results.flatMap { results in
             let results = results
@@ -312,27 +151,12 @@ public final class LeafRenderer {
         }
     }
 
-//    private func readDependencies... *obviated by new render/fetch/resolve functions*
-
     private func readBytes(file: String) -> EventLoopFuture<ByteBuffer> {
         self.files.file(path: file, on: self.eventLoop)
     }
 }
 
-extension Array where Element == Syntax {
-    var dependencies: [String] {
-        return extensions.map { $0.key }
-    }
-
-    private var extensions: [Syntax.Extend] {
-        return compactMap {
-            switch $0 {
-            case .extend(let e): return e
-            default: return nil
-            }
-        }
-    }
-}
+// MARK: THIS SECTION REMOVED - Obviated by improved resolver
 
 extension String {
     internal var trailSlash: String {
@@ -341,25 +165,4 @@ extension String {
     }
 }
 
-extension LeafCache {
-    /// default implementation of remove to avoid breaking custom LeafCache adopters
-    func remove(
-        _ documentName: String,
-        on loop: EventLoop
-    ) -> EventLoopFuture<Bool?>
-    {
-        return loop.makeFailedFuture( LeafError(.unsupportedFeature("Protocol adopter does not support removing entries")) )
-    }
-    
-    /// default implementation of remove to avoid breaking custom LeafCache adopters
-    ///     throws an error if used with replace == true
-    func insert(
-        _ documentName: String,
-        on loop: EventLoop,
-        replace: Bool = false
-    ) -> EventLoopFuture<ResolvedDocument>
-    {
-        if replace { return loop.makeFailedFuture( LeafError(.unsupportedFeature("Protocol adopter does not support replacing entries")) ) }
-        else { return self.insert(documentName, on: loop) }
-    }
-}
+// MARK: - THIS SECTION MOVED TO LeafCache/DefaultLeafCache.swift
