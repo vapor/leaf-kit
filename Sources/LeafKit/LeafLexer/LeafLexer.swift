@@ -1,9 +1,4 @@
-// MARK: THIS SECTION MOVED TO Exports.swift
-// MARK: END OF MOVED SECTION
-// MARK: THIS SECTION MOVED TO LeafRawSource.swift
-// MARK: END OF MOVED SECTION
-
-// MARK: - `LeafLexer` Summary
+// MARK: `LeafLexer` Summary
 
 /// `LeafLexer` is an opaque structure that wraps the lexing logic of Leaf-Kit.
 ///
