@@ -29,8 +29,7 @@ extension Syntax {
             customTagDecl.resolveImports(exports: exports)
             self = .custom(customTagDecl)
         case .conditional(let conditional):
-            conditional.resolveImports(exports: exports)
-            self = .conditional(conditional)
+            self = .conditional(conditional.resolvingImports(exports: exports))
         case .loop(var loop):
             loop.body = loop.body.resolvingImports(exports: exports)
             self = .loop(loop)
@@ -181,15 +180,19 @@ extension Syntax {
             tail.next = new
         }
 
-        func resolveImports(exports: [String: Syntax.Export]) {
+        func resolvingImports(exports: [String: Syntax.Export]) -> Conditional {
+            // We need to create a new conditional here, since they are somehow linked throughout the AST.
+            // If we modified the instance, multiple extends which have conditional imports will only resolve with the first exported value.
+            // FIXME: Is there a way to check for imports first and _not_ create a new instance if none are present?
+            let newCondition: ConditionalSyntax
             switch condition {
-            case .if(let params): condition = .if(params.resolvingImports(exports: exports))
-            case .elseif(let params): condition = .elseif(params.resolvingImports(exports: exports))
-            case .else: break
+            case .if(let params): newCondition = .if(params.resolvingImports(exports: exports))
+            case .elseif(let params): newCondition = .elseif(params.resolvingImports(exports: exports))
+            case .else: newCondition = .else
             }
-            body = body.resolvingImports(exports: exports)
-            // TODO: is this correct?
-            next?.resolveImports(exports: exports)
+            let newConditional = Conditional(newCondition, body: body.resolvingImports(exports: exports))
+            newConditional.next = next?.resolvingImports(exports: exports)
+            return newConditional
         }
 
         func print(depth: Int) -> String {
