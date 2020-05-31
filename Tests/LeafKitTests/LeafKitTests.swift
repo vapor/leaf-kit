@@ -1157,8 +1157,7 @@ final class LeafKitTests: XCTestCase {
             eventLoop: EmbeddedEventLoop()
         )
 
-        let page = try renderer.render(path: "base",
-                                       context: ["list": ["A", "B", "C"]]).wait()
+        let page = try renderer.render(path: "base", context: ["list": ["A", "B", "C"]]).wait()
         XCTAssertEqual(page.string, expected)
     }
 }

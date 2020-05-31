@@ -296,6 +296,19 @@ internal extension Array where Element == ParameterDeclaration {
         }
         return nil
     }
+
+    func resolvingImports(exports: [String: Syntax.Export]) -> [ParameterDeclaration] {
+        map {
+            switch $0 {
+            case .parameter(_): return $0
+            case .expression(let params):
+                return .expression(params.resolvingImports(exports: exports))
+            case .tag(var customTag):
+                customTag.resolveImports(exports: exports)
+                return .tag(customTag)
+            }
+        }
+    }
     
     func describe(_ joinBy: String = " ") -> String {
         return self.map {$0.short }.joined(separator: joinBy)

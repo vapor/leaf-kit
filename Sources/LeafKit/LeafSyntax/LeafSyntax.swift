@@ -20,25 +20,51 @@ public enum ConditionalSyntax {
     case `else`
 }
 
-extension Syntax.Extend {
-    func extend(base: [Syntax]) -> [Syntax] {
+extension Syntax {
+    mutating func resolveImports(exports: [String: Export]) {
+        switch self {
+        case .raw(_), .variable(_): break
+        case .expression(let params): self = .expression(params.resolvingImports(exports: exports))
+        case .custom(var customTagDecl):
+            customTagDecl.resolveImports(exports: exports)
+            self = .custom(customTagDecl)
+        case .conditional(let conditional):
+            conditional.resolveImports(exports: exports)
+            self = .conditional(conditional)
+        case .loop(var loop):
+            loop.body = loop.body.resolvingImports(exports: exports)
+            self = .loop(loop)
+        case .`import`(_):
+            break // Actually, we should never reach this...
+        case .extend(_): break // This one should be resolved in a separate pass.
+        case .export(var exp):
+            exp.body = exp.body.resolvingImports(exports: exports)
+            self = .export(exp)
+        }
+    }
+}
+
+extension Array where Element == Syntax {
+    func resolvingImports(exports: [String: Syntax.Export]) -> [Syntax] {
         // from the base
         var extended = [Syntax]()
-        base.forEach { syntax in
+        extended.reserveCapacity(count)
+        forEach { syntax in
             switch syntax {
                 case .import(let im):
                     if let export = exports[im.key] {
                         // export exists, inject body
-                        extended += export.body
+                        extended += export.body.resolvingImports(exports: exports)
                     } else {
                         // any unsatisfied import will continue
                         // and can be satisfied later
                         extended.append(syntax)
                     }
                 default:
-                    extended.append(syntax)
+                    var newSyntax = syntax
+                    newSyntax.resolveImports(exports: exports)
+                    extended.append(newSyntax)
             }
-
         }
         return extended
     }
@@ -136,7 +162,7 @@ extension Syntax {
     }
 
     public final class Conditional {
-        public let condition: ConditionalSyntax
+        public private(set) var condition: ConditionalSyntax
         public internal(set) var body: [Syntax]
         public private(set) var next: Conditional?
 
@@ -153,6 +179,17 @@ extension Syntax {
 
             // todo: verify that is valid attachment
             tail.next = new
+        }
+
+        func resolveImports(exports: [String: Syntax.Export]) {
+            switch condition {
+            case .if(let params): condition = .if(params.resolvingImports(exports: exports))
+            case .elseif(let params): condition = .elseif(params.resolvingImports(exports: exports))
+            case .else: break
+            }
+            body = body.resolvingImports(exports: exports)
+            // TODO: is this correct?
+            next?.resolveImports(exports: exports)
         }
 
         func print(depth: Int) -> String {
@@ -250,7 +287,7 @@ extension Syntax {
 
     public struct CustomTagDeclaration {
         public let name: String
-        public let params: [ParameterDeclaration]
+        public internal(set) var params: [ParameterDeclaration]
         public internal(set) var body: [Syntax]?
 
         func print(depth: Int) -> String {
@@ -260,6 +297,11 @@ extension Syntax {
                 print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             }
             return print
+        }
+
+        mutating func resolveImports(exports: [String: Syntax.Export]) {
+            params = params.resolvingImports(exports: exports)
+            body = body?.resolvingImports(exports: exports)
         }
     }
 }
@@ -301,7 +343,7 @@ extension Syntax {
                             case .extend(let ex):
                                 let key = ex.key
                                 if let insert = externals[key] {
-                                    let inlined = ex.extend(base: insert.ast)
+                                    let inlined = insert.ast.resolvingImports(exports: ex.exports)
                                     tail.body.replaceSubrange(i...i, with: inlined)
                                     changed = true
                                 } else {
@@ -327,7 +369,7 @@ extension Syntax {
                         case .extend(let ex):
                             let key = ex.key
                             if let insert = externals[key] {
-                                let inlined = ex.extend(base: insert.ast)
+                                let inlined = insert.ast.resolvingImports(exports: ex.exports)
                                 cu.body!.replaceSubrange(i...i, with: inlined)
                                 changed = true
                             } else {
@@ -350,7 +392,7 @@ extension Syntax {
                         case .extend(let ex):
                             let key = ex.key
                             if let insert = externals[key] {
-                                let inlined = ex.extend(base: insert.ast)
+                                let inlined = insert.ast.resolvingImports(exports: ex.exports)
                                 exp.body.replaceSubrange(i...i, with: inlined)
                                 changed = true
                             } else {
@@ -373,7 +415,7 @@ extension Syntax {
                         case .extend(let ex):
                             let key = ex.key
                             if let insert = externals[key] {
-                                let inlined = ex.extend(base: insert.ast)
+                                let inlined = insert.ast.resolvingImports(exports: ex.exports)
                                 lo.body.replaceSubrange(i...i, with: inlined)
                                 changed = true
                             } else {

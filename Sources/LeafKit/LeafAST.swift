@@ -48,7 +48,7 @@ public struct LeafAST: Hashable {
                 case .extend(let e):
                     let key = e.key
                     if let insert = externals[key] {
-                        let inlined = e.extend(base: insert.ast)
+                        let inlined = insert.ast.resolvingImports(exports: e.exports)
                         ast.replaceSubrange(pos...pos, with: inlined)
                     } else {
                         unresolvedRefs.insert(key)
