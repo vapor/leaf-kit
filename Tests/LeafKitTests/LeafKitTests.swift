@@ -1128,6 +1128,39 @@ final class LeafKitTests: XCTestCase {
         let page = try! renderer.render(path: "a", context: ["b":["1","2","3"]]).wait()
             XCTAssertEqual(page.string, expected)
     }
+
+    func testLoopedConditionalImport() throws {
+        var test = TestFiles()
+        test.files["/base.leaf"] = """
+        #for(x in list):
+        #extend("entry"):#export("something", "Whatever")#endextend
+        #endfor
+        """
+        test.files["/entry.leaf"] = """
+        #(x): #if(isFirst):#import("something")#else:Not First#endif
+        """
+
+        let expected = """
+
+        A: Whatever
+
+        B: Not First
+
+        C: Not First
+
+        """
+
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+
+        let page = try renderer.render(path: "base",
+                                       context: ["list": ["A", "B", "C"]]).wait()
+        XCTAssertEqual(page.string, expected)
+    }
 }
 
 struct TestFiles: LeafFiles {
