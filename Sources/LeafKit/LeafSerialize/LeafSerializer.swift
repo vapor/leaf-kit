@@ -61,24 +61,15 @@ struct LeafSerializer {
     }
 
     mutating func serialize(_ conditional: Syntax.Conditional) throws {
-        let list: [ParameterDeclaration]
-        switch conditional.condition {
-            case .if(let l):
-                list = l
-            case .elseif(let l):
-                list = l
-            case .else:
-                try serialize(body: conditional.body)
-                return
-        }
-
-        let satisfied = try self.resolve(parameters: list).map {
-            $0.bool ?? !$0.isNull
-        }.reduce(true) { $0 && $1 }
-        if satisfied {
-            try serialize(body: conditional.body)
-        } else if let next = conditional.next {
-            try serialize(next)
+        evaluate:
+        for block in conditional.chain {
+            let expression = try self.resolve(parameters: block.condition.expression())
+            let satisfied = expression.map { $0.bool ?? !$0.isNull }
+                                      .reduce(true) { $0 && $1 }
+            if satisfied {
+                try serialize(body: block.body)
+                break evaluate
+            }
         }
     }
 

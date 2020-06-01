@@ -186,18 +186,31 @@ struct LeafParser {
         }
 
         if case .conditional(let new) = newSyntax {
-            switch new.condition {
-            // a new if, never attaches to a previous
-            case .if:
-                append(newSyntax)
-            case .elseif, .else:
-                // elseif and else ALWAYS attach
-                // ensure there is a leading conditional to
-                // attach to, prioritize waiting bodies, then check finished
-                guard let last = awaitingBody.last?.body.last ?? finished.last, case .conditional(let tail) = last else {
-                    throw "unable to attach \(new.condition) to \(finished.last?.description ?? "<>")"
-                }
-                try tail.attach(new)
+            guard let conditional = new.chain.first else { throw "Malformed syntax block" }
+            switch conditional.0.naturalType {
+                // a new if, never attaches to a previous
+                case .if:
+                    append(newSyntax)
+                case .elseif, .else:
+                    let aW = awaitingBody.last?.body
+                    let previousBlock: Syntax?
+                    switch aW {
+                        case .none: previousBlock = finished.last
+                        case .some(let b): previousBlock = b.last
+                    }
+                    guard let existingConditional = previousBlock,
+                        case .conditional(var tail) = existingConditional else {
+                            throw "Can't attach \(conditional.0) to \(previousBlock?.description ?? "empty AST")"
+                    }
+                    try tail.attach(new)
+                    switch aW {
+                        case .none:
+                            finished.removeLast()
+                            finished.append(.conditional(tail))
+                        case .some(_):
+                            awaitingBody[awaitingBody.index(before: awaitingBody.endIndex)].body.removeLast()
+                            awaitingBody[awaitingBody.index(before: awaitingBody.endIndex)].body.append(.conditional(tail))
+                    }
             }
         } else {
             append(newSyntax)

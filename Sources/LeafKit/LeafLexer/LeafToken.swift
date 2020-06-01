@@ -202,6 +202,30 @@ public indirect enum ParameterDeclaration: CustomStringConvertible {
             case .tag:        return "tag"
         }
     }
+    
+    func imports() -> Set<String> {
+        switch self {
+            case .parameter(_): return .init()
+            case .tag(let t): return t.imports()
+            case .expression(let e): return e.imports()
+        }
+    }
+    
+    func inlineImports(_ imports: [String : Syntax.Export]) -> ParameterDeclaration {
+        switch self {
+            case .parameter(_): return self
+            case .tag(let t):
+                guard !t.imports().isEmpty else { return self }
+                let new = t.inlineRefs([:], imports).first!
+                switch new {
+                    case .custom(let t): return .tag(t)
+                    default: fatalError("unreachable")
+                }
+            case .expression(let e):
+                guard !e.isEmpty else { return self }
+                return .expression(e.inlineImports(imports))
+        }
+    }
 }
 
 internal extension Array where Element == ParameterDeclaration {
@@ -299,6 +323,29 @@ internal extension Array where Element == ParameterDeclaration {
     
     func describe(_ joinBy: String = " ") -> String {
         return self.map {$0.short }.joined(separator: joinBy)
+    }
+    
+    func imports() -> Set<String> {
+        var result = Set<String>()
+        self.forEach { result.formUnion($0.imports()) }
+        return result
+    }
+    
+    func inlineImports(_ imports: [String : Syntax.Export]) -> [ParameterDeclaration] {
+        guard !self.isEmpty else { return self }
+        var imports = imports
+        imports = imports.filter {
+            // Any imports that aren't purely a single raw/variable are non-sensical
+            // as a parameter value, so strip those out
+            if $0.value.body.count != 1 { return false }
+            switch $0.value.body.first {
+                case .variable(_),
+                     .raw(_): return true
+                default: return false
+            }
+        }
+        guard !imports.isEmpty else { return self }
+        return self.map { $0.inlineImports(imports) }
     }
 }
 // MARK: --- END OF SECTION TO BE MOVED ---

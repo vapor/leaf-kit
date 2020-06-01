@@ -18,31 +18,161 @@ public enum ConditionalSyntax {
     case `if`([ParameterDeclaration])
     case `elseif`([ParameterDeclaration])
     case `else`
-}
-
-extension Syntax.Extend {
-    func extend(base: [Syntax]) -> [Syntax] {
-        // from the base
-        var extended = [Syntax]()
-        base.forEach { syntax in
-            switch syntax {
-                case .import(let im):
-                    if let export = exports[im.key] {
-                        // export exists, inject body
-                        extended += export.body
-                    } else {
-                        // any unsatisfied import will continue
-                        // and can be satisfied later
-                        extended.append(syntax)
-                    }
-                default:
-                    extended.append(syntax)
-            }
-
+    
+    func imports() -> Set<String> {
+        switch self {
+            case .if(let pDA), .elseif(let pDA):
+                var imports = Set<String>()
+                _ = pDA.map { imports.formUnion($0.imports()) }
+                return imports
+            default: return .init()
         }
-        return extended
+    }
+    
+    func inlineImports(_ imports: [String : Syntax.Export]) -> ConditionalSyntax {
+        switch self {
+            case .else: return self
+            case .if(let pDA): return .if(pDA.inlineImports(imports))
+            case .elseif(let pDA): return .elseif(pDA.inlineImports(imports))
+        }
+    }
+    
+    func expression() -> [ParameterDeclaration] {
+        switch self {
+            case .else: return [.parameter(.keyword(.true))]
+            case .elseif(let e): return e
+            case .if(let i): return i
+        }
+    }
+    
+    var naturalType: ConditionalSyntax.NaturalType {
+        switch self {
+            case .if: return .if
+            case .elseif: return .elseif
+            case .else: return .else
+        }
+    }
+    
+    enum NaturalType: Int, CustomStringConvertible {
+        case `if` = 0
+        case `elseif` = 1
+        case `else` = 2
+        
+        var description: String {
+            switch self {
+                case .else: return "else"
+                case .elseif: return "elseif"
+                case .if: return "if"
+            }
+        }
     }
 }
+
+
+// temporary addition
+extension Syntax: BodiedSyntax  {
+    func externals() -> Set<String> {
+        switch self {
+            case .conditional(let bS as BodiedSyntax),
+                 .custom(let bS as BodiedSyntax),
+                 .export(let bS as BodiedSyntax),
+                 .extend(let bS as BodiedSyntax),
+                 .loop(let bS as BodiedSyntax): return bS.externals()
+            default: return .init()
+        }
+    }
+    
+    func imports() -> Set<String> {
+        switch self {
+            case .import(let i): return .init(arrayLiteral: i.key)
+            case .conditional(let bS as BodiedSyntax),
+                 .custom(let bS as BodiedSyntax),
+                 .export(let bS as BodiedSyntax),
+                 .extend(let bS as BodiedSyntax),
+                 .expression(let bS as BodiedSyntax),
+                 .loop(let bS as BodiedSyntax): return bS.imports()
+            // .variable, .raw
+            default: return .init()
+        }
+    }
+    
+    func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Export]) -> [Syntax] {
+        var result = [Syntax]()
+        switch self {
+            case .import(let im):
+                let ast = imports[im.key]?.body
+                if let ast = ast {
+                    // If an export exists for this import, inline it
+                    ast.forEach { result += $0.inlineRefs(externals, imports) }
+                } else {
+                    // Otherwise just keep itself
+                    result.append(self)
+                }
+            // Recursively inline single Syntaxes
+            case .conditional(let bS as BodiedSyntax),
+                 .custom(let bS as BodiedSyntax),
+                 .export(let bS as BodiedSyntax),
+                 .expression(let bS as BodiedSyntax),
+                 // extend may need special consideration for pass-through?
+                 .extend(let bS as BodiedSyntax),
+                 .loop(let bS as BodiedSyntax): result += bS.inlineRefs(externals, imports)
+            // .variable, .raw
+            default: result.append(self)
+        }
+        return result
+    }
+}
+
+internal protocol BodiedSyntax {
+    func externals() -> Set<String>
+    func imports() -> Set<String>
+    func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax]
+}
+
+extension Array: BodiedSyntax where Element == Syntax {
+    func externals() -> Set<String> {
+        var result = Set<String>()
+        _ = self.map { result.formUnion( $0.externals()) }
+        return result
+    }
+    
+    func imports() -> Set<String> {
+        var result = Set<String>()
+        _ = self.map { result.formUnion( $0.imports() ) }
+        return result
+    }
+
+    func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax] {
+        // if the syntax has no imports it's automatically fine; otherwise
+        // recurse on it
+        var result = [Syntax]()
+        _ = self.map { result.append(contentsOf: $0.inlineRefs(externals, imports)) }
+        return result
+
+        //return self.map { return $0.imports().isEmpty ? $0 : $0.inlineRefs(imports) }
+    }
+}
+
+//extension Syntax.Extend {
+//    func extend(base external: [Syntax]) -> [Syntax] {
+//        // from the base
+//        var resolvedBody = [Syntax]()
+//        external.forEach { syntax in
+//            // Syntax has no references - add and continue
+//            guard !syntax.externals().isEmpty || !syntax.imports().isEmpty else { resolvedBody.append(syntax) }
+//            // Determine which imports syntax wants that we have - if none, add and move on
+//            let matchingExports = imports.intersection(availableExports())
+//            let matching
+//            guard !matchingExports.isEmpty else { resolvedBody.append(syntax) }
+//            
+//            // Limit the exports we'll pass to the syntax to the ones it wants
+//            let passedExports = exports.filter { matchingExports.contains($0.key) }
+//            // Add the resolved external syntax element
+//            resolvedBody += syntax.inlineRefs(externals, passedExports)
+//        }
+//        return resolvedBody
+//    }
+//}
 
 func indent(_ depth: Int) -> String {
     let block = "  "
@@ -68,28 +198,95 @@ extension Syntax {
         }
     }
 
-    public struct Extend {
+    public struct Extend: BodiedSyntax {
         public let key: String
         public private(set) var exports: [String: Export]
+        private var externalsSet: Set<String>
+        private var importSet: Set<String>
 
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard params.count == 1 else { throw "extend only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
             self.key = s
+            self.externalsSet = .init(arrayLiteral: self.key)
+            self.importSet = .init()
+            self.exports = [:]
 
-            var exports: [String: Export] = [:]
             try body.forEach { syntax in
                 switch syntax {
                     // extend can ONLY export, raw space in body ignored
                     case .raw: return
                     case .export(let export):
-                        exports[export.key] = export
+                        guard !export.externals().contains(self.key) else {
+                            throw LeafError(.cyclicalReference(self.key, [self.key]))
+                        }
+                        self.exports[export.key] = export
+                        externalsSet.formUnion(export.externals())
+                        importSet.formUnion(export.imports())
                     default:
                         throw "unexpected token in extend body: \(syntax).. use raw space and `export` only"
                 }
             }
+        }
+        
+        internal init(key: String, exports: [String : Syntax.Export], externalsSet: Set<String>, importSet: Set<String>) {
+            self.key = key
             self.exports = exports
+            self.externalsSet = externalsSet
+            self.importSet = importSet
+        }
+        
+        func externals() -> Set<String> {
+            return externalsSet
+        }
+        func imports() -> Set<String> {
+            return importSet
+        }
+        
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+            var newExports = [String: Export]()
+            var newExternalsSet = Set<String>()
+            var newImportSet = Set<String>()
+            
+            // In the case where #exports themselves contain #extends or #imports, rebuild those
+            for (key, value) in exports {
+                guard !value.externals().isEmpty || !value.imports().isEmpty else {
+                    newExports[key] = value
+                    continue
+                }
+                guard case .export(let e) = value.inlineRefs(externals, imports).first else { fatalError() }
+                newExports[key] = e
+                newExternalsSet.formUnion(e.externals())
+                newImportSet.formUnion(e.imports())
+            }
+            
+            var results = [Syntax]()
+            
+            // Either return a rebuilt #extend or an inlined and (potentially partially) resolved extended syntax
+            if !externals.keys.contains(self.key) {
+                let resolvedExtend = Syntax.Extend(key: self.key,
+                                                   exports: newExports,
+                                                   externalsSet: externalsSet,
+                                                   importSet: newImportSet)
+                results.append(.extend(resolvedExtend))
+            } else {
+                // Get the external AST
+                let newAst = externals[self.key]!
+                // Remove this AST from the externals to avoid needless checks
+                let externals = externals.filter { $0.key != self.key }
+                newAst.ast.forEach {
+                    // Add each external syntax, resolving with the current available
+                    // exports and passing this extend's exports to the syntax's imports
+                    results += $0.inlineRefs(externals, newExports)
+                }
+            }
+            
+            return results
+        }
+        
+        func availableExports() -> Set<String> {
+            return .init(exports.keys)
         }
 
         func print(depth: Int) -> String {
@@ -102,9 +299,11 @@ extension Syntax {
         }
     }
 
-    public struct Export {
+    public struct Export: BodiedSyntax {
         public let key: String
         public internal(set) var body: [Syntax]
+        private var externalsSet: Set<String>
+        private var importSet: Set<String>
 
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard (1...2).contains(params.count) else { throw "export expects 1 or 2 params" }
@@ -119,10 +318,34 @@ extension Syntax {
                 var buffer = ByteBufferAllocator().buffer(capacity: 0)
                 buffer.writeString(s)
                 self.body = [.raw(buffer)]
+                self.externalsSet = .init()
+                self.importSet = .init()
             } else {
                 guard !body.isEmpty else { throw "export requires body or secondary arg" }
                 self.body = body
+                self.externalsSet = body.externals()
+                self.importSet = body.imports()
             }
+        }
+        
+        internal init(key: String, body: [Syntax]) {
+            self.key = key
+            self.body = body
+            self.externalsSet = body.externals()
+            self.importSet = body.imports()
+        }
+        
+        func externals() -> Set<String> {
+            return self.externalsSet
+        }
+        
+        func imports() -> Set<String> {
+            return self.importSet
+        }
+        
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+            guard !externalsSet.isEmpty || !importSet.isEmpty else { return [.export(self)] }
+            return [.export(.init(key: self.key, body: self.body.inlineRefs(externals, imports)))]
         }
 
         func print(depth: Int) -> String {
@@ -135,24 +358,73 @@ extension Syntax {
         }
     }
 
-    public final class Conditional {
-        public let condition: ConditionalSyntax
-        public internal(set) var body: [Syntax]
-        public private(set) var next: Conditional?
+    public struct Conditional: BodiedSyntax {
+        public internal(set) var chain: [(
+            condition: ConditionalSyntax,
+            body: [Syntax]
+        )]
+        
+        private var externalsSet: Set<String>
+        private var importSet: Set<String>
 
         public init(_ condition: ConditionalSyntax, body: [Syntax]) {
-            self.condition = condition
-            self.body = body
+            self.chain = []
+            self.chain.append((condition, body))
+            self.externalsSet = body.externals()
+            self.importSet = body.imports()
+            self.importSet.formUnion(condition.imports())
+        }
+        
+        internal init(chain: [(condition: ConditionalSyntax, body: [Syntax])], externalsSet: Set<String>, importSet: Set<String>) {
+            self.chain = chain
+            self.externalsSet = externalsSet
+            self.importSet = importSet
         }
 
-        internal func attach(_ new: Conditional) throws {
-            var tail = self
-            while let next = tail.next {
-                tail = next
+        internal mutating func attach(_ new: Conditional) throws {
+            if chain.isEmpty {
+                self.chain = new.chain
+                self.importSet = new.importSet
+            } else if !new.chain.isEmpty {
+                let state = chain.last!.condition.naturalType
+                let next = new.chain.first!.condition.naturalType
+                if (next.rawValue > state.rawValue) ||
+                    (state == next && state == .elseif) {
+                    self.chain.append(contentsOf: new.chain)
+                    self.externalsSet.formUnion(new.externalsSet)
+                    self.importSet.formUnion(new.importSet)
+                } else {
+                    throw "\(next.description) can't follow \(state.description)"
+                }
             }
-
-            // todo: verify that is valid attachment
-            tail.next = new
+        }
+        
+        func externals() -> Set<String> {
+            return externalsSet
+        }
+        
+        func imports() -> Set<String> {
+            return importSet
+        }
+        
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+            guard !externalsSet.isEmpty || !importSet.isEmpty else { return [.conditional(self)] }
+            var newChain = [(ConditionalSyntax, [Syntax])]()
+            var newImportSet = Set<String>()
+            var newExternalsSet = Set<String>()
+            
+            chain.forEach {
+                if !$0.body.externals().isEmpty || !$0.body.imports().isEmpty || !$0.condition.imports().isEmpty {
+                    newChain.append(($0.0.inlineImports(imports), $0.1.inlineRefs(externals, imports)))
+                    newImportSet.formUnion(newChain.last!.0.imports())
+                    newImportSet.formUnion(newChain.last!.1.imports())
+                    newExternalsSet.formUnion(newChain.last!.1.externals())
+                } else {
+                    newChain.append($0)
+                }
+            }
+            
+            return [.conditional(.init(chain: newChain, externalsSet: newExternalsSet, importSet: newImportSet))]
         }
 
         func print(depth: Int) -> String {
@@ -165,30 +437,29 @@ extension Syntax {
             let buffer = indent(depth)
 
             var print = ""
-            switch condition {
-                case .if(let params):
-                    print += buffer + "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
-                case .elseif(let params):
-                    print += buffer + "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
-                case .else:
-                    print += buffer + "else"
-            }
+            
+            for index in chain.indices {
+                switch chain[index].condition {
+                    case .if(let params):
+                        print += buffer + "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
+                    case .elseif(let params):
+                        print += buffer + "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
+                    case .else:
+                        print += buffer + "else"
+                }
 
-            if !body.isEmpty {
-                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
-            }
-
-            // todo: remove recursion
-            if let next = self.next {
-                print += "\n"
-                print += next._print(depth: depth)
+                if !chain[index].body.isEmpty {
+                    print += ":\n" + chain[index].body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+                }
+                
+                if index != chain.index(before: chain.endIndex) { print += "\n" }
             }
 
             return print
         }
     }
 
-    public struct Loop {
+    public struct Loop: BodiedSyntax {
         /// the key to use when accessing items
         public let item: String
         /// the key to use to access the array
@@ -196,6 +467,9 @@ extension Syntax {
 
         /// the body of the looop
         public internal(set) var body: [Syntax]
+        
+        private var externalsSet: Set<String>
+        private var importSet: Set<String>
 
         /// initialize a new loop
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
@@ -216,8 +490,31 @@ extension Syntax {
 
             guard !body.isEmpty else { throw "for loops require a body" }
             self.body = body
+            self.externalsSet = body.externals()
+            self.importSet = body.imports()
+        }
+        
+        internal init(item: String, array: String, body: [Syntax]) {
+            self.item = item
+            self.array = array
+            self.body = body
+            self.externalsSet = body.externals()
+            self.importSet = body.imports()
+        }
+        
+        func externals() -> Set<String> {
+            return externalsSet
+        }
+        
+        func imports() -> Set<String> {
+            return importSet
         }
 
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+            guard !externalsSet.isEmpty || !importSet.isEmpty else { return [.loop(self)] }
+            return [.loop(.init(item: item, array: array, body: body.inlineRefs(externals, imports)))]
+        }
+        
         func print(depth: Int) -> String {
             var print = indent(depth)
             print += "for(" + item + " in " + array + "):\n"
@@ -248,10 +545,39 @@ extension Syntax {
         }
     }
 
-    public struct CustomTagDeclaration {
+    public struct CustomTagDeclaration: BodiedSyntax {
         public let name: String
         public let params: [ParameterDeclaration]
         public internal(set) var body: [Syntax]?
+        private var externalsSet: Set<String>
+        private var importSet: Set<String>
+        
+        internal init(name: String, params: [ParameterDeclaration], body: [Syntax]? = nil) {
+            self.name = name
+            self.params = params
+            self.externalsSet = .init()
+            self.importSet = params.imports()
+            self.body = body
+            if let b = body {
+                self.externalsSet.formUnion(b.externals())
+                self.importSet.formUnion(b.imports())
+            }
+        }
+        
+        func externals() -> Set<String> {
+            return externalsSet
+        }
+        
+        func imports() -> Set<String> {
+            return importSet
+        }
+        
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+            guard !importSet.isEmpty || !externalsSet.isEmpty else { return [.custom(self)] }
+            let p = params.imports().isEmpty ? params : params.inlineImports(imports)
+            let b = body == nil ? nil : body!.inlineRefs(externals, imports)
+            return [.custom(.init(name: name, params: p, body: b))]
+        }
 
         func print(depth: Int) -> String {
             var print = indent(depth)
@@ -282,114 +608,6 @@ extension Syntax: CustomStringConvertible {
             case .raw(var bB):
                 let string = bB.readString(length: bB.readableBytes) ?? ""
                 return indent(depth) + "raw(\(string.debugDescription))"
-        }
-    }
-}
-
-extension Syntax {
-    mutating func inlineRefs(_ externals: [String: LeafAST], _ new: inout Syntax?) -> Set<String> {
-        var changed = false
-        var rf = Set<String>()
-
-        switch self {
-            case .conditional(let co):
-                var currentTail: Syntax.Conditional? = co
-                while let tail = currentTail {
-                    var i = tail.body.startIndex
-                    while i < tail.body.endIndex {
-                        switch tail.body[i] {
-                            case .extend(let ex):
-                                let key = ex.key
-                                if let insert = externals[key] {
-                                    let inlined = ex.extend(base: insert.ast)
-                                    tail.body.replaceSubrange(i...i, with: inlined)
-                                    changed = true
-                                } else {
-                                    rf.insert(key)
-                                    i = tail.body.index(after: i)
-                                }
-                            default:
-                                var sub: Syntax? = nil
-                                rf.formUnion(tail.body[i].inlineRefs(externals, &sub))
-                                if sub != nil { tail.body[i] = sub!; changed = true}
-                                i = tail.body.index(after: i)
-                        }
-                    }
-                    currentTail = tail.next
-                }
-                if changed || !rf.isEmpty { new = .conditional(co) }
-                return rf
-            case .custom(var cu):
-                guard cu.body != nil else { return .init() }
-                var i = cu.body!.startIndex
-                while i < cu.body!.endIndex {
-                    switch cu.body![i] {
-                        case .extend(let ex):
-                            let key = ex.key
-                            if let insert = externals[key] {
-                                let inlined = ex.extend(base: insert.ast)
-                                cu.body!.replaceSubrange(i...i, with: inlined)
-                                changed = true
-                            } else {
-                                rf.insert(key)
-                                i = cu.body!.index(after: i)
-                            }
-                        default:
-                            var sub: Syntax? = nil
-                            rf.formUnion(cu.body![i].inlineRefs(externals, &sub))
-                            if sub != nil { cu.body![i] = sub!; changed = true }
-                            i = cu.body!.index(after: i)
-                    }
-                }
-                if changed || !rf.isEmpty { new = .custom(cu) }
-                return rf
-            case .export(var exp):
-                var i = exp.body.startIndex
-                while i < exp.body.endIndex {
-                    switch exp.body[i] {
-                        case .extend(let ex):
-                            let key = ex.key
-                            if let insert = externals[key] {
-                                let inlined = ex.extend(base: insert.ast)
-                                exp.body.replaceSubrange(i...i, with: inlined)
-                                changed = true
-                            } else {
-                                rf.insert(key)
-                                i = exp.body.index(after: i)
-                            }
-                        default:
-                            var sub: Syntax? = nil
-                            rf.formUnion(exp.body[i].inlineRefs(externals, &sub))
-                            if sub != nil { exp.body[i] = sub!; changed = true}
-                            i = exp.body.index(after: i)
-                    }
-                }
-                if changed || !rf.isEmpty { new = .export(exp) }
-                return rf
-            case .loop(var lo):
-                var i = lo.body.startIndex
-                while i < lo.body.endIndex {
-                    switch lo.body[i] {
-                        case .extend(let ex):
-                            let key = ex.key
-                            if let insert = externals[key] {
-                                let inlined = ex.extend(base: insert.ast)
-                                lo.body.replaceSubrange(i...i, with: inlined)
-                                changed = true
-                            } else {
-                                rf.insert(key)
-                                i = lo.body.index(after: i)
-                            }
-                        default:
-                            var sub: Syntax? = nil
-                            rf.formUnion(lo.body[i].inlineRefs(externals, &sub))
-                            if sub != nil { lo.body[i] = sub!; changed = true }
-                            i = lo.body.index(after: i)
-                    }
-                }
-                if changed || !rf.isEmpty { new = .loop(lo) }
-                return rf
-            default: return .init()
         }
     }
 }
