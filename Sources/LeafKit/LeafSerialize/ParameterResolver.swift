@@ -92,7 +92,9 @@ struct ParameterResolver {
 
     // #if(lowercase(first(name == "admin")) == "welcome")
     private func resolve(expression: [ParameterDeclaration]) throws -> LeafData {
-        if expression.count == 2 {
+        if expression.count == 1 {
+            return try resolve(expression[0]).result
+        } else if expression.count == 2 {
             if let lho = expression[0].operator() {
                 let rhs = try resolve(expression[1]).result
                 return try resolve(op: lho, rhs: rhs)

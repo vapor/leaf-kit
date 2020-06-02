@@ -181,9 +181,9 @@ public indirect enum ParameterDeclaration: CustomStringConvertible {
 
     public var description: String {
         switch self {
-            case .parameter(let p):  return p.description
-            case .expression(let p): return name + "(\(p.describe()))"
-            case .tag(let t):        return "tag(\(t.name): \(t.params.describe(",")))"
+            case .parameter(let p): return p.description
+            case .expression(_):    return self.short
+            case .tag(let t):       return "tag(\(t.name): \(t.params.describe(",")))"
         }
     }
 
@@ -206,8 +206,14 @@ public indirect enum ParameterDeclaration: CustomStringConvertible {
     func imports() -> Set<String> {
         switch self {
             case .parameter(_): return .init()
-            case .tag(let t): return t.imports()
             case .expression(let e): return e.imports()
+            case .tag(let t):
+                guard t.name == "import" else { return t.imports() }
+                guard let parameter = t.params.first,
+                      case .parameter(let p) = parameter,
+                      case .stringLiteral(let key) = p,
+                      key.count > 0 else { return .init() }
+                return .init(arrayLiteral: key)
         }
     }
     
@@ -215,12 +221,18 @@ public indirect enum ParameterDeclaration: CustomStringConvertible {
         switch self {
             case .parameter(_): return self
             case .tag(let t):
-                guard !t.imports().isEmpty else { return self }
-                let new = t.inlineRefs([:], imports).first!
-                switch new {
-                    case .custom(let t): return .tag(t)
-                    default: fatalError("unreachable")
+                guard t.name == "import" else {
+                    return .tag(.init(name: t.name, params: t.params.inlineImports(imports)))
                 }
+                guard let parameter = t.params.first,
+                      case .parameter(let p) = parameter,
+                      case .stringLiteral(let key) = p,
+                      key.count > 0,
+                      let export = imports[key]?.body.first,
+                      case .expression(let exp) = export,
+                      exp.count == 1,
+                      let e = exp.first else { return self }
+                return e                    
             case .expression(let e):
                 guard !e.isEmpty else { return self }
                 return .expression(e.inlineImports(imports))
@@ -333,19 +345,27 @@ internal extension Array where Element == ParameterDeclaration {
     
     func inlineImports(_ imports: [String : Syntax.Export]) -> [ParameterDeclaration] {
         guard !self.isEmpty else { return self }
-        var imports = imports
-        imports = imports.filter {
-            // Any imports that aren't purely a single raw/variable are non-sensical
-            // as a parameter value, so strip those out
-            if $0.value.body.count != 1 { return false }
-            switch $0.value.body.first {
-                case .variable(_),
-                     .raw(_): return true
-                default: return false
-            }
-        }
         guard !imports.isEmpty else { return self }
         return self.map { $0.inlineImports(imports) }
+    }
+    
+    func atomicRaw() -> Syntax? {
+        // only atomic expressions can be converted
+        guard self.count < 2 else { return nil }
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        // empty expressions = empty raw
+        guard self.count == 1 else { return .raw(buffer) }
+        // only single value parameters can be converted
+        guard case .parameter(let p) = self[0] else { return nil }
+        switch p {
+            case .constant(let c): buffer.writeString(c.description)
+            case .keyword(let k): buffer.writeString(k.rawValue)
+            case .operator(let o): buffer.writeString(o.rawValue)
+            case .stringLiteral(let s): buffer.writeString(s)
+            // .tag, .variable not atomic
+            default: return nil
+        }
+        return .raw(buffer)
     }
 }
 // MARK: --- END OF SECTION TO BE MOVED ---

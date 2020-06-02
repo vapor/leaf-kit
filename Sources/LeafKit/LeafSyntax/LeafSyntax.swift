@@ -112,10 +112,9 @@ extension Syntax: BodiedSyntax  {
             case .conditional(let bS as BodiedSyntax),
                  .custom(let bS as BodiedSyntax),
                  .export(let bS as BodiedSyntax),
-                 .expression(let bS as BodiedSyntax),
-                 // extend may need special consideration for pass-through?
                  .extend(let bS as BodiedSyntax),
                  .loop(let bS as BodiedSyntax): result += bS.inlineRefs(externals, imports)
+            case .expression(let pDA): result.append(.expression(pDA.inlineImports(imports)))
             // .variable, .raw
             default: result.append(self)
         }
@@ -143,36 +142,11 @@ extension Array: BodiedSyntax where Element == Syntax {
     }
 
     func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax] {
-        // if the syntax has no imports it's automatically fine; otherwise
-        // recurse on it
         var result = [Syntax]()
         _ = self.map { result.append(contentsOf: $0.inlineRefs(externals, imports)) }
         return result
-
-        //return self.map { return $0.imports().isEmpty ? $0 : $0.inlineRefs(imports) }
     }
 }
-
-//extension Syntax.Extend {
-//    func extend(base external: [Syntax]) -> [Syntax] {
-//        // from the base
-//        var resolvedBody = [Syntax]()
-//        external.forEach { syntax in
-//            // Syntax has no references - add and continue
-//            guard !syntax.externals().isEmpty || !syntax.imports().isEmpty else { resolvedBody.append(syntax) }
-//            // Determine which imports syntax wants that we have - if none, add and move on
-//            let matchingExports = imports.intersection(availableExports())
-//            let matching
-//            guard !matchingExports.isEmpty else { resolvedBody.append(syntax) }
-//            
-//            // Limit the exports we'll pass to the syntax to the ones it wants
-//            let passedExports = exports.filter { matchingExports.contains($0.key) }
-//            // Add the resolved external syntax element
-//            resolvedBody += syntax.inlineRefs(externals, passedExports)
-//        }
-//        return resolvedBody
-//    }
-//}
 
 func indent(_ depth: Int) -> String {
     let block = "  "
@@ -246,6 +220,7 @@ extension Syntax {
         
         func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
             var newExports = [String: Export]()
+            var newImports = imports
             var newExternalsSet = Set<String>()
             var newImportSet = Set<String>()
             
@@ -259,6 +234,11 @@ extension Syntax {
                 newExports[key] = e
                 newExternalsSet.formUnion(e.externals())
                 newImportSet.formUnion(e.imports())
+            }
+            
+            // Now add this extend's exports onto the passed imports
+            newExports.forEach {
+                newImports[$0.key] = $0.value
             }
             
             var results = [Syntax]()
@@ -278,7 +258,16 @@ extension Syntax {
                 newAst.ast.forEach {
                     // Add each external syntax, resolving with the current available
                     // exports and passing this extend's exports to the syntax's imports
-                    results += $0.inlineRefs(externals, newExports)
+                    
+                    results += $0.inlineRefs(externals, newImports)
+                    // expressions may have been created by imports, convert
+                    // single parameter static values to .raw
+                    if case .expression(let e) = results.last {
+                        if let raw = e.atomicRaw() {
+                            results.removeLast()
+                            results.append(raw)
+                        }
+                    }                    
                 }
             }
             
@@ -312,12 +301,9 @@ extension Syntax {
             self.key = s
 
             if params.count == 2 {
-                guard case .parameter(let p) = params[1] else { throw "expected parameter" }
-                guard case .stringLiteral(let s) = p else { throw "extend only supports string literals" }
+            //    guard case .parameter(let _) = params[1] else { throw "expected parameter" }
                 guard body.isEmpty else { throw "extend w/ two args requires NO body" }
-                var buffer = ByteBufferAllocator().buffer(capacity: 0)
-                buffer.writeString(s)
-                self.body = [.raw(buffer)]
+                self.body = [.expression([params[1]])]
                 self.externalsSet = .init()
                 self.importSet = .init()
             } else {
@@ -597,7 +583,7 @@ extension Syntax: CustomStringConvertible {
 
     func print(depth: Int) -> String {
         switch self {
-            case .expression(let exp): return "\(exp)"
+            case .expression(let exp): return indent(depth) + "expression\(exp.description)"
             case .variable(let v):     return v.print(depth: depth)
             case .custom(let custom):  return custom.print(depth: depth)
             case .conditional(let c):  return c.print(depth: depth)

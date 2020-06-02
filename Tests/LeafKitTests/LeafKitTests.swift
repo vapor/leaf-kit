@@ -34,7 +34,7 @@ final class ParserTests: XCTestCase {
 
         let expectation = """
         conditional:
-          if(expression(lowercase(first([name == "admin"])) == "welcome")):
+          if([lowercase(first([name == "admin"])) == "welcome"]):
             raw("\\nfoo\\n")
         """
 
@@ -217,7 +217,7 @@ final class ParserTests: XCTestCase {
             variable(name)
             raw("!\\n    ")
           export("title"):
-            raw("Welcome")
+            expression[stringLiteral("Welcome")]
         """
 
         let rawAlt = try! parse(input)
@@ -298,7 +298,7 @@ final class PrintTests: XCTestCase {
         conditional:
           if(variable(foo)):
             raw("\\n    some stuff\\n")
-          elseif(expression(bar == "bar")):
+          elseif([bar == "bar"]):
             raw("\\n    bar stuff\\n")
           else:
             raw("\\n    no stuff\\n")
@@ -338,7 +338,7 @@ final class PrintTests: XCTestCase {
           export("body"):
             raw("\\n        hello there\\n    ")
           export("title"):
-            raw("Welcome")
+            expression[stringLiteral("Welcome")]
         """
         let output = test.print(depth: 0)
         XCTAssertEqual(output, expectation)
@@ -355,7 +355,7 @@ final class PrintTests: XCTestCase {
         guard case .custom(let test) = v else { throw "nope" }
 
         let expectation = """
-        custom(variable(tag), expression(foo == bar)):
+        custom(variable(tag), [foo == bar]):
           raw("\\n    some body\\n")
         """
         let output = test.print(depth: 0)
@@ -1176,6 +1176,42 @@ final class LeafKitTests: XCTestCase {
             "list2": ["A", "B", "C"],
         ]).wait()
         XCTAssertEqual(page.string, expected)
+    }
+    
+    func testImportParameter() throws {
+        var test = TestFiles()
+        test.files["/base.leaf"] = """
+        #extend("parameter"):
+            #export("admin", admin)
+        #endextend
+        """
+        test.files["/delegate.leaf"] = """
+        #extend("parameter"):
+            #export("delegated", false || bypass)
+        #endextend
+        """
+        test.files["/parameter.leaf"] = """
+        #if(import("admin")):
+            Hi Admin
+        #elseif(import("delegated")):
+            Also an admin
+        #else:
+            No Access
+        #endif
+        """
+
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+        
+        let normalPage = try renderer.render(path: "base", context: ["admin": false]).wait()
+        let adminPage = try renderer.render(path: "base", context: ["admin": true]).wait()
+        let delegatePage = try renderer.render(path: "delegate", context: ["bypass": true]).wait()
+        XCTAssertEqual(normalPage.string.trimmingCharacters(in: .whitespacesAndNewlines), "No Access")
+        XCTAssertEqual(adminPage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Hi Admin")
+        XCTAssertEqual(delegatePage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Also an admin")
     }
     
     func testDeepResolve() {
