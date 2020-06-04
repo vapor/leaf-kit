@@ -205,8 +205,7 @@ struct LeafParser {
                     try tail.attach(new)
                     switch aW {
                         case .none:
-                            finished.removeLast()
-                            finished.append(.conditional(tail))
+                            finished[finished.index(before: finished.endIndex)] = .conditional(tail)
                         case .some(_):
                             awaitingBody[awaitingBody.index(before: awaitingBody.endIndex)].body.removeLast()
                             awaitingBody[awaitingBody.index(before: awaitingBody.endIndex)].body.append(.conditional(tail))

@@ -19,7 +19,7 @@ public enum ConditionalSyntax {
     case `elseif`([ParameterDeclaration])
     case `else`
     
-    func imports() -> Set<String> {
+    internal func imports() -> Set<String> {
         switch self {
             case .if(let pDA), .elseif(let pDA):
                 var imports = Set<String>()
@@ -29,7 +29,7 @@ public enum ConditionalSyntax {
         }
     }
     
-    func inlineImports(_ imports: [String : Syntax.Export]) -> ConditionalSyntax {
+    internal func inlineImports(_ imports: [String : Syntax.Export]) -> ConditionalSyntax {
         switch self {
             case .else: return self
             case .if(let pDA): return .if(pDA.inlineImports(imports))
@@ -37,7 +37,7 @@ public enum ConditionalSyntax {
         }
     }
     
-    func expression() -> [ParameterDeclaration] {
+    internal func expression() -> [ParameterDeclaration] {
         switch self {
             case .else: return [.parameter(.keyword(.true))]
             case .elseif(let e): return e
@@ -71,7 +71,7 @@ public enum ConditionalSyntax {
 
 // temporary addition
 extension Syntax: BodiedSyntax  {
-    func externals() -> Set<String> {
+    internal func externals() -> Set<String> {
         switch self {
             case .conditional(let bS as BodiedSyntax),
                  .custom(let bS as BodiedSyntax),
@@ -82,7 +82,7 @@ extension Syntax: BodiedSyntax  {
         }
     }
     
-    func imports() -> Set<String> {
+    internal func imports() -> Set<String> {
         switch self {
             case .import(let i): return .init(arrayLiteral: i.key)
             case .conditional(let bS as BodiedSyntax),
@@ -96,7 +96,7 @@ extension Syntax: BodiedSyntax  {
         }
     }
     
-    func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Export]) -> [Syntax] {
+    internal func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Export]) -> [Syntax] {
         var result = [Syntax]()
         switch self {
             case .import(let im):
@@ -129,19 +129,19 @@ internal protocol BodiedSyntax {
 }
 
 extension Array: BodiedSyntax where Element == Syntax {
-    func externals() -> Set<String> {
+    internal func externals() -> Set<String> {
         var result = Set<String>()
         _ = self.map { result.formUnion( $0.externals()) }
         return result
     }
     
-    func imports() -> Set<String> {
+    internal func imports() -> Set<String> {
         var result = Set<String>()
         _ = self.map { result.formUnion( $0.imports() ) }
         return result
     }
 
-    func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax] {
+    internal func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax] {
         var result = [Syntax]()
         _ = self.map { result.append(contentsOf: $0.inlineRefs(externals, imports)) }
         return result

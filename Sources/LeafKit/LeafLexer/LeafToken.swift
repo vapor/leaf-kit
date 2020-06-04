@@ -203,7 +203,7 @@ public indirect enum ParameterDeclaration: CustomStringConvertible {
         }
     }
     
-    func imports() -> Set<String> {
+    internal func imports() -> Set<String> {
         switch self {
             case .parameter(_): return .init()
             case .expression(let e): return e.imports()
@@ -212,12 +212,12 @@ public indirect enum ParameterDeclaration: CustomStringConvertible {
                 guard let parameter = t.params.first,
                       case .parameter(let p) = parameter,
                       case .stringLiteral(let key) = p,
-                      key.count > 0 else { return .init() }
+                      !key.isEmpty else { return .init() }
                 return .init(arrayLiteral: key)
         }
     }
     
-    func inlineImports(_ imports: [String : Syntax.Export]) -> ParameterDeclaration {
+    internal func inlineImports(_ imports: [String : Syntax.Export]) -> ParameterDeclaration {
         switch self {
             case .parameter(_): return self
             case .tag(let t):
@@ -227,7 +227,6 @@ public indirect enum ParameterDeclaration: CustomStringConvertible {
                 guard let parameter = t.params.first,
                       case .parameter(let p) = parameter,
                       case .stringLiteral(let key) = p,
-                      key.count > 0,
                       let export = imports[key]?.body.first,
                       case .expression(let exp) = export,
                       exp.count == 1,
