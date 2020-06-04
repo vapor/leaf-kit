@@ -52,7 +52,7 @@ internal class TestRenderer {
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
             tags: [String : LeafTag] = defaultTags,
             cache: LeafCache = DefaultLeafCache(),
-            files: LeafSource = TestFiles(),
+            files: LeafFiles = TestFiles(),
             eventLoop: EventLoop = EmbeddedEventLoop(),
             userInfo: [AnyHashable : Any] = [:]) {
         self.renderer = .init(configuration: configuration,
@@ -69,7 +69,7 @@ internal class TestRenderer {
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
-internal struct TestFiles: LeafSource {
+internal struct TestFiles: LeafFiles {
     var files: [String: String]
     var lock: Lock
     

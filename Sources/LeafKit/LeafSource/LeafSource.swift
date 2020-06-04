@@ -1,8 +1,5 @@
-/// Temporary compatibility for previous versions
-public typealias LeafFiles = LeafSource
-
 /// Public protocol to adhere to in order to provide template source originators to `LeafRenderer`
-public protocol LeafSource {
+public protocol LeafFiles {
     /// Given a path name, return an EventLoopFuture holding a ByteBuffer
     /// - Parameters:
     ///   - path: Fully expanded pathname to file for reading
@@ -14,7 +11,7 @@ public protocol LeafSource {
 }
 
 /// Default implementation for non-adhering protocol adopters of older versions
-extension LeafSource {
+extension LeafFiles {
     public func file(template: String,
               escape: Bool,
               on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer> {
