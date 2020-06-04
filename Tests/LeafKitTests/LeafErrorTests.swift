@@ -38,7 +38,7 @@ final class LeafErrorTests: XCTestCase {
             XCTFail("Should have thrown LeafError.noTemplateExists")
         } catch let error as LeafError {
             switch error.reason {
-                case .noTemplateExists(let name): XCTAssertEqual(name,"/c.leaf")
+                case .noTemplateExists(let name): XCTAssertEqual(name,"c")
                 default: XCTFail("Wrong error: \(error.localizedDescription)")
             }
         } catch {

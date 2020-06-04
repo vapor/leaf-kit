@@ -79,30 +79,20 @@ internal struct TestFiles: LeafFiles {
     }
     
     func file(template: String, escape: Bool = false, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+        var path = template
+        if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2,
+           !path.hasSuffix(".leaf") { path += ".leaf" }
+        if !path.hasPrefix("/") { path = "/" + path }
+        
         self.lock.lock()
-        let path = expand(template: template)
         defer { self.lock.unlock() }
         if let file = self.files[path] {
             var buffer = ByteBufferAllocator().buffer(capacity: file.count)
             buffer.writeString(file)
             return eventLoop.makeSucceededFuture(buffer)
         } else {
-            return eventLoop.makeFailedFuture(LeafError(.noTemplateExists(path)))
+            return eventLoop.makeFailedFuture(LeafError(.noTemplateExists(template)))
         }
-    }
-    
-    // Previously used on LeafRenderer - obviated there but helpful here
-    private func expand(template: String) -> String {
-        var path = template
-        // ignore files that already have a type
-        if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2  , !path.hasSuffix(".leaf") {
-            path += ".leaf"
-        }
-
-        if !path.hasPrefix("/") {
-            path = "/" + path
-        }
-        return path
     }
 }
 

@@ -24,3 +24,23 @@ extension LeafRenderer {
         )
     }
 }
+
+extension LeafFiles {
+    /// Default implementation for non-adhering protocol implementations mimicing older LeafRenderer expansion
+    /// This wrapper will be removed in a future release.
+    @available(*, deprecated, message: "Update to adhere to `file(template, escape, eventLoop)`")
+    func file(template: String, escape: Bool, on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer> {
+        var path = template
+        if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2,
+           !path.hasSuffix(".leaf") { path += ".leaf" }
+        if !path.hasPrefix("/") { path = "/" + path }
+        return try self.file(path: path, on: eventLoop)
+    }
+    
+    /// Deprecated in Leaf-Kit 1.0.0rc-1.??
+    /// Default implementation for newer adherants to allow older adherents to be called until upgraded
+    @available(*, deprecated, message: "This default implementation should never be called")
+    public func file(path: String, on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer> {
+        fatalError("This default implementation should never be called")
+    }
+}

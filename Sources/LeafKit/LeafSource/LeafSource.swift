@@ -8,15 +8,8 @@ public protocol LeafFiles {
     func file(template: String,
               escape: Bool,
               on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer>
-}
-
-/// Default implementation for non-adhering protocol adopters of older versions
-extension LeafFiles {
-    public func file(template: String,
-              escape: Bool,
-              on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer> {
-        return eventLoop.makeFailedFuture(
-            LeafError(.unsupportedFeature("Upgrade protocol adopter for sandboxing"))
-        )
-    }
+    
+    /// DO NOT IMPLEMENT. Deprecated as of Leaf-Kit 1.0.0rc1.??
+    @available(*, deprecated, message: "Update to adhere to `file(template, escape, eventLoop)`")
+    func file(path: String, on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer>
 }

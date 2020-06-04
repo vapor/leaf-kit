@@ -80,10 +80,10 @@ public struct NIOLeafFiles: LeafFiles {
             }
         }
 
-        return self.file(path: template, on: eventLoop)
+        return self.read(path: template, on: eventLoop)
     }
 
-    fileprivate func file(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+    fileprivate func read(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
         let openFile = self.fileio.openFile(path: path, eventLoop: eventLoop)
         return openFile.flatMapErrorThrowing { error in
             throw LeafError(.noTemplateExists(path))
