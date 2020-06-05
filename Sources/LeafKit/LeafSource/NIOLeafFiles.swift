@@ -4,7 +4,7 @@ import Foundation
 /// file reader for `LeafRenderer`
 ///
 /// Default initializer will
-public struct NIOLeafFiles: LeafFiles {
+public struct NIOLeafFiles: LeafSource {
     public struct Limit: OptionSet {
         public let rawValue: Int
         public init(rawValue: Int) {

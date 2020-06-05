@@ -43,7 +43,7 @@ public final class LeafRenderer {
     /// A thread-safe implementation of `LeafCache` protocol
     public let cache: LeafCache
     /// A thread-safe implementation of `LeafSource` protocol
-    public let files: LeafFiles
+    public let sources: LeafSources
     /// The NIO `EventLoop` on which this instance of `LeafRenderer` will operate
     public let eventLoop: EventLoop
     /// Any custom instance data to use (eg, in Vapor, the `Application` and/or `Request` data)
@@ -54,14 +54,14 @@ public final class LeafRenderer {
         configuration: LeafConfiguration,
         tags: [String: LeafTag] = defaultTags,
         cache: LeafCache = DefaultLeafCache(),
-        files: LeafFiles,
+        sources: LeafSources,
         eventLoop: EventLoop,
         userInfo: [AnyHashable: Any] = [:]
     ) {
         self.configuration = configuration
         self.tags = tags
         self.cache = cache
-        self.files = files
+        self.sources = sources
         self.eventLoop = eventLoop
         self.userInfo = userInfo
     }
@@ -186,7 +186,7 @@ public final class LeafRenderer {
     private func read(name: String, escape: Bool = false) -> EventLoopFuture<LeafAST?> {
         let raw: EventLoopFuture<ByteBuffer>
         do {
-            raw = try self.files.file(template: name, escape: escape, on: self.eventLoop)
+            raw = try self.sources.find(template: name, on: self.eventLoop)
         } catch { return eventLoop.makeFailedFuture(error) }
 
         return raw.flatMapThrowing { raw -> LeafAST? in

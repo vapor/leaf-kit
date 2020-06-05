@@ -47,29 +47,29 @@ internal func render(name: String = "test-render", _ template: String, _ context
 
 /// Helper wrapping` LeafRenderer` to preconfigure for simplicity & allow eliding context
 internal class TestRenderer {
-    var renderer: LeafRenderer
+    var r: LeafRenderer
     
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
             tags: [String : LeafTag] = defaultTags,
             cache: LeafCache = DefaultLeafCache(),
-            files: LeafFiles = TestFiles(),
+            sources: LeafSources = .singleSource(TestFiles()),
             eventLoop: EventLoop = EmbeddedEventLoop(),
             userInfo: [AnyHashable : Any] = [:]) {
-        self.renderer = .init(configuration: configuration,
+        self.r = .init(configuration: configuration,
                               tags: tags,
                               cache: cache,
-                              files: files,
+                              sources: sources,
                               eventLoop: eventLoop,
                               userInfo: userInfo)
     }
     
     func render(path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
-        return self.renderer.render(path: path, context: context)
+        return self.r.render(path: path, context: context)
     }
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
-internal struct TestFiles: LeafFiles {
+internal struct TestFiles: LeafSource {
     var files: [String: String]
     var lock: Lock
     

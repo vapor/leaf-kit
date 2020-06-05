@@ -604,7 +604,7 @@ final class LeafKitTests: XCTestCase {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let renderer = TestRenderer(
             configuration: .init(rootDirectory: templateFolder),
-            files: NIOLeafFiles(fileio: fileio),
+            sources: .singleSource(NIOLeafFiles(fileio: fileio)),
             eventLoop: group.next()
         )
 
@@ -630,7 +630,7 @@ final class LeafKitTests: XCTestCase {
 
         let renderer = TestRenderer(
             tags: ["custom": CustomTag()],
-            files: test,
+            sources: .singleSource(test),
             userInfo: ["prefix": "bar"]
         )
         let view = try renderer.render(path: "foo", context: [
@@ -654,7 +654,7 @@ final class LeafKitTests: XCTestCase {
         #import("variable")
         """
 
-        let renderer = TestRenderer(files: test)
+        let renderer = TestRenderer(sources: .singleSource(test))
 
         do {
             let output = try renderer.render(path: "a").wait().string
@@ -677,7 +677,7 @@ final class LeafKitTests: XCTestCase {
 
         for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf" }
         let renderer = TestRenderer(
-            files: test,
+            sources: .singleSource(test),
             eventLoop: group.next()
         )
 
@@ -699,7 +699,7 @@ final class LeafKitTests: XCTestCase {
             done = true
             group.shutdownGracefully { shutdown in
                 guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
-                XCTAssertEqual(renderer.renderer.cache.entryCount(), templates)
+                XCTAssertEqual(renderer.r.cache.entryCount(), templates)
             }
         }
     }
@@ -725,7 +725,7 @@ final class LeafKitTests: XCTestCase {
         let ratio = iterations / allKeys.count
 
         let renderer = TestRenderer(
-            files: test,
+            sources: .singleSource(test),
             eventLoop: group.next()
         )
 
@@ -749,7 +749,7 @@ final class LeafKitTests: XCTestCase {
             done = true
             group.shutdownGracefully { shutdown in
                 guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
-                XCTAssertEqual(renderer.renderer.cache.entryCount(), layer1+layer2+layer3)
+                XCTAssertEqual(renderer.r.cache.entryCount(), layer1+layer2+layer3)
             }
         }
     }
@@ -774,7 +774,7 @@ final class LeafKitTests: XCTestCase {
 
         """
 
-        let renderer = TestRenderer(files: test)
+        let renderer = TestRenderer(sources: .singleSource(test))
 
         let page = try! renderer.render(path: "a", context: ["b":["1","2","3"]]).wait()
             XCTAssertEqual(page.string, expected)
@@ -787,10 +787,10 @@ final class LeafKitTests: XCTestCase {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
         let renderer = TestRenderer(
             configuration: .init(rootDirectory: templateFolder),
-            files: NIOLeafFiles(fileio: fileio,
-                                limits: .default,
-                                sandboxDirectory: templateFolder,
-                                viewDirectory: templateFolder + "SubTemplates/"),
+            sources: .singleSource(NIOLeafFiles(fileio: fileio,
+                              limits: .default,
+                              sandboxDirectory: templateFolder,
+                              viewDirectory: templateFolder + "SubTemplates/")),
             eventLoop: group.next()
         )
         
@@ -827,6 +827,46 @@ final class LeafKitTests: XCTestCase {
             if !done { usleep(UInt32(10)); break }
             try group.syncShutdownGracefully()
             try threadPool.syncShutdownGracefully()
+        }
+    }
+    
+    func testMultipleSources() throws {
+        var sourceOne = TestFiles()
+        var sourceTwo = TestFiles()
+        var hiddenSource = TestFiles()
+        sourceOne.files["/a.leaf"] = "This file is in sourceOne"
+        sourceTwo.files["/b.leaf"] = "This file is in sourceTwo"
+        hiddenSource.files["/c.leaf"] = "This file is in hiddenSource"
+
+        let renderer = TestRenderer(sources: .singleSource(sourceOne))
+        try! renderer.r.sources.register(source: "sourceTwo", using: sourceTwo)
+        try! renderer.r.sources.register(source: "hiddenSource", using: hiddenSource, searchable: false)
+        XCTAssert(renderer.r.sources.all.contains("sourceTwo"))
+        
+        let output1 = try renderer.render(path: "a").wait().string
+        XCTAssert(output1.contains("sourceOne"))
+        let output2 = try renderer.render(path: "b").wait().string
+        XCTAssert(output2.contains("sourceTwo"))
+        
+        
+        do {
+            _ = try renderer.render(path: "c").wait().string
+            XCTFail("hiddenSource should not be providing results")
+        } catch {
+            let e = error as! LeafError
+            XCTAssert(e.localizedDescription.contains("No template found"))
+        }
+        
+        let unsearchable = LeafSources()
+        let emptyRenderer = TestRenderer(sources: unsearchable)
+        XCTAssert(emptyRenderer.r.sources.searchOrder.isEmpty)
+        
+        do {
+            _ = try emptyRenderer.render(path: "a").wait().string
+            XCTFail("No sources should be searched")
+        } catch {
+            let e = error as! LeafError
+            XCTAssert(e.localizedDescription.contains("No searchable sources exist"))
         }
     }
 }

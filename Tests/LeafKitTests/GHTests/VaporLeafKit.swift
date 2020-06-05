@@ -40,7 +40,7 @@ final class GHLeafKitIssuesTest: XCTestCase {
         </body>
         """
 
-        let page = try! TestRenderer(files: test).render(path: "page").wait()
+        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "page").wait()
         XCTAssertEqual(page.string, expected)
     }
     
@@ -70,7 +70,7 @@ final class GHLeafKitIssuesTest: XCTestCase {
 
         """
 
-        let page = try! TestRenderer(files: test).render(path: "a", context: ["challenges":["","",""]]).wait()
+        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "a", context: ["challenges":["","",""]]).wait()
             XCTAssertEqual(page.string, expected)
     }
 }

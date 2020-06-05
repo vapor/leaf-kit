@@ -14,7 +14,7 @@ final class LeafErrorTests: XCTestCase {
         test.files["/c.leaf"] = "#extend(\"a\")"
 
         do {
-            _ = try TestRenderer(files: test).render(path: "a").wait()
+            _ = try TestRenderer(sources: .singleSource(test)).render(path: "a").wait()
             XCTFail("Should have thrown LeafError.cyclicalReference")
         } catch let error as LeafError {
             switch error.reason {
@@ -34,7 +34,7 @@ final class LeafErrorTests: XCTestCase {
         test.files["/b.leaf"] = "#extend(\"c\")"
 
         do {
-            _ = try TestRenderer(files: test).render(path: "a").wait()
+            _ = try TestRenderer(sources: .singleSource(test)).render(path: "a").wait()
             XCTFail("Should have thrown LeafError.noTemplateExists")
         } catch let error as LeafError {
             switch error.reason {
