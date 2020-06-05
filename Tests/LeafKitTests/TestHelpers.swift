@@ -85,7 +85,7 @@ internal class TestRenderer {
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
-internal struct TestFiles: LeafSource {
+public struct TestFiles: LeafSource {
     var files: [String: String]
     var lock: Lock
     
@@ -94,7 +94,7 @@ internal struct TestFiles: LeafSource {
         lock = .init()
     }
     
-    func file(template: String, escape: Bool = false, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+    public func file(template: String, escape: Bool = false, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
         var path = template
         if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2,
            !path.hasSuffix(".leaf") { path += ".leaf" }

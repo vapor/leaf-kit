@@ -8,6 +8,7 @@ let package = Package(
     ],
     products: [
         .library(name: "LeafKit", targets: ["LeafKit"]),
+        .library(name: "XCTLeafKit", targets: ["LeafKitTests"])
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.2.0"),

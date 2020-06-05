@@ -93,7 +93,7 @@ public struct LeafError: Error {
     }
     
     /// Create a `LeafError` - only `reason` typically used as source locations are auto-grabbed
-    internal init(
+    public init(
         _ reason: Reason,
         file: String = #file,
         function: String = #function,
