@@ -63,8 +63,12 @@ internal class TestRenderer {
                               userInfo: userInfo)
     }
     
-    func render(path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
-        return self.r.render(path: path, context: context)
+    func render(source: String? = nil, path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
+        if let source = source {
+            return self.r.render(source: source, path: path, context: context)
+        } else {
+            return self.r.render(path: path, context: context)
+        }
     }
 }
 

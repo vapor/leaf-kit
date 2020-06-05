@@ -816,36 +816,39 @@ final class LeafKitTests: XCTestCase {
         sourceOne.files["/a.leaf"] = "This file is in sourceOne"
         sourceTwo.files["/b.leaf"] = "This file is in sourceTwo"
         hiddenSource.files["/c.leaf"] = "This file is in hiddenSource"
-
-        let renderer = TestRenderer(sources: .singleSource(sourceOne))
-        try! renderer.r.sources.register(source: "sourceTwo", using: sourceTwo)
-        try! renderer.r.sources.register(source: "hiddenSource", using: hiddenSource, searchable: false)
-        XCTAssert(renderer.r.sources.all.contains("sourceTwo"))
-
-        let output1 = try renderer.render(path: "a").wait().string
-        XCTAssert(output1.contains("sourceOne"))
-        let output2 = try renderer.render(path: "b").wait().string
-        XCTAssert(output2.contains("sourceTwo"))
-
-
-        do {
-            _ = try renderer.render(path: "c").wait().string
-            XCTFail("hiddenSource should not be providing results")
-        } catch {
-            let e = error as! LeafError
-            XCTAssert(e.localizedDescription.contains("No template found"))
-        }
-
-        let unsearchable = LeafSources()
-        let emptyRenderer = TestRenderer(sources: unsearchable)
+        
+        let multipleSources = LeafSources()
+        try! multipleSources.register(using: sourceOne)
+        try! multipleSources.register(source: "sourceTwo", using: sourceTwo)
+        try! multipleSources.register(source: "hiddenSource", using: hiddenSource, searchable: false)
+        
+        let unsearchableSources = LeafSources()
+        try! unsearchableSources.register(source: "unreachable", using: sourceOne, searchable: false)
+        
+        let goodRenderer = TestRenderer(sources: multipleSources)
+        let emptyRenderer = TestRenderer(sources: unsearchableSources)
+        
+        XCTAssert(goodRenderer.r.sources.all.contains("sourceTwo"))
         XCTAssert(emptyRenderer.r.sources.searchOrder.isEmpty)
 
-        do {
-            _ = try emptyRenderer.render(path: "a").wait().string
-            XCTFail("No sources should be searched")
-        } catch {
-            let e = error as! LeafError
-            XCTAssert(e.localizedDescription.contains("No searchable sources exist"))
+        let output1 = try goodRenderer.render(path: "a").wait().string
+        XCTAssert(output1.contains("sourceOne"))
+        let output2 = try goodRenderer.render(path: "b").wait().string
+        XCTAssert(output2.contains("sourceTwo"))
+
+        do { try XCTFail(goodRenderer.render(path: "c").wait().string) }
+        catch {
+            let error = error as! LeafError
+            XCTAssert(error.localizedDescription.contains("No template found"))
+        }
+        
+        let output3 = try goodRenderer.render(source: "hiddenSource", path: "c").wait().string
+        XCTAssert(output3.contains("hiddenSource"))
+        
+        do { try XCTFail(emptyRenderer.render(path: "c").wait().string) }
+        catch {
+            let error = error as! LeafError
+            XCTAssert(error.localizedDescription.contains("No searchable sources exist"))
         }
     }
 }

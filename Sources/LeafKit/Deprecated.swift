@@ -51,3 +51,6 @@ extension LeafSource {
         fatalError("This default implementation should never be called")
     }
 }
+
+@available(*, deprecated, renamed: "LeafAST")
+public typealias ResolvedDocument = LeafAST

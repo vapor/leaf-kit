@@ -2,15 +2,15 @@
 /// Public protocol to adhere to for storing and accessing `LeafAST`s for `LeafRenderer`
 public protocol LeafCache {
     func insert(
-        _ document: ResolvedDocument,
+        _ document: LeafAST,
         on loop: EventLoop,
         replace: Bool
-    ) -> EventLoopFuture<ResolvedDocument>
+    ) -> EventLoopFuture<LeafAST>
 
     func load(
         documentName: String,
         on loop: EventLoop
-    ) -> EventLoopFuture<ResolvedDocument?>
+    ) -> EventLoopFuture<LeafAST?>
 
     /// - return nil if cache entry didn't exist in the first place, true if purged
     /// - will never return false in this design but should be capable of it
@@ -52,7 +52,7 @@ extension LeafCache {
         _ documentName: String,
         on loop: EventLoop,
         replace: Bool = false
-    ) -> EventLoopFuture<ResolvedDocument>
+    ) -> EventLoopFuture<LeafAST>
     {
         if replace { return loop.makeFailedFuture(LeafError(.unsupportedFeature("Protocol adopter does not support replacing entries")))}
         else { return self.insert(documentName, on: loop) }

@@ -93,6 +93,24 @@ public final class LeafRenderer {
             }
         }
     }
+    
+    
+    // MARK: - Temporary testing interface
+    internal func render(source: String, path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
+        guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
+
+        return self.cache.load(documentName: sourcePath(source, path), on: self.eventLoop).flatMapThrowing { cached in
+            guard let cached = cached else { throw LeafError(.noValueForKey(path)) }
+            guard cached.flat else { throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs))) }
+            return try self.serialize(cached, context: context)
+        }.flatMapError { e in
+            return self.fetch(source: source, template: path).flatMapThrowing { ast in
+                guard let ast = ast else { throw LeafError(.noTemplateExists(path)) }
+                guard ast.flat else { throw LeafError(.unresolvedAST(path, Array(ast.unresolvedRefs))) }
+                return try self.serialize(ast, context: context)
+            }
+        }
+    }
 
     // MARK: - Private implementation functions
     
@@ -119,10 +137,10 @@ public final class LeafRenderer {
     ///
     /// Recursive calls to `fetch()` from `resolve()` must provide the chain of extended
     /// templates to prevent cyclical errors
-    private func fetch(template: String, chain: [String] = []) -> EventLoopFuture<LeafAST?> {
+    private func fetch(source: String? = nil, template: String, chain: [String] = []) -> EventLoopFuture<LeafAST?> {
         return cache.load(documentName: template, on: eventLoop).flatMap { cached in
             guard let cached = cached else {
-                return self.read(name: template, escape: true).flatMap { ast in
+                return self.read(source: source, name: template, escape: true).flatMap { ast in
                     guard let ast = ast else { return self.eventLoop.makeSucceededFuture(nil) }
                     return self.resolve(ast: ast, chain: chain).map {$0}
                 }
@@ -183,17 +201,19 @@ public final class LeafRenderer {
     ///
     /// If the configured `LeafSource` can't read a file, future will fail - otherwise, a complete (but not
     /// necessarily flat) `LeafAST` will be returned.
-    private func read(name: String, escape: Bool = false) -> EventLoopFuture<LeafAST?> {
-        let raw: EventLoopFuture<ByteBuffer>
+    private func read(source: String? = nil, name: String, escape: Bool = false) -> EventLoopFuture<LeafAST?> {
+        let raw: EventLoopFuture<(String, ByteBuffer)>
         do {
-            raw = try self.sources.find(template: name, on: self.eventLoop)
+            raw = try self.sources.find(template: name, in: source , on: self.eventLoop)
         } catch { return eventLoop.makeFailedFuture(error) }
 
         return raw.flatMapThrowing { raw -> LeafAST? in
             var raw = raw
-            guard let template = raw.readString(length: raw.readableBytes) else {
+            guard let template = raw.1.readString(length: raw.1.readableBytes) else {
                 throw LeafError.init(.unknownError("File read failed"))
             }
+            
+            let name = source == nil ? name : raw.0 + name
             
             var lexer = LeafLexer(name: name, template: template)
             let tokens = try lexer.lex()
@@ -201,6 +221,10 @@ public final class LeafRenderer {
             let ast = try parser.parse()
             return LeafAST(name: name, ast: ast)
         }
+    }
+    
+    private func sourcePath(_ source: String, _ path: String) -> String {
+        return ".\(source):\(path)"
     }
 }
 
