@@ -48,6 +48,8 @@ internal func render(name: String = "test-render", _ template: String, _ context
 /// Helper wrapping` LeafRenderer` to preconfigure for simplicity & allow eliding context
 internal class TestRenderer {
     var r: LeafRenderer
+    private let lock: Lock
+    private var counter: Int = 0
     
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
             tags: [String : LeafTag] = defaultTags,
@@ -61,14 +63,24 @@ internal class TestRenderer {
                               sources: sources,
                               eventLoop: eventLoop,
                               userInfo: userInfo)
+        lock = .init()
     }
     
     func render(source: String? = nil, path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
+        lock.withLock { counter += 1 }
         if let source = source {
             return self.r.render(source: source, path: path, context: context)
         } else {
             return self.r.render(path: path, context: context)
         }
+    }
+    
+    public var isDone: Bool {
+        return lock.withLock { counter == 0 } ? true : false
+    }
+    
+    func finishTask() {
+        lock.withLock { counter -= 1 }
     }
 }
 

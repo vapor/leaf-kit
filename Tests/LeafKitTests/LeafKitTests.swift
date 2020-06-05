@@ -681,27 +681,13 @@ final class LeafKitTests: XCTestCase {
             eventLoop: group.next()
         )
 
-        let progressLock = Lock()
-        var progress = 0
-        var done = false
-        var delay = 0
-
         for iteration in 1...iterations {
             let template = String((iteration % templates) + 1)
-            group.next()
-                .submit { renderer.render(path: template) }
-                .whenComplete { result in progressLock.withLock { progress += 1 } }
+            renderer.render(path: template).whenComplete { _ in renderer.finishTask() }
         }
 
-        while !done {
-            progressLock.withLock { delay = (iterations - progress) * 10 }
-            guard delay == 0 else { usleep(UInt32(delay)); break }
-            done = true
-            group.shutdownGracefully { shutdown in
-                guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
-                XCTAssertEqual(renderer.r.cache.entryCount(), templates)
-            }
-        }
+        while !renderer.isDone { usleep(10) }
+        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.entryCount(), templates) }
     }
 
     func testCacheSpeedRandom() {
@@ -729,29 +715,15 @@ final class LeafKitTests: XCTestCase {
             eventLoop: group.next()
         )
 
-        let progressLock = Lock()
-        var progress = 0
-        var done = false
-        var delay = 0
-
         for x in (0..<iterations).reversed() {
             let template: String
             if x / ratio < hitList.count { template = hitList.removeFirst() }
             else { template = allKeys[Int.random(in: 0 ..< totalTemplates)] }
-            group.next()
-                .submit { renderer.render(path: template) }
-                .whenComplete { result in progressLock.withLock { progress += 1 } }
+            renderer.render(path: template).whenComplete { _ in renderer.finishTask() }
         }
 
-        while !done {
-            progressLock.withLock { delay = (iterations - progress) * 10  }
-            guard delay == 0 else { usleep(UInt32(delay)); break }
-            done = true
-            group.shutdownGracefully { shutdown in
-                guard shutdown == nil else { XCTFail("ELG shutdown issue"); return }
-                XCTAssertEqual(renderer.r.cache.entryCount(), layer1+layer2+layer3)
-            }
-        }
+        while !renderer.isDone { usleep(10) }
+        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.entryCount(), layer1+layer2+layer3) }
     }
 
 // MARK: testGH33() - moved to GHTests/VaporLeafKit.swift
@@ -784,32 +756,34 @@ final class LeafKitTests: XCTestCase {
         let threadPool = NIOThreadPool(numberOfThreads: 1)
         threadPool.start()
         let fileio = NonBlockingFileIO(threadPool: threadPool)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
     
         let renderer = TestRenderer(
             configuration: .init(rootDirectory: templateFolder),
             sources: .singleSource(NIOLeafFiles(fileio: fileio,
                                                 limits: .default,
                                                 sandboxDirectory: templateFolder,
-                                                viewDirectory: templateFolder + "SubTemplates/"))
+                                                viewDirectory: templateFolder + "SubTemplates/")),
+            eventLoop: group.next()
         )
         
-        var done = false
-        
-        try _ = renderer.render(path: "test").wait()
-        try _ = renderer.render(path: "../test").wait()
-        do { try _ = renderer.render(path: "../../test").wait() }
-        catch {
-            let e = error as! LeafError
-            XCTAssert(e.localizedDescription.contains("Attempted to escape sandbox"))
+        renderer.render(path: "test").whenComplete { _ in renderer.finishTask() }
+        renderer.render(path: "../test").whenComplete { _ in renderer.finishTask() }
+        renderer.render(path: "../../test").whenComplete { result in
+            renderer.finishTask()
+            if case .failure(let e) = result, let err = e as? LeafError {
+                XCTAssert(err.localizedDescription.contains("Attempted to escape sandbox"))
+            } else { XCTFail() }
         }
-        do { try _ = renderer.render(path: "./test").wait(); done = true }
-        catch {
-            let e = error as! LeafError
-            XCTAssert(e.localizedDescription.contains("Attempted to access .test"))
-            done = true
+        renderer.render(path: ".test").whenComplete { result in
+            renderer.finishTask()
+            if case .failure(let e) = result, let err = e as? LeafError {
+                XCTAssert(err.localizedDescription.contains("Attempted to access .test"))
+            } else { XCTFail() }
         }
         
-        while !done { usleep(10) }
+        while !renderer.isDone { usleep(10) }
+        try group.syncShutdownGracefully()
         try threadPool.syncShutdownGracefully()
     }
     
