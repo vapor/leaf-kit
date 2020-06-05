@@ -793,6 +793,8 @@ final class LeafKitTests: XCTestCase {
                                                 viewDirectory: templateFolder + "SubTemplates/"))
         )
         
+        var done = false
+        
         try _ = renderer.render(path: "test").wait()
         try _ = renderer.render(path: "../test").wait()
         do { try _ = renderer.render(path: "../../test").wait() }
@@ -800,12 +802,14 @@ final class LeafKitTests: XCTestCase {
             let e = error as! LeafError
             XCTAssert(e.localizedDescription.contains("Attempted to escape sandbox"))
         }
-        do { try _ = renderer.render(path: "./test").wait() }
+        do { try _ = renderer.render(path: "./test").wait(); done = true }
         catch {
             let e = error as! LeafError
             XCTAssert(e.localizedDescription.contains("Attempted to access .test"))
+            done = true
         }
         
+        while !done { usleep(10) }
         try threadPool.syncShutdownGracefully()
     }
     
