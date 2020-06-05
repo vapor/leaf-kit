@@ -85,7 +85,7 @@ internal class TestRenderer {
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
-public struct TestFiles: LeafSource {
+internal struct TestFiles: LeafSource {
     var files: [String: String]
     var lock: Lock
     
