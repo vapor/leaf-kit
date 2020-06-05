@@ -47,21 +47,23 @@ public final class LeafSources {
         
         guard !keys.isEmpty else { throw LeafError(.unknownError("No searchable sources exist")) }
         
-        return searchSources(t: template, on: eventLoop, s: ArraySlice(keys))
+        return searchSources(t: template, on: eventLoop, s: keys)
     }
     
-    private func searchSources(t: String, on eL: EventLoop, s: ArraySlice<String>) -> EventLoopFuture<ByteBuffer> {
+    private func searchSources(t: String, on eL: EventLoop, s: [String]) -> EventLoopFuture<ByteBuffer> {
         guard !s.isEmpty, let key = s.first, let source = sources[key] else { return eL.makeFailedFuture(LeafError(.noTemplateExists(t))) }
+        var more = s
+        _ = more.removeFirst()
         // If non-future related failure when reading (eg, malformed path for template for source), go to next
         let future: EventLoopFuture<ByteBuffer>
         do { try future = source.file(template: t, escape: true, on: eL) }
         catch {
             if let e = error as? LeafError,
                case .illegalAccess(_) = e.reason { return eL.makeFailedFuture(e) }
-            else { return searchSources(t: t, on: eL, s: s.dropFirst()) }
+            else { return searchSources(t: t, on: eL, s: more) }
         }
         return future.flatMapError { _ in
-            self.searchSources(t: t, on: eL, s: s.dropFirst())
+            self.searchSources(t: t, on: eL, s: more)
         }
     }
     
