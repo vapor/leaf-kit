@@ -53,8 +53,16 @@ public final class LeafSources {
     private func searchSources(t: String, on eL: EventLoop, s: ArraySlice<String>) -> EventLoopFuture<ByteBuffer> {
         guard !s.isEmpty, let key = s.first, let source = sources[key] else { return eL.makeFailedFuture(LeafError(.noTemplateExists(t))) }
         // If non-future related failure when reading (eg, malformed path for template for source), go to next
-        guard let future = try? source.file(template: t, escape: true, on: eL) else { return searchSources(t: t, on: eL, s: s.dropFirst()) }
-        return future.flatMapError { _ in self.searchSources(t: t, on: eL, s: s.dropFirst()) }
+        let future: EventLoopFuture<ByteBuffer>
+        do { try future = source.file(template: t, escape: true, on: eL) }
+        catch {
+            if let e = error as? LeafError,
+               case .illegalAccess(_) = e.reason { return eL.makeFailedFuture(e) }
+            else { return searchSources(t: t, on: eL, s: s.dropFirst()) }
+        }
+        return future.flatMapError { _ in
+            self.searchSources(t: t, on: eL, s: s.dropFirst())
+        }
     }
     
     internal init() {

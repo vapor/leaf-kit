@@ -784,50 +784,29 @@ final class LeafKitTests: XCTestCase {
         let threadPool = NIOThreadPool(numberOfThreads: 1)
         threadPool.start()
         let fileio = NonBlockingFileIO(threadPool: threadPool)
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
+    
         let renderer = TestRenderer(
             configuration: .init(rootDirectory: templateFolder),
             sources: .singleSource(NIOLeafFiles(fileio: fileio,
-                              limits: .default,
-                              sandboxDirectory: templateFolder,
-                              viewDirectory: templateFolder + "SubTemplates/")),
-            eventLoop: group.next()
+                                                limits: .default,
+                                                sandboxDirectory: templateFolder,
+                                                viewDirectory: templateFolder + "SubTemplates/"))
         )
         
-        let progressLock = Lock()
-        var progress = 4
-        var done = false
-        
-        // TODO: needs a better test to prevent shutdown of renderer
-        _ = renderer.render(path: "test").whenFailure { error in
-            progressLock.withLock { progress -= 1 }
-            let e = error as! LeafError
-            XCTFail(e.localizedDescription)
-        }
-        _ = renderer.render(path: "../test").whenFailure { error in
-            progressLock.withLock { progress -= 1 }
-            let e = error as! LeafError
-            XCTFail(e.localizedDescription)
-        }
-        _ = renderer.render(path: "../../test").whenFailure { error in
-            progressLock.withLock { progress -= 1 }
+        try _ = renderer.render(path: "test").wait()
+        try _ = renderer.render(path: "../test").wait()
+        do { try _ = renderer.render(path: "../../test").wait() }
+        catch {
             let e = error as! LeafError
             XCTAssert(e.localizedDescription.contains("Attempted to escape sandbox"))
         }
-        _ = renderer.render(path: ".test").whenFailure { error in
-            progressLock.withLock { progress -= 1 }
+        do { try _ = renderer.render(path: "./test").wait() }
+        catch {
             let e = error as! LeafError
             XCTAssert(e.localizedDescription.contains("Attempted to access .test"))
         }
         
-        while !done {
-            progressLock.withLock {
-                if progress == 0 { done = true }
-            }
-            if !done { usleep(UInt32(10)); break }
-            try group.syncShutdownGracefully()
-            try threadPool.syncShutdownGracefully()
-        }
+        try threadPool.syncShutdownGracefully()
     }
     
     func testMultipleSources() throws {
@@ -842,13 +821,13 @@ final class LeafKitTests: XCTestCase {
         try! renderer.r.sources.register(source: "sourceTwo", using: sourceTwo)
         try! renderer.r.sources.register(source: "hiddenSource", using: hiddenSource, searchable: false)
         XCTAssert(renderer.r.sources.all.contains("sourceTwo"))
-        
+
         let output1 = try renderer.render(path: "a").wait().string
         XCTAssert(output1.contains("sourceOne"))
         let output2 = try renderer.render(path: "b").wait().string
         XCTAssert(output2.contains("sourceTwo"))
-        
-        
+
+
         do {
             _ = try renderer.render(path: "c").wait().string
             XCTFail("hiddenSource should not be providing results")
@@ -856,11 +835,11 @@ final class LeafKitTests: XCTestCase {
             let e = error as! LeafError
             XCTAssert(e.localizedDescription.contains("No template found"))
         }
-        
+
         let unsearchable = LeafSources()
         let emptyRenderer = TestRenderer(sources: unsearchable)
         XCTAssert(emptyRenderer.r.sources.searchOrder.isEmpty)
-        
+
         do {
             _ = try emptyRenderer.render(path: "a").wait().string
             XCTFail("No sources should be searched")
