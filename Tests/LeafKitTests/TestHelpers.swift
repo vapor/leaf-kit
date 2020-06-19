@@ -208,7 +208,7 @@ final class PrintTests: XCTestCase {
         conditional:
           if(variable(foo)):
             raw("\\n    some stuff\\n")
-          elseif(expression(bar == "bar")):
+          elseif([bar == "bar"]):
             raw("\\n    bar stuff\\n")
           else:
             raw("\\n    no stuff\\n")
@@ -244,7 +244,7 @@ final class PrintTests: XCTestCase {
           export("body"):
             raw("\\n        hello there\\n    ")
           export("title"):
-            raw("Welcome")
+            expression[stringLiteral("Welcome")]
         """
         
         let v = try parse(template).first!
@@ -264,7 +264,7 @@ final class PrintTests: XCTestCase {
         guard case .custom(let test) = v else { throw "nope" }
 
         let expectation = """
-        custom(variable(tag), expression(foo == bar)):
+        custom(variable(tag), [foo == bar]):
           raw("\\n    some body\\n")
         """
         let output = test.print(depth: 0)
