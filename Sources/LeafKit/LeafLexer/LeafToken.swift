@@ -181,9 +181,9 @@ public indirect enum ParameterDeclaration: CustomStringConvertible {
 
     public var description: String {
         switch self {
-            case .parameter(let p):  return p.description
-            case .expression(let p): return name + "(\(p.describe()))"
-            case .tag(let t):        return "tag(\(t.name): \(t.params.describe(",")))"
+            case .parameter(let p): return p.description
+            case .expression(_):    return self.short
+            case .tag(let t):       return "tag(\(t.name): \(t.params.describe(",")))"
         }
     }
 
@@ -200,6 +200,41 @@ public indirect enum ParameterDeclaration: CustomStringConvertible {
             case .parameter:  return "parameter"
             case .expression: return "expression"
             case .tag:        return "tag"
+        }
+    }
+    
+    internal func imports() -> Set<String> {
+        switch self {
+            case .parameter(_): return .init()
+            case .expression(let e): return e.imports()
+            case .tag(let t):
+                guard t.name == "import" else { return t.imports() }
+                guard let parameter = t.params.first,
+                      case .parameter(let p) = parameter,
+                      case .stringLiteral(let key) = p,
+                      !key.isEmpty else { return .init() }
+                return .init(arrayLiteral: key)
+        }
+    }
+    
+    internal func inlineImports(_ imports: [String : Syntax.Export]) -> ParameterDeclaration {
+        switch self {
+            case .parameter(_): return self
+            case .tag(let t):
+                guard t.name == "import" else {
+                    return .tag(.init(name: t.name, params: t.params.inlineImports(imports)))
+                }
+                guard let parameter = t.params.first,
+                      case .parameter(let p) = parameter,
+                      case .stringLiteral(let key) = p,
+                      let export = imports[key]?.body.first,
+                      case .expression(let exp) = export,
+                      exp.count == 1,
+                      let e = exp.first else { return self }
+                return e                    
+            case .expression(let e):
+                guard !e.isEmpty else { return self }
+                return .expression(e.inlineImports(imports))
         }
     }
 }
@@ -299,6 +334,37 @@ internal extension Array where Element == ParameterDeclaration {
     
     func describe(_ joinBy: String = " ") -> String {
         return self.map {$0.short }.joined(separator: joinBy)
+    }
+    
+    func imports() -> Set<String> {
+        var result = Set<String>()
+        self.forEach { result.formUnion($0.imports()) }
+        return result
+    }
+    
+    func inlineImports(_ imports: [String : Syntax.Export]) -> [ParameterDeclaration] {
+        guard !self.isEmpty else { return self }
+        guard !imports.isEmpty else { return self }
+        return self.map { $0.inlineImports(imports) }
+    }
+    
+    func atomicRaw() -> Syntax? {
+        // only atomic expressions can be converted
+        guard self.count < 2 else { return nil }
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        // empty expressions = empty raw
+        guard self.count == 1 else { return .raw(buffer) }
+        // only single value parameters can be converted
+        guard case .parameter(let p) = self[0] else { return nil }
+        switch p {
+            case .constant(let c): buffer.writeString(c.description)
+            case .keyword(let k): buffer.writeString(k.rawValue)
+            case .operator(let o): buffer.writeString(o.rawValue)
+            case .stringLiteral(let s): buffer.writeString(s)
+            // .tag, .variable not atomic
+            default: return nil
+        }
+        return .raw(buffer)
     }
 }
 // MARK: --- END OF SECTION TO BE MOVED ---
