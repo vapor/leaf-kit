@@ -1,5 +1,3 @@
-public typealias ResolvedDocument = LeafAST
-
 // Internal combination of rawAST = nil indicates no external references
 // rawAST non-nil & flat = false : unresolved with external references, and public AST is not flat
 // rawAST non-nil & flat = true : resolved with external references, and public AST is flat

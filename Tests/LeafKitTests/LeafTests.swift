@@ -313,24 +313,7 @@ final class LeafTests: XCTestCase {
         }
     }
 
-    // https://github.com/vapor/leaf/issues/96
-    func testGH96() throws {
-        let template = """
-        #for(name in names):
-            #(name): index=#(index) last=#(isLast) first=#(isFirst)
-        #endfor
-        """
-        let expected = """
-
-            tanner: index=0 last=false first=true
-
-            ziz: index=1 last=false first=false
-
-            vapor: index=2 last=true first=false
-
-        """
-        try XCTAssertEqual(render(template, ["names": ["tanner", "ziz", "vapor"]]), expected)
-    }
+// MARK: testGH96() - moved to GHTests/VaporLeaf.swift
 
     func testLoopIndices() throws {
         let template = """
@@ -397,91 +380,12 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["isFirst": true]), expected)
     }
 
-
-    // https://github.com/vapor/leaf/issues/99
-    func testGH99() throws {
-        let template = """
-        Hi #(first) #(last)
-        """
-        let expected = """
-        Hi Foo Bar
-        """
-        try XCTAssertEqual(render(template, ["first": "Foo", "last": "Bar"]), expected)
-    }
-
-    // https://github.com/vapor/leaf/issues/101
-    func testGH101() throws {
-        let template = """
-        #for(foo in foos):#(index+1):#(foo)#endfor
-        """
-        let expected = "1:A2:B3:C"
-        try XCTAssertEqual(render(template, ["foos": ["A", "B", "C"]]), expected)
-    }
-
-    // https://github.com/vapor/leaf/issues/105
-    func testGH105() throws {
-        do {
-            let template = """
-            #if(1 + 1 == 2):hi#endif
-            """
-            let expected = "hi"
-            try XCTAssertEqual(render(template, ["a": "a"]), expected)
-        }
-        do {
-            let template = """
-            #if(2 == 1 + 1):hi#endif
-            """
-            let expected = "hi"
-            try XCTAssertEqual(render(template, ["a": "a"]), expected)
-        }
-        do {
-            let template = """
-            #if(1 == 1 + 1 || 1 == 2 - 1):hi#endif
-            """
-            let expected = "hi"
-            try XCTAssertEqual(render(template, ["a": "a"]), expected)
-        }
-    }
-
-    // https://github.com/vapor/leaf/issues/127
-    // TODO: This commenting style is not used anymore but needs a replacement
-    func _testGH127Inline() throws {
-        do {
-            let template = """
-            <html>
-            <head>
-            <title></title>#// Translate all copy!!!!!
-            <style>
-            """
-            let expected = """
-            <html>
-            <head>
-            <title></title>
-            <style>
-            """
-            try XCTAssertEqual(render(template, ["a": "a"]), expected)
-        }
-    }
-    // TODO: This commenting style is not used anymore but needs a replacement
-    func _testGH127SingleLine() throws {
-        do {
-            let template = """
-            <html>
-            <head>
-            <title></title>
-            #// Translate all copy!!!!!
-            <style>
-            """
-            let expected = """
-            <html>
-            <head>
-            <title></title>
-            <style>
-            """
-            try XCTAssertEqual(render(template, ["a": "a"]), expected)
-        }
-    }
-
+// MARK: testGH99() - moved to GHTests/VaporLeaf.swift
+// MARK: testGH101() - moved to GHTests/VaporLeaf.swift
+// MARK: testGH105() - moved to GHTests/VaporLeaf.swift
+// MARK: testGH127Inline() - moved to GHTests/VaporLeaf.swift
+// MARK: testGH127SingleLine() - moved to GHTests/VaporLeaf.swift
+  
     // Validate parse resolution of negative numbers
     func testNegatives() throws {
         let input = """
@@ -576,15 +480,4 @@ final class LeafTests: XCTestCase {
     }
 }
 
-private func render(name: String = "test-render", _ template: String, _ context: [String: LeafData] = [:]) throws -> String {
-    var lexer = LeafLexer(name: name, template: template)
-    let tokens = try lexer.lex()
-    var parser = LeafParser(name: name, tokens: tokens)
-    let ast = try parser.parse()
-    var serializer = LeafSerializer(
-        ast: ast,
-        context: context
-    )
-    let view = try serializer.serialize()
-    return view.getString(at: view.readerIndex, length: view.readableBytes) ?? ""
-}
+// MARK: `render` helper function moved to TestHelpers.swift

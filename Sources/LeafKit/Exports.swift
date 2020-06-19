@@ -14,8 +14,6 @@ extension Character {
             || self.isUppercaseLetter
     }
     
-//    var isAllowedInVariable: - Removed
-    
     var isValidInParameter: Bool {
         return self.isValidInTagName
             || self.isValidOperator
@@ -115,6 +113,4 @@ extension Character {
     static let ampersand = "&".first!
     static let vertical = "|".first!
     static let underscore = "_".first!
-
-    // Various identifiers moved up in extension for clarity
 }

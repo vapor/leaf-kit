@@ -8,6 +8,10 @@
 public struct LeafError: Error {
     /// Possible cases of a LeafError.Reason, with applicable stored values where useful for the type
     public enum Reason {
+        // MARK: Errors related to loading raw templates
+        /// Attempted to access a template blocked for security reasons
+        case illegalAccess(String)
+        
         // MARK: Errors related to LeafCache access
         /// Attempt to modify cache entries when caching is globally disabled
         case cachingDisabled
@@ -65,6 +69,8 @@ public struct LeafError: Error {
         let src = "\(file ?? "?").\(function):\(line)"
 
         switch self.reason {
+            case .illegalAccess(let message):
+                return "\(src) - \(message)"
             case .unknownError(let message):
                 return "\(src) - \(message)"
             case .unsupportedFeature(let feature):
@@ -87,7 +93,7 @@ public struct LeafError: Error {
     }
     
     /// Create a `LeafError` - only `reason` typically used as source locations are auto-grabbed
-    internal init(
+    public init(
         _ reason: Reason,
         file: String = #file,
         function: String = #function,

@@ -1,43 +1,83 @@
+/// General configuration of Leaf
+/// - Sets the default View directory where templates will be looked for
+/// - Guards setting the global tagIndicator (default `#`).
 public struct LeafConfiguration {
+    fileprivate static var tagIndicatorIsSet = false
     public var rootDirectory: String
-
+    
+    /// Initialize Leaf with the default tagIndicator `#`
+    /// - Parameter rootDirectory: Default directory where templates will be found
     public init(rootDirectory: String) {
+        self.init(rootDirectory: rootDirectory, tagIndicator: .octothorpe)
+    }
+    
+    /// Initialize Leaf
+    /// - Parameter rootDirectory: Default directory where templates will be found
+    /// - Parameter tagIndicator: Unique tagIndicator
+    public init(rootDirectory: String, tagIndicator: Character) {
+        if !LeafConfiguration.tagIndicatorIsSet {
+            Character.tagIndicator = tagIndicator
+            LeafConfiguration.tagIndicatorIsSet = true
+        }
         self.rootDirectory = rootDirectory
     }
 }
 
-// MARK:- THIS SECTION MOVED TO LeafCache/LeafCache.swift
-// MARK: THIS SECTION MOVED TO LeafCache/DefaultLeafCache.swift
-// MARK: THIS SECTION MOVED TO LeafSerialize/LeafContext.swift
-// MARK: THIS SECTION MOVED TO LeafSource/LeafFiles.swift
-// MARK: THIS SECTION MOVED TO LeafSource/NIOLeafFiles.swift
+// MARK: - `LeafRenderer` Summary
 
-// MARK: -
-
+/// `LeafRenderer` implements the full Leaf language pipeline.
+///
+/// It must be configured before use with the appropriate `LeafConfiguration` and consituent
+/// threadsafe protocol-implementating modules (an NIO `EventLoop`, `LeafCache`, `LeafSource`,
+/// and potentially any number of custom `LeafTag` additions to the language).
+///
+/// Additional instances of LeafRenderer can then be created using these shared modules to allow
+/// concurrent rendering, potentially with unique per-instance scoped data via `userInfo`.
 public final class LeafRenderer {
+    /// An initialized `LeafConfiguration` specificying default directory and tagIndicator
     public let configuration: LeafConfiguration
+    /// A keyed dictionary of custom `LeafTags` to extend Leaf's basic functionality, registered
+    /// with the names which will call them when rendering - eg `tags["tagName"]` can be used
+    /// in a template as `#tagName(parameters)`
     public let tags: [String: LeafTag]
+    /// A thread-safe implementation of `LeafCache` protocol
     public let cache: LeafCache
-    public let files: LeafFiles
+    /// A thread-safe implementation of `LeafSource` protocol
+    public let sources: LeafSources
+    /// The NIO `EventLoop` on which this instance of `LeafRenderer` will operate
     public let eventLoop: EventLoop
+    /// Any custom instance data to use (eg, in Vapor, the `Application` and/or `Request` data)
     public let userInfo: [AnyHashable: Any]
-
+    
+    /// Initial configuration of LeafRenderer.
     public init(
         configuration: LeafConfiguration,
         tags: [String: LeafTag] = defaultTags,
         cache: LeafCache = DefaultLeafCache(),
-        files: LeafFiles,
+        sources: LeafSources,
         eventLoop: EventLoop,
         userInfo: [AnyHashable: Any] = [:]
     ) {
         self.configuration = configuration
         self.tags = tags
         self.cache = cache
-        self.files = files
+        self.sources = sources
         self.eventLoop = eventLoop
         self.userInfo = userInfo
     }
-
+    
+    /// The public interface to `LeafRenderer`
+    /// - Parameter path: Name of the template to be used
+    /// - Parameter context: Any unique context data for the template to use
+    /// - Returns: Serialized result of using the template, or a failed future
+    ///
+    /// Interpretation of `path` is dependent on the implementation of `LeafSource` but is assumed to
+    /// be relative to `LeafConfiguration.rootDirectory`.
+    ///
+    /// Where `LeafSource` is a file sytem based source, some assumptions should be made; `.leaf`
+    /// extension should be inferred if none is provided- `"path/to/template"` corresponds to
+    /// `"/.../ViewDirectory/path/to/template.leaf"`, while an explicit extension -
+    /// `"file.svg"` would correspond to `"/.../ViewDirectory/file.svg"`
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
         guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
 
@@ -53,7 +93,28 @@ public final class LeafRenderer {
             }
         }
     }
+    
+    
+    // MARK: - Temporary testing interface
+    internal func render(source: String, path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
+        guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
 
+        return self.cache.load(documentName: sourcePath(source, path), on: self.eventLoop).flatMapThrowing { cached in
+            guard let cached = cached else { throw LeafError(.noValueForKey(path)) }
+            guard cached.flat else { throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs))) }
+            return try self.serialize(cached, context: context)
+        }.flatMapError { e in
+            return self.fetch(source: source, template: path).flatMapThrowing { ast in
+                guard let ast = ast else { throw LeafError(.noTemplateExists(path)) }
+                guard ast.flat else { throw LeafError(.unresolvedAST(path, Array(ast.unresolvedRefs))) }
+                return try self.serialize(ast, context: context)
+            }
+        }
+    }
+
+    // MARK: - Private implementation functions
+    
+    /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
     private func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
         guard doc.flat == true else { throw LeafError(.unresolvedAST(doc.name, Array(doc.unresolvedRefs))) }
 
@@ -66,23 +127,20 @@ public final class LeafRenderer {
         return try serializer.serialize()
     }
 
-    private func expand(template: String) -> String {
-        var path = template
-        // ignore files that already have a type
-        if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2  , !path.hasSuffix(".leaf") {
-            path += ".leaf"
-        }
+    // MARK: `expand()` obviated
 
-        if !path.hasPrefix("/") {
-            path = self.configuration.rootDirectory.trailSlash + path
-        }
-        return path
-    }
-
-    private func fetch(template: String, chain: [String] = []) -> EventLoopFuture<LeafAST?> {
+    /// Get a `LeafAST` from the configured `LeafCache` or read the raw template if none is cached
+    ///
+    /// - If the AST can't be found (either from cache or reading) return nil
+    /// - If found or read and flat, return complete AST.
+    /// - If found or read and non-flat, attempt to resolve recursively via `resolve()`
+    ///
+    /// Recursive calls to `fetch()` from `resolve()` must provide the chain of extended
+    /// templates to prevent cyclical errors
+    private func fetch(source: String? = nil, template: String, chain: [String] = []) -> EventLoopFuture<LeafAST?> {
         return cache.load(documentName: template, on: eventLoop).flatMap { cached in
             guard let cached = cached else {
-                return self.read(name: template).flatMap { ast in
+                return self.read(source: source, name: template, escape: true).flatMap { ast in
                     guard let ast = ast else { return self.eventLoop.makeSucceededFuture(nil) }
                     return self.resolve(ast: ast, chain: chain).map {$0}
                 }
@@ -92,7 +150,12 @@ public final class LeafRenderer {
         }
     }
 
-    // resolve is only guaranteed to try to resolve an AST to flatness, not to succeed
+    /// Attempt to resolve a `LeafAST`
+    ///
+    /// - If flat, cache and return
+    /// - If there are extensions, ensure that (if we've been called from a chain of extensions) no cyclical
+    ///   references to a previously extended template would occur as a result
+    /// - Recursively `fetch()` any extended template references and build a new `LeafAST`
     private func resolve(ast: LeafAST, chain: [String]) -> EventLoopFuture<LeafAST> {
         // if the ast is already flat, cache it immediately and return
         if ast.flat == true { return self.cache.insert(ast, on: self.eventLoop, replace: true) }
@@ -133,16 +196,25 @@ public final class LeafRenderer {
             }
         }
     }
-
-    private func read(name: String) -> EventLoopFuture<LeafAST?> {
-        let path = expand(template: name)
-        let raw = readBytes(file: path)
+    
+    /// Read in an individual `LeafAST`
+    ///
+    /// If the configured `LeafSource` can't read a file, future will fail - otherwise, a complete (but not
+    /// necessarily flat) `LeafAST` will be returned.
+    private func read(source: String? = nil, name: String, escape: Bool = false) -> EventLoopFuture<LeafAST?> {
+        let raw: EventLoopFuture<(String, ByteBuffer)>
+        do {
+            raw = try self.sources.find(template: name, in: source , on: self.eventLoop)
+        } catch { return eventLoop.makeFailedFuture(error) }
 
         return raw.flatMapThrowing { raw -> LeafAST? in
             var raw = raw
-
-            // MARK: Should this actually throw an error if readString can't read readableBytes?
-            let template = raw.readString(length: raw.readableBytes) ?? ""
+            guard let template = raw.1.readString(length: raw.1.readableBytes) else {
+                throw LeafError.init(.unknownError("File read failed"))
+            }
+            
+            let name = source == nil ? name : raw.0 + name
+            
             var lexer = LeafLexer(name: name, template: template)
             let tokens = try lexer.lex()
             var parser = LeafParser(name: name, tokens: tokens)
@@ -150,19 +222,10 @@ public final class LeafRenderer {
             return LeafAST(name: name, ast: ast)
         }
     }
-
-    private func readBytes(file: String) -> EventLoopFuture<ByteBuffer> {
-        self.files.file(path: file, on: self.eventLoop)
+    
+    private func sourcePath(_ source: String, _ path: String) -> String {
+        return ".\(source):\(path)"
     }
 }
 
-// MARK: THIS SECTION REMOVED - Obviated by improved resolver
-
-extension String {
-    internal var trailSlash: String {
-        if hasSuffix("/") { return self }
-        else { return self + "/" }
-    }
-}
-
-// MARK: - THIS SECTION MOVED TO LeafCache/DefaultLeafCache.swift
+// MARK: `String` extension obviated

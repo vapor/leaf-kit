@@ -2,7 +2,7 @@ import NIOConcurrencyHelpers
 
 public final class DefaultLeafCache: LeafCache {
     let lock: Lock
-    var cache: [String: ResolvedDocument]
+    var cache: [String: LeafAST]
     public var isEnabled: Bool = true
 
     public init() {
@@ -12,17 +12,17 @@ public final class DefaultLeafCache: LeafCache {
 
     // Superseded by insert with remove: parameter - Remove in Leaf-Kit 2?
     public func insert(
-        _ document: ResolvedDocument,
+        _ document: LeafAST,
         on loop: EventLoop
-    ) -> EventLoopFuture<ResolvedDocument> {
+    ) -> EventLoopFuture<LeafAST> {
         self.insert(document, on: loop, replace: false)
     }
 
     public func insert(
-        _ document: ResolvedDocument,
+        _ document: LeafAST,
         on loop: EventLoop,
         replace: Bool = false
-    ) -> EventLoopFuture<ResolvedDocument> {
+    ) -> EventLoopFuture<LeafAST> {
         // future fails if caching is enabled
         guard isEnabled else { return loop.makeSucceededFuture(document) }
 
@@ -39,7 +39,7 @@ public final class DefaultLeafCache: LeafCache {
     public func load(
         documentName: String,
         on loop: EventLoop
-    ) -> EventLoopFuture<ResolvedDocument?> {
+    ) -> EventLoopFuture<LeafAST?> {
         guard isEnabled == true else { return loop.makeSucceededFuture(nil) }
         self.lock.lock()
         defer { self.lock.unlock() }
