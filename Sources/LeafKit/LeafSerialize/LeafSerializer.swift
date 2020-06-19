@@ -61,24 +61,13 @@ struct LeafSerializer {
     }
 
     mutating func serialize(_ conditional: Syntax.Conditional) throws {
-        let list: [ParameterDeclaration]
-        switch conditional.condition {
-            case .if(let l):
-                list = l
-            case .elseif(let l):
-                list = l
-            case .else:
-                try serialize(body: conditional.body)
-                return
-        }
-
-        let satisfied = try self.resolve(parameters: list).map {
-            $0.bool ?? !$0.isNull
-        }.reduce(true) { $0 && $1 }
-        if satisfied {
-            try serialize(body: conditional.body)
-        } else if let next = conditional.next {
-            try serialize(next)
+        evaluate:
+        for block in conditional.chain {
+            let evaluated = try self.resolveAtomic(parameters: block.condition.expression())
+            if evaluated.bool ?? !evaluated.isNull {
+                try serialize(body: block.body)
+                break evaluate
+            }
         }
     }
 
@@ -171,6 +160,18 @@ struct LeafSerializer {
             userInfo: userInfo
         )
         return try resolver.resolve().map { $0.result }
+    }
+    
+    // Directive resolver for a [ParameterDeclaration] where only one parameter is allowed that must resolve to a single value
+    private func resolveAtomic(parameters: [ParameterDeclaration]) throws -> LeafData {
+        guard parameters.count == 1 else {
+            if parameters.isEmpty {
+                throw LeafError(.unknownError("Parameter statement can't be empty"))
+            } else {
+                throw LeafError(.unknownError("Parameter statement must hold a single value"))
+            }
+        }
+        return try resolve(parameters: parameters).first ?? .null
     }
 
     func peek() -> Syntax? {

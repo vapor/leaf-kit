@@ -16,7 +16,7 @@ final class ParserTests: XCTestCase {
 
         let expectation = """
         conditional:
-          if(expression(lowercase(first([name == "admin"])) == "welcome")):
+          if([lowercase(first([name == "admin"])) == "welcome"]):
             raw("\\nfoo\\n")
         """
 
@@ -179,7 +179,146 @@ final class ParserTests: XCTestCase {
 // MARK: `testPPP()` removed - pointless?
 }
 
+<<<<<<< HEAD
 // MARK: PrintTests moved to TestHelpers.swift
+=======
+final class PrintTests: XCTestCase {
+    func testRaw() throws {
+        let template = """
+        hello, raw text
+        """
+        let v = parse(template).first!
+        guard case .raw = v else { throw "nope" }
+
+        let expectation = """
+        raw(\"hello, raw text\")
+        """
+        let output = v.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+
+    func testVariable() throws {
+        let template = """
+        #(foo)
+        """
+        let v = parse(template).first!
+        guard case .variable(let test) = v else { throw "nope" }
+
+        let expectation = """
+        variable(foo)
+        """
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+
+    func testLoop() throws {
+        let template = """
+        #for(name in names):
+            hello, #(name).
+        #endfor
+        """
+        let v = parse(template).first!
+        guard case .loop(let test) = v else { throw "nope" }
+
+        let expectation = """
+        for(name in names):
+          raw("\\n    hello, ")
+          variable(name)
+          raw(".\\n")
+        """
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+
+    func testConditional() throws {
+        let template = """
+        #if(foo):
+            some stuff
+        #elseif(bar == "bar"):
+            bar stuff
+        #else:
+            no stuff
+        #endif
+        """
+        let v = parse(template).first!
+        guard case .conditional(let test) = v else { throw "nope" }
+
+        let expectation = """
+        conditional:
+          if(variable(foo)):
+            raw("\\n    some stuff\\n")
+          elseif([bar == "bar"]):
+            raw("\\n    bar stuff\\n")
+          else:
+            raw("\\n    no stuff\\n")
+        """
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+
+    func testImport() throws {
+        let template = """
+        #import("someimport")
+        """
+        let v = parse(template).first!
+        guard case .import(let test) = v else { throw "nope" }
+
+        let expectation = """
+        import(\"someimport\")
+        """
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+
+    func testExtendAndExport() throws {
+        let template = """
+        #extend("base"):
+            #export("title","Welcome")
+            #export("body"):
+                hello there
+            #endexport
+        #endextend
+        """
+        let v = parse(template).first!
+        guard case .extend(let test) = v else { throw "nope" }
+
+        let expectation = """
+        extend("base"):
+          export("body"):
+            raw("\\n        hello there\\n    ")
+          export("title"):
+            expression[stringLiteral("Welcome")]
+        """
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+
+    func testCustomTag() throws {
+        let template = """
+        #custom(tag, foo == bar):
+            some body
+        #endcustom
+        """
+
+        let v = parse(template).first!
+        guard case .custom(let test) = v else { throw "nope" }
+
+        let expectation = """
+        custom(variable(tag), [foo == bar]):
+          raw("\\n    some body\\n")
+        """
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+
+    func parse(_ str: String) -> [Syntax] {
+        var lexer = LeafLexer(name: "test-lex", template: str)
+        let tokens = try! lexer.lex()
+        var parser = LeafParser(name: "parse", tokens: tokens)
+        return try! parser.parse()
+    }
+}
+>>>>>>> master
 
 final class LexerTests: XCTestCase {
 
@@ -756,6 +895,118 @@ final class LeafKitTests: XCTestCase {
             files: test,
             eventLoop: EmbeddedEventLoop()
         )
+<<<<<<< HEAD
+=======
+
+        let page = try! renderer.render(path: "a", context: ["challenges":["","",""]]).wait()
+            XCTAssertEqual(page.string, expected)
+    }
+
+    func testGH57_LoopedConditionalImport() throws {
+        var test = TestFiles()
+        test.files["/base.leaf"] = """
+        #for(x in list):
+        #extend("entry"):#export("something", "Whatever")#endextend
+        #endfor
+        """
+        test.files["/entry.leaf"] = """
+        #(x): #if(isFirst):#import("something")#else:Not First#endif
+        """
+
+        let expected = """
+
+        A: Whatever
+
+        B: Not First
+
+        C: Not First
+
+        """
+
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+
+        let page = try renderer.render(path: "base", context: ["list": ["A", "B", "C"]]).wait()
+        XCTAssertEqual(page.string, expected)
+    }
+
+    func testGH57_MultipleLoopedConditionalImports() throws {
+        var test = TestFiles()
+        test.files["/base.leaf"] = """
+        #for(x in list1):
+        #extend("entry"):#export("something", "Whatever")#endextend
+        #endfor
+        #for(x in list2):
+        #extend("entry"):#export("something", "Something Else")#endextend
+        #endfor
+        """
+        test.files["/entry.leaf"] = """
+        #(x): #if(isFirst):#import("something")#else:Not First#endif
+        """
+
+        let expected = """
+
+        A: Whatever
+
+        B: Not First
+
+        C: Not First
+
+
+        A: Something Else
+
+        B: Not First
+
+        C: Not First
+
+        """
+
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            cache: DefaultLeafCache(),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+
+        let page = try renderer.render(path: "base", context: [
+            "list1": ["A", "B", "C"],
+            "list2": ["A", "B", "C"],
+        ]).wait()
+        XCTAssertEqual(page.string, expected)
+    }
+    
+    func testImportParameter() throws {
+        var test = TestFiles()
+        test.files["/base.leaf"] = """
+        #extend("parameter"):
+            #export("admin", admin)
+        #endextend
+        """
+        test.files["/delegate.leaf"] = """
+        #extend("parameter"):
+            #export("delegated", false || bypass)
+        #endextend
+        """
+        test.files["/parameter.leaf"] = """
+        #if(import("admin")):
+            Hi Admin
+        #elseif(import("delegated")):
+            Also an admin
+        #else:
+            No Access
+        #endif
+        """
+
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+>>>>>>> master
         
         let normalPage = try renderer.render(path: "base", context: ["admin": false]).wait()
         let adminPage = try renderer.render(path: "base", context: ["admin": true]).wait()

@@ -420,9 +420,9 @@ final class LeafTests: XCTestCase {
         """
 
         let syntax = """
-        [variable(index), operator(-), constant(5)]
-        [constant(10), operator(-), constant(5)]
-        [constant(10), operator(-), constant(5)]
+        expression[variable(index), operator(-), constant(5)]
+        expression[constant(10), operator(-), constant(5)]
+        expression[constant(10), operator(-), constant(5)]
         raw("-5")
         """
 
@@ -453,13 +453,13 @@ final class LeafTests: XCTestCase {
         """
 
         let syntax = """
-        [keyword(false), operator(&&), keyword(true)]
-        [keyword(false), operator(||), keyword(true)]
-        [keyword(true), operator(&&), keyword(true)]
-        [keyword(false), operator(||), keyword(false)]
-        [keyword(false), operator(||), keyword(true)]
+        expression[keyword(false), operator(&&), keyword(true)]
+        expression[keyword(false), operator(||), keyword(true)]
+        expression[keyword(true), operator(&&), keyword(true)]
+        expression[keyword(false), operator(||), keyword(false)]
+        expression[keyword(false), operator(||), keyword(true)]
         raw("true")
-        [expression(-5 + [10 - [[20 / 2] + [9 * -3]]]), operator(==), expression([90 / 3] + [2 * -10])]
+        expression[[-5 + [10 - [[20 / 2] + [9 * -3]]]], operator(==), [[90 / 3] + [2 * -10]]]
         """
 
         let expectation = """

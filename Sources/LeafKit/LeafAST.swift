@@ -42,21 +42,30 @@ public struct LeafAST: Hashable {
 
         // inline provided externals
         while pos < ast.endIndex {
-            switch ast[pos] {
-                case .extend(let e):
-                    let key = e.key
-                    if let insert = externals[key] {
-                        let inlined = e.extend(base: insert.ast)
-                        ast.replaceSubrange(pos...pos, with: inlined)
-                    } else {
-                        unresolvedRefs.insert(key)
-                        pos = ast.index(after: pos)
-                    }
-                default:
-                    var new: Syntax? = nil
-                    unresolvedRefs.formUnion(ast[pos].inlineRefs(externals, &new))
-                    if let new = new { ast[pos] = new }
-                    pos = ast.index(after: pos)
+            // get desired externals for this Syntax - if none, continue
+            let wantedExts = ast[pos].externals()
+            if wantedExts.isEmpty {
+                pos = ast.index(after: pos)
+                continue
+            }
+            // see if we can provide any of them - if not, continue
+            let providedExts = externals.filter { wantedExts.contains($0.key) }
+            if providedExts.isEmpty {
+                unresolvedRefs.formUnion(wantedExts)
+                pos = ast.index(after: pos)
+                continue
+            }
+            
+            // replace the original Syntax with the results of inlining, potentially 1...n
+            let replacementSyntax = ast[pos].inlineRefs(providedExts, [:])
+            ast.replaceSubrange(pos...pos, with: replacementSyntax)
+            // any returned new inlined syntaxes can't be further resolved at this point
+            // but we need to add their unresolvable references to the global set
+            var offset = replacementSyntax.startIndex
+            while offset < replacementSyntax.endIndex {
+                unresolvedRefs.formUnion(ast[pos].externals())
+                offset = replacementSyntax.index(after: offset)
+                pos = ast.index(after: pos)
             }
         }
 
