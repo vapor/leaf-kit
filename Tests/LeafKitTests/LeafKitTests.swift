@@ -169,7 +169,7 @@ final class ParserTests: XCTestCase {
             variable(name)
             raw("!\\n    ")
           export("title"):
-            raw("Welcome")
+            expression[stringLiteral("Welcome")]
         """
 
         let output = try parse(input).string
@@ -729,6 +729,42 @@ final class LeafKitTests: XCTestCase {
 // MARK: testGH33() - moved to GHTests/VaporLeafKit.swift
 // MARK: testGH50() - moved to GHTests/VaporLeafKit.swift
 
+    func testImportParameter() throws {
+        var test = TestFiles()
+        test.files["/base.leaf"] = """
+        #extend("parameter"):
+            #export("admin", admin)
+        #endextend
+        """
+        test.files["/delegate.leaf"] = """
+        #extend("parameter"):
+            #export("delegated", false || bypass)
+        #endextend
+        """
+        test.files["/parameter.leaf"] = """
+        #if(import("admin")):
+            Hi Admin
+        #elseif(import("delegated")):
+            Also an admin
+        #else:
+            No Access
+        #endif
+        """
+
+        let renderer = LeafRenderer(
+            configuration: .init(rootDirectory: "/"),
+            files: test,
+            eventLoop: EmbeddedEventLoop()
+        )
+        
+        let normalPage = try renderer.render(path: "base", context: ["admin": false]).wait()
+        let adminPage = try renderer.render(path: "base", context: ["admin": true]).wait()
+        let delegatePage = try renderer.render(path: "delegate", context: ["bypass": true]).wait()
+        XCTAssertEqual(normalPage.string.trimmingCharacters(in: .whitespacesAndNewlines), "No Access")
+        XCTAssertEqual(adminPage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Hi Admin")
+        XCTAssertEqual(delegatePage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Also an admin")
+    }
+    
     func testDeepResolve() {
         var test = TestFiles()
         test.files["/a.leaf"] = """
