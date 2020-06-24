@@ -92,7 +92,8 @@ public final class LeafRenderer {
 
         // If cache provides blocking load, try to get a flat AST immediately
         if let blockingCache = cache as? BlockingLeafCache,
-           let cached = blockingCache.load(documentName: path) {
+           let cached = blockingCache.load(documentName: path),
+           cached.flat {
             do {
                 let buffer = try serialize(cached, context: context)
                 return eventLoop.makeSucceededFuture(buffer)
