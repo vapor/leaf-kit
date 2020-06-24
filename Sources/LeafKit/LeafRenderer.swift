@@ -90,6 +90,18 @@ public final class LeafRenderer {
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
         guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
 
+        // If cache provides blocking load, try to get a flat AST immediately
+        if let blockingCache = cache as? BlockingLeafCache,
+           let cached = blockingCache.load(documentName: path) {
+            do {
+                let buffer = try serialize(cached, context: context)
+                return eventLoop.makeSucceededFuture(buffer)
+            } catch {
+                return eventLoop.makeFailedFuture(LeafError(.unknownError("Serializer Error")))
+            }
+        }
+        
+        // Otherwise operate using normal future-based full resolving behavior
         return self.cache.load(documentName: path, on: self.eventLoop).flatMapThrowing { cached in
             guard let cached = cached else { throw LeafError(.noValueForKey(path)) }
             guard cached.flat else { throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs))) }

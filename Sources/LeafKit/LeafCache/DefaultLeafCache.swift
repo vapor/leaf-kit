@@ -4,7 +4,7 @@
 
 import NIOConcurrencyHelpers
 
-public final class DefaultLeafCache: LeafCache {
+public final class DefaultLeafCache: BlockingLeafCache {
     // MARK: - Public - `LeafCache` Protocol Conformance
     
     /// Global setting for enabling or disabling the cache
@@ -86,4 +86,12 @@ public final class DefaultLeafCache: LeafCache {
     
     let lock: Lock
     var cache: [String: LeafAST]
+    
+    /// Blocking file load behavior
+    func load(documentName: String) -> LeafAST? {
+        guard isEnabled == true else { return nil }
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.cache[documentName]
+    }
 }
