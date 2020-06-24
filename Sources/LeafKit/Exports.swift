@@ -1,9 +1,13 @@
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
 @_exported import NIO
 
 /// Various helper identities for convenience
 extension Character {
     // MARK: - Leaf-Kit specific static identities (Public)
     
+    // FIXME: Make .tagIndicatore write-once
     /// Global setting of `tagIndicator` for Leaf-Kit - by default, `#`
     public static var tagIndicator: Character = .octothorpe
     

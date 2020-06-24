@@ -1,3 +1,6 @@
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
 extension LeafRenderer {
     /// Deprecated in Leaf-Kit 1.0.0rc-1.2
     @available(*, deprecated, message: "Use files instead of fileio")
@@ -29,9 +32,6 @@ extension LeafRenderer {
     }
 }
 
-@available(*, deprecated, renamed: "LeafSource")
-typealias LeafFiles = LeafSource
-
 extension LeafSource {
     /// Default implementation for non-adhering protocol implementations mimicing older LeafRenderer expansion
     /// This wrapper will be removed in a future release.
@@ -44,7 +44,7 @@ extension LeafSource {
         return try self.file(path: path, on: eventLoop)
     }
     
-    /// Deprecated in Leaf-Kit 1.0.0rc-1.??
+    /// Deprecated in Leaf-Kit 1.0.0rc-1.11
     /// Default implementation for newer adherants to allow older adherents to be called until upgraded
     @available(*, deprecated, message: "This default implementation should never be called")
     public func file(path: String, on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer> {
@@ -52,5 +52,10 @@ extension LeafSource {
     }
 }
 
-@available(*, deprecated, renamed: "LeafAST")
+/// Deprecated in Leaf-Kit 1.0.0rc-1.11
+@available(*, deprecated, renamed: "LeafSource")
+typealias LeafFiles = LeafSource
+
+/// Deprecated in Leaf-Kit 1.0.0rc-1.11
+@available(*, deprecated, message: "Update LeafCache Implementation")
 public typealias ResolvedDocument = LeafAST

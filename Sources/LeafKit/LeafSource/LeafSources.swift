@@ -1,17 +1,32 @@
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
+
 import NIOConcurrencyHelpers
 
-/// An object holding named `LeafSource` adherants specifying a default search order
+/// An opaque object holding named `LeafSource` adherants specifying a default search order.
+///
+/// This object is `public` solely for convenience in reading the currently configured state.
+///
+/// Once registered, the `LeafSource` objects can not be accessed or modified - they *must* be
+/// fully configured prior to registering with the instance of `LeafSources`
+/// - `LeafSource` objects are registered with an instance of this class - this should *only* be done
+///     prior to use by `LeafRenderer`.
+/// - `.all` provides a `Set` of the `String`keys for all sources registered with the instance
+/// - `.searchOrder` provides the keys of sources that an unspecified template request will search.
 public final class LeafSources {
+    // MARK: - Public
+    
     /// All available `LeafSource`s of templates
     public var all: Set<String> { lock.withLock { .init(self.sources.keys) } }
     /// Configured default implicit search order of `LeafSource`'s
     public var searchOrder: [String] { lock.withLock { order } }
     
-    /// Internal storage
-    internal private(set) var sources: [String: LeafSource]
-    private var order: [String]
-    private let lock: Lock = .init()
-
+    public init() {
+        self.sources = [:]
+        self.order = []
+    }
+    
     /// Register a `LeafSource` as `key`
     /// - Parameters:
     ///   - key: Name for the source; at most one may be registered without a name
@@ -27,6 +42,20 @@ public final class LeafSources {
             if searchable { order.append(key) }
         }
     }
+    
+    /// Convenience for initializing a `LeafSources` object with a single `LeafSource`
+    /// - Parameter source: A fully configured `LeafSource`
+    /// - Returns: Configured `LeafSource` instance
+    public static func singleSource(_ source: LeafSource) -> LeafSources {
+        let sources = LeafSources()
+        try! sources.register(using: source)
+        return sources
+    }
+    
+    // MARK: - Internal Only
+    internal private(set) var sources: [String: LeafSource]
+    private var order: [String]
+    private let lock: Lock = .init()
     
     /// Locate a template from the sources; if a specific source is named, only try to read from it. Otherwise, use the specified search order
     internal func find(template: String, in source: String? = nil, on eventLoop: EventLoop) throws -> EventLoopFuture<(String, ByteBuffer)> {
@@ -69,17 +98,4 @@ public final class LeafSources {
             }
         }
     }
-    
-    public init() {
-        self.sources = [:]
-        self.order = []
-    }
-    
-    public static func singleSource(_ source: LeafSource) -> LeafSources {
-        let sources = LeafSources()
-        try! sources.register(using: source)
-        return sources
-    }
 }
-
-

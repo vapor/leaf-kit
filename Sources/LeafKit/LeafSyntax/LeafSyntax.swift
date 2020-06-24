@@ -1,4 +1,7 @@
-// FIXME: - `Syntax` is overly monolithic
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
+// FIXME: - `Syntax` is overly monolithic and should *not* be public
 ///
 
 public indirect enum Syntax {
@@ -45,7 +48,7 @@ public enum ConditionalSyntax {
         }
     }
     
-    var naturalType: ConditionalSyntax.NaturalType {
+    internal var naturalType: ConditionalSyntax.NaturalType {
         switch self {
             case .if: return .if
             case .elseif: return .elseif
@@ -53,7 +56,7 @@ public enum ConditionalSyntax {
         }
     }
     
-    enum NaturalType: Int, CustomStringConvertible {
+    internal enum NaturalType: Int, CustomStringConvertible {
         case `if` = 0
         case `elseif` = 1
         case `else` = 2
@@ -67,7 +70,6 @@ public enum ConditionalSyntax {
         }
     }
 }
-
 
 // temporary addition
 extension Syntax: BodiedSyntax  {

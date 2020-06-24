@@ -313,8 +313,6 @@ final class LeafTests: XCTestCase {
         }
     }
 
-// MARK: testGH96() - moved to GHTests/VaporLeaf.swift
-
     func testLoopIndices() throws {
         let template = """
         #for(name in names):
@@ -379,12 +377,6 @@ final class LeafTests: XCTestCase {
 
         try XCTAssertEqual(render(template, ["isFirst": true]), expected)
     }
-
-// MARK: testGH99() - moved to GHTests/VaporLeaf.swift
-// MARK: testGH101() - moved to GHTests/VaporLeaf.swift
-// MARK: testGH105() - moved to GHTests/VaporLeaf.swift
-// MARK: testGH127Inline() - moved to GHTests/VaporLeaf.swift
-// MARK: testGH127SingleLine() - moved to GHTests/VaporLeaf.swift
   
     // Validate parse resolution of negative numbers
     func testNegatives() throws {
@@ -479,5 +471,3 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(input), expectation)
     }
 }
-
-// MARK: `render` helper function moved to TestHelpers.swift

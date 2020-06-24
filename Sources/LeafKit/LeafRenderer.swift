@@ -1,8 +1,10 @@
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
 /// General configuration of Leaf
 /// - Sets the default View directory where templates will be looked for
 /// - Guards setting the global tagIndicator (default `#`).
 public struct LeafConfiguration {
-    fileprivate static var tagIndicatorIsSet = false
     public var rootDirectory: String
     
     /// Initialize Leaf with the default tagIndicator `#`
@@ -21,6 +23,11 @@ public struct LeafConfiguration {
         }
         self.rootDirectory = rootDirectory
     }
+    
+    // MARK: - Internal/Private Only
+    
+    /// Convenience flag for write-once
+    fileprivate static var tagIndicatorIsSet = false
 }
 
 // MARK: - `LeafRenderer` Summary
@@ -34,6 +41,8 @@ public struct LeafConfiguration {
 /// Additional instances of LeafRenderer can then be created using these shared modules to allow
 /// concurrent rendering, potentially with unique per-instance scoped data via `userInfo`.
 public final class LeafRenderer {
+    // MARK: - Public Only
+    
     /// An initialized `LeafConfiguration` specificying default directory and tagIndicator
     public let configuration: LeafConfiguration
     /// A keyed dictionary of custom `LeafTags` to extend Leaf's basic functionality, registered
@@ -95,7 +104,8 @@ public final class LeafRenderer {
     }
     
     
-    // MARK: - Temporary testing interface
+    // MARK: - Internal Only
+    /// Temporary testing interface
     internal func render(source: String, path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
         guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
 
@@ -112,7 +122,7 @@ public final class LeafRenderer {
         }
     }
 
-    // MARK: - Private implementation functions
+    // MARK: - Private Only
     
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
     private func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
@@ -161,11 +171,11 @@ public final class LeafRenderer {
         if ast.flat == true { return self.cache.insert(ast, on: self.eventLoop, replace: true) }
 
         var chain = chain
-        _ = chain.append(ast.name)
+        chain.append(ast.name)
         let intersect = ast.unresolvedRefs.intersection(Set<String>(chain))
         guard intersect.count == 0 else {
             let badRef = intersect.first ?? ""
-            _ = chain.append(badRef)
+            chain.append(badRef)
             return self.eventLoop.makeFailedFuture(LeafError(.cyclicalReference(badRef, chain)))
         }
 
@@ -227,5 +237,3 @@ public final class LeafRenderer {
         return ".\(source):\(path)"
     }
 }
-
-// MARK: `String` extension obviated

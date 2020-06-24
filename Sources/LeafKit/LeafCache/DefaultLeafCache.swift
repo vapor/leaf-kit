@@ -1,23 +1,28 @@
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
+
 import NIOConcurrencyHelpers
 
 public final class DefaultLeafCache: LeafCache {
-    let lock: Lock
-    var cache: [String: LeafAST]
+    // MARK: - Public - `LeafCache` Protocol Conformance
+    
+    /// Global setting for enabling or disabling the cache
     public var isEnabled: Bool = true
-
+    /// Current count of cached documents
+    public var count: Int { self.lock.withLock { cache.count } }
+    
+    /// Initializer
     public init() {
         self.lock = .init()
         self.cache = [:]
     }
 
-    // Superseded by insert with remove: parameter - Remove in Leaf-Kit 2?
-    public func insert(
-        _ document: LeafAST,
-        on loop: EventLoop
-    ) -> EventLoopFuture<LeafAST> {
-        self.insert(document, on: loop, replace: false)
-    }
-
+    /// - Parameters:
+    ///   - document: The `LeafAST` to store
+    ///   - loop: `EventLoop` to return futures on
+    ///   - replace: If a document with the same name is already cached, whether to replace or not.
+    /// - Returns: The document provided as an identity return
     public func insert(
         _ document: LeafAST,
         on loop: EventLoop,
@@ -35,7 +40,11 @@ public final class DefaultLeafCache: LeafCache {
         }
         return loop.makeSucceededFuture(document)
     }
-
+    
+    /// - Parameters:
+    ///   - documentName: Name of the `LeafAST`  to try to return
+    ///   - loop: `EventLoop` to return futures on
+    /// - Returns: `EventLoopFuture<LeafAST?>` holding the `LeafAST` or nil if no matching result
     public func load(
         documentName: String,
         on loop: EventLoop
@@ -46,6 +55,11 @@ public final class DefaultLeafCache: LeafCache {
         return loop.makeSucceededFuture(self.cache[documentName])
     }
 
+    /// - Parameters:
+    ///   - documentName: Name of the `LeafAST`  to try to purge from the cache
+    ///   - loop: `EventLoop` to return futures on
+    /// - Returns: `EventLoopFuture<Bool?>` - If no document exists, returns nil. If removed,
+    ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
     public func remove(
         _ documentName: String,
         on loop: EventLoop
@@ -59,10 +73,17 @@ public final class DefaultLeafCache: LeafCache {
         self.cache[documentName] = nil
         return loop.makeSucceededFuture(true)
     }
-
-    public func entryCount() -> Int {
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return cache.count
+    
+    // Deprecated by insert with remove: parameter - remove when possible
+    public func insert(
+        _ document: LeafAST,
+        on loop: EventLoop
+    ) -> EventLoopFuture<LeafAST> {
+        self.insert(document, on: loop, replace: false)
     }
+    
+    // MARK: - Internal Only
+    
+    let lock: Lock
+    var cache: [String: LeafAST]
 }
