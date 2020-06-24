@@ -1,17 +1,16 @@
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
 import Foundation
 
-struct ResolvedParameter {
-    let param: ParameterDeclaration
-    let result: LeafData
-}
-
-extension Dictionary where Key == String, Value == LeafData {
-    public subscript(keyPath keyPath: String) -> LeafData? {
+// TODO: Move to a better location
+public extension Dictionary where Key == String, Value == LeafData {
+    subscript(keyPath keyPath: String) -> LeafData? {
         let comps = keyPath.split(separator: ".").map(String.init)
         return self[keyPath: comps]
     }
 
-    public subscript(keyPath comps: [String]) -> LeafData? {
+    subscript(keyPath comps: [String]) -> LeafData? {
         if comps.isEmpty { return nil }
         else if comps.count == 1 { return self[comps[0]] }
 
@@ -22,14 +21,18 @@ extension Dictionary where Key == String, Value == LeafData {
     }
 }
 
-extension ParameterDeclaration {
+internal extension ParameterDeclaration {
     func `operator`() -> Operator? {
         guard case .parameter(let p) = self else { return nil }
         guard case .operator(let o) = p else { return nil }
         return o
     }
 }
-struct ParameterResolver {
+
+internal struct ParameterResolver {
+    
+    // MARK: - Internal Only
+    
     let params: [ParameterDeclaration]
     let data: [String: LeafData]
     let tags: [String: LeafTag]
@@ -38,6 +41,13 @@ struct ParameterResolver {
     func resolve() throws -> [ResolvedParameter] {
         return try params.map(resolve)
     }
+
+    internal struct ResolvedParameter {
+        let param: ParameterDeclaration
+        let result: LeafData
+    }
+    
+    // MARK: - Private Only
 
     private func resolve(_ param: ParameterDeclaration) throws -> ResolvedParameter {
         let result: LeafData

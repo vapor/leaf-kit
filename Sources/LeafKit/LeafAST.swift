@@ -1,18 +1,16 @@
-// Internal combination of rawAST = nil indicates no external references
-// rawAST non-nil & flat = false : unresolved with external references, and public AST is not flat
-// rawAST non-nil & flat = true : resolved with external references, and public AST is flat
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
+
+/// <#Description#>
 public struct LeafAST: Hashable {
+    // MARK: - Public
+    
     public func hash(into hasher: inout Hasher) { hasher.combine(name) }
     public static func == (lhs: LeafAST, rhs: LeafAST) -> Bool { lhs.name == rhs.name }
 
+    // MARK: - Internal/Private Only
     let name: String
-
-    private var rawAST: [Syntax]?
-
-    private(set) var ast: [Syntax]
-    private(set) var externalRefs = Set<String>()
-    private(set) var unresolvedRefs = Set<String>()
-    private(set) var flat: Bool
 
     init(name: String, ast: [Syntax]) {
         self.name = name
@@ -22,8 +20,8 @@ public struct LeafAST: Hashable {
 
         updateRefs([:])
     }
-
-     init(from: LeafAST, referencing externals: [String: LeafAST]) {
+    
+    init(from: LeafAST, referencing externals: [String: LeafAST]) {
         self.name = from.name
         self.ast = from.ast
         self.rawAST = from.rawAST
@@ -33,6 +31,15 @@ public struct LeafAST: Hashable {
 
         updateRefs(externals)
     }
+
+    internal private(set) var ast: [Syntax]
+    internal private(set) var externalRefs = Set<String>()
+    internal private(set) var unresolvedRefs = Set<String>()
+    internal private(set) var flat: Bool
+    
+    // MARK: - Private Only
+    
+    private var rawAST: [Syntax]?
 
     mutating private func updateRefs(_ externals: [String: LeafAST]) {
         var firstRun = false

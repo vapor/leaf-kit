@@ -1,31 +1,49 @@
-// MARK: LeafCache Protocol Definition
-/// Public protocol to adhere to for storing and accessing `LeafAST`s for `LeafRenderer`
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
+/// `LeafCache` provides blind storage for compiled `LeafAST` objects.
+///
+/// The stored `LeafAST`s may or may not be fully renderable templates, and generally speaking no
+/// attempts should be made inside a `LeafCache` adherent to make any changes to the stored document.
+///
+/// `LeafAST.name` is to be used in all cases as the key for retrieving cached documents.
 public protocol LeafCache {
+    /// Global setting for enabling or disabling the cache
+    var isEnabled : Bool { get set }
+    /// Current count of cached documents
+    var count: Int { get }
+    
+    /// - Parameters:
+    ///   - document: The `LeafAST` to store
+    ///   - loop: `EventLoop` to return futures on
+    ///   - replace: If a document with the same name is already cached, whether to replace or not.
+    /// - Returns: The document provided as an identity return
     func insert(
         _ document: LeafAST,
         on loop: EventLoop,
         replace: Bool
     ) -> EventLoopFuture<LeafAST>
-
+    
+    /// - Parameters:
+    ///   - documentName: Name of the `LeafAST`  to try to return
+    ///   - loop: `EventLoop` to return futures on
+    /// - Returns: `EventLoopFuture<LeafAST?>` holding the `LeafAST` or nil if no matching result
     func load(
         documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<LeafAST?>
 
-    /// - return nil if cache entry didn't exist in the first place, true if purged
-    /// - will never return false in this design but should be capable of it
-    ///   in the event a cache implements dependency tracking between templates
+    /// - Parameters:
+    ///   - documentName: Name of the `LeafAST`  to try to purge from the cache
+    ///   - loop: `EventLoop` to return futures on
+    /// - Returns: `EventLoopFuture<Bool?>` - If no document exists, returns nil. If removed,
+    ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
     func remove(
         _ documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<Bool?>
 
-    func entryCount() -> Int
-
-    var isEnabled : Bool { get set }
-    
-
-    // MARK: - Superseded
+    // MARK: - Deprecated
     // Superseded by insert with remove: parameter - Remove in Leaf-Kit 2?
     @available(*, deprecated, message: "Use insert with replace parameter")
     func insert(

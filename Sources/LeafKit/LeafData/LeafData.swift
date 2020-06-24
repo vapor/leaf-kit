@@ -1,6 +1,9 @@
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
 import Foundation
 
-/// TemplateKit's supported serializable data types.
+/// Supported serializable data types.
 /// - note: This is different from types supported in the AST.
 public struct LeafData: LeafDataRepresentable, Equatable,
                         ExpressibleByDictionaryLiteral,
@@ -8,15 +11,6 @@ public struct LeafData: LeafDataRepresentable, Equatable,
                         ExpressibleByIntegerLiteral,
                         ExpressibleByBooleanLiteral,
                         ExpressibleByArrayLiteral {
-    
-    /// Actual storage.
-    internal var storage: LeafDataStorage
-    
-    /// Creates a new `LeafData`.
-    internal init(_ storage: LeafDataStorage) {
-        self.storage = storage
-    }
-    
     // MARK: - Equatable Conformance
 
     /// See `Equatable`.
@@ -225,5 +219,15 @@ public struct LeafData: LeafDataRepresentable, Equatable,
     /// See `LeafDataRepresentable`
     public var leafData: LeafData? {
         return self
+    }
+    
+    // MARK: - Internal Only
+    
+    /// Actual storage.
+    internal var storage: LeafDataStorage
+    
+    /// Creates a new `LeafData`.
+    internal init(_ storage: LeafDataStorage) {
+        self.storage = storage
     }
 }

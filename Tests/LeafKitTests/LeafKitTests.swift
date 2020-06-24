@@ -2,10 +2,6 @@ import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
 
-// MARK: `[LeafToken]` Extension moved to TestHelpers.swift
-// MARK: `testCodable` Test removed - not useful
-// MARK: `UInt8.str()` Extension removed - unused
-
 final class ParserTests: XCTestCase {
     func testParsingNesting() throws {
         let input = """
@@ -74,8 +70,6 @@ final class ParserTests: XCTestCase {
         let output = try parse(input).string
         XCTAssertEqual(output, expectation)
     }
-
-// MARK: testCompile2 removed - exact duplicate of testCompile
 
     func testUnresolvedAST() throws {
         let base = """
@@ -175,14 +169,9 @@ final class ParserTests: XCTestCase {
         let output = try parse(input).string
         XCTAssertEqual(output, expectation)
     }
-
-// MARK: `testPPP()` removed - pointless?
 }
 
-// MARK: PrintTests moved to TestHelpers.swift
-
 final class LexerTests: XCTestCase {
-
     func _testExtenasdfd() throws {
         /// 'base.leaf
 //        let base = """
@@ -439,9 +428,6 @@ final class LexerTests: XCTestCase {
     }
 }
 
-// MARK: `lex` helper function moved to TestHelpers.swift
-// MARK: `parse` helper function moved to TestHelpers.swift
-
 final class LeafKitTests: XCTestCase {
     func testParser() throws {
         let template = """
@@ -687,7 +673,7 @@ final class LeafKitTests: XCTestCase {
         }
 
         while !renderer.isDone { usleep(10) }
-        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.entryCount(), templates) }
+        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, templates) }
     }
 
     func testCacheSpeedRandom() {
@@ -723,11 +709,8 @@ final class LeafKitTests: XCTestCase {
         }
 
         while !renderer.isDone { usleep(10) }
-        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.entryCount(), layer1+layer2+layer3) }
+        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, layer1+layer2+layer3) }
     }
-
-// MARK: testGH33() - moved to GHTests/VaporLeafKit.swift
-// MARK: testGH50() - moved to GHTests/VaporLeafKit.swift
 
     func testImportParameter() throws {
         var test = TestFiles()
@@ -862,7 +845,3 @@ final class LeafKitTests: XCTestCase {
         }
     }
 }
-
-// MARK: - `TestFiles` moved to TestHelpers.swift
-// MARK: `ByteBuffer.string` moved to TestHelpers.swift
-// MARK: `templateFolder` moved to TestHelpers.swift

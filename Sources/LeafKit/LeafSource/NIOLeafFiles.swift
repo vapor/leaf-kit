@@ -5,6 +5,17 @@ import Foundation
 ///
 /// Default initializer will
 public struct NIOLeafFiles: LeafSource {
+    // MARK: - Public
+    
+    /// Various options for configuring an instance of `NIOLeafFiles`
+    ///
+    /// - `.requireExtensions` - When set, any template *must* have a file extension
+    /// - `.onlyLeafExtensions` - When set, any template *must* use the configured extension
+    /// - `.toSandbox` - When set, attempts to read files outside of the sandbox directory will error
+    /// - `.toVisibleFiles` - When set, attempts to read files starting with `.` will error (or files
+    ///                     inside a directory starting with `.`)
+    ///
+    /// A new `NIOLeafFiles` defaults to [.toSandbox, .toVisibleFiles, .requireExtensions]
     public struct Limit: OptionSet {
         public let rawValue: Int
         public init(rawValue: Int) {
@@ -24,25 +35,23 @@ public struct NIOLeafFiles: LeafSource {
         public static let dirLimited: Limit = [.toSandbox, .toVisibleFiles]
     }
     
-    let fileio: NonBlockingFileIO
-    let limits: Limit
-    let sandbox: String
-    let viewRelative: String
-    
     /// Initialize `NIOLeafFiles` with a NIO file IO object, limit options, and sandbox/view dirs
     /// - Parameters:
-    ///   - fileio: NIO file object
-    ///   - limits: Options for constraining which files may be read
-    ///   - sandboxDirectory: The lowest directory which may be escaped to
-    ///   - viewDirectory: The default directory templates are relative to
+    ///   - fileio: `NonBlockingFileIO` file object
+    ///   - limits: Options for constraining which files may be read - see `NIOLeafFiles.Limit`
+    ///   - sandboxDirectory: Full path of the lowest directory which may be escaped to
+    ///   - viewDirectory: Full path of the default directory templates are relative to
+    ///   - defaultExtension: The default extension inferred files will have (defaults to `leaf`)
     ///
     /// `viewDirectory` must be contained within (or overlap) `sandboxDirectory`
     public init(fileio: NonBlockingFileIO,
                 limits: Limit = .default,
                 sandboxDirectory: String = "/",
-                viewDirectory: String = "/") {
+                viewDirectory: String = "/",
+                defaultExtension: String = "leaf") {
         self.fileio = fileio
         self.limits = limits
+        self.extension = defaultExtension
         let sD = URL(fileURLWithPath: sandboxDirectory, isDirectory: true).standardized.path.appending("/")
         let vD = URL(fileURLWithPath: viewDirectory, isDirectory: true).standardized.path.appending("/")
         // Ensure provided sandboxDir is directly reachable from viewDir, otherwise only use viewDir
@@ -51,18 +60,24 @@ public struct NIOLeafFiles: LeafSource {
         self.viewRelative = String(vD[sD.indices.endIndex ..< vD.indices.endIndex])
     }
 
-    ///
+    /// Conformance to `LeafSource` to allow `LeafRenderer` to request a template.
+    /// - Parameters:
+    ///   - template: Relative template name (eg: `"path/to/template"`)
+    ///   - escape: If the adherent represents a filesystem or something scoped that enforces
+    ///             a concept of directories and sandboxing, whether to allow escaping the view directory
+    ///   - eventLoop: `EventLoop` on which to perform file access
+    /// - Returns: A succeeded `EventLoopFuture` holding a `ByteBuffer` with the raw
+    ///            template, or an appropriate failed state ELFuture (not found, illegal access, etc)
     public func file(template: String, escape: Bool = false, on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer> {
         var template = URL(fileURLWithPath: sandbox + viewRelative + template, isDirectory: false).standardized.path
-        // If `.leaf` is enforced for template files, add it if it's not on the file
-        // If it's not enforced, add if it's not already present
-        if limits.contains(.onlyLeafExtensions), !template.hasSuffix(".leaf")
-            { template += ".leaf" }
+        /// If default extension is enforced for template files, add it if it's not on the file, or if no extension present
+        if limits.contains(.onlyLeafExtensions), !template.hasSuffix(".\(self.extension)")
+            { template += ".\(self.extension)" }
         else if limits.contains(.requireExtensions), !template.split(separator: "/").last!.contains(".")
-            { template += ".leaf" }
+            { template += ".\(self.extension)" }
         
         if !limits.isDisjoint(with: .dirLimited), [".","/"].contains(template.first) {
-            // If sandboxing is enforced and the path contains a potential escaping path, look harder
+            /// If sandboxing is enforced and the path contains a potential escaping path, look harder
             if limits.contains(.toVisibleFiles) {
                 let protected = template.split(separator: "/")
                     .compactMap {
@@ -82,8 +97,17 @@ public struct NIOLeafFiles: LeafSource {
 
         return self.read(path: template, on: eventLoop)
     }
+    
+    // MARK: - Internal/Private Only
 
-    fileprivate func read(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+    internal let fileio: NonBlockingFileIO
+    internal let limits: Limit
+    internal let sandbox: String
+    internal let viewRelative: String
+    internal let `extension`: String
+    
+    /// Attempt to read a fully pathed template and return a ByteBuffer or fail
+    private func read(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
         let openFile = self.fileio.openFile(path: path, eventLoop: eventLoop)
         return openFile.flatMapErrorThrowing { error in
             throw LeafError(.noTemplateExists(path))

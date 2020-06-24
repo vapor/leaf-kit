@@ -1,124 +1,33 @@
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
 extension String: Error {}
 
-private struct TagDeclaration {
+internal struct LeafParser {
+    // MARK: - Internal Only
+    
     let name: String
-    let parameters: [ParameterDeclaration]?
-    let expectsBody: Bool
-}
-
-private struct OpenContext {
-    let parent: TagDeclaration
-    var body: [Syntax] = []
-    init(_ parent: TagDeclaration) {
-        self.parent = parent
-    }
-}
-
-extension TagDeclaration {
-    func makeSyntax(body: [Syntax]) throws -> Syntax {
-        let params = parameters ?? []
-
-        switch name {
-            case let n where n.starts(with: "end"):
-                throw "unable to convert terminator to syntax"
-            case "":
-                guard params.count == 1 else {
-                    throw "only single parameter support, should be broken earlier"
-                }
-                switch params[0] {
-                    case .parameter(let p):
-                        switch p {
-                            case .variable(name: let n):
-                                return .variable(.init(path: n))
-                            case .constant(let c):
-                                var buffer = ByteBufferAllocator().buffer(capacity: 0)
-                                buffer.writeString(c.description)
-                                return .raw(buffer)
-                            case .stringLiteral(let st):
-                                var buffer = ByteBufferAllocator().buffer(capacity: 0)
-                                buffer.writeString(st)
-                                return .raw(buffer)
-                            case .keyword(let kw) :
-                                guard kw.isBooleanValued else { fallthrough }
-                                var buffer = ByteBufferAllocator().buffer(capacity: 0)
-                                buffer.writeString(kw.rawValue)
-                                return .raw(buffer)
-                            default:
-                                throw "unsupported parameter \(p)"
-                        }
-                        // todo: can prevent some duplication here
-                    case .expression(let e):
-                        return .expression(e)
-                    case .tag(let t):
-                        return .custom(t)
-                }
-            case "if":
-                return .conditional(.init(.if(params), body: body))
-            case "elseif":
-                return .conditional(.init(.elseif(params), body: body))
-            case "else":
-                guard params.count == 0 else { throw "else does not accept params" }
-                return .conditional(.init(.else, body: body))
-            case "for":
-                return try .loop(.init(params, body: body))
-            case "export":
-                return try .export(.init(params, body: body))
-            case "extend":
-                return try .extend(.init(params, body: body))
-            case "import":
-                guard body.isEmpty else { throw "import does not accept a body" }
-                return try .import(.init(params))
-            default:
-                return .custom(.init(name: name, params: params, body: body))
-        }
-    }
-}
-
-extension TagDeclaration {
-    var isTerminator: Bool {
-        switch name {
-            case let x where x.starts(with: "end"): return true
-            // dual function
-            case "elseif", "else": return true
-            default: return false
-        }
-    }
-
-    func matches(terminator: TagDeclaration) -> Bool {
-        guard terminator.isTerminator else { return false }
-        switch terminator.name {
-            // if can NOT be a terminator
-            case "else", "elseif":
-                // else and elseif can only match to if or elseif
-                return name == "if" || name == "elseif"
-            case "endif":
-                return name == "if" || name == "elseif" || name == "else"
-            default:
-                return terminator.name == "end" + name
-        }
-    }
-}
-
-struct LeafParser {
-    let name: String
-    private var tokens: [LeafToken]
-    private var offset: Int
 
     init(name: String, tokens: [LeafToken]) {
         self.name = name
         self.tokens = tokens
         self.offset = 0
     }
-
-    private var finished: [Syntax] = []
-    private var awaitingBody: [OpenContext] = []
-
+    
     mutating func parse() throws -> [Syntax] {
         while let next = peek() {
             try handle(next: next)
         }
         return finished
     }
+    
+    // MARK: - Private Only
+    
+    private var tokens: [LeafToken]
+    private var offset: Int
+    
+    private var finished: [Syntax] = []
+    private var awaitingBody: [OpenContext] = []
 
     private mutating func handle(next: LeafToken) throws {
         switch next {
@@ -334,7 +243,7 @@ struct LeafParser {
         return raw
     }
 
-    func peek() -> LeafToken? {
+    private func peek() -> LeafToken? {
         guard self.offset < self.tokens.count else {
             return nil
         }
@@ -356,12 +265,107 @@ struct LeafParser {
         return val
     }
 
-    mutating func readWhile(_ check: (LeafToken) -> Bool) -> [LeafToken]? {
+    private mutating func readWhile(_ check: (LeafToken) -> Bool) -> [LeafToken]? {
         guard self.offset < self.tokens.count else { return nil }
         var matched = [LeafToken]()
         while let next = peek(), check(next) {
             matched.append(next)
         }
         return matched.isEmpty ? nil : matched
+    }
+    
+    private struct OpenContext {
+        let parent: TagDeclaration
+        var body: [Syntax] = []
+        init(_ parent: TagDeclaration) {
+            self.parent = parent
+        }
+    }
+
+    private struct TagDeclaration {
+        let name: String
+        let parameters: [ParameterDeclaration]?
+        let expectsBody: Bool
+        
+        func makeSyntax(body: [Syntax]) throws -> Syntax {
+            let params = parameters ?? []
+
+            switch name {
+                case let n where n.starts(with: "end"):
+                    throw "unable to convert terminator to syntax"
+                case "":
+                    guard params.count == 1 else {
+                        throw "only single parameter support, should be broken earlier"
+                    }
+                    switch params[0] {
+                        case .parameter(let p):
+                            switch p {
+                                case .variable(name: let n):
+                                    return .variable(.init(path: n))
+                                case .constant(let c):
+                                    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+                                    buffer.writeString(c.description)
+                                    return .raw(buffer)
+                                case .stringLiteral(let st):
+                                    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+                                    buffer.writeString(st)
+                                    return .raw(buffer)
+                                case .keyword(let kw) :
+                                    guard kw.isBooleanValued else { fallthrough }
+                                    var buffer = ByteBufferAllocator().buffer(capacity: 0)
+                                    buffer.writeString(kw.rawValue)
+                                    return .raw(buffer)
+                                default:
+                                    throw "unsupported parameter \(p)"
+                            }
+                            // todo: can prevent some duplication here
+                        case .expression(let e):
+                            return .expression(e)
+                        case .tag(let t):
+                            return .custom(t)
+                    }
+                case "if":
+                    return .conditional(.init(.if(params), body: body))
+                case "elseif":
+                    return .conditional(.init(.elseif(params), body: body))
+                case "else":
+                    guard params.count == 0 else { throw "else does not accept params" }
+                    return .conditional(.init(.else, body: body))
+                case "for":
+                    return try .loop(.init(params, body: body))
+                case "export":
+                    return try .export(.init(params, body: body))
+                case "extend":
+                    return try .extend(.init(params, body: body))
+                case "import":
+                    guard body.isEmpty else { throw "import does not accept a body" }
+                    return try .import(.init(params))
+                default:
+                    return .custom(.init(name: name, params: params, body: body))
+            }
+        }
+
+        var isTerminator: Bool {
+            switch name {
+                case let x where x.starts(with: "end"): return true
+                // dual function
+                case "elseif", "else": return true
+                default: return false
+            }
+        }
+
+        func matches(terminator: TagDeclaration) -> Bool {
+            guard terminator.isTerminator else { return false }
+            switch terminator.name {
+                // if can NOT be a terminator
+                case "else", "elseif":
+                    // else and elseif can only match to if or elseif
+                    return name == "if" || name == "elseif"
+                case "endif":
+                    return name == "if" || name == "elseif" || name == "else"
+                default:
+                    return terminator.name == "end" + name
+            }
+        }
     }
 }
