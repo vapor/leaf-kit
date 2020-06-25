@@ -66,7 +66,7 @@ internal struct LeafLexer {
         let next = src.peek(aheadBy: 1)
 
         switch   (state,       isTagID, isTagVal, isCol, next) {
-            case (.raw,        false,   _,        _,     _):     return lexRaw()
+            case (.raw,        false,   _,        _,     _):     return .raw(lexRaw())
             case (.raw,        true,    _,        _,     .some): return lexCheckTagIndicator()
             case (.tag,        _,       true,     _,     _):     return lexNamedTag()
             case (.tag,        _,       false,    _,     _):     return lexAnonymousTag()
@@ -102,7 +102,7 @@ internal struct LeafLexer {
     }
 
     /// Consume all data until hitting an unescaped `tagIndicator` and return a `.raw` token
-    private mutating func lexRaw() -> LeafToken {
+    private mutating func lexRaw() -> String {
         var slice = ""
         while let current = src.peek(), current != .tagIndicator {
             slice += src.readWhile { $0 != .tagIndicator && $0 != .backSlash }
@@ -112,7 +112,7 @@ internal struct LeafLexer {
             }
             slice += src.pop()!.description
         }
-        return .raw(slice)
+        return slice
     }
 
     /// Consume `#`, change state to `.tag` or `.raw`, return appropriate token
@@ -166,6 +166,10 @@ internal struct LeafLexer {
             case .space:
                 let read = src.readWhile { $0 == .space }
                 return .whitespace(length: read.count + 1)
+            case .tagIndicator:
+                let comment = LeafToken.comment(content: lexRaw())
+                src.pop() // consume closing tagIndicatior
+                return comment
             default: break
         }
 

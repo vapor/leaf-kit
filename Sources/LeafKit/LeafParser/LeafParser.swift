@@ -49,7 +49,7 @@ internal struct LeafParser {
                 // MUST close FIRST (as above)
                 return
             } else {
-                let syntax = try declaration.makeSyntax(body: [])
+                guard let syntax = try declaration.makeSyntax(body: []) else { break }
                 if var last = awaitingBody.last {
                     last.body.append(syntax)
                     awaitingBody.removeLast()
@@ -80,7 +80,9 @@ internal struct LeafParser {
         guard willClose.parent.matches(terminator: terminator) else { throw "\(name): unable to match \(willClose.parent) with \(terminator)" }
 
         // closed body
-        let newSyntax = try willClose.parent.makeSyntax(body: willClose.body)
+        guard let newSyntax = try willClose.parent.makeSyntax(body: willClose.body) else {
+            throw "Can't generate closing syntax"
+        }
 
         func append(_ syntax: Syntax) {
             if var newTail = awaitingBody.last {
@@ -132,6 +134,8 @@ internal struct LeafParser {
     // consume colons in that event when it's not inteded; eg `#(variable):` CANNOT expect a body
     // and thus the colon should be assumed to be raw. TagDeclaration should first validate expected
     // parameter pattern against the actual named tag before assuming expectsBody to be true OR false
+    //
+    // Return nil if a valid but non-useful tag declaration (eg, a comment) is generated
     private mutating func readTagDeclaration() throws -> TagDeclaration {
         // consume tag indicator
         guard let first = read(), first == .tagIndicator else { throw "expected .tagIndicator(\(Character.tagIndicator))" }
@@ -222,7 +226,7 @@ internal struct LeafParser {
                 case .parameterDelimiter:
                     pop()
                     dump()
-                case .whitespace:
+                case .whitespace, .comment(_):
                     pop()
                     continue
                 default:
@@ -287,16 +291,18 @@ internal struct LeafParser {
         let parameters: [ParameterDeclaration]?
         let expectsBody: Bool
         
-        func makeSyntax(body: [Syntax]) throws -> Syntax {
+        func makeSyntax(body: [Syntax]) throws -> Syntax? {
             let params = parameters ?? []
 
             switch name {
                 case let n where n.starts(with: "end"):
                     throw "unable to convert terminator to syntax"
                 case "":
-                    guard params.count == 1 else {
-                        throw "only single parameter support, should be broken earlier"
+                    guard params.count <= 1 else {
+                        throw "Anonymous functions can't have multiple parameters"
                     }
+                    // A comment or whitepace only - harmless
+                    if params.isEmpty { return nil }
                     switch params[0] {
                         case .parameter(let p):
                             switch p {

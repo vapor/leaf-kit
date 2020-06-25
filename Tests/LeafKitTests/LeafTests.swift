@@ -29,6 +29,31 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template), "foo\nbar")
         try XCTAssertEqual(render(multilineTemplate), "foo\n\nbar")
     }
+    
+    func testLeaf4Comment() throws {
+        let template = """
+        #("foo" # Foo is a stringLiteral #)
+
+        #aTag("foo" # is the first parameter #, b # is a context variable #)
+
+        #notAComment("# This is a literal string #")
+
+        #(#
+            A multiline comment
+        #)
+        """
+        
+        let syntax = """
+        raw("foo")
+        aTag(stringLiteral("foo"), variable(b))
+        notAComment(stringLiteral("# This is a literal string #"))
+        """
+        
+        let parsed = try parse(template)
+            .compactMap { $0.description != "raw(\"\\n\\n\")" ? $0.description : nil }
+            .joined(separator: "\n")
+        XCTAssertEqual(parsed, syntax)
+    }
 
     // conversation ongoing
     func _testHashtag() throws {
