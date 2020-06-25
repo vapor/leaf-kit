@@ -170,6 +170,7 @@ internal struct LeafLexer {
                 let comment = LeafToken.comment(content: lexRaw())
                 src.pop() // consume closing tagIndicatior
                 return comment
+            case .newLine: return .whitespace(length: 1)
             default: break
         }
 

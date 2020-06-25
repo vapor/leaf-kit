@@ -226,7 +226,7 @@ internal struct LeafParser {
                 case .parameterDelimiter:
                     pop()
                     dump()
-                case .whitespace, .comment(_):
+                case .whitespace, .comment:
                     pop()
                     continue
                 default:

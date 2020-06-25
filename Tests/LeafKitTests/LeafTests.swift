@@ -30,13 +30,20 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(multilineTemplate), "foo\n\nbar")
     }
     
-    func testLeaf4Comment() throws {
+    func testCommentsAndParamLineSplit() throws {
         let template = """
         #("foo" # Foo is a stringLiteral #)
 
         #aTag("foo" # is the first parameter #, b # is a context variable #)
 
         #notAComment("# This is a literal string #")
+
+        #multipleParameters(param1,
+                            param2)
+
+        #(5 # you can do this #
+          +
+          5 # but I wouldn't #)
 
         #(#
             A multiline comment
@@ -47,6 +54,8 @@ final class LeafTests: XCTestCase {
         raw("foo")
         aTag(stringLiteral("foo"), variable(b))
         notAComment(stringLiteral("# This is a literal string #"))
+        multipleParameters(variable(param1), variable(param2))
+        expression[constant(5), operator(+), constant(5)]
         """
         
         let parsed = try parse(template)
