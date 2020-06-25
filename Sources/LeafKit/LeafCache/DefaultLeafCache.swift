@@ -4,7 +4,7 @@
 
 import NIOConcurrencyHelpers
 
-public final class DefaultLeafCache: LeafCache {
+public final class DefaultLeafCache: SynchronousLeafCache {
     // MARK: - Public - `LeafCache` Protocol Conformance
     
     /// Global setting for enabling or disabling the cache
@@ -45,7 +45,7 @@ public final class DefaultLeafCache: LeafCache {
     ///   - documentName: Name of the `LeafAST`  to try to return
     ///   - loop: `EventLoop` to return futures on
     /// - Returns: `EventLoopFuture<LeafAST?>` holding the `LeafAST` or nil if no matching result
-    public func load(
+    public func retrieve(
         documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<LeafAST?> {
@@ -74,16 +74,18 @@ public final class DefaultLeafCache: LeafCache {
         return loop.makeSucceededFuture(true)
     }
     
-    // Deprecated by insert with remove: parameter - remove when possible
-    public func insert(
-        _ document: LeafAST,
-        on loop: EventLoop
-    ) -> EventLoopFuture<LeafAST> {
-        self.insert(document, on: loop, replace: false)
-    }
-    
     // MARK: - Internal Only
     
-    let lock: Lock
-    var cache: [String: LeafAST]
+    internal let lock: Lock
+    internal var cache: [String: LeafAST]
+    
+    /// Blocking file load behavior
+    internal func retrieve(documentName: String) throws -> LeafAST? {
+        guard isEnabled == true else { throw LeafError(.cachingDisabled) }
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        let result = self.cache[documentName]
+        guard result != nil else { throw LeafError(.noValueForKey(documentName)) }
+        return result
+    }
 }
