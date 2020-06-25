@@ -55,7 +55,3 @@ extension LeafSource {
 /// Deprecated in Leaf-Kit 1.0.0rc-1.11
 @available(*, deprecated, renamed: "LeafSource")
 typealias LeafFiles = LeafSource
-
-/// Deprecated in Leaf-Kit 1.0.0rc-1.11
-@available(*, deprecated, message: "Update LeafCache Implementation")
-public typealias ResolvedDocument = LeafAST

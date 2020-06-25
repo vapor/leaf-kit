@@ -6,6 +6,12 @@
 /// The stored `LeafAST`s may or may not be fully renderable templates, and generally speaking no
 /// attempts should be made inside a `LeafCache` adherent to make any changes to the stored document.
 ///
+/// All definied access methods to a `LeafCache` adherent must guarantee `EventLoopFuture`-based
+/// return values. For performance, an adherent may optionally provide additional, corresponding interfaces
+/// where returns are direct values and not future-based by adhering to `SynchronousLeafCache` and
+/// providing applicable option flags indicating which methods may be used. This should only used for
+/// adherents where the cache store itself is not a bottleneck.
+///
 /// `LeafAST.name` is to be used in all cases as the key for retrieving cached documents.
 public protocol LeafCache {
     /// Global setting for enabling or disabling the cache
@@ -17,7 +23,7 @@ public protocol LeafCache {
     ///   - document: The `LeafAST` to store
     ///   - loop: `EventLoop` to return futures on
     ///   - replace: If a document with the same name is already cached, whether to replace or not.
-    /// - Returns: The document provided as an identity return
+    /// - Returns: The document provided as an identity return (or a failed future if it can't be inserted)
     func insert(
         _ document: LeafAST,
         on loop: EventLoop,
@@ -28,7 +34,7 @@ public protocol LeafCache {
     ///   - documentName: Name of the `LeafAST`  to try to return
     ///   - loop: `EventLoop` to return futures on
     /// - Returns: `EventLoopFuture<LeafAST?>` holding the `LeafAST` or nil if no matching result
-    func load(
+    func retrieve(
         documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<LeafAST?>
@@ -42,45 +48,34 @@ public protocol LeafCache {
         _ documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<Bool?>
-
-    // MARK: - Deprecated
-    // Superseded by insert with remove: parameter - Remove in Leaf-Kit 2?
-    @available(*, deprecated, message: "Use insert with replace parameter")
-    func insert(
-        _ document: ResolvedDocument,
-        on loop: EventLoop
-    ) -> EventLoopFuture<ResolvedDocument>
 }
 
 /// A `LeafCache` that provides certain blocking methods for non-future access to the cache
 ///
 /// Adherents *MUST* be thread-safe and *SHOULD NOT* be blocking simply to avoid futures -
 /// only adhere to this protocol if using futures is needless overhead
-internal protocol BlockingLeafCache: LeafCache {
-    func load(documentName: String) -> LeafAST?
+internal protocol SynchronousLeafCache: LeafCache {    
+    /// - Parameters:
+    ///   - document: The `LeafAST` to store
+    ///   - replace: If a document with the same name is already cached, whether to replace or not
+    /// - Returns: The document provided as an identity return, or nil if it can't guarantee completion rapidly
+    /// - Throws: `LeafError` .keyExists if replace is false and document already exists
+    func insert(_ document: LeafAST, replace: Bool) throws -> LeafAST?
+    
+    /// - Parameter documentName: Name of the `LeafAST` to try to return
+    /// - Returns: The requested `LeafAST` or nil if it can't guarantee completion rapidly
+    /// - Throws: `LeafError` .noValueForKey if no such document is cached
+    func retrieve(documentName: String) throws -> LeafAST?
+    
+    /// - Parameter documentName: Name of the `LeafAST`  to try to purge from the cache
+    /// - Returns: `Bool?` If removed,  returns true. If cache can't remove because of dependencies
+    ///      (not yet possible), returns false. Nil if it can't guarantee completion rapidly.
+    /// - Throws: `LeafError` .noValueForKey if no such document is cached
+    func remove(documentName: String) throws -> Bool?
 }
 
-// MARK: - LeafCache default implementations for older adherants
-extension LeafCache {
-    /// default implementation of remove to avoid breaking custom LeafCache adopters
-    func remove(
-        _ documentName: String,
-        on loop: EventLoop
-    ) -> EventLoopFuture<Bool?>
-    {
-        return loop.makeFailedFuture(
-            LeafError(.unsupportedFeature("Protocol adopter does not support removing entries")))
-    }
-
-    /// default implementation of remove to avoid breaking custom LeafCache adopters
-    ///     throws an error if used with replace == true
-    func insert(
-        _ documentName: String,
-        on loop: EventLoop,
-        replace: Bool = false
-    ) -> EventLoopFuture<LeafAST>
-    {
-        if replace { return loop.makeFailedFuture(LeafError(.unsupportedFeature("Protocol adopter does not support replacing entries")))}
-        else { return self.insert(documentName, on: loop) }
-    }
+internal extension SynchronousLeafCache {
+    func insert(_ document: LeafAST, replace: Bool) throws -> LeafAST? { nil }
+    func retrieve(documentName: String) throws -> LeafAST? { nil }
+    func remove(documentName: String) throws -> Bool? { nil }
 }
