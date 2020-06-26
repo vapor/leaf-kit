@@ -74,7 +74,70 @@ public final class LeafRenderer {
         self.eventLoop = eventLoop
         self.userInfo = userInfo
     }
-    
+
+
+    /// An optional thread pool, initialized only in the convenience initializer
+    /// `init(configuration:tags:cache:userInfo:)` to provide an initializer with all parameters
+    /// having default values
+    private var threadPool: NIOThreadPool?
+
+    /// Whether `eventLoop` should be shut down on `deinit`, only set to `true` in the convenience
+    /// initializer `init(configuration:tags:cache:userInfo:)` to provide an initializer with all
+    /// parameters having default values
+    private var shouldShutDownEventLoop = false
+
+    /// Initializes a `LeafRenderer` with defaults for all parameters and self-created NIO objects.
+    ///
+    /// This initializer is designed to facilitate simple use of leaf templates outside the context
+    /// of Vapor (or other applications making heavy use of NIO) by managing the initialization and
+    /// destruction of any needed NIO primitives, as well as setting some additional default
+    /// configuration values.
+    ///
+    /// All overlapping parameters (`tags`, `cache`, and `userInfo`) have the same meaning and
+    /// default values as in `init(configuration:tags:cache:sources:eventLoop:userInfo:)`, as this
+    /// is intended to be as close to a pass-through initializer as possible.
+    ///
+    /// - Parameters:
+    ///   - rootDirectory: root directory for configurations, defaulting to the working directory
+    ///   - tags:          dictionary of tags, defaulting to the normal `defaultTags` property
+    ///   - cache:         cache object, defaulting to an instance of `DefaultLeafCache`
+    ///   - userInfo:      custom instance data, defaulting to an empty dictionary
+    public convenience init(
+        rootDirectory: String = "./",
+        tags: [String: LeafTag] = defaultTags,
+        cache: LeafCache = DefaultLeafCache(),
+        userInfo: [AnyHashable: Any] = [:]
+    ) {
+        let threadPool = NIOThreadPool(numberOfThreads: 1)
+        threadPool.start()
+
+        let eventLoop = EmbeddedEventLoop()
+
+        self.init(
+            configuration: .init(rootDirectory: rootDirectory),
+            tags: tags,
+            cache: cache,
+            sources: .singleSource(
+                NIOLeafFiles(fileio: NonBlockingFileIO(threadPool: threadPool),
+                sandboxDirectory: rootDirectory,
+                viewDirectory: rootDirectory)),
+            eventLoop: eventLoop,
+            userInfo: userInfo
+        )
+
+        // Store context needed for cleanup of NIO objects on `deinit`
+        self.threadPool = threadPool
+        shouldShutDownEventLoop = true
+    }
+
+    deinit {
+        try? threadPool?.syncShutdownGracefully()
+
+        if shouldShutDownEventLoop {
+            try? eventLoop.syncShutdownGracefully()
+        }
+    }
+
     /// The public interface to `LeafRenderer`
     /// - Parameter path: Name of the template to be used
     /// - Parameter context: Any unique context data for the template to use
@@ -109,7 +172,21 @@ public final class LeafRenderer {
             }
         }
     }
-    
+
+    /// A convenience synchronous method for simple rendering.
+    ///
+    /// All parameters have the same meaning as in `render(path:context:)`.
+    ///
+    /// - Parameters:
+    ///   - path:    Name of the template to be used
+    ///   - context: Any unique context data for the template to use
+    ///
+    /// - Returns: a string containing the full rendered data
+    public func renderSync(path: String, context: [String: LeafData]) throws -> String {
+        var buffer = try render(path: path, context: context).wait()
+		return buffer.readString(length: buffer.readableBytes)!
+    }
+
     
     // MARK: - Internal Only
     /// Temporary testing interface

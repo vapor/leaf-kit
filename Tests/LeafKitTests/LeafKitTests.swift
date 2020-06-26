@@ -602,6 +602,13 @@ final class LeafKitTests: XCTestCase {
         try group.syncShutdownGracefully()
     }
 
+    /// Tests that usage of the `LeafRenderer` convenience initializer compiles and renders a
+    /// simple test file correctly.
+    func testConvenienceRenderer() throws {
+        let renderer = LeafRenderer(rootDirectory: templateFolder)
+        XCTAssertEqual(try renderer.renderSync(path: "test", context: [:]), "Leaf Template\n")
+    }
+
     func testRendererContext() throws {
         var test = TestFiles()
         test.files["/foo.leaf"] = "Hello #custom(name)"
