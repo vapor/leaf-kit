@@ -45,7 +45,7 @@ internal struct LeafRawTemplate {
     private(set) var line = 0
     private(set) var column = 0
 
-    private var body: String
+    private let body: String
     private var current: String.Index
     
     mutating private func readSliceWhile(pop: Bool, _ check: (Character) -> Bool) -> [Character] {
