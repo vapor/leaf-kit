@@ -235,10 +235,9 @@ public final class LeafRenderer {
             guard let template = raw.1.readString(length: raw.1.readableBytes) else {
                 throw LeafError.init(.unknownError("File read failed"))
             }
-            
             let name = source == nil ? name : raw.0 + name
             
-            var lexer = LeafLexer(name: name, template: template)
+            var lexer = LeafLexer(name: name, template: LeafRawTemplate(name: name, src: template))
             let tokens = try lexer.lex()
             var parser = LeafParser(name: name, tokens: tokens)
             let ast = try parser.parse()
