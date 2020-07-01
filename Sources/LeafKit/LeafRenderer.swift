@@ -115,14 +115,14 @@ public final class LeafRenderer {
     /// Temporary testing interface
     internal func render(source: String, path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
         guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
-
+        let sourcePath = source + ":" + path
         // If a flat AST is cached and available, serialize and return
-        if let flatAST = getFlatCachedHit(sourcePath(source, path)),
+        if let flatAST = getFlatCachedHit(sourcePath),
            let buffer = try? serialize(flatAST, context: context) {
             return eventLoop.makeSucceededFuture(buffer)
         }
         
-        return self.cache.retrieve(documentName: sourcePath(source, path), on: self.eventLoop).flatMapThrowing { cached in
+        return self.cache.retrieve(documentName: sourcePath, on: self.eventLoop).flatMapThrowing { cached in
             guard let cached = cached else { throw LeafError(.noValueForKey(path)) }
             guard cached.flat else { throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs))) }
             return try self.serialize(cached, context: context)
@@ -245,15 +245,11 @@ public final class LeafRenderer {
         }
     }
     
-    private func getFlatCachedHit(source: String = "", _ path: String) -> LeafAST? {
+    private func getFlatCachedHit(_ path: String) -> LeafAST? {
         // If cache provides blocking load, try to get a flat AST immediately
         guard let blockingCache = cache as? SynchronousLeafCache,
-           let cached = try? blockingCache.retrieve(documentName: sourcePath(source, path)),
+           let cached = try? blockingCache.retrieve(documentName: path),
            cached.flat else { return nil }
         return cached
-    }
-    
-    private func sourcePath(_ source: String, _ path: String) -> String {
-        return ".\(source):\(path)"
     }
 }
