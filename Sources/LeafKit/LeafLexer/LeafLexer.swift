@@ -10,10 +10,17 @@
 internal struct LeafLexer {
     // MARK: - Internal Only
     
-    /// Convenience to initialize `LeafLexer` with a `String` instead of a `LeafRawTemplate`
+    /// Convenience to initialize `LeafLexer` with a `String`
     init(name: String, template string: String) {
         self.name = name
-        self.src = .init(name: name, src: string)
+        self.src = LeafRawTemplate(name: name, src: string)
+        self.state = .raw
+    }
+    
+    /// Init with `LeafRawTemplate`
+    init(name: String, template: LeafRawTemplate) {
+        self.name = name
+        self.src = template
         self.state = .raw
     }
     
