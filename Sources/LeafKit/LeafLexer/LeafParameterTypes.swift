@@ -11,8 +11,8 @@ public enum Parameter: Equatable, CustomStringConvertible {
     case stringLiteral(String)
     case constant(Constant)
     case variable(name: String)
-    case keyword(Keyword)
-    case `operator`(Operator)
+    case keyword(LeafKeyword)
+    case `operator`(LeafOperator)
     case tag(name: String)
     
     /// Returns `parameterCase(parameterValue)`
@@ -50,30 +50,111 @@ public enum Parameter: Equatable, CustomStringConvertible {
 /// `Keyword`s are identifiers which take precedence over syntax/variable names - may potentially have
 /// representable state themselves as value when used with operators (eg, `true`, `false` when
 /// used with logical operators, `nil` when used with equality operators, and so forth)
-public enum Keyword: String, Equatable {
-    case `in`, `true`, `false`, `self`, `nil`, `yes`, `no`
+public enum LeafKeyword: String, Equatable {
+    // MARK: Public - Cases
+    
+    //               Eval -> Bool / Other
+    //            -----------------------
+    case `in`,    //
+         `true`,  //   X       T
+         `false`, //   X       F
+         `self`,  //   X             X
+         `nil`,   //   X       F     X
+         `yes`,   //   X       T
+         `no`     //   X       F
+
+    // MARK: Internal Only
+    
+    // State booleans
+    internal var isEvaluable: Bool { self != .in }
+    internal var isBooleanValued: Bool { [.true, .false, .nil, .yes, .no].contains(self) }
+    // Value or value-indicating returns
+    internal var `nil`: Bool { self == .nil }
+    internal var identity: Bool { self == .`self` }
+    internal var bool: Bool? {
+        guard isBooleanValued else { return nil }
+        return [.true, .yes].contains(self)
+    }
 }
 
+// MARK: - Operator Symbols
+
 /// Mathematical and Logical operators
-public enum Operator: String, Equatable, CustomStringConvertible {
-    case not = "!"
-    case equals = "=="
-    case notEquals = "!="
-    case greaterThan = ">"
-    case greaterThanOrEquals = ">="
-    case lessThan = "<"
-    case lessThanOrEquals = "<="
-
-    case plus = "+"
-    case minus = "-"
-    case divide = "/"
-    case multiply = "*"
-
-    case and = "&&"
-    case or = "||"
+public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterable {
+    // MARK: Public - Cases
+    
+    // Operator types:              Logic      Exist.       UnPre        Scope
+    //                                |   Math    |   Infix   |   UnPost   |
+    //   Logical Tests          --------------------------------------------
+    case not = "!"              //    X                       X
+    case equal = "=="           //    X                 X
+    case unequal = "!="         //    X                 X
+    case greater = ">"          //    X                 X
+    case greaterOrEqual = ">="  //    X                 X
+    case lesser = "<"           //    X                 X
+    case lesserOrEqual = "<="   //    X                 X
+    case and = "&&"             //    X                 X
+    case or = "||"              //    X                 X
+    //   Mathematical Calcs     // -----------------------------------------
+    case plus = "+"             //          X           X
+    case minus = "-"            //          X     X     X     X
+    case divide = "/"           //          X           X
+    case multiply = "*"         //          X           X
+    case modulo = "%"           //          X           X
+    //   Assignment/Existential //
+    case assignment = "="       //                X     X
+    case nilCoalesce = "??"     //                X     X
+    case evaluate = "`"         //                X           X
+    //   Scoping
+    case scopeRoot = "$"        //                            X           X
+    case scopeMember = "."      //                      X                 X
+    case subOpen = "["          //                      X                 X
+    case subClose = "]"         //                                  X     X
     
     /// Raw string value of the operator - eg `!=`
     public var description: String { return rawValue }
+    
+    // MARK: Internal Only
+    
+    // State booleans
+    internal var logical: Bool { Self.states["logical"]!.contains(self) }
+    internal var mathematical: Bool { Self.states["mathematical"]!.contains(self) }
+    internal var existential: Bool { Self.states["existential"]!.contains(self) }
+    internal var scoping: Bool { Self.states["scoping"]!.contains(self) }
+    
+    internal var unaryPrefix: Bool { Self.states["unaryPrefix"]!.contains(self) }
+    internal var unaryPostfix: Bool { Self.states["unaryPostfix"]!.contains(self) }
+    internal var infix: Bool { Self.states["unaryPostfix"]!.contains(self) }
+    
+    internal var available: Bool { !Self.states["unavailable"]!.contains(self) }
+    
+    internal static let precedenceMap: [(check: ((LeafOperator) -> Bool), infixed: Bool)] = [
+        (check: { $0 == .not }, infixed: false), // unaryNot
+        (check: { $0 == .multiply || $0 == .divide }, infixed: true), // Mult/Div
+        (check: { $0 == .plus || $0 == .minus }, infixed: true), // Plus/Minus
+        (check: { $0 == .greater || $0 == .greaterOrEqual }, infixed: true), // >, >=
+        (check: { $0 == .lesser || $0 == .lesserOrEqual }, infixed: true), // <, <=
+        (check: { $0 == .equal || $0 == .unequal }, infixed: true), // !, !=
+        (check: { $0 == .and || $0 == .or }, infixed: true), // &&, ||
+    ]
+    
+    // MARK: Private Only
+    
+    private static let states: [String: Set<LeafOperator>] = [
+        "logical"       : [not, equal, unequal, greater, greaterOrEqual,
+                           lesser, lesserOrEqual, and, or],
+        "mathematical"  : [plus, minus, divide, multiply, modulo],
+        "existential"   : [assignment, nilCoalesce, minus, evaluate],
+        "scoping"       : [scopeRoot, scopeMember, subOpen, subClose],
+        "unaryPrefix"   : [not, minus, evaluate, scopeRoot],
+        "unaryPostfix"  : [subClose],
+        "infix"         : [equal, unequal, greater, greaterOrEqual, lesser,
+                           lesserOrEqual, and, or, plus, minus, divide,
+                           multiply, modulo, assignment, nilCoalesce,
+                           scopeMember, subOpen],
+        "unavailable"   : [modulo, assignment, nilCoalesce, evaluate, scopeRoot,
+                           scopeMember, subOpen, subClose]
+    ]
 }
 
 /// An integer or double constant value parameter (eg `1_000`, `-42.0`)
@@ -91,52 +172,4 @@ public enum Constant: CustomStringConvertible, Equatable {
             case .double(let d): return d.description
         }
     }
-}
-
-// MARK: - Internal Helper Extensions
-
-internal extension Keyword {
-    /// Whether a `Keyword`  can be interpreted as a Boolean values
-    var isBooleanValued: Bool {
-        switch self {
-            case .true,
-                 .false,
-                 .yes,
-                 .no: return true
-            default:  return false
-        }
-    }
-    
-    /// For `Keyword`s which can be interpreted as Boolean values, return that value or nil
-    var booleanValue: Bool? {
-        switch self {
-            case .true, .yes: return true
-            case .false, .no: return false
-            default:          return nil
-        }
-    }
-}
-
-internal extension Operator {
-    /// Whether an operator is a logical operator (ie, takes `Bool` values)
-    var isBoolean: Bool {
-        switch self {
-            case .not,
-                 .equals,
-                 .notEquals,
-                 .greaterThan,
-                 .greaterThanOrEquals,
-                 .lessThan,
-                 .lessThanOrEquals,
-                 .and,
-                 .or   : return true
-            default    : return false
-        }
-    }
-    
-    /// Whether an operator is a binary operator (ie, takes both LHS and RHS arguments)
-    var isBinary: Bool { self == .not ? false : true }
-    
-    /// Whether an operator is a unary prefix operator (ie, takes only a RHS argument)
-    var isUnaryPrefix: Bool { self == .not ? true : false }
 }

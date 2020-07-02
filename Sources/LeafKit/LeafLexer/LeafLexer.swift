@@ -195,9 +195,12 @@ internal struct LeafLexer {
         // Test for Operator first - this will only handle max two character operators, not ideal
         // Can't switch on this, MUST happen before trying to read tags
         if current.isValidOperator {
-            var op = Operator(rawValue: String(current) + String(src.peek()!))
-            if op == nil { op = Operator(rawValue: String(current)) } else { src.pop() }
-            if op != nil { return .parameter(.operator(op!)) }
+            // Try to get a valid 2char Op
+            var op = LeafOperator(rawValue: String(current) + String(src.peek()!))
+            if op != nil, !op!.available { throw LeafError(.unknownError("\(op!) is not yet supported as an operator")) }
+            if op == nil { op = LeafOperator(rawValue: String(current)) } else { src.pop() }
+            if op != nil, !op!.available { throw LeafError(.unknownError("\(op!) is not yet supported as an operator")) }
+            return .parameter(.operator(op!))
         }
 
         // Test for numerics next. This is not very intelligent but will read base2/8/10/16
@@ -258,7 +261,7 @@ internal struct LeafLexer {
         let name = String(current) + (src.readWhile { $0.isValidInParameter && !$0.isValidOperator })
 
         // If it's a keyword, return that
-        if let keyword = Keyword(rawValue: name) { return .parameter(.keyword(keyword)) }
+        if let keyword = LeafKeyword(rawValue: name) { return .parameter(.keyword(keyword)) }
         // Assume anything that matches .isValidInTagName is a tag
         // Parse can decay to a variable if necessary - checking for a paren
         // is over-aggressive because a custom tag may not take parameters

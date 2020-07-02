@@ -170,8 +170,9 @@ final class PrintTests: XCTestCase {
         let expectation = "variable(foo)"
         
         let v = try parse(template).first!
-        guard case .variable(let test) = v else { throw "nope" }
-        let output = test.print(depth: 0)
+        guard case .expression(let e) = v,
+              let test = e.first else { throw "nope" }
+        let output = test.description
         XCTAssertEqual(output, expectation)
     }
 
@@ -184,7 +185,7 @@ final class PrintTests: XCTestCase {
         let expectation = """
         for(name in names):
           raw("\\n    hello, ")
-          variable(name)
+          expression[variable(name)]
           raw(".\\n")
         """
         
