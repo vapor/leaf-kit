@@ -38,29 +38,22 @@ internal struct LeafSerializer {
 
     private mutating func serialize(_ syntax: Syntax) throws {
         switch syntax {
-            case .raw(var byteBuffer):
-                self.buffer.writeBuffer(&byteBuffer)
-            case .variable(let v):
-                self.serialize(v)
-            case .custom(let custom):
-                try self.serialize(custom)
-            case .conditional(let c):
-                try self.serialize(c)
-            case .loop(let loop):
-                try self.serialize(loop)
-            case .expression(let exp):
-                try serialize(expression: exp)
+            case .raw(var byteBuffer): buffer.writeBuffer(&byteBuffer)
+            case .custom(let custom):  try serialize(custom)
+            case .conditional(let c):  try serialize(c)
+            case .loop(let loop):      try serialize(loop)
+            case .expression(let exp): try serialize(expression: exp)
             case .import, .extend, .export:
-                throw "syntax \(syntax) should have been resolved BEFORE serialization"
+                throw "\(syntax) should have been resolved BEFORE serialization"
         }
     }
 
     private mutating func serialize(expression: [ParameterDeclaration]) throws {
         let resolved = try self.resolve(parameters: [.expression(expression)])
-        guard resolved.count == 1 else {
+        guard resolved.count == 1, let leafData = resolved.first else {
             throw "expressions should resolve to single value"
         }
-        serialize(resolved[0])
+        try? leafData.serialize(buffer: &self.buffer)
     }
 
     private mutating func serialize(body: [Syntax]) throws {
@@ -70,11 +63,10 @@ internal struct LeafSerializer {
     private mutating func serialize(_ conditional: Syntax.Conditional) throws {
         evaluate:
         for block in conditional.chain {
-            let evaluated = try self.resolveAtomic(parameters: block.condition.expression())
-            if evaluated.bool ?? !evaluated.isNull {
-                try serialize(body: block.body)
-                break evaluate
-            }
+            let evaluated = try resolveAtomic(block.condition.expression())
+            guard (evaluated.bool ?? false) || (!evaluated.isNil && evaluated.celf != .bool) else { continue }
+            try serialize(body: block.body)
+            break evaluate
         }
     }
 
@@ -85,26 +77,11 @@ internal struct LeafSerializer {
             body: tag.body,
             userInfo: self.userInfo
         )
-        let rendered = try self.tags[tag.name]?.render(sub)
-            ?? .init(.null)
-        serialize(rendered)
+        let leafData = try self.tags[tag.name]?.render(sub) ?? LeafData.trueNil
+        try? leafData.serialize(buffer: &self.buffer)
     }
 
-    private mutating func serialize(_ variable: Syntax.Variable) {
-        let data: LeafData
-        switch variable.path.count {
-            case 0: data = .null
-            case 1: data = self.data[variable.path[0]] ?? .null
-            default:
-                var current = self.data[variable.path[0]] ?? .null
-                var iterator = variable.path.dropFirst().makeIterator()
-                while let path = iterator.next() {
-                    current = current.dictionary?[path] ?? .null
-                }
-                data = current
-        }
-        self.serialize(data)
-    }
+ 
 
     private mutating func serialize(_ loop: Syntax.Loop) throws {
         let finalData: [String: LeafData]
@@ -149,16 +126,6 @@ internal struct LeafSerializer {
         }
     }
 
-    private mutating func serialize(_ data: LeafData) {
-        if let raw = data.data {
-            self.buffer.writeBytes(raw)
-        } else if let raw = data.string {
-            self.buffer.writeString(raw)
-        } else {
-            return
-        }
-    }
-
     private func resolve(parameters: [ParameterDeclaration]) throws -> [LeafData] {
         let resolver = ParameterResolver(
             params: parameters,
@@ -170,7 +137,7 @@ internal struct LeafSerializer {
     }
     
     // Directive resolver for a [ParameterDeclaration] where only one parameter is allowed that must resolve to a single value
-    private func resolveAtomic(parameters: [ParameterDeclaration]) throws -> LeafData {
+    private func resolveAtomic(_ parameters: [ParameterDeclaration]) throws -> LeafData {
         guard parameters.count == 1 else {
             if parameters.isEmpty {
                 throw LeafError(.unknownError("Parameter statement can't be empty"))
@@ -178,7 +145,7 @@ internal struct LeafSerializer {
                 throw LeafError(.unknownError("Parameter statement must hold a single value"))
             }
         }
-        return try resolve(parameters: parameters).first ?? .null
+        return try resolve(parameters: parameters).first ?? .trueNil
     }
 
     private func peek() -> Syntax? {

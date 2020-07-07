@@ -300,8 +300,8 @@ internal struct LeafParser {
                     switch params[0] {
                         case .parameter(let p):
                             switch p {
-                                case .variable(name: let n):
-                                    return .variable(.init(path: n))
+                                case .variable(_):
+                                    return .expression([params[0]])
                                 case .constant(let c):
                                     var buffer = ByteBufferAllocator().buffer(capacity: 0)
                                     buffer.writeString(c.description)

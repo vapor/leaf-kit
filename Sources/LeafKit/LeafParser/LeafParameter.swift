@@ -85,24 +85,9 @@ internal extension Array where Element == ParameterDeclaration {
         // since there are no unary postfix options currently
         guard last?.operator() == nil else { return false }
 
-        // Priority:
-        // Unary: Not
-        // Binary Math: Mult/Div -> Plus/Minus
-        // Binary Boolean: >/>=/<=/< -> !=/== -> &&/||
-        let precedenceMap: [(check: ((Operator) -> Bool) , binary: Bool)]
-        precedenceMap = [
-            (check: { $0 == .not } , binary: false), // unaryNot
-            (check: { $0 == .multiply || $0 == .divide } , binary: true), // Mult/Div
-            (check: { $0 == .plus || $0 == .minus } , binary: true), // Plus/Minus
-            (check: { $0 == .greaterThan || $0 == .greaterThanOrEquals } , binary: true), // >, >=
-            (check: { $0 == .lessThan || $0 == .lessThanOrEquals } , binary: true), // <, <=
-            (check: { $0 == .equals || $0 == .notEquals } , binary: true), // !, !=
-            (check: { $0 == .and || $0 == .or } , binary: true), // &&, ||
-        ]
-
-        groupOps: for map in precedenceMap {
+        groupOps: for map in LeafOperator.precedenceMap {
             while let i = findLastOpWhere(map.check) {
-                if map.binary { wrapBinaryOp(i)}
+                if map.infixed { wrapBinaryOp(i) }
                 else { wrapUnaryNot(i) }
                 // Some expression could not be wrapped - probably malformed syntax
                 if ops == operandCount() { return false } else { ops -= 1 }
@@ -127,7 +112,7 @@ internal extension Array where Element == ParameterDeclaration {
     fileprivate mutating func wrapUnaryNot(_ i: Int) {
         let rhs = remove(at: i + 1)
         if case .parameter(let p) = rhs, case .keyword(let key) = p, key.isBooleanValued {
-            self[i] = .parameter(.keyword(Keyword(rawValue: String(!key.booleanValue!))!))
+            self[i] = .parameter(.keyword(LeafKeyword(rawValue: String(!key.bool!))!))
         } else {
             self[i] = .expression([self[i],rhs])
         }
@@ -149,15 +134,15 @@ internal extension Array where Element == ParameterDeclaration {
 
     // Helper functions
     func operandCount() -> Int { return reduceOpWhere { _ in true } }
-    func unaryOps() -> Int { return reduceOpWhere { $0.isUnaryPrefix } }
-    func binaryOps() -> Int { return reduceOpWhere { $0.isBinary } }
-    func reduceOpWhere(_ check: (Operator) -> Bool) -> Int {
+    func unaryOps() -> Int { return reduceOpWhere { $0.unaryPrefix } }
+    func binaryOps() -> Int { return reduceOpWhere { $0.infix } }
+    func reduceOpWhere(_ check: (LeafOperator) -> Bool) -> Int {
         return self.reduce(0, { count, pD  in
             return count + (pD.operator().map { check($0) ? 1 : 0 } ?? 0)
         })
     }
 
-    func findLastOpWhere(_ check: (Operator) -> Bool) -> Int? {
+    func findLastOpWhere(_ check: (LeafOperator) -> Bool) -> Int? {
         for (index, pD) in self.enumerated().reversed() {
             if let op = pD.operator(), check(op) { return index }
         }

@@ -60,7 +60,7 @@ final class ParserTests: XCTestCase {
             raw("\\n    abc\\n    ")
             for(name in names):
               raw("\\n        hi, ")
-              variable(name)
+              expression[variable(name)]
               raw("\\n    ")
             raw("\\n    def\\n")
           else:
@@ -140,7 +140,7 @@ final class ParserTests: XCTestCase {
         raw("<h1>")
         import("header")
         raw("</h1>\\n<title>Welcome</title>\\n\\n        Hello, ")
-        variable(name)
+        expression[variable(name)]
         raw("!\\n    ")
         """
         XCTAssertEqual(output, expectation)
@@ -160,7 +160,7 @@ final class ParserTests: XCTestCase {
         extend("base"):
           export("body"):
             raw("\\n        Hello, ")
-            variable(name)
+            expression[variable(name)]
             raw("!\\n    ")
           export("title"):
             expression[stringLiteral("Welcome")]
