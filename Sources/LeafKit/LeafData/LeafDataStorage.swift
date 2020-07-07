@@ -32,6 +32,11 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
     internal var resolved: Bool { true }
     internal var invariant: Bool {
         switch self {
+            case .bool(_),
+                 .data(_),
+                 .double(_),
+                 .int(_),
+                 .string(_): return true
             case .lazy(_, _, let invariant): return invariant
             case .optional(let o, _): return o?.invariant ?? true
             case .array(let a):
@@ -40,7 +45,6 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
             case .dictionary(let d):
                 let stored = d.values.map { $0.storage }.filter { $0.isLazy }
                 return stored.allSatisfy { $0.invariant }
-            default: return true
         }
     }
     internal var symbols: Set<String> { .init() }
@@ -65,10 +69,18 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
         }
     }
     
+    internal var isNumeric: Bool { Self.numerics.contains(concreteType!) }
+    internal static let comparable: Set<LeafData.NaturalType> = [
+        .double, .int, .string
+    ]
+    
+    internal static let numerics: Set<LeafData.NaturalType> = [
+        .double, .int
+    ]
     // MARK: Functions
     
     /// Will resolve anything but variant Lazy data (99% of everything), and unwrap optionals
-    internal func softResolve() -> LeafDataStorage {
+    internal func resolve() -> LeafDataStorage {
         guard invariant else { return self }
         switch self {
             case .lazy(let f, _, _): return f().storage
@@ -77,24 +89,18 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
                 return self
             case .array(let a):
                 let resolved: [LeafData] = a.map {
-                    LeafData($0.storage.softResolve())
+                    LeafData($0.storage.resolve())
                 }
                 return .array(resolved)
             case .dictionary(let d):
                 let resolved: [String: LeafData] = d.mapValues {
-                    LeafData($0.storage.softResolve())
+                    LeafData($0.storage.resolve())
                 }
                 return .dictionary(resolved)
             default: return self
         }
     }
 
-    /// Will resolve anything but variant Lazy data (99% of everything)
-    internal func hardResolve() throws -> LeafData {
-        let resolveStored: LeafDataStorage = self.softResolve()
-        return LeafData(resolveStored)
-    }
-    
     /// Will serialize anything to a String except Lazy -> Lazy
     internal func serialize() throws -> String? {
         let c = LeafConfiguration.self
@@ -119,7 +125,10 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
                 return c.dictFormatter(result)
             case .lazy(let f, _, _)  :
                 guard let result = f() as LeafData?,
-                      !result.storage.isLazy else { throw "Lazy can't return Lazy" }
+                      !result.storage.isLazy else {
+                    // Silently fail lazy -> lazy... a better option would be nice
+                    return c.nilFormatter()
+                }
                 return try result.storage.serialize() ?? c.nilFormatter()
         }
     }
@@ -148,7 +157,7 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
     /// Strict equality comparision, with .nil/.void being equal - will fail on Lazy data that is variant
     internal static func == (lhs: LeafDataStorage, rhs: LeafDataStorage) -> Bool {
         // If both sides are optional and nil, equal
-        guard !lhs.isNil || !rhs.isNil else                   { return true  }
+        guard !lhs.isNil || !rhs.isNil else                   { return true }
         // Both sides must be non-nil and same concrete type, or unequal
         guard !lhs.isNil && !rhs.isNil,
               lhs.concreteType == rhs.concreteType else       { return false }
@@ -183,19 +192,21 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
     }
     
     // MARK: - CustomStringConvertible
-    var description: String {
+    internal var description: String {
         switch self {
-            case .array(let a)       : return ".array(\(a.count))"
-            case .bool(let b)        : return ".bool(\(b))"
-            case .data(let d)        : return ".data(\(d.count))"
-            case .dictionary(let d)  : return ".dictionary(\(d.count))"
-            case .double(let d)      : return ".double(\(d))"
-            case .int(let i)         : return ".int(\(i))"
-            case .lazy(_, let r, _)  : return ".lazy(() -> .\(r)()?"
-            case .optional(_, let t) : return ".\(t)()?"
-            case .string(let s)      : return ".string(\(s))"
+            case .array(let a)       : return "array(\(a.count))"
+            case .bool(let b)        : return "bool(\(b))"
+            case .data(let d)        : return "data(\(d.count))"
+            case .dictionary(let d)  : return "dictionary(\(d.count))"
+            case .double(let d)      : return "double(\(d))"
+            case .int(let i)         : return "int(\(i))"
+            case .lazy(_, let r, _)  : return "lazy(() -> \(r)?)"
+            case .optional(_, let t) : return "\(t)()?"
+            case .string(let s)      : return "string(\(s))"
         }
     }
+    
+    internal var short: String { (try? self.serialize()) ?? "" }
     
     // MARK: - Other
     internal var isNil: Bool {
