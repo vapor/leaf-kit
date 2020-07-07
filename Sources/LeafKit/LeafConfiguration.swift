@@ -92,7 +92,7 @@ public struct LeafConfiguration {
     internal static var _voidFormatter: () -> String = { "" }
     internal static var _stringFormatter: (String) -> String = { $0 }
     internal static var _arrayFormatter: ([String]) -> String =
-        { "[\($0.map {" \"\($0)\" "}.joined(separator: ","))]" }
+        { "[\($0.map {"\"\($0)\""}.joined(separator: ", "))]" }
     internal static var _dictFormatter: ([String: String]) -> String =
         { "[\($0.map { "\($0): \"\($1)\"" }.joined(separator: ", "))]" }
     internal static var _dataFormatter: (Data) -> String? =
