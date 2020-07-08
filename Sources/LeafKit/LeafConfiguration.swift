@@ -22,14 +22,10 @@ public struct LeafConfiguration {
             Character.tagIndicator = tagIndicator
             Self.started = true
         }
-        self._rootDirectory = rootDirectory
+        self.rootDirectory = rootDirectory
     }
     
-    //
-    public var rootDirectory: String {
-        get { _rootDirectory }
-        set { if !Self.running { _rootDirectory = newValue } }
-    }
+    public internal(set) var rootDirectory: String
 
     public static var encoding: String.Encoding {
         get { _encoding }
@@ -82,8 +78,6 @@ public struct LeafConfiguration {
     }
     
     // MARK: - Internal/Private Only
-    internal var _rootDirectory: String
-    
     internal static var _encoding: String.Encoding = .utf8
     internal static var _boolFormatter: (Bool) -> String = { $0.description }
     internal static var _intFormatter: (Int) -> String = { $0.description }
@@ -99,7 +93,7 @@ public struct LeafConfiguration {
         { String(data: $0, encoding: Self._encoding) }
     
     
-    /// Convenience flag for write-once
+    /// Convenience flag for global write-once
     private static var started = false
     private static var running: Bool {
         assert(!Self.started, "LeafKit can only be configured prior to instantiating any LeafRenderer")
