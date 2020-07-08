@@ -102,7 +102,7 @@ public struct LeafConfiguration {
     /// Convenience flag for write-once
     private static var started = false
     private static var running: Bool {
-        assert(Self.started, "LeafKit can only be configured prior to instantiating any LeafRenderer")
+        assert(!Self.started, "LeafKit can only be configured prior to instantiating any LeafRenderer")
         return Self.started
     }
 }
