@@ -25,10 +25,9 @@ public struct LeafConfiguration {
         self._rootDirectory = rootDirectory
     }
     
-    //
     public var rootDirectory: String {
-        get { _rootDirectory }
-        set { if !Self.running { _rootDirectory = newValue } }
+        mutating get { accessed = true; return _rootDirectory }
+        set { _rootDirectory = newValue }
     }
 
     public static var encoding: String.Encoding {
@@ -82,7 +81,9 @@ public struct LeafConfiguration {
     }
     
     // MARK: - Internal/Private Only
-    internal var _rootDirectory: String
+    internal var _rootDirectory: String {
+        willSet { assert(!accessed, "Changing property after LeafConfiguration has been read has no effect") }
+    }
     
     internal static var _encoding: String.Encoding = .utf8
     internal static var _boolFormatter: (Bool) -> String = { $0.description }
@@ -99,10 +100,13 @@ public struct LeafConfiguration {
         { String(data: $0, encoding: Self._encoding) }
     
     
-    /// Convenience flag for write-once
+    /// Convenience flag for global write-once
     private static var started = false
     private static var running: Bool {
-        assert(Self.started, "LeafKit can only be configured prior to instantiating any LeafRenderer")
+        assert(!Self.started, "LeafKit can only be configured prior to instantiating any LeafRenderer")
         return Self.started
     }
+    
+    /// Convenience flag for local lock-after-access
+    private var accessed = false
 }
