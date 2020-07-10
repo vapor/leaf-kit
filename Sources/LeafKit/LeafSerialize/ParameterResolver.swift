@@ -22,7 +22,7 @@ public extension Dictionary where Key == String, Value == LeafData {
 }
 
 internal extension ParameterDeclaration {
-    func `operator`() -> Operator? {
+    func `operator`() -> LeafOperator? {
         guard case .parameter(let p) = self else { return nil }
         guard case .operator(let o) = p else { return nil }
         return o
@@ -70,7 +70,7 @@ internal struct ParameterResolver {
                     userInfo: self.userInfo
                 )
                 result = try self.tags[t.name]?.render(ctx)
-                    ?? .init(.null)
+                    ?? .trueNil
         }
         return .init(param: param, result: result)
     }
@@ -85,11 +85,11 @@ internal struct ParameterResolver {
             case .stringLiteral(let s):
                 return .init(.string(s))
             case .variable(let v):
-                return data[keyPath: v] ?? .init(.null)
+                return data[keyPath: v] ?? .trueNil
             case .keyword(let k):
                 switch k {
                     case .self: return .init(.dictionary(data))
-                    case .nil: return .init(.null)
+                    case .nil: return .trueNil
                     case .true, .yes: return .init(.bool(true))
                     case .false, .no: return .init(.bool(false))
                     default: throw "unexpected keyword"
@@ -137,55 +137,57 @@ internal struct ParameterResolver {
         }
     }
 
-    private func resolve(op: Operator, rhs: LeafData) throws -> LeafData {
+    private func resolve(op: LeafOperator, rhs: LeafData) throws -> LeafData {
         switch op {
             case .not:
-                let result = rhs.bool ?? !rhs.isNull
-                return .init(.bool(!result))
+                let result = rhs.bool ?? !rhs.isNil
+                return .bool(!result)
+            case .minus:
+                return try resolve(lhs: -1, op: .multiply, rhs: rhs)
             default:
                 throw "unexpected left hand operator not supported: \(op)"
         }
     }
 
-    private func resolve(lhs: LeafData, op: Operator, rhs: LeafData) throws -> LeafData {
+    private func resolve(lhs: LeafData, op: LeafOperator, rhs: LeafData) throws -> LeafData {
         switch op {
             case .not:
                 throw "single expression operator"
             case .and:
-                let lhs = lhs.bool ?? !lhs.isNull
-                let rhs = rhs.bool ?? !rhs.isNull
-                return .init(.bool(lhs && rhs))
+                let lhs = lhs.bool ?? !lhs.isNil
+                let rhs = rhs.bool ?? !rhs.isNil
+                return .bool(lhs && rhs)
             case .or:
-                let lhs = lhs.bool ?? !lhs.isNull
-                let rhs = rhs.bool ?? !rhs.isNull
-                return .init(.bool(lhs || rhs))
-            case .equals:
-                return .init(.bool(lhs == rhs))
-            case .notEquals:
-                return .init(.bool(lhs != rhs))
-            case .lessThan:
-                guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
+                let lhs = lhs.bool ?? !lhs.isNil
+                let rhs = rhs.bool ?? !rhs.isNil
+                return .bool(lhs || rhs)
+            case .equal:
+                return .bool(lhs == rhs)
+            case .unequal:
+                return .bool(lhs != rhs)
+            case .lesser:
+                guard let lhs = lhs.string, let rhs = rhs.string else { return LeafData.trueNil }
                 if let lhs = Double(lhs), let rhs = Double(rhs) {
-                    return .init(.bool(lhs < rhs))
+                    return .bool(lhs < rhs)
                 } else {
-                    return .init(.bool(lhs < rhs))
+                    return .bool(lhs < rhs)
                 }
-            case .lessThanOrEquals:
-                guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
+            case .lesserOrEqual:
+                guard let lhs = lhs.string, let rhs = rhs.string else { return LeafData.trueNil }
                 if let lhs = Double(lhs), let rhs = Double(rhs) {
-                    return .init(.bool(lhs <= rhs))
+                    return .bool(lhs <= rhs)
                 } else {
-                    return .init(.bool(lhs <= rhs))
+                    return .bool(lhs <= rhs)
                 }
-            case .greaterThan:
-                guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
+            case .greater:
+                guard let lhs = lhs.string, let rhs = rhs.string else { return LeafData.trueNil }
                 if let lhs = Double(lhs), let rhs = Double(rhs) {
-                    return .init(.bool(lhs > rhs))
+                    return .bool(lhs > rhs)
                 } else {
-                    return .init(.bool(lhs > rhs))
+                    return .bool(lhs > rhs)
                 }
-            case .greaterThanOrEquals:
-                guard let lhs = lhs.string, let rhs = rhs.string else { return .init(.null) }
+            case .greaterOrEqual:
+                guard let lhs = lhs.string, let rhs = rhs.string else { return LeafData.trueNil }
                 if let lhs = Double(lhs), let rhs = Double(rhs) {
                     return .init(.bool(lhs >= rhs))
                 } else {
@@ -199,6 +201,14 @@ internal struct ParameterResolver {
                 return try multiply(lhs: lhs, rhs: rhs)
             case .divide:
                 return try divide(lhs: lhs, rhs: rhs)
+            case .assignment: throw "Future feature"
+            case .nilCoalesce: throw "Future feature"
+            case .modulo: throw "Future feature"
+            case .evaluate: throw "Future feature"
+            case .scopeRoot: throw "Future feature"
+            case .scopeMember: throw "Future feature"
+            case .subOpen: throw "Future feature"
+            case .subClose: throw "Future feature"
         }
     }
 
@@ -220,12 +230,14 @@ internal struct ParameterResolver {
                     return .double(sum)
                 } else {
                     let rhs = rhs.int ?? 0
-                    return .int(i + rhs)
+                    let added = i.addingReportingOverflow(rhs)
+                    guard !added.overflow else { throw "Integer overflow" }
+                    return .int(added.partialValue)
                 }
             case .double(let d):
                 let rhs = rhs.double ?? 0
                 return .double(d + rhs)
-            case .lazy(let load):
+            case .lazy(let load, _, _):
                 let l = load()
                 return try plus(lhs: l, rhs: rhs)
             case .dictionary(let lhs):
@@ -234,8 +246,8 @@ internal struct ParameterResolver {
                     rhs[key] = val
                 }
                 return .init(.dictionary(rhs))
-            case .null:
-                throw "unable to concatenate `null` with `\(rhs)'"
+                
+            case .optional(_, _): throw "Optional unwrapping not possible yet"
             case .bool(let b):
                 throw "unable to concatenate bool `\(b)` with `\(rhs)', maybe you meant &&"
         }
@@ -243,6 +255,7 @@ internal struct ParameterResolver {
 
     private func minus(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
+            case .optional(_, _): throw "Optional unwrapping not possible yet"
             case .array(let arr):
                 let rhs = rhs.array ?? []
                 let new = arr.filter { !rhs.contains($0) }
@@ -254,21 +267,24 @@ internal struct ParameterResolver {
                     return .double(oppositeOfSum)
                 } else {
                     let rhs = rhs.int ?? 0
-                    return .int(i - rhs)
+                    let subtracted = i.subtractingReportingOverflow(rhs)
+                    guard !subtracted.overflow else { throw "Integer underflow" }
+                    return .int(subtracted.partialValue)
                 }
             case .double(let d):
                 let rhs = rhs.double ?? 0
                 return .double(d - rhs)
-            case .lazy(let load):
+            case .lazy(let load, _, _):
                 let l = load()
                 return try minus(lhs: l, rhs: rhs)
-            case .data, .string, .dictionary, .null, .bool:
+            case .data, .string, .dictionary, .bool:
                 throw "unable to subtract from \(lhs)"
         }
     }
 
     private func multiply(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
+            case .optional(_, _): throw "Optional unwrapping not possible yet"
             case .int(let i):
                 // if either is double, be double
                 if case .double(let d) = rhs.storage {
@@ -281,16 +297,17 @@ internal struct ParameterResolver {
             case .double(let d):
                 let rhs = rhs.double ?? 0
                 return .double(d * rhs)
-            case .lazy(let load):
+            case .lazy(let load, _, _):
                 let l = load()
                 return try multiply(lhs: l, rhs: rhs)
-            case .data, .array, .string, .dictionary, .null, .bool:
+            case .data, .array, .string, .dictionary, .bool:
                 throw "unable to multiply this type `\(lhs)`"
         }
     }
 
     private func divide(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
+            case .optional(_, _): throw "Optional unwrapping not possible yet"
             case .int(let i):
                 // if either is double, be double
                 if case .double(let d) = rhs.storage {
@@ -303,21 +320,21 @@ internal struct ParameterResolver {
             case .double(let d):
                 let rhs = rhs.double ?? 0
                 return .double(d / rhs)
-            case .lazy(let load):
+            case .lazy(let load, _, _):
                 let l = load()
                 return try divide(lhs: l, rhs: rhs)
-            case .data, .array, .string, .dictionary, .null, .bool:
+            case .data, .array, .string, .dictionary, .bool:
                 throw "unable to multiply this type `\(lhs)`"
         }
     }
 
-    private func resolve(lhs: LeafData, key: Keyword, rhs: LeafData) throws -> LeafData {
+    private func resolve(lhs: LeafData, key: LeafKeyword, rhs: LeafData) throws -> LeafData {
         switch key {
             case .in:
                 let arr = rhs.array ?? []
                 return .init(.bool(arr.contains(lhs)))
             default:
-                return .init(.null)
+                return .trueNil
         }
     }
 }

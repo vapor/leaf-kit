@@ -6,70 +6,72 @@ import Foundation
 /// Capable of being encoded as `LeafData`.
 public protocol LeafDataRepresentable {
     /// Converts `self` to `LeafData`, returning `nil` if the conversion is not possible.
-    var leafData: LeafData? { get }
+    var leafData: LeafData { get }
 }
 
 // MARK: Default Conformances
 
 extension String: LeafDataRepresentable {
-    /// See `LeafDataRepresentable`
-    public var leafData: LeafData? {
-        return .string(self)
-    }
+    public var leafData: LeafData { .string(self) }
 }
 
 extension FixedWidthInteger {
-    /// See `LeafDataRepresentable`
-    public var leafData: LeafData? {
-        guard self > Int.min && self < Int.max else {
-            return nil
-        }
-        return .int(Int(self))
+    public var leafData: LeafData {
+        guard let valid = Int(exactly: self) else { return .int(nil) }
+        return .int(Int(valid))
     }
 }
 
-extension Int8: LeafDataRepresentable { }
-extension Int16: LeafDataRepresentable { }
-extension Int32: LeafDataRepresentable { }
-extension Int64: LeafDataRepresentable { }
-extension Int: LeafDataRepresentable { }
-extension UInt8: LeafDataRepresentable { }
-extension UInt16: LeafDataRepresentable { }
-extension UInt32: LeafDataRepresentable { }
-extension UInt64: LeafDataRepresentable { }
-extension UInt: LeafDataRepresentable { }
+extension Int8: LeafDataRepresentable {}
+extension Int16: LeafDataRepresentable {}
+extension Int32: LeafDataRepresentable {}
+extension Int64: LeafDataRepresentable {}
+extension Int: LeafDataRepresentable {}
+extension UInt8: LeafDataRepresentable {}
+extension UInt16: LeafDataRepresentable {}
+extension UInt32: LeafDataRepresentable {}
+extension UInt64: LeafDataRepresentable {}
+extension UInt: LeafDataRepresentable {}
+
+extension BinaryFloatingPoint {
+    public var leafData: LeafData {
+        guard let valid = Double(exactly: self) else { return .double(nil) }
+        return .double(Double(valid))
+    }
+}
+
+extension Float: LeafDataRepresentable {}
+extension Double: LeafDataRepresentable {}
+extension Float80: LeafDataRepresentable {}
 
 extension Bool: LeafDataRepresentable {
-    /// See `LeafDataRepresentable`
-    public var leafData: LeafData? {
-        return .bool(self)
-    }
-}
-
-extension Double: LeafDataRepresentable {
-    /// See `LeafDataRepresentable`
-    public var leafData: LeafData? {
-        return .double(self)
-    }
-}
-
-extension Float: LeafDataRepresentable {
-    /// See `LeafDataRepresentable`
-    public var leafData: LeafData? {
-        return .double(Double(self))
-    }
+    public var leafData: LeafData { .bool(self) }
 }
 
 extension UUID: LeafDataRepresentable {
-    /// See `LeafDataRepresentable`
-    public var leafData: LeafData? {
-        return .string(description)
-    }
+    public var leafData: LeafData { .string(LeafConfiguration.stringFormatter(description)) }
 }
 
 extension Date: LeafDataRepresentable {
-    /// See `LeafDataRepresentable`
-    public var leafData: LeafData? {
-        return .double(timeIntervalSince1970)
-    }
+    public var leafData: LeafData { .double(timeIntervalSince1970) }
+}
+
+extension Array where Element == LeafData {
+    public var leafData: LeafData { .array(self.map { $0 }) }
+}
+
+extension Dictionary where Key == String, Value == LeafData {
+    public var leafData: LeafData { .dictionary(self.mapValues { $0 }) }
+}
+
+extension Set where Element: LeafDataRepresentable {
+    public var leafData: LeafData { .array(self.map { $0.leafData }) }
+}
+
+extension Array where Element: LeafDataRepresentable {
+    public var leafData: LeafData { .array(self.map { $0.leafData }) }
+}
+
+extension Dictionary where Key == String, Value: LeafDataRepresentable {
+    public var leafData: LeafData { .dictionary(self.mapValues { $0.leafData }) }
 }

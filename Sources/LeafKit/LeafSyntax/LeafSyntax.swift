@@ -1,19 +1,21 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
-// FIXME: - `Syntax` is overly monolithic and should *not* be public
-///
-
 public indirect enum Syntax {
+    // MARK: .raw - Makeable, Entirely Readable
     case raw(ByteBuffer)
-    case variable(Variable)
+    // MARK: `case variable(Variable)` removed
+    // MARK: .expression - Makeable, Entirely Readable
     case expression([ParameterDeclaration])
+    // MARK: .custom - Unmakeable, Semi-Readable
     case custom(CustomTagDeclaration)
 
+    // MARK: .conditional - Makeable, Entirely Readable
     case conditional(Conditional)
+    // MARK: .loop - Makeable, Semi-Readable
     case loop(Loop)
+    // MARK: .`import` - Makeable, Readable (Pointlessly)
     case `import`(Import)
+    // MARK: .extend - Makeable, Semi-Readable
     case extend(Extend)
+    // MARK: .export - Makeable, Semi-Readable
     case export(Export)
 }
 
@@ -269,7 +271,7 @@ extension Syntax {
                             results.removeLast()
                             results.append(raw)
                         }
-                    }                    
+                    }
                 }
             }
             
@@ -511,28 +513,6 @@ extension Syntax {
         }
     }
 
-    public struct Variable {
-        public let path: [String]
-
-        public init(path: String) {
-            self.path = path.split(separator: ".").map(String.init)
-        }
-
-        public init(_ params: [ParameterDeclaration]) throws {
-            guard params.count == 1 else { throw "only single parameter variable supported currently" }
-            guard case .parameter(let p) = params[0] else { throw "expected single parameter, got: \(params)" }
-            switch p {
-                case .variable(let n):
-                    self.init(path: n)
-                default: throw "todo: implement constant and literal? maybe process earlier as not variable, but raw.. \(p)"
-            }
-        }
-
-        func print(depth: Int) -> String {
-            return indent(depth) + "variable(" + path.joined(separator: ".") + ")"
-        }
-    }
-
     public struct CustomTagDeclaration: BodiedSyntax {
         public let name: String
         public let params: [ParameterDeclaration]
@@ -586,7 +566,7 @@ extension Syntax: CustomStringConvertible {
     func print(depth: Int) -> String {
         switch self {
             case .expression(let exp): return indent(depth) + "expression\(exp.description)"
-            case .variable(let v):     return v.print(depth: depth)
+ //           case .variable(let v):     return v.print(depth: depth)
             case .custom(let custom):  return custom.print(depth: depth)
             case .conditional(let c):  return c.print(depth: depth)
             case .loop(let loop):      return loop.print(depth: depth)

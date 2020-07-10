@@ -7,9 +7,8 @@
 extension Character {
     // MARK: - Leaf-Kit specific static identities (Public)
     
-    // FIXME: Make .tagIndicatore write-once
     /// Global setting of `tagIndicator` for Leaf-Kit - by default, `#`
-    public static var tagIndicator: Character = .octothorpe
+    public internal(set) static var tagIndicator: Character = .octothorpe
     
     // MARK: - LeafToken specific identities (Internal)
     

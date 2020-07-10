@@ -1,34 +1,4 @@
 // MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
-/// General configuration of Leaf
-/// - Sets the default View directory where templates will be looked for
-/// - Guards setting the global tagIndicator (default `#`).
-public struct LeafConfiguration {
-    public var rootDirectory: String
-    
-    /// Initialize Leaf with the default tagIndicator `#`
-    /// - Parameter rootDirectory: Default directory where templates will be found
-    public init(rootDirectory: String) {
-        self.init(rootDirectory: rootDirectory, tagIndicator: .octothorpe)
-    }
-    
-    /// Initialize Leaf
-    /// - Parameter rootDirectory: Default directory where templates will be found
-    /// - Parameter tagIndicator: Unique tagIndicator
-    public init(rootDirectory: String, tagIndicator: Character) {
-        if !LeafConfiguration.tagIndicatorIsSet {
-            Character.tagIndicator = tagIndicator
-            LeafConfiguration.tagIndicatorIsSet = true
-        }
-        self.rootDirectory = rootDirectory
-    }
-    
-    // MARK: - Internal/Private Only
-    
-    /// Convenience flag for write-once
-    fileprivate static var tagIndicatorIsSet = false
-}
 
 // MARK: - `LeafRenderer` Summary
 
