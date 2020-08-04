@@ -4,8 +4,7 @@ import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
 
-final class LeafErrorTests: XCTestCase {
-
+final class LeafErrorTests: LeafTestClass {
     /// Verify that cyclical references via #extend will throw `LeafError.cyclicalReference`
     func testCyclicalError() {
         var test = TestFiles()
@@ -22,12 +21,10 @@ final class LeafErrorTests: XCTestCase {
                     XCTAssertEqual([name: cycle], ["a": ["a","b","c","a"]])
                 default: XCTFail("Wrong error: \(error.localizedDescription)")
             }
-        } catch {
-            XCTFail("Wrong error: \(error.localizedDescription)")
-        }
+        } catch { XCTFail("Wrong error: \(error.localizedDescription)") }
     }
     
-    /// Verify taht referecing a non-existent template will throw `LeafError.noTemplateExists`
+    /// Verify that referecing a non-existent template will throw `LeafError.noTemplateExists`
     func testDependencyError() {
         var test = TestFiles()
         test.files["/a.leaf"] = "#extend(\"b\")"
@@ -38,11 +35,9 @@ final class LeafErrorTests: XCTestCase {
             XCTFail("Should have thrown LeafError.noTemplateExists")
         } catch let error as LeafError {
             switch error.reason {
-                case .noTemplateExists(let name): XCTAssertEqual(name,"c")
+                case .noTemplateExists(let name): XCTAssertEqual(name, "c")
                 default: XCTFail("Wrong error: \(error.localizedDescription)")
             }
-        } catch {
-            XCTFail("Wrong error: \(error.localizedDescription)")
-        }
+        } catch { XCTFail("Wrong error: \(error.localizedDescription)") }
     }
 }

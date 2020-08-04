@@ -4,6 +4,15 @@ import NIOConcurrencyHelpers
 
 /// Assorted multi-purpose helper pieces for LeafKit tests
 
+/// Inherit from `LeafTestClass` rather than XCTestCase to avoid "Already running" assertions from other tests
+internal class LeafTestClass: XCTestCase {
+    override func setUp() {
+        LeafConfiguration.__reset()
+        LeafConfiguration.entities = .leaf4Core
+    }
+}
+
+
 // MARK: - Helper Functions
 
 /// Directly run a String "template" through `LeafLexer`
@@ -11,16 +20,16 @@ import NIOConcurrencyHelpers
 /// - Returns: A lexed array of LeafTokens
 internal func lex(_ str: String) throws -> [LeafToken] {
     var lexer = LeafLexer(name: "lex-test", template: str)
-    return try lexer.lex().dropWhitespace()
+    return try lexer.lex()
 }
 
 /// Directly run a String "template" through `LeafLexer` and `LeafParser`
 /// - Parameter str: Raw String holding Leaf template source data
 /// - Returns: A lexed and parsed array of Syntax
-internal func parse(_ str: String) throws -> [Syntax] {
+internal func parse(_ str: String) throws -> Leaf4AST {
     var lexer = LeafLexer(name: "alt-parse", template: str)
     let tokens = try! lexer.lex()
-    var parser = LeafParser(name: "alt-parse", tokens: tokens)
+    var parser = Leaf4Parser(name: "alt-parse", tokens: tokens)
     let syntax = try! parser.parse()
 
     return syntax
@@ -33,14 +42,15 @@ internal func parse(_ str: String) throws -> [Syntax] {
 internal func render(name: String = "test-render", _ template: String, _ context: [String: LeafData] = [:]) throws -> String {
     var lexer = LeafLexer(name: name, template: template)
     let tokens = try lexer.lex()
-    var parser = LeafParser(name: name, tokens: tokens)
+    var parser = Leaf4Parser(name: name, tokens: tokens)
     let ast = try parser.parse()
-    var serializer = LeafSerializer(
-        ast: ast,
-        context: context
-    )
-    let view = try serializer.serialize()
-    return view.getString(at: view.readerIndex, length: view.readableBytes) ?? ""
+    let buffer = ByteBufferAllocator().buffer(capacity: Int(ast.underestimatedSize))
+    var block = ByteBuffer.instantiate(data: buffer, encoding: LeafConfiguration.encoding)
+    var serializer = Leaf4Serializer(ast: ast, context: context)
+    switch serializer.serialize(buffer: &block) {
+        case .success(_)     : return block.contents
+        case .failure(let e) : throw e
+    }
 }
 
 // MARK: - Helper Structs and Classes
@@ -50,13 +60,14 @@ internal class TestRenderer {
     var r: LeafRenderer
     private let lock: Lock
     private var counter: Int = 0
+    private static var configured = false
     
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
             tags: [String : LeafTag] = defaultTags,
             cache: LeafCache = DefaultLeafCache(),
             sources: LeafSources = .singleSource(TestFiles()),
             eventLoop: EventLoop = EmbeddedEventLoop(),
-            userInfo: [AnyHashable : Any] = [:]) {
+            userInfo: [AnyHashable : Any] = [:]) {        
         self.r = .init(configuration: configuration,
                               tags: tags,
                               cache: cache,
@@ -75,13 +86,9 @@ internal class TestRenderer {
         }
     }
     
-    public var isDone: Bool {
-        return lock.withLock { counter == 0 } ? true : false
-    }
+    public var isDone: Bool { lock.withLock { counter == 0 } ? true : false }
     
-    func finishTask() {
-        lock.withLock { counter -= 1 }
-    }
+    func finishTask() { lock.withLock { counter -= 1 } }
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
@@ -115,28 +122,15 @@ internal struct TestFiles: LeafSource {
 // MARK: - Helper Extensions
 
 internal extension ByteBuffer {
-    var string: String {
-        String(decoding: self.readableBytesView, as: UTF8.self)
-    }
+    var string: String { String(decoding: readableBytesView, as: UTF8.self) }
 }
 
 internal extension Array where Element == LeafToken {
-    func dropWhitespace() -> Array<LeafToken> {
-        return self.filter { token in
-            guard case .whitespace = token else { return true }
-            return false
-        }
-    }
-    
-    var string: String {
-        return self.map { $0.description + "\n" } .reduce("", +)
-    }
+    var string: String { filter { $0 != .raw("\n") }.map { $0.description + "\n" } .reduce("", +) }
 }
 
 internal extension Array where Element == Syntax {
-    var string: String {
-        return self.map { $0.description } .joined(separator: "\n")
-    }
+    var string: String { map { $0.description } .joined(separator: "\n") }
 }
 
 // MARK: - Helper Variables
@@ -147,8 +141,7 @@ internal var templateFolder: String {
 }
 
 internal var projectTestFolder: String {
-    let folder = #file.split(separator: "/").dropLast().joined(separator: "/")
-    return "/" + folder + "/"
+    "/\(#file.split(separator: "/").dropLast().joined(separator: "/"))/"
 }
 
 // MARK: - Internal Tests
@@ -157,23 +150,18 @@ internal var projectTestFolder: String {
 final class PrintTests: XCTestCase {    
     func testRaw() throws {
         let template = "hello, raw text"
-        let expectation = "raw(\"hello, raw text\")"
+        let expectation = "0: raw(ByteBuffer: 15B))"
         
-        let v = try parse(template).first!
-        guard case .raw = v else { throw "nope" }
-        let output = v.print(depth: 0)
-        XCTAssertEqual(output, expectation)
+        let v = try parse(template)
+        XCTAssertEqual(v.terse, expectation)
     }
 
-    func testVariable() throws {
+    func testPassthrough() throws {
         let template = "#(foo)"
-        let expectation = "variable(foo)"
+        let expectation = "0: $:foo"
         
-        let v = try parse(template).first!
-        guard case .expression(let e) = v,
-              let test = e.first else { throw "nope" }
-        let output = test.description
-        XCTAssertEqual(output, expectation)
+        let v = try parse(template)
+        XCTAssertEqual(v.terse, expectation)
     }
 
     func testLoop() throws {
@@ -183,16 +171,15 @@ final class PrintTests: XCTestCase {
         #endfor
         """
         let expectation = """
-        for(name in names):
-          raw("\\n    hello, ")
-          expression[variable(name)]
-          raw(".\\n")
+        0: for($:names):
+        1: scope(table: 1)
+           0: raw(ByteBuffer: 12B))
+           1: $:name
+           2: raw(ByteBuffer: 2B))
         """
         
-        let v = try parse(template).first!
-        guard case .loop(let test) = v else { throw "nope" }
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
+        let v = try parse(template)
+        XCTAssertEqual(v.terse, expectation)
     }
 
     func testConditional() throws {
@@ -206,69 +193,63 @@ final class PrintTests: XCTestCase {
         #endif
         """
         let expectation = """
-        conditional:
-          if(variable(foo)):
-            raw("\\n    some stuff\\n")
-          elseif([bar == "bar"]):
-            raw("\\n    bar stuff\\n")
-          else:
-            raw("\\n    no stuff\\n")
+        0: if($:foo):
+        1: raw(ByteBuffer: 16B))
+        2: elseif([$:bar == string(bar)]):
+        3: raw(ByteBuffer: 15B))
+        4: else():
+        5: raw(ByteBuffer: 14B))
         """
         
-        let v = try parse(template).first!
-        guard case .conditional(let test) = v else { throw "nope" }
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
+        let v = try parse(template)
+        XCTAssertEqual(v.terse, expectation)
     }
 
     func testImport() throws {
-        let template = "#import(\"someimport\")"
-        let expectation = "import(\"someimport\")"
+        let template = "#import(someimport)"
+        let expectation = """
+        0: import($:someimport):
+        1: scope(undefined)
+        """
         
-        let v = try parse(template).first!
-        guard case .import(let test) = v else { throw "nope" }
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
+        let v = try parse(template)
+        XCTAssertEqual(v.terse, expectation)
     }
 
     func testExtendAndExport() throws {
         let template = """
-        #extend("base"):
-            #export("title","Welcome")
-            #export("body"):
-                hello there
-            #endexport
-        #endextend
+        #export(title, "Welcome")
+        #export(body):
+            hello there
+        #endexport
+        #extend("base")
         """
         let expectation = """
-        extend("base"):
-          export("body"):
-            raw("\\n        hello there\\n    ")
-          export("title"):
-            expression[stringLiteral("Welcome")]
+        0: export($:title, string(Welcome)):
+        1: string(Welcome)
+        3: export($:body):
+        4: raw(ByteBuffer: 17B))
+        6: extend(string(base)):
+        7: scope(undefined)
         """
         
-        let v = try parse(template).first!
-        guard case .extend(let test) = v else { throw "nope" }
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
+        let v = try parse(template)
+        XCTAssertEqual(v.terse, expectation)
     }
-
-    func testCustomTag() throws {
+    
+    // No longer relevant
+    func _testCustomTag() throws {
         let template = """
         #custom(tag, foo == bar):
             some body
         #endcustom
         """
-
-        let v = try parse(template).first!
-        guard case .custom(let test) = v else { throw "nope" }
-
         let expectation = """
         custom(variable(tag), [foo == bar]):
           raw("\\n    some body\\n")
         """
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
+        
+        let v = try parse(template)
+        XCTAssertEqual(v.terse, expectation)
     }
 }

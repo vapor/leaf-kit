@@ -8,10 +8,10 @@ public struct LeafContext {
     public let userInfo: [AnyHashable: Any]
 
     init(
-        parameters: [LeafData],
-        data: [String: LeafData],
-        body: [Syntax]?,
-        userInfo: [AnyHashable: Any]
+        _ parameters: [LeafData],
+        _ data: [String: LeafData],
+        _ body: [Syntax]?,
+        _ userInfo: [AnyHashable: Any]
     ) throws {
         self.parameters = parameters
         self.data = data
@@ -28,17 +28,12 @@ public struct LeafContext {
 
     /// Throws an error if this tag does not include a body.
     public func requireBody() throws -> [Syntax] {
-        guard let body = body else {
-            throw "Missing body"
-        }
-
+        guard let body = body else { throw "Missing body" }
         return body
     }
 
     /// Throws an error if this tag includes a body.
     public func requireNoBody() throws {
-        guard body == nil else {
-            throw "Extraneous body"
-        }
+        if body != nil { throw "Extraneous body" }
     }
 }

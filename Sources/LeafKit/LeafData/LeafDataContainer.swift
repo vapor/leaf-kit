@@ -3,7 +3,9 @@
 
 import Foundation
 
-internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
+/// `LeafDataContainer` provides the tangible storage for concrete Swift values, representations of
+/// collections, optional value wrappers, and lazy data generators.
+internal indirect enum LeafDataContainer: Equatable, SymbolPrintable {
     // MARK: - Cases
     
     // Static values
@@ -18,91 +20,69 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
     case array([LeafData])
 
     // Wrapped `Optional<LeafDataStorage>`
-    case optional(_ wrapped: LeafDataStorage?, _ type: LeafData.NaturalType)
+    case optional(_ wrapped: LeafDataContainer?, _ type: LeafDataType)
     
     // Lazy resolvable function
     // Must specify return tuple giving (returnType, invariance)
     case lazy(f: () -> (LeafData),
-              returns: LeafData.NaturalType,
+              returns: LeafDataType,
               invariant: Bool)
     
     // MARK: - LeafSymbol Conformance
     
     // MARK: Properties
     internal var resolved: Bool { true }
-    internal var invariant: Bool {
-        switch self {
-            case .bool(_),
-                 .data(_),
-                 .double(_),
-                 .int(_),
-                 .string(_): return true
-            case .lazy(_, _, let invariant): return invariant
-            case .optional(let o, _): return o?.invariant ?? true
-            case .array(let a):
-                let stored = a.map { $0.storage }.filter { $0.isLazy }
-                return stored.allSatisfy { $0.invariant }
-            case .dictionary(let d):
-                let stored = d.values.map { $0.storage }.filter { $0.isLazy }
-                return stored.allSatisfy { $0.invariant }
-        }
-    }
+    internal var invariant: Bool { !isLazy }
     internal var symbols: Set<String> { .init() }
     internal var isAtomic: Bool { true }
     internal var isExpression: Bool { false }
     internal var isAny: Bool { false }
     internal var isConcrete: Bool { true }
     /// Note: Will *always* return a value - can be force-unwrapped safely
-    internal var concreteType: LeafData.NaturalType? {
+    internal var concreteType: LeafDataType? {
         switch self {
             // Concrete Types
-            case .array(_)           : return .array
-            case .bool(_)            : return .bool
-            case .data(_)            : return .data
-            case .dictionary(_)      : return .dictionary
-            case .double(_)          : return .double
-            case .int(_)             : return .int
-            case .string(_)          : return .string
+            case .array              : return .array
+            case .bool               : return .bool
+            case .data               : return .data
+            case .dictionary         : return .dictionary
+            case .double             : return .double
+            case .int                : return .int
+            case .string             : return .string
             // Internal Wrapped Types
             case .lazy(_, let t, _),
                  .optional(_, let t) : return t
         }
     }
     
+    internal static let comparable: Set<LeafDataType> = [ .double, .int, .string ]
+    internal static let numerics: Set<LeafDataType> = [ .double, .int ]
     internal var isNumeric: Bool { Self.numerics.contains(concreteType!) }
-    internal static let comparable: Set<LeafData.NaturalType> = [
-        .double, .int, .string
-    ]
     
-    internal static let numerics: Set<LeafData.NaturalType> = [
-        .double, .int
-    ]
     // MARK: Functions
     
     /// Will resolve anything but variant Lazy data (99% of everything), and unwrap optionals
-    internal func resolve() -> LeafDataStorage {
+    internal func resolve() -> LeafDataContainer {
         guard invariant else { return self }
         switch self {
-            case .lazy(let f, _, _): return f().storage
-            case .optional(let o, _):
-                if let unwrapped = o { return unwrapped }
-                return self
-            case .array(let a):
+            case .lazy(let f, _, _)                 : return f().container
+            case .optional(.some(let o), _)         : return o
+            case .array(let a)                      :
                 let resolved: [LeafData] = a.map {
-                    LeafData($0.storage.resolve())
+                    LeafData($0.container.resolve())
                 }
                 return .array(resolved)
-            case .dictionary(let d):
+            case .dictionary(let d)                 :
                 let resolved: [String: LeafData] = d.mapValues {
-                    LeafData($0.storage.resolve())
+                    LeafData($0.container.resolve())
                 }
                 return .dictionary(resolved)
-            default: return self
+            default                                 : return self
         }
     }
-
+    
     /// Will serialize anything to a String except Lazy -> Lazy
-    internal func serialize() throws -> String? {
+    internal func serialize() -> String? {
         let c = LeafConfiguration.self
         switch self {
             // Atomic non-containers
@@ -115,47 +95,33 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
             // Wrapped
             case .optional(let o, _) :
                 guard let wrapped = o else { return c.nilFormatter() }
-                return try wrapped.serialize()
+                return wrapped.serialize()
             // Atomic containers
             case .array(let a)       :
-                let result = try a.map { try $0.storage.serialize() ?? c.nilFormatter() }
+                let result = a.map { $0.container.serialize() ?? c.nilFormatter() }
                 return c.arrayFormatter(result)
             case .dictionary(let d)  :
-                let result = try d.mapValues { try $0.storage.serialize() ?? c.nilFormatter()}
+                let result = d.mapValues { $0.container.serialize() ?? c.nilFormatter()}
                 return c.dictFormatter(result)
             case .lazy(let f, _, _)  :
-                guard let result = f() as LeafData?,
-                      !result.storage.isLazy else {
-                    // Silently fail lazy -> lazy... a better option would be nice
-                    return c.nilFormatter()
-                }
-                return try result.storage.serialize() ?? c.nilFormatter()
+                guard let result = f() as LeafData?, !result.container.isLazy else {
+                    return c.nilFormatter() } // Silently fail lazy -> lazy. a better option would be nice
+                return result.container.serialize() ?? c.nilFormatter()
         }
     }
     
     /// Final serialization to a shared buffer
     internal func serialize(buffer: inout ByteBuffer) throws {
-        let encoding = LeafConfiguration.encoding
-        var data: Data? = nil
-        switch self {
-            case .bool(_),
-                 .int(_),
-                 .double(_),
-                 .string(_),
-                 .lazy(_,_,_),
-                 .optional(_,_),
-                 .array(_),
-                 .dictionary(_) : data = try serialize()!.data(using: encoding)
-            case .data(let d)   : data = d
-        }
-        guard let validData = data else { throw "Serialization Error" }
-        buffer.writeBytes(validData)
+        if case .data(let d) = self { buffer.writeBytes(d); return }
+        guard let data = serialize()?.data(using: LeafConfiguration.encoding)
+            else { throw "Serialization Error" }
+        buffer.writeBytes(data)
     }
     
     // MARK: - Equatable Conformance
    
     /// Strict equality comparision, with .nil/.void being equal - will fail on Lazy data that is variant
-    internal static func == (lhs: LeafDataStorage, rhs: LeafDataStorage) -> Bool {
+    internal static func == (lhs: LeafDataContainer, rhs: LeafDataContainer) -> Bool {
         // If both sides are optional and nil, equal
         guard !lhs.isNil || !rhs.isNil else                   { return true }
         // Both sides must be non-nil and same concrete type, or unequal
@@ -172,15 +138,11 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
                 case (       .int(let a),        .int(let b)) : return a == b
                 case (    .double(let a),     .double(let b)) : return a == b
                 case (      .data(let a),       .data(let b)) : return a == b
-                // Both sides are optional, unwrap and compare
-                case (.optional(let l,_), .optional(let r,_)) :
-                        if let l = l, let r = r,
-                                  l == r { return true } else { return false }
-                // ... or unwrap just one side
-                case (.optional(let l,_),                  _) :
-                        if let l = l { return l == rhs } else { return false }
-                case (                 _, .optional(let r,_)) :
-                        if let r = r { return r == lhs } else { return false }
+                // Both/one side(s) are optional, unwrap and compare
+                case (.optional(.some(let l),_), .optional(.some(let r),_))
+                                                              : return l == r
+                case (.optional(.some(let l),_),           _) : return l == rhs
+                case (          _, .optional(.some(let r),_)) : return r == lhs
                 default                                       : return false
             }
         } else if case .lazy(let lhsF, let lhsR, let lhsI) = lhs,
@@ -192,7 +154,9 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
     }
     
     // MARK: - CustomStringConvertible
-    internal var description: String {
+    internal var description: String { short }
+    
+    internal var short: String {
         switch self {
             case .array(let a)       : return "array(\(a.count))"
             case .bool(let b)        : return "bool(\(b))"
@@ -206,8 +170,6 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
         }
     }
     
-    internal var short: String { (try? self.serialize()) ?? "" }
-    
     // MARK: - Other
     internal var isNil: Bool {
         switch self {
@@ -217,16 +179,16 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
     }
     
     internal var isLazy: Bool {
-        if case .lazy(_,_,_) = self { return true } else { return false }
+        if case .lazy = self { return true } else { return false }
     }
 
     /// Flat mapping behavior - will never re-wrap .optional
-    internal var wrap: LeafDataStorage {
-        if case .optional(_,_) = self { return self }
+    internal var wrap: LeafDataContainer {
+        if case .optional = self { return self }
         return .optional(self, concreteType!)
     }
     
-    internal var unwrap: LeafDataStorage? {
+    internal var unwrap: LeafDataContainer? {
         guard case .optional(let optional, _) = self else { return self }
         return optional
     }

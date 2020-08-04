@@ -5,25 +5,24 @@ import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
 
-final class GHLeafKitIssuesTest: XCTestCase {
-    
+final class GHLeafKitIssuesTest: LeafTestClass {    
     /// https://github.com/vapor/leaf-kit/issues/33
     func testGH33() {
         var test = TestFiles()
         test.files["/base.leaf"] = """
         <body>
             Directly extended snippet
-            #extend("partials/picture.svg"):#endextend
-            #import("body")
+            #extend("partials/picture.svg")
+            #import(body)
         </body>
         """
         test.files["/page.leaf"] = """
-        #extend("base"):
-            #export("body"):
-            Snippet added through export/import
-            #extend("partials/picture.svg"):#endextend
+        #export(body):
+        Snippet added through export/import
+        #extend("partials/picture.svg")
         #endexport
-        #endextend
+
+        #extend("base")
         """
         test.files["/partials/picture.svg"] = """
         <svg><path d="M0..."></svg>
@@ -39,8 +38,9 @@ final class GHLeafKitIssuesTest: XCTestCase {
 
         </body>
         """
-
-        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "page").wait()
+        
+        let renderer = TestRenderer(sources: .singleSource(test))
+        let page = try! renderer.render(path: "page").wait()
         XCTAssertEqual(page.string, expected)
     }
     
@@ -49,18 +49,15 @@ final class GHLeafKitIssuesTest: XCTestCase {
     func testGH50() {
         var test = TestFiles()
         test.files["/a.leaf"] = """
-        #extend("a/b"):
-        #export("body"):#for(challenge in challenges):
-        #extend("a/b-c-d"):#endextend#endfor
+        #export(body):
+        #for(challenge in challenges):
+        #extend("a/b-c-d")
+        #endfor
         #endexport
-        #endextend
+        #extend("a/b")
         """
-        test.files["/a/b.leaf"] = """
-        #import("body")
-        """
-        test.files["/a/b-c-d.leaf"] = """
-        HI
-        """
+        test.files["/a/b.leaf"] = "#import(body)"
+        test.files["/a/b-c-d.leaf"] = "HI"
 
         let expected = """
 
@@ -70,6 +67,8 @@ final class GHLeafKitIssuesTest: XCTestCase {
 
         """
 
+        
+        
         let page = try! TestRenderer(sources: .singleSource(test)).render(path: "a", context: ["challenges":["","",""]]).wait()
             XCTAssertEqual(page.string, expected)
     }

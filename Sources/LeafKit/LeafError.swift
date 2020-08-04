@@ -8,7 +8,7 @@
 ///
 /// #TODO
 /// - Implement a ParserError subtype
-public struct LeafError: Error {
+public struct LeafError: Error, CustomStringConvertible {
     /// Possible cases of a LeafError.Reason, with applicable stored values where useful for the type
     public enum Reason {
         // MARK: Errors related to loading raw templates
@@ -95,6 +95,8 @@ public struct LeafError: Error {
         }
     }
     
+    public var description: String { localizedDescription }
+    
     /// Create a `LeafError` - only `reason` typically used as source locations are auto-grabbed
     public init(
         _ reason: Reason,
@@ -114,7 +116,7 @@ public struct LeafError: Error {
 // MARK: - `LexerError` Summary (Wrapped by LeafError)
 
 /// `LexerError` reports errors during the stage.
-public struct LexerError: Error {
+public struct LexerError: Error, CustomStringConvertible {
     // MARK: - Public
     
     public enum Reason {
@@ -166,11 +168,24 @@ public struct LexerError: Error {
     }
     
     /// Convenience description of source file name, error reason, and location in file of error source
-    var localizedDescription: String {
-        return "\"\(name)\": \(reason) - \(line):\(column)"
-    }
+    var localizedDescription: String { "\"\(name)\": \(reason) - \(line):\(column)" }
+    public var description: String { localizedDescription }
 }
 
 // MARK: - `ParserError` Summary (Wrapped by LeafError)
 // FIXME: Implement a specific ParserError type
 /// `ParserError` reports errors during the stage.
+
+
+// MARK: - Internal Conveniences
+
+internal func __MajorBug(_ message: String,
+              file: String = #file,
+              function: String = #function,
+              line: UInt = #line) -> Never {
+    fatalError("""
+    LeafKit Major Bug: "\(message)"
+    Please File Issue Immediately at https://github.com/vapor/leaf-kit/issues
+      - Reference "fatalError in `\(file.split(separator: "/").last ?? "").\(function) line \(line)`"
+    """)
+}

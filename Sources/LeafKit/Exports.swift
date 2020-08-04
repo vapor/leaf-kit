@@ -3,92 +3,78 @@
 
 @_exported import NIO
 
-/// Various helper identities for convenience
-extension Character {
-    // MARK: - Leaf-Kit specific static identities (Public)
-    
+// MARK: - Static Conveniences
+
+public extension Set where Element == LeafDataType {
+    /// Any `LeafDataType` but `.void`
+    static var any: Self { Set(LeafDataType.allCases.filter {$0 != .void}) }
+    /// `LeafDataType` == `Collection`
+    static var collections: Self { [.array, .dictionary] }
+    /// `LeafDataType` == `SignedNumeric`
+    static var numerics: Self { [.int, .double] }
+}
+
+
+/// Public helper identities
+public extension Character {
     /// Global setting of `tagIndicator` for Leaf-Kit - by default, `#`
-    public internal(set) static var tagIndicator: Character = .octothorpe
-    
-    // MARK: - LeafToken specific identities (Internal)
-    
-    var isValidInTagName: Bool {
-        return self.isLowercaseLetter
-            || self.isUppercaseLetter
-    }
-    
-    var isValidInParameter: Bool {
-        return self.isValidInTagName
-            || self.isValidOperator
-            || self.isValidInNumeric
-    }
+    internal(set) static var tagIndicator: Character = .octothorpe
+}
 
-    var canStartNumeric: Bool {
-        return (.zero ... .nine) ~= self
+public extension String {
+    var isValidIdentifier: Bool {
+        !isEmpty && allSatisfy({$0.isValidInIdentifier})
+            && first?.canStartIdentifier ?? false
     }
+}
 
+
+/// Various internal helper identities for convenience
+internal extension Character {
+    // MARK: - LeafToken specific identities
+    
+    var canStartIdentifier: Bool { isLowercaseLetter || isUppercaseLetter || self == .underscore }
+    var isValidInIdentifier: Bool { self.canStartIdentifier || self.isDecimal }
+    
+    var isValidInParameter: Bool { isValidInIdentifier || isValidOperator || isValidInNumeric }
+
+    var isValidOperator: Bool { LeafOperator.validCharacters.contains(self) }
+    
+    var canStartNumeric: Bool { isDecimal }
     var isValidInNumeric: Bool {
-        return self.canStartNumeric
-            || self == .underscore
-            || self == .binaryNotation
-            || self == .octalNotation
-            || self == .hexNotation
-            || self.isHexadecimal
-            || self == .period
+        if isHexadecimal { return true }
+        return [.binaryNotation, .octalNotation, .hexNotation,
+                .underscore, .period].contains(self)
     }
+    
+    var isWhiteSpace: Bool { [.newLine, .space, .tab].contains(self) }
 
-    var isValidOperator: Bool {
-        switch self {
-            case .plus,
-                 .minus,
-                 .star,
-                 .forwardSlash,
-                 .equals,
-                 .exclamation,
-                 .lessThan,
-                 .greaterThan,
-                 .ampersand,
-                 .vertical: return true
-            default:        return false
-        }
-    }
     
-    // MARK: - General group-membership identities (Internal)
+    // MARK: - General group-membership identities
+    var isUppercaseLetter: Bool { (.A    ... .Z     ) ~= self }
+    var isLowercaseLetter: Bool { (.a    ... .z     ) ~= self }
     
+    var isBinary: Bool          { (.zero ... .one   ) ~= self }
+    var isOctal: Bool           { (.zero ... .seven ) ~= self }
+    var isDecimal: Bool         { (.zero ... .nine  ) ~= self }
     var isHexadecimal: Bool {
-        return (.zero ... .nine).contains(self)
-            || (.A ... .F).contains(self.uppercased().first!)
-            || self == .hexNotation
+        guard !isDecimal else { return true }
+        return (.A ... .F) ~= self.uppercased().first!
     }
 
-    var isOctal: Bool {
-        return (.zero ... .seven).contains(self)
-        || self == .octalNotation
-    }
-
-    var isBinary: Bool {
-        return (.zero ... .one).contains(self)
-        || self == .binaryNotation
-    }
-
-    var isUppercaseLetter: Bool {
-        return (.A ... .Z).contains(self)
-    }
-
-    var isLowercaseLetter: Bool {
-        return (.a ... .z).contains(self)
-    }
     
-    // MARK: - General static identities (Internal)
-    
+    // MARK: - General static identities
     static let newLine = "\n".first!
     static let quote = "\"".first!
     static let octothorpe = "#".first!
-    static let leftParenthesis = "(".first!
     static let backSlash = "\\".first!
+    static let leftParenthesis = "(".first!
     static let rightParenthesis = ")".first!
+    static let leftBracket = "[".first!
+    static let rightBracket = "]".first!
     static let comma = ",".first!
     static let space = " ".first!
+    static let tab = "\t".first!
     static let colon = ":".first!
     static let period = ".".first!
     static let A = "A".first!
@@ -116,4 +102,28 @@ extension Character {
     static let ampersand = "&".first!
     static let vertical = "|".first!
     static let underscore = "_".first!
+    static let modulo = "%".first!
+    static let upcaret = "^".first!
+}
+
+
+internal extension Double {
+    var formatSeconds: String {
+        let abs = self.magnitude
+        if abs * 10 > 1 { return String(format: "%.3f%", abs) + " s"}
+        if abs * 1_000 > 1 { return String(format: "%.3f%", abs * 1_000) + " ms" }
+        return String(format: "%.3f%", abs * 1_000_000) + " µs"
+    }
+}
+
+internal extension Int {
+    var formatBytes: String { UInt64(self.magnitude).formatBytes }
+}
+
+internal extension UInt64 {
+    var formatBytes: String {
+        if self > 1024 * 512 { return String(format: "%.2fmB", Double(self)/1024.0/1024.0) }
+        if self > 512 { return String(format: "%.2fkB", Double(self)/1024.0) }
+        return "\(self)B"
+    }
 }

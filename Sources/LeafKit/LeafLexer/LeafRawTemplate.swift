@@ -11,63 +11,63 @@ internal struct LeafRawTemplate {
         self.body = src
         self.current = body.startIndex
     }
-
+    
     mutating func readWhile(_ check: (Character) -> Bool) -> String {
-        return String(readSliceWhile(pop: true, check))
+        readSliceWhile(pop: true, check)
     }
 
     mutating func peekWhile(_ check: (Character) -> Bool) -> String {
-        return String(peekSliceWhile(check))
+        peekSliceWhile(check)
     }
     
     @discardableResult
     mutating func popWhile(_ check: (Character) -> Bool) -> Int {
-        return readSliceWhile(pop: true, check).count
+        readSliceWhile(pop: true, check).count
     }
 
     func peek(aheadBy idx: Int = 0) -> Character? {
-        let peekIndex = body.index(current, offsetBy: idx)
-        guard peekIndex < body.endIndex else { return nil }
-        return body[peekIndex]
+        let peek = body.index(current, offsetBy: idx)
+        guard peek < body.endIndex else { return nil }
+        return body[peek]
     }
 
     @discardableResult
     mutating func pop() -> Character? {
         guard current < body.endIndex else { return nil }
-        if body[current] == .newLine { line += 1; column = 0 }
-        else { column += 1 }
+        column = body[current] == .newLine ? 1 : column + 1
+        line += body[current] == .newLine ? 1 : 0
         defer { current = body.index(after: current) }
         return body[current]
     }
     
     // MARK: - Private Only
     
-    private(set) var line = 0
-    private(set) var column = 0
+    private(set) var line = 1
+    private(set) var column = 1
 
     private let body: String
     private var current: String.Index
     
-    mutating private func readSliceWhile(pop: Bool, _ check: (Character) -> Bool) -> [Character] {
+    mutating private func readSliceWhile(pop: Bool, _ check: (Character) -> Bool) -> String {
         var str = [Character]()
-        str.reserveCapacity(512)
+        str.reserveCapacity(max(64,body.count/4)) // Buffer guess -
         while let next = peek() {
-            guard check(next) else { return str }
+            guard check(next) else { return String(str) }
             if pop { self.pop() }
             str.append(next)
         }
-        return str
+        return String(str)
     }
 
-    mutating private func peekSliceWhile(_ check: (Character) -> Bool) -> [Character] {
+    mutating private func peekSliceWhile(_ check: (Character) -> Bool) -> String {
         var str = [Character]()
-        str.reserveCapacity(512)
+        str.reserveCapacity(max(64,body.count/4))
         var index = 0
         while let next = peek(aheadBy: index) {
-            guard check(next) else { return str }
+            guard check(next) else { return String(str) }
             str.append(next)
             index += 1
         }
-        return str
+        return String(str)
     }
 }

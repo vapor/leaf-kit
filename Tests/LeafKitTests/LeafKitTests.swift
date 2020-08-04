@@ -2,22 +2,20 @@ import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
 
-final class ParserTests: XCTestCase {
+final class ParserTests: LeafTestClass {
     func testParsingNesting() throws {
         let input = """
-        #if(lowercase(first(name == "admin")) == "welcome"):
+        #if(lowercased(((name.first == "admin"))) == "welcome"):
         foo
         #endif
         """
-
+        
         let expectation = """
-        conditional:
-          if([lowercase(first([name == "admin"])) == "welcome"]):
-            raw("\\nfoo\\n")
+        0: if([lowercased([$:name.first == string(admin)]) == string(welcome)]):
+        1: raw(ByteBuffer: 5B))
         """
 
-        let output = try parse(input).string
-        XCTAssertEqual(output, expectation)
+        try XCTAssertEqual(parse(input).terse, expectation)
     }
 
     func testComplex() throws {
@@ -30,15 +28,13 @@ final class ParserTests: XCTestCase {
         """
 
         let expectation = """
-        conditional:
-          if(variable(foo)):
-            raw("\\nfoo\\n")
-          else:
-            raw("\\nfoo\\n")
+        0: if($:foo):
+        1: raw(ByteBuffer: 5B))
+        2: else():
+        3: raw(ByteBuffer: 5B))
         """
 
-        let output = try parse(input).string
-        XCTAssertEqual(output, expectation)
+        try XCTAssertEqual(parse(input).terse, expectation)
     }
 
     func testCompiler() throws {
@@ -55,32 +51,31 @@ final class ParserTests: XCTestCase {
         """
 
         let expectation = """
-        conditional:
-          if(variable(sayhello)):
-            raw("\\n    abc\\n    ")
-            for(name in names):
-              raw("\\n        hi, ")
-              expression[variable(name)]
-              raw("\\n    ")
-            raw("\\n    def\\n")
-          else:
-            raw("\\n    foo\\n")
+        0: if($:sayhello):
+        1: scope(table: 1)
+           0: raw(ByteBuffer: 13B))
+           1: for($:names):
+           2: scope(table: 2)
+              0: raw(ByteBuffer: 13B))
+              1: $:name
+              2: raw(ByteBuffer: 5B))
+           3: raw(ByteBuffer: 9B))
+        2: else():
+        3: raw(ByteBuffer: 9B))
         """
 
-        let output = try parse(input).string
-        XCTAssertEqual(output, expectation)
+        try XCTAssertEqual(parse(input).terse, expectation)
     }
 
     func testUnresolvedAST() throws {
         let base = """
-        #extend("header")
-        <title>#import("title")</title>
-        #import("body")
+        #inline("header")
+        <title>#evaluate(title)</title>
+        #evaluate(body)
         """
 
-        let syntax = try! parse(base)
-        let ast = LeafAST(name: "base", ast: syntax)
-        XCTAssertFalse(ast.unresolvedRefs.count == 0, "Unresolved template")
+        try XCTAssertFalse(parse(base).requiredFiles.isEmpty,
+                           "Unresolved template")
     }
 
     func testInsertResolution() throws {
@@ -88,90 +83,141 @@ final class ParserTests: XCTestCase {
         <h1>Hi!</h1>
         """
         let base = """
-        #extend("header")
-        <title>#import("title")</title>
-        #import("body")
+        #inline("header")
+        <title>#evaluate(title)</title>
+        #inline("header")
         """
-
-        let baseAST = try LeafAST(name: "base", ast: parse(base))
-        let headerAST = try LeafAST(name: "header", ast: parse(header))
-        let baseResolvedAST = LeafAST(from: baseAST, referencing: ["header": headerAST])
-
-        let output = baseResolvedAST.ast.string
-
+        
+        let preinline = """
+        0: inline(string(header)):
+        1: scope(undefined)
+        2: raw(ByteBuffer: 8B))
+        3: evaluate($:title):
+        4: scope(undefined)
+        5: raw(ByteBuffer: 9B))
+        6: inline(string(header)):
+        7: scope(undefined)
+        """
+        
         let expectation = """
-        raw("<h1>Hi!</h1>\\n<title>")
-        import("title")
-        raw("</title>\\n")
-        import("body")
+        0: inline(string(header)):
+        1: scope(table: 1)
+           0: raw(ByteBuffer: 12B))
+        2: raw(ByteBuffer: 8B))
+        3: evaluate($:title):
+        4: scope(undefined)
+        5: raw(ByteBuffer: 9B))
+        6: inline(string(header)):
+        7: scope(table: 1)
+           0: raw(ByteBuffer: 12B))
         """
-        XCTAssertEqual(output, expectation)
+
+        var baseAST = try parse(base)
+        
+        XCTAssertEqual(baseAST.terse, preinline)
+        let headerAST = try parse(header)
+        baseAST.inline(asts: ["header": headerAST])
+        
+        XCTAssertEqual(baseAST.terse, expectation)
     }
 
     func testDocumentResolveExtend() throws {
         let header = """
-        <h1>#import("header")</h1>
+        <h1>#import(header)</h1>
         """
 
         let base = """
         #extend("header")
-        <title>#import("title")</title>
-        #import("body")
+        <title>#import(title)</title>
+        #import(body)
         """
 
         let home = """
-        #extend("base"):
-            #export("title", "Welcome")
-            #export("body"):
-                Hello, #(name)!
-            #endexport
-        #endextend
+        #export(title, "Welcome")
+        #export(body):
+            Hello, #(name)!
+        #endexport
+        #extend("base")
         """
-
-        let headerAST = try LeafAST(name: "header", ast: parse(header))
-        let baseAST = try LeafAST(name: "base", ast: parse(base))
-        let homeAST = try LeafAST(name: "home", ast: parse(home))
-
-        let baseResolved = LeafAST(from: baseAST, referencing: ["header": headerAST])
-        let homeResolved = LeafAST(from: homeAST, referencing: ["base": baseResolved])
-
-        let output = homeResolved.ast.string
+        
         let expectation = """
-        raw("<h1>")
-        import("header")
-        raw("</h1>\\n<title>Welcome</title>\\n\\n        Hello, ")
-        expression[variable(name)]
-        raw("!\\n    ")
+        0: export($:title, string(Welcome)):
+        1: string(Welcome)
+        3: export($:body):
+        4: scope(table: 1)
+           0: raw(ByteBuffer: 12B))
+           1: $:name
+           2: raw(ByteBuffer: 2B))
+        6: extend(string(base)):
+        7: scope(table: 2)
+           0: extend(string(header)):
+           1: scope(table: 3)
+              0: raw(ByteBuffer: 4B))
+              1: import($:header):
+              2: scope(undefined)
+              3: raw(ByteBuffer: 5B))
+           2: raw(ByteBuffer: 8B))
+           3: import($:title):
+           4: scope(undefined)
+           5: raw(ByteBuffer: 9B))
+           6: import($:body):
+           7: scope(undefined)
         """
-        XCTAssertEqual(output, expectation)
+        
+        let headerAST = try parse(header)
+        var baseAST = try parse(base)
+        var homeAST = try parse(home)
+    
+        baseAST.inline(asts: ["header": headerAST])
+        homeAST.inline(asts: ["base": baseAST])
+        
+        XCTAssertEqual(homeAST.terse, expectation)
     }
 
     func testCompileExtend() throws {
         let input = """
-        #extend("base"):
-            #export("title", "Welcome")
-            #export("body"):
-                Hello, #(name)!
-            #endexport
-        #endextend
+        #define(title, "Welcome")
+        #define(body):
+            Hello, #(name)!
+        #enddefine
+        #inline("base")
         """
 
         let expectation = """
-        extend("base"):
-          export("body"):
-            raw("\\n        Hello, ")
-            expression[variable(name)]
-            raw("!\\n    ")
-          export("title"):
-            expression[stringLiteral("Welcome")]
+        0: define($:title, string(Welcome)):
+        1: string(Welcome)
+        3: define($:body):
+        4: scope(table: 1)
+           0: raw(ByteBuffer: 12B))
+           1: $:name
+           2: raw(ByteBuffer: 2B))
+        6: inline(string(base)):
+        7: scope(undefined)
         """
 
-        let output = try parse(input).string
-        XCTAssertEqual(output, expectation)
+        try XCTAssertEqual(parse(input).terse, expectation)
+    }
+    
+    func testScopingAndMethods() throws {
+        let input = """
+        #(x + $x + $context.x + $server.x)
+        #($server.baseURL.hasPrefix("www") == true)
+        #(array[0] + dictionary["key"])
+        #($server.domain[$request.cname])
+        """
+
+        let expectation = """
+        0: [$:x + [$x + [$context:x + $server:x]]]
+        2: [hasPrefix($server:baseURL, string(www)) == true]
+        4: [[$:array [] int(0)] + [$:dictionary [] string(key)]]
+        6: [$server:domain [] $request:cname]
+        """
+
+        try XCTAssertEqual(parse(input).terse, expectation)
     }
 }
 
-final class LexerTests: XCTestCase {
+final class LexerTests: LeafTestClass {
     func _testExtenasdfd() throws {
         /// 'base.leaf
 //        let base = """
@@ -198,24 +244,24 @@ final class LexerTests: XCTestCase {
 
         let expectation = """
         tagIndicator
-        tag(name: "if")
+        function("if")
         parametersStart
-        param(tag("lowercase"))
+        param(function(id: "lowercase"))
         parametersStart
-        param(tag("first"))
+        param(function(id: "first"))
         parametersStart
-        param(variable(name))
-        param(operator(==))
-        param(stringLiteral("admin"))
+        param(variable(part: name))
+        param(operator(Equality: ==))
+        param(literal(String: "admin"))
         parametersEnd
         parametersEnd
-        param(operator(==))
-        param(stringLiteral("welcome"))
+        param(operator(Equality: ==))
+        param(literal(String: "welcome"))
         parametersEnd
-        tagBodyIndicator
+        blockIndicator
         raw("\\nfoo\\n")
         tagIndicator
-        tag(name: "endif")
+        function("endif")
 
         """
 
@@ -228,9 +274,9 @@ final class LexerTests: XCTestCase {
         let expectation = """
         raw("<h1>")
         tagIndicator
-        tag(name: "")
+        expression
         parametersStart
-        param(constant(42))
+        param(literal(Int: 42))
         parametersEnd
         raw("</h1>")
 
@@ -257,21 +303,19 @@ final class LexerTests: XCTestCase {
 
     // Base2/8/10/16 lexing for Int constants, Base10/16 for Double
     func testNonDecimals() throws {
-        let input = "#(0b0101010 0o052 42 0_042 0x02A 0b0101010.0 0o052.0 42.0 0_042.0 0x02A.0)"
+        let input = "#(0b0101010 0o052 42 0_042 0x02A 42.0 0_042.0 0x02A.0)"
         let expectation = """
         tagIndicator
-        tag(name: "")
+        expression
         parametersStart
-        param(constant(42))
-        param(constant(42))
-        param(constant(42))
-        param(constant(42))
-        param(constant(42))
-        param(variable(0b0101010.0))
-        param(variable(0o052.0))
-        param(constant(42.0))
-        param(constant(42.0))
-        param(constant(42.0))
+        param(literal(Int: 42))
+        param(literal(Int: 42))
+        param(literal(Int: 42))
+        param(literal(Int: 42))
+        param(literal(Int: 42))
+        param(literal(Double: 42.0))
+        param(literal(Double: 42.0))
+        param(literal(Double: 42.0))
         parametersEnd
 
         """
@@ -280,14 +324,6 @@ final class LexerTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
 
-    /*
-     // TODO:
-
-     #("#")
-     #()
-     "#("\")#(name)" == '\logan'
-     "\#(name)" == '#(name)'
-     */
     func testEscaping() throws {
         // input is really '\#' w/ escaping
         let input = "\\#"
@@ -296,29 +332,29 @@ final class LexerTests: XCTestCase {
     }
 
     // deactivated because changing tagIndicator, for some reason, is causing a data race
-    func _testTagIndicator() throws {
+    func testTagIndicator() throws {
         Character.tagIndicator = "🤖"
         let input = """
-        🤖extend("base"):
-            🤖export("title", "Welcome")
-            🤖export("body"):
-                Hello, 🤖(name)!
-            🤖endexport
-        🤖endextend
+        🤖export(title, "Welcome")
+        🤖export(body):
+            Hello, 🤖(name)!
+        🤖endexport
+        🤖extend("base")
         """
 
         let expectation = """
-        extend("base"):
-          export("body"):
-            raw("\\n        Hello, ")
-            variable(name)
-            raw("!\\n    ")
-          export("title"):
-            raw("Welcome")
+        0: export($:title, string(Welcome)):
+        1: string(Welcome)
+        3: export($:body):
+        4: scope(table: 1)
+           0: raw(ByteBuffer: 12B))
+           1: $:name
+           2: raw(ByteBuffer: 2B))
+        6: extend(string(base)):
+        7: scope(undefined)
         """
 
-        let output = try! parse(input).string
-        XCTAssertEqual(output, expectation)
+        try! XCTAssertEqual(parse(input).terse, expectation)
         Character.tagIndicator = .octothorpe
     }
 
@@ -326,19 +362,19 @@ final class LexerTests: XCTestCase {
         let input = "#(foo == 40, and, \"literal\", and, foo_bar)"
         let expectation = """
         tagIndicator
-        tag(name: "")
+        expression
         parametersStart
-        param(variable(foo))
-        param(operator(==))
-        param(constant(40))
+        param(variable(part: foo))
+        param(operator(Equality: ==))
+        param(literal(Int: 40))
         parameterDelimiter
-        param(variable(and))
+        param(variable(part: and))
         parameterDelimiter
-        param(stringLiteral("literal"))
+        param(literal(String: "literal"))
         parameterDelimiter
-        param(variable(and))
+        param(variable(part: and))
         parameterDelimiter
-        param(variable(foo_bar))
+        param(variable(part: foo_bar))
         parametersEnd
 
         """
@@ -348,48 +384,35 @@ final class LexerTests: XCTestCase {
 
     func testTags() throws {
         let input = """
-        #tag
-        #tag:
-        #endtag
-        #tag()
-        #tag():
-        #tag(foo)
-        #tag(foo):
+        #enddefine
+        #define()
+        #define():
+        #define(foo)
+        #define(foo):
         """
         let expectation = """
         tagIndicator
-        tag(name: "tag")
-        raw("\\n")
+        function("enddefine")
         tagIndicator
-        tag(name: "tag")
-        tagBodyIndicator
-        raw("\\n")
-        tagIndicator
-        tag(name: "endtag")
-        raw("\\n")
-        tagIndicator
-        tag(name: "tag")
+        function("define")
         parametersStart
         parametersEnd
-        raw("\\n")
         tagIndicator
-        tag(name: "tag")
+        function("define")
         parametersStart
         parametersEnd
-        tagBodyIndicator
-        raw("\\n")
+        blockIndicator
         tagIndicator
-        tag(name: "tag")
+        function("define")
         parametersStart
-        param(variable(foo))
+        param(variable(part: foo))
         parametersEnd
-        raw("\\n")
         tagIndicator
-        tag(name: "tag")
+        function("define")
         parametersStart
-        param(variable(foo))
+        param(variable(part: foo))
         parametersEnd
-        tagBodyIndicator
+        blockIndicator
 
         """
 
@@ -405,171 +428,36 @@ final class LexerTests: XCTestCase {
         """
         let expectation = """
         tagIndicator
-        tag(name: "")
+        expression
         parametersStart
-        param(variable(todo))
+        param(variable(part: todo))
         parametersEnd
-        raw("\\n")
         tagIndicator
-        tag(name: "")
+        expression
         parametersStart
-        param(variable(todo.title))
+        param(variable(part: todo))
+        param(operator(Scoping Accessor: .))
+        param(variable(part: title))
         parametersEnd
-        raw("\\n")
         tagIndicator
-        tag(name: "")
+        expression
         parametersStart
-        param(variable(todo.user.name.first))
+        param(variable(part: todo))
+        param(operator(Scoping Accessor: .))
+        param(variable(part: user))
+        param(operator(Scoping Accessor: .))
+        param(variable(part: name))
+        param(operator(Scoping Accessor: .))
+        param(variable(part: first))
         parametersEnd
-
+        
         """
         let output = try lex(input).string
         XCTAssertEqual(output, expectation)
     }
 }
 
-final class LeafKitTests: XCTestCase {
-    func testParser() throws {
-        let template = """
-        Hello #(name)!
-
-        Hello #get(name)!
-
-        #set(name):
-            Hello #get(name)
-        #endset!
-
-        #if(a):b#endif
-
-        #if(foo):
-        123
-        #elseif(bar):
-        456
-        #else:
-        789
-        #endif
-
-        #import("title")
-
-        #import("body")
-
-        #extend("base"):
-            #export("title", "Welcome")
-            #export("body"):
-                Hello, #(name)!
-            #endexport
-        #endextend
-
-        #parent:
-            #if(somebs):
-                #for(boo in far):
-                    ya, ok, some stuff is here ;)
-                #endfor
-            #endif
-        #endparent
-
-        More stuff here!
-        """
-
-//        let template = """
-//        #if(foo):
-//        123
-//        #elseif(bar):
-//        456
-//        #else:
-//        789
-//        #endif
-//        """
-
-        var lexer = LeafLexer(name: "test-parser", template: template)
-        let tokens = try lexer.lex()
-        print()
-        print("Tokens:")
-        tokens.forEach { print($0) }
-        print()
-
-//        var parser = _LeafParser(tokens: tokens)
-//        let ast = try! parser.altParse().map { $0.description } .joined(separator: "\n")
-        let rawAlt = try! parse(template)
-        print("AST")
-        rawAlt.forEach { print($0) }
-        print()
-        _ = rawAlt.description
-//        print("AST:")
-//        ast.forEach { print($0) }
-        print("")
-        //
-        //        var serializer = LeafSerializer(ast: ast, context: [
-        //            "name": "Tanner",
-        //            "a": true,
-        //            "bar": true
-        //        ])
-        //        var view = try serializer.serialize()
-        //        let string = view.readString(length: view.readableBytes)!
-        //        print("View:")
-        //        print(string)
-        //        print()
-    }
-
-    func testParserasdf() throws {
-        let template = """
-        Hello #(name)!
-
-        Hello #get(name)!
-
-        #set(name):
-            Hello #get(name)
-        #endset!
-
-        #if(a):b#endif
-
-        #if(foo):
-        123
-        #elseif(bar):
-        456
-        #else:
-        789
-        #endif
-
-        #import("title")
-
-        #import("body")
-
-        #extend("base"):
-            #export("title", "Welcome")
-            #export("body"):
-                Hello, #(name)!
-            #endexport
-        #endextend
-
-        More stuff here!
-        """
-
-        var lexer = LeafLexer(name: "test-parseasdf", template: template)
-        let tokens = try! lexer.lex()
-        print()
-        print("Tokens:")
-        tokens.forEach { print($0) }
-        print()
-
-        var parser = LeafParser(name: "test-parseasdf", tokens: tokens)
-        let ast = try! parser.parse()
-        print("AST:")
-        ast.forEach { print($0) }
-        print()
-        //
-        //        var serializer = LeafSerializer(ast: ast, context: [
-        //            "name": "Tanner",
-        //            "a": true,
-        //            "bar": true
-        //        ])
-        //        var view = try serializer.serialize()
-        //        let string = view.readString(length: view.readableBytes)!
-        //        print("View:")
-        //        print(string)
-        //        print()
-    }
-
+final class LeafKitTests: LeafTestClass {
     func testNestedEcho() throws {
         let input = """
         Todo: #(todo.title)
@@ -822,6 +710,7 @@ final class LeafKitTests: XCTestCase {
         let emptyRenderer = TestRenderer(sources: unsearchableSources)
         
         XCTAssert(goodRenderer.r.sources.all.contains("sourceTwo"))
+        
         XCTAssert(emptyRenderer.r.sources.searchOrder.isEmpty)
 
         let output1 = try goodRenderer.render(path: "a").wait().string

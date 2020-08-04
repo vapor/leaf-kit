@@ -1,8 +1,7 @@
 @testable import LeafKit
 import XCTest
 
-final class LeafTests: XCTestCase {
-
+final class LeafTests: LeafTestClass {
     // currently not supported.. discussion ongoing
     func _testInterpolated() throws {
         let template = """
@@ -282,7 +281,7 @@ final class LeafTests: XCTestCase {
 //        try XCTAssertEqual(render(template, data), expected)
 //    }
 
-    // TODO: WHY is whitespace not allowed here?!?
+    // TODO: WHY is space not allowed here?!?
     func _testInvalidForSyntax() throws {
         let data: [String: LeafData] = ["names": LeafData(arrayLiteral: "foo")]
         do {
@@ -315,7 +314,7 @@ final class LeafTests: XCTestCase {
 
     func testLoopIndices() throws {
         let template = """
-        #for(name in names):
+        #for((index, name) in names):
             #(name) - index=#(index) last=#(isLast) first=#(isFirst)
         #endfor
         """
@@ -334,8 +333,8 @@ final class LeafTests: XCTestCase {
 
     func testNestedLoopIndices() throws {
         let template = """
-        #for(array in arrays):
-        Array#(index) - [#for(element in array): #(index)#if(isFirst):(first)#elseif(isLast):(last)#endif : "#(element)"#if(!isLast):, #endif#endfor]#endfor
+        #for((index, array) in arrays):
+        Array#(index) - [#for((index, element) in array): #(index)#if(isFirst):(first)#elseif(isLast):(last)#endif : "#(element)"#if(!isLast):, #endif#endfor]#endfor
         """
         let expected = """
 
@@ -385,20 +384,14 @@ final class LeafTests: XCTestCase {
         #(-10)
         """
 
-        let syntax = """
-        raw("10")
-        raw("-10")
-        """
+        let syntax = "raw(ByteBuffer: \"10\\n-10\")"
 
         let expectation = """
         10
         -10
         """
 
-        let parsed = try parse(input)
-            .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
-            .joined(separator: "\n")
-        XCTAssertEqual(parsed, syntax)
+        try XCTAssertEqual(parse(input).scopes[0][0].description, syntax)
         try XCTAssertEqual(render(input), expectation)
     }
 
@@ -412,10 +405,10 @@ final class LeafTests: XCTestCase {
         """
 
         let syntax = """
-        expression[variable(index), operator(-), constant(5)]
-        expression[constant(10), operator(-), constant(5)]
-        expression[constant(10), operator(-), constant(5)]
-        raw("-5")
+        0: [$:index - int(5)]
+        2: [int(10) - int(5)]
+        4: [int(10) - int(5)]
+        5: raw(ByteBuffer: 3B))
         """
 
         let expectation = """
@@ -425,10 +418,7 @@ final class LeafTests: XCTestCase {
         -5
         """
 
-        let parsed = try parse(input)
-            .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
-            .joined(separator: "\n")
-        XCTAssertEqual(parsed, syntax)
+        try XCTAssertEqual(parse(input).terse, syntax)
         try XCTAssertEqual(render(input,["index":10]), expectation)
     }
 
@@ -445,13 +435,13 @@ final class LeafTests: XCTestCase {
         """
 
         let syntax = """
-        expression[keyword(false), operator(&&), keyword(true)]
-        expression[keyword(false), operator(||), keyword(true)]
-        expression[keyword(true), operator(&&), keyword(true)]
-        expression[keyword(false), operator(||), keyword(false)]
-        expression[keyword(false), operator(||), keyword(true)]
-        raw("true")
-        expression[[-5 + [10 - [[20 / 2] + [9 * -3]]]], operator(==), [[90 / 3] + [2 * -10]]]
+         0: [[ ! true] && [ ! false]]
+         2: [[ ! true] || [ ! false]]
+         4: [true && [ ! false]]
+         6: [[ ! true] || false]
+         8: [[ ! true] || [ ! false]]
+        10: true
+        12: [[int(-5) + [int(10) - [[int(20) / int(2)] + [int(9) * int(-3)]]]] == [[int(90) / int(3)] + [int(2) * int(-10)]]]
         """
 
         let expectation = """
@@ -464,10 +454,7 @@ final class LeafTests: XCTestCase {
         false
         """
 
-        let parsed = try parse(input)
-            .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
-            .joined(separator: "\n")
-        XCTAssertEqual(parsed, syntax)
+        try XCTAssertEqual(parse(input).terse, syntax)
         try XCTAssertEqual(render(input), expectation)
     }
 }

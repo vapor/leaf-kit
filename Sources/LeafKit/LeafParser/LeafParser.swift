@@ -15,10 +15,14 @@ internal struct LeafParser {
     }
     
     mutating func parse() throws -> [Syntax] {
-        while let next = peek() {
-            try handle(next: next)
-        }
+        while let next = peek { try handle(next) }
         return finished
+    }
+    
+    private struct OpenContext {
+        let block: TagDeclaration
+        var body: [Syntax] = []
+        init(_ parent: TagDeclaration) { self.block = parent }
     }
     
     // MARK: - Private Only
@@ -27,102 +31,60 @@ internal struct LeafParser {
     private var offset: Int
     
     private var finished: [Syntax] = []
-    private var awaitingBody: [OpenContext] = []
+    private var openBodies: [OpenContext] = []
+    
+    private var current: [Syntax] {
+        get { openBodies.isEmpty ? finished : openBodies[openBodies.endIndex - 1].body }
+        set {
+            if openBodies.isEmpty { finished = newValue }
+            else { openBodies[openBodies.endIndex - 1].body = newValue }
+        }
+    }
 
-    private mutating func handle(next: LeafToken) throws {
+    private mutating func handle(_ next: LeafToken) throws {
         switch next {
-        case .tagIndicator:
-            let declaration = try readTagDeclaration()
-            // check terminator first
-            // always takes priority, especially for dual body/terminator functors
-            if declaration.isTerminator { try close(with: declaration) }
-
-            // this needs to be a secondary if-statement, and
-            // not joined above
-            //
-            // this allows for dual functors, a la elseif
-            if declaration.expectsBody {
-                awaitingBody.append(.init(declaration))
-            } else if declaration.isTerminator {
-                // dump terminators that don't also have a body,
-                // already closed above
-                // MUST close FIRST (as above)
-                return
-            } else {
-                let syntax = try declaration.makeSyntax(body: [])
-                if var last = awaitingBody.last {
-                    last.body.append(syntax)
-                    awaitingBody.removeLast()
-                    awaitingBody.append(last)
-                } else {
-                    finished.append(syntax)
-                }
-            }
-        case .raw:
-            let r = try collectRaw()
-            if var last = awaitingBody.last {
-                last.body.append(.raw(r))
-                awaitingBody.removeLast()
-                awaitingBody.append(last)
-            } else {
-                finished.append(.raw(r))
-            }
-        default:
-            throw "unexpected token \(next)"
+            case .tagIndicator:
+                let declaration = try readTagDeclaration()
+                if declaration.isTerminator { try close(with: declaration) }
+                if declaration.expectsBody { openBodies.append(.init(declaration)) }
+                else if declaration.isTerminator { return }
+                else { try current = current + [declaration.makeSyntax()] }
+            case .raw: try current = current + [.raw(collectRaw())]
+            default:   throw "unexpected token \(next)"
         }
     }
 
     private mutating func close(with terminator: TagDeclaration) throws {
-        guard !awaitingBody.isEmpty else {
+        guard !openBodies.isEmpty else {
             throw "\(name): found terminator \(terminator), with no corresponding tag"
         }
-        let willClose = awaitingBody.removeLast()
-        guard willClose.parent.matches(terminator: terminator) else { throw "\(name): unable to match \(willClose.parent) with \(terminator)" }
+        let willClose = openBodies.removeLast()
+        guard willClose.block.matches(terminator) else { throw "\(name): unable to match \(willClose.block) with \(terminator)" }
 
         // closed body
-        let newSyntax = try willClose.parent.makeSyntax(body: willClose.body)
+        let newSyntax = try willClose.block.makeSyntax(willClose.body)
 
         func append(_ syntax: Syntax) {
-            if var newTail = awaitingBody.last {
-                 newTail.body.append(syntax)
-                 awaitingBody.removeLast()
-                 awaitingBody.append(newTail)
-                 // if the new syntax is a conditional, it may need to be attached
-                 // to the last parsed conditional
-             } else {
-                 finished.append(syntax)
-             }
+            if openBodies.isEmpty { finished.append(syntax) }
+            else { openBodies[openBodies.endIndex - 1].body.append(syntax) }
         }
 
         if case .conditional(let new) = newSyntax {
             guard let conditional = new.chain.first else { throw "Malformed syntax block" }
             switch conditional.0.naturalType {
-                // a new if, never attaches to a previous
-                case .if:
-                    append(newSyntax)
+                case .if: append(newSyntax) // `if` always opens a new block
                 case .elseif, .else:
-                    let aW = awaitingBody.last?.body
-                    let previousBlock: Syntax?
-                    switch aW {
-                        case .none: previousBlock = finished.last
-                        case .some(let b): previousBlock = b.last
+                    guard let open = current.last,
+                          case .conditional(var openConditional) = open else {
+                        throw "Can't attach \(conditional.0) to \(current.last?.description ?? "empty AST")"
                     }
-                    guard let existingConditional = previousBlock,
-                        case .conditional(var tail) = existingConditional else {
-                            throw "Can't attach \(conditional.0) to \(previousBlock?.description ?? "empty AST")"
-                    }
-                    try tail.attach(new)
-                    switch aW {
-                        case .none:
-                            finished[finished.index(before: finished.endIndex)] = .conditional(tail)
-                        case .some(_):
-                            awaitingBody[awaitingBody.index(before: awaitingBody.endIndex)].body.removeLast()
-                            awaitingBody[awaitingBody.index(before: awaitingBody.endIndex)].body.append(.conditional(tail))
-                    }
+                    var current = self.current
+                    try openConditional.attach(new)
+                    current.removeLast()
+                    current.append(.conditional(openConditional))
+                    self.current = current
             }
-        } else {
-            append(newSyntax)
-        }
+        } else { append(newSyntax) }
     }
 
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
@@ -138,8 +100,8 @@ internal struct LeafParser {
         // a tag should ALWAYS follow a tag indicator
         guard let tag = read(), case .tag(let name) = tag else { throw "expected tag name following a tag indicator" }
 
-        // if no further, then we've ended w/ a tag
-        guard let next = peek() else { return TagDeclaration(name: name, parameters: nil, expectsBody: false) }
+        // if no further, then we've ended w/ a tag - DISCARD THIS CASE - no param not valid
+        guard let next = peek else { return TagDeclaration(name: name, parameters: nil, expectsBody: false) }
 
         // following a tag can be,
         // .raw - tag is complete
@@ -157,8 +119,8 @@ internal struct LeafParser {
                 // a basic tag, something like `#date` w/ no params, and no body
                 return TagDeclaration(name: name, parameters: nil, expectsBody: false)
             // MARK: anonymous tBI (`#:`) probably should decay tagIndicator to raw?
-            case .tagBodyIndicator:
-                if !name.isEmpty { pop() } else { replace(with: .raw(":")) }
+            case .scopeIndicator:
+                if name != nil { pop() } else { replace(with: .raw(":")) }
                 return TagDeclaration(name: name, parameters: nil, expectsBody: true)
             case .parametersStart:
                 // An anonymous function `#(variable):` is incapable of having a body, so change tBI to raw
@@ -166,16 +128,12 @@ internal struct LeafParser {
                 // allow checking if a certain parameter set requires a body or not
                 let params = try readParameters()
                 var expectsBody = false
-                if peek() == .tagBodyIndicator {
-                    if name.isEmpty { replace(with: .raw(":")) }
-                    else {
-                        pop()
-                        expectsBody = true
-                    }
+                if peek == .scopeIndicator {
+                    if name == nil { replace(with: .raw(":")) }
+                    else { pop(); expectsBody = true }
                 }
                 return TagDeclaration(name: name, parameters: params, expectsBody: expectsBody)
-            default:
-                throw "found unexpected token " + next.description
+            default: throw "Unexpected token: \(next.description)"
         }
     }
 
@@ -189,12 +147,12 @@ internal struct LeafParser {
         func dump() {
             defer { group = [] }
             if group.isEmpty { return }
-            group.evaluate()
+            group.nestFlatExpression()
             if group.count > 1 { paramsList.append(.expression(group)) }
             else { paramsList.append(group.first!) }
         }
 
-        outer: while let next = peek() {
+        outer: while let next = peek {
             switch next {
                 case .parametersStart:
                     // found a nested () that we will group together into
@@ -206,8 +164,8 @@ internal struct LeafParser {
                 case .parameter(let p):
                     pop()
                     switch p {
-                        case .tag(let name):
-                            guard peek() == .parametersStart else { throw "tags in parameter list MUST declare parameter list" }
+                        case .function(let name):
+                            guard peek == .parametersStart else { throw "tags in parameter list MUST declare parameter list" }
                             // TODO: remove recursion, in parameters only not so bad
                             let params = try readParameters()
                             // parameter tags not permitted to have bodies
@@ -215,100 +173,80 @@ internal struct LeafParser {
                         default:
                             group.append(.parameter(p))
                     }
-                case .parametersEnd:
-                    pop()
-                    dump()
-                    break outer
-                case .parameterDelimiter:
-                    pop()
-                    dump()
-                case .whitespace:
-                    pop()
-                    continue
-                default:
-                    break outer
-                }
+                case .parametersEnd:      pop(); dump(); break outer
+                case .parameterDelimiter: pop(); dump()
+                default:                  break outer
+            }
         }
 
-        paramsList.evaluate()
+        paramsList.nestFlatExpression()
         return paramsList
     }
 
     private mutating func collectRaw() throws -> ByteBuffer {
         var raw = ByteBufferAllocator().buffer(capacity: 0)
-        while let peek = peek(), case .raw(let val) = peek {
-            pop()
-            raw.writeString(val)
-        }
+        while case .raw(let val) = peek { pop(); raw.writeString(val) }
         return raw
     }
 
-    private func peek() -> LeafToken? {
-        guard self.offset < self.tokens.count else {
-            return nil
-        }
-        return self.tokens[self.offset]
-    }
+    private var peek: LeafToken? { offset < tokens.count ? tokens[offset] : nil }
 
-    private mutating func pop() {
-        self.offset += 1
-    }
+    private mutating func pop() { offset += 1 }
 
-    private mutating func replace(at offset: Int = 0, with new: LeafToken) {
-        self.tokens[self.offset + offset] = new
+    private mutating func replace(at index: Int = 0, with new: LeafToken) {
+        tokens[offset + index] = new
     }
 
     private mutating func read() -> LeafToken? {
-        guard self.offset < self.tokens.count else { return nil }
-        guard let val = self.peek() else { return nil }
-        pop()
-        return val
+        guard offset < tokens.count, let val = peek else { return nil }
+        pop(); return val
     }
 
     private mutating func readWhile(_ check: (LeafToken) -> Bool) -> [LeafToken]? {
-        guard self.offset < self.tokens.count else { return nil }
+        guard offset < tokens.count else { return nil }
         var matched = [LeafToken]()
-        while let next = peek(), check(next) {
-            matched.append(next)
-        }
+        while let next = peek, check(next) { matched.append(next) }
         return matched.isEmpty ? nil : matched
     }
     
-    private struct OpenContext {
-        let parent: TagDeclaration
-        var body: [Syntax] = []
-        init(_ parent: TagDeclaration) {
-            self.parent = parent
-        }
-    }
+    
 
     private struct TagDeclaration {
-        let name: String
+        let name: String?
         let parameters: [ParameterDeclaration]?
         let expectsBody: Bool
         
-        func makeSyntax(body: [Syntax]) throws -> Syntax {
+        func makeSyntax(_ body: [Syntax] = []) throws -> Syntax {
             let params = parameters ?? []
 
             switch name {
-                case let n where n.starts(with: "end"):
-                    throw "unable to convert terminator to syntax"
-                case "":
+                case "for"    : return try .loop(.init(params, body: body))
+                case "export" : return try .export(.init(params, body: body))
+                case "extend" : return try .extend(.init(params, body: body))
+                case "if"     : return .conditional(.init(.if(params), body: body))
+                case "elseif" : return .conditional(.init(.elseif(params), body: body))
+                case "else":
+                    guard params.isEmpty else { throw "else does not accept params" }
+                    return .conditional(.init(.else, body: body))
+                case "import":
+                    guard body.isEmpty else { throw "import does not accept a body" }
+                    return try .import(.init(params))
+                case .some(let n) where n.starts(with: "end"): throw "Unmatched closing tag"
+                case .none:
                     guard params.count == 1 else {
                         throw "only single parameter support, should be broken earlier"
                     }
                     switch params[0] {
+                        case .expression(let e): return .expression(e)
+                        case .tag(let t):        return .custom(t)
                         case .parameter(let p):
                             switch p {
                                 case .variable(_):
                                     return .expression([params[0]])
-                                case .constant(let c):
+                                case .literal(let c):
                                     var buffer = ByteBufferAllocator().buffer(capacity: 0)
-                                    buffer.writeString(c.description)
-                                    return .raw(buffer)
-                                case .stringLiteral(let st):
-                                    var buffer = ByteBufferAllocator().buffer(capacity: 0)
-                                    buffer.writeString(st)
+                                    if case .string(let s) = c { buffer.writeString(s) }
+                                    else { buffer.writeString(c.description) }
                                     return .raw(buffer)
                                 case .keyword(let kw) :
                                     guard kw.isBooleanValued else { fallthrough }
@@ -318,53 +256,23 @@ internal struct LeafParser {
                                 default:
                                     throw "unsupported parameter \(p)"
                             }
-                            // todo: can prevent some duplication here
-                        case .expression(let e):
-                            return .expression(e)
-                        case .tag(let t):
-                            return .custom(t)
                     }
-                case "if":
-                    return .conditional(.init(.if(params), body: body))
-                case "elseif":
-                    return .conditional(.init(.elseif(params), body: body))
-                case "else":
-                    guard params.count == 0 else { throw "else does not accept params" }
-                    return .conditional(.init(.else, body: body))
-                case "for":
-                    return try .loop(.init(params, body: body))
-                case "export":
-                    return try .export(.init(params, body: body))
-                case "extend":
-                    return try .extend(.init(params, body: body))
-                case "import":
-                    guard body.isEmpty else { throw "import does not accept a body" }
-                    return try .import(.init(params))
                 default:
-                    return .custom(.init(name: name, params: params, body: body))
+                    return .custom(.init(name: name ?? "", params: params, body: body))
             }
         }
 
         var isTerminator: Bool {
-            switch name {
-                case let x where x.starts(with: "end"): return true
-                // dual function
-                case "elseif", "else": return true
-                default: return false
-            }
+            guard let name = name else { return false }
+            return name.hasPrefix("end") ? true : ["else", "elseif"].contains(name)
         }
 
-        func matches(terminator: TagDeclaration) -> Bool {
-            guard terminator.isTerminator else { return false }
+        func matches(_ terminator: TagDeclaration) -> Bool {
+            guard terminator.isTerminator, let name = name else { return false }
             switch terminator.name {
-                // if can NOT be a terminator
-                case "else", "elseif":
-                    // else and elseif can only match to if or elseif
-                    return name == "if" || name == "elseif"
-                case "endif":
-                    return name == "if" || name == "elseif" || name == "else"
-                default:
-                    return terminator.name == "end" + name
+                case "else", "elseif": return name.hasSuffix("if")
+                case "endif": return name.hasSuffix("if") || name == "else"
+                default: return terminator.name == "end\(name)"
             }
         }
     }

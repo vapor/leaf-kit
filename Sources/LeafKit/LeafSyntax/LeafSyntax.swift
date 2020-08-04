@@ -167,7 +167,7 @@ extension Syntax {
         public init(_ params: [ParameterDeclaration]) throws {
             guard params.count == 1 else { throw "import only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "expected parameter" }
-            guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
+            guard case .literal(.string(let s)) = p else { throw "import only supports string literals" }
             self.key = s
         }
 
@@ -185,7 +185,7 @@ extension Syntax {
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard params.count == 1 else { throw "extend only supports single param \(params)" }
             guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
-            guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
+            guard case .literal(.string(let s)) = p else { throw "import only supports string literals" }
             self.key = s
             self.externalsSet = .init(arrayLiteral: self.key)
             self.importSet = .init()
@@ -301,7 +301,7 @@ extension Syntax {
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard (1...2).contains(params.count) else { throw "export expects 1 or 2 params" }
             guard case .parameter(let p) = params[0] else { throw "expected parameter" }
-            guard case .stringLiteral(let s) = p else { throw "export only supports string literals" }
+            guard case .literal(.string(let s)) = p else { throw "export only supports string literals" }
             self.key = s
 
             if params.count == 2 {
@@ -475,8 +475,8 @@ extension Syntax {
                 case .parameter(let right) = list[2],
                 case .variable(let array) = right
                 else { throw "for loops expect single expression, 'name in names'" }
-            self.item = item
-            self.array = array
+            self.item = item.description
+            self.array = array.description
 
             guard !body.isEmpty else { throw "for loops require a body" }
             self.body = body

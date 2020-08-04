@@ -1,6 +1,158 @@
 // MARK: Subject to change prior to 1.0.0 release
 // MARK: -
 
+import Foundation
+
+/// `LeafAST` represents a "compiled," grammatically valid Leaf template (which may or may not be fully resolvable or erroring)
+public struct Leaf4AST: Hashable {
+    // MARK: - Public
+    
+    public func hash(into hasher: inout Hasher) { hasher.combine(name) }
+    public static func ==(lhs: Self, rhs: Self) -> Bool { lhs.name == rhs.name }
+    public let name: String
+    
+    public struct Info {
+        let name: String
+        let minSize: UInt64
+        let resolved: Bool
+        let ownTables: Int
+        let cachedTables: Int
+        let defines: [String]
+        let inlines: [String]
+        let required: [String]
+    }
+    
+    // MARK: - Internal/Private Only
+    internal struct ScopeReference: Hashable {
+        let identifier: String
+        let table: Int
+        let row: Int
+        
+        func hash(into hasher: inout Hasher) { hasher.combine(identifier)}
+        
+        func remap(by offset: Int = 0) -> Self {
+            .init(identifier: identifier, table: table + offset, row: row) }
+    }
+    
+    /// The AST scope tables
+    internal var scopes: [[Leaf4Syntax]]
+    /// Reference pointers to all `Define` metablocks
+    internal var defines: [ScopeReference]
+    /// Reference pointers to all `Inline` metablocks, whether they're templates, and timestamp for when they were inlined
+    ///
+    /// If the block has *not* been inlined, `Date` will be .distantFuture
+    internal var inlines: [(inline: ScopeReference, process: Bool, at: Date)]
+    /// Absolute minimum size of a rendered document from this AST
+    internal var underestimatedSize: UInt64
+    /// The final scope table that  is the template's own (uninlined scope)
+    internal let ownFinalScope: Int
+    
+    /// Any required files, whether template or raw, required to fully resolve
+    internal var requiredFiles: Set<String> {
+        inlines.filter { $0.at == .distantFuture }
+               .reduce(into: .init(), { $0.insert($1.inline.identifier) })
+    }
+    /// List of any external templates needed to fully resolve the document.
+    internal var requiredASTs: Set<String> {
+        inlines.filter { $0.at == .distantFuture && $0.process }
+               .reduce(into: .init(), { $0.insert($1.inline.identifier) })
+    }
+    /// List of any external unprocessed raw inlines needed to fully resolve the document
+    internal var requiredRaws: Set<String> {
+        inlines.filter { $0.at == .distantFuture && !$0.process }
+               .reduce(into: .init(), { $0.insert($1.inline.identifier) })
+    }
+    
+    /// If any inlines exist, false if any have yet to be inlined.
+    internal var flat: Bool {
+        guard !inlines.isEmpty else { return true }
+        return inlines.first(where: { $0.at == .distantFuture })
+                      .map({_ in true}) ?? false
+    }
+    
+    /// Inline Leaf templates
+    ///
+    /// Can be improved; if inlined templates themselves have inlines (A inlines B and C, B inlines C)
+    /// there will be duplicated and potentially inconsistent scopes if the inlined templates were changed
+    /// and the cached version is out of date
+    mutating func inline(asts: [String: Leaf4AST]) {
+        let stamp = Date()
+        var asts = asts
+        var offsets: [String: Int] = [:]
+        // Remap incoming asts' elements to their new table offset
+        for (name, ast) in asts {
+            let offset = scopes.count
+            offsets[name] = offset
+            for (s, scope) in ast.scopes.enumerated() {
+                for (r, row) in scope.enumerated() {
+                    if case .scope(let t) = row.container, let table = t {
+                        asts[name]!.scopes[s][r] = .scope(table + offset)
+                    }
+                    if case .block(let n, var b as Define, let p) = row.container {
+                        b.remap(offset: offset)
+                        asts[name]!.scopes[s][r] = .block(n, b, p)
+                    }
+                }
+            }
+            for d in ast.defines { defines.append(d.remap(by: offset)) }
+            for i in ast.inlines {
+                inlines.append((inline: i.inline.remap(by: offset),
+                                process: i.process,
+                                at: i.at))
+            }
+            // Append the new scopes
+            scopes.append(contentsOf: asts[name]!.scopes)
+            // Replace own AST's scope placeholders with correct offset references
+            for (index, p) in inlines.enumerated() where p.process && p.at == .distantFuture {
+                if case .block(_, let block, _) = scopes[p.inline.table][p.inline.row].container,
+                   let meta = block as? Inline, meta.file == name {
+                    scopes[p.inline.table][p.inline.row + 1] = .scope(offset)
+                    inlines[index].at = stamp
+                    underestimatedSize += ast.underestimatedSize
+                }
+            }
+        }
+        
+    }
+    
+    mutating func inline(raws: [String: ByteBuffer]) {
+        let stamp = Date()
+        for (index, pointer) in inlines.enumerated() where pointer.process == false {
+            let p = pointer.inline
+            guard let buffer = raws[p.identifier],
+                  case .raw(let r) = scopes[p.table][p.row + 1].container else { continue }
+            let insert = type(of: r).instantiate(data: buffer, encoding: .utf8)
+            scopes[p.table][p.row + 1] = .raw(insert)
+            inlines[index].at = stamp
+            underestimatedSize += UInt64(buffer.readableBytes) - r.byteCount
+        }
+    }
+    
+    public var diagnostic: Info {
+        .init(name: name, minSize: underestimatedSize,
+              resolved: requiredFiles.isEmpty,
+              ownTables: ownFinalScope + 1,
+              cachedTables: scopes.count - 1 - ownFinalScope,
+              defines: Set(defines.map {$0.identifier}).sorted(),
+              inlines: Set(inlines.map {$0.inline.identifier}).sorted(),
+              required: requiredFiles.sorted())
+    }
+    
+    internal var summary: String {
+        let d = diagnostic
+        var result = "Leaf4AST `\(d.name)`: \(d.ownTables) tables, \(d.minSize) minimum output bytes\n"
+        if !d.resolved { result += "Template is unresolved\n" }
+        result += "Defines: [\(d.defines.joined(separator: ", "))]\n"
+        result += "Inlines: [\(d.inlines.joined(separator: ", "))]\n"
+        if !requiredASTs.isEmpty { result += "Missing template references: [\(requiredASTs.joined(separator: ", "))]\n"}
+        if !requiredRaws.isEmpty { result += "Future raw file inlines: [\(requiredRaws.joined(separator: ", "))]\n"}
+        return result
+    }
+    
+    internal var formatted: String { summary + scopes.formatted }
+    internal var terse: String { scopes.terse }
+}
+
 
 /// `LeafAST` represents a "compiled," grammatically valid Leaf template (which may or may not be fully resolvable or erroring)
 public struct LeafAST: Hashable {

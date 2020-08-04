@@ -25,10 +25,10 @@ public protocol LeafCache {
     ///   - replace: If a document with the same name is already cached, whether to replace or not.
     /// - Returns: The document provided as an identity return (or a failed future if it can't be inserted)
     func insert(
-        _ document: LeafAST,
+        _ document: Leaf4AST,
         on loop: EventLoop,
         replace: Bool
-    ) -> EventLoopFuture<LeafAST>
+    ) -> EventLoopFuture<Leaf4AST>
     
     /// - Parameters:
     ///   - documentName: Name of the `LeafAST`  to try to return
@@ -37,7 +37,7 @@ public protocol LeafCache {
     func retrieve(
         documentName: String,
         on loop: EventLoop
-    ) -> EventLoopFuture<LeafAST?>
+    ) -> EventLoopFuture<Leaf4AST?>
 
     /// - Parameters:
     ///   - documentName: Name of the `LeafAST`  to try to purge from the cache
@@ -60,12 +60,12 @@ internal protocol SynchronousLeafCache: LeafCache {
     ///   - replace: If a document with the same name is already cached, whether to replace or not
     /// - Returns: The document provided as an identity return, or nil if it can't guarantee completion rapidly
     /// - Throws: `LeafError` .keyExists if replace is false and document already exists
-    func insert(_ document: LeafAST, replace: Bool) throws -> LeafAST?
+    func insert(_ document: Leaf4AST, replace: Bool) throws -> Leaf4AST?
     
     /// - Parameter documentName: Name of the `LeafAST` to try to return
     /// - Returns: The requested `LeafAST` or nil if it can't guarantee completion rapidly
     /// - Throws: `LeafError` .noValueForKey if no such document is cached
-    func retrieve(documentName: String) throws -> LeafAST?
+    func retrieve(documentName: String) throws -> Leaf4AST?
     
     /// - Parameter documentName: Name of the `LeafAST`  to try to purge from the cache
     /// - Returns: `Bool?` If removed,  returns true. If cache can't remove because of dependencies
@@ -75,7 +75,7 @@ internal protocol SynchronousLeafCache: LeafCache {
 }
 
 internal extension SynchronousLeafCache {
-    func insert(_ document: LeafAST, replace: Bool) throws -> LeafAST? { nil }
-    func retrieve(documentName: String) throws -> LeafAST? { nil }
+    func insert(_ document: Leaf4AST, replace: Bool) throws -> Leaf4AST? { nil }
+    func retrieve(documentName: String) throws -> Leaf4AST? { nil }
     func remove(documentName: String) throws -> Bool? { nil }
 }
