@@ -46,18 +46,18 @@ final class Leaf4ParserTests: LeafTestClass {
         """
        
         var tokens = try lex(sampleTemplate)
-        var parser = Leaf4Parser(name: "SampleTemplate", tokens: tokens)
+        var parser = Leaf4Parser("SampleTemplate", tokens)
         var firstAST = try parser.parse()
         print(firstAST.formatted)
         
         tokens = try lex(template2)
-        parser = Leaf4Parser(name: "template2", tokens: tokens)
+        parser = Leaf4Parser("template2", tokens)
         let secondAST = try parser.parse()
         print(secondAST.summary)
         
         let file1 = ByteBufferAllocator().buffer(string: "An inlined raw file")
         
-        firstAST.inline(asts: ["template2": secondAST])
+        firstAST.inline(ast: secondAST)
         firstAST.inline(raws: ["file1" : file1])
         print(firstAST.formatted)
         
@@ -83,7 +83,7 @@ final class Leaf4ParserTests: LeafTestClass {
             "aDict" : ["one": 1, "two": 2.0, "three": ["five", "ten"]]
         ]
         let start = Date()
-        var sampleParse = try! Leaf4Parser(name: "s", tokens: lex(sample))
+        var sampleParse = try! Leaf4Parser("s", lex(sample))
         let sampleAST = try! sampleParse.parse()
         let parsedTime = start.distance(to: Date())
         
@@ -105,7 +105,7 @@ final class Leaf4ParserTests: LeafTestClass {
     
     
     func testVsComplex() throws {
-        let loopCount = 1_000
+        let loopCount = 100
         let context: [String: LeafData] = [
             "name"  : "vapor",
             "skills" : Array.init(repeating: ["bool": true.leafData, "string": "a;sldfkj".leafData,"int": 100.leafData], count: loopCount).leafData,
@@ -123,7 +123,7 @@ final class Leaf4ParserTests: LeafTestClass {
         var leafBuffer: ByteBuffer = ByteBufferAllocator().buffer(capacity: 0)
         for x in 1...10 {
             var lap = Date()
-            var sampleParse = try! Leaf4Parser(name: "s", tokens: lex(sample))
+            var sampleParse = try! Leaf4Parser("s", lex(sample))
             let sampleAST = try! sampleParse.parse()
             print("    Parse: " + lap.distance(to: Date()).formatSeconds)
             lap = Date()
@@ -184,7 +184,7 @@ final class Leaf4ParserTests: LeafTestClass {
         ]
         var sampleParse: Leaf4Parser
         do {
-            sampleParse = try Leaf4Parser(name: "s", tokens: lex(sample))
+            sampleParse = try Leaf4Parser("s", lex(sample))
         } catch let e as LeafError { throw e.localizedDescription }
         let sampleAST = try! sampleParse.parse()
         print(sampleAST.formatted)
@@ -208,7 +208,7 @@ final class Leaf4ParserTests: LeafTestClass {
         """
         
         let context: [String: LeafData] = [:]
-        var sampleParse = try! Leaf4Parser(name: "s", tokens: lex(sample))
+        var sampleParse = try! Leaf4Parser("s", lex(sample))
         let sampleAST = try! sampleParse.parse()
         print(sampleAST.formatted)
         var serializer = Leaf4Serializer(ast: sampleAST, context: context)

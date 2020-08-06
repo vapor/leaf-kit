@@ -43,13 +43,11 @@ final class LeafTests: LeafTestClass {
         #if(a): #if(b): hallo #else: #if(c): dallo #else: ballo #endif #endif #endif
         """
 
-        let expectation = """
-        ballo
-        """
+        let expectation = "ballo"
         let rendered = try render(template, ["a": .string("true")])
         XCTAssertEqual(
             rendered.trimmingCharacters(in: .whitespacesAndNewlines),
-            expectation.trimmingCharacters(in: .whitespacesAndNewlines)
+            expectation
         )
     }
 

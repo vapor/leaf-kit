@@ -3,6 +3,10 @@
 
 // MARK: `LeafError` Summary
 
+public typealias LeafErrorCause = LeafError.Reason
+public typealias LexErrorCause = LexerError.Reason
+
+
 /// `LeafError` reports errors during the template rendering process, wrapping more specific
 /// errors if necessary during Lexing and Parsing stages.
 ///
@@ -68,10 +72,10 @@ public struct LeafError: Error, CustomStringConvertible {
     /// - Where errors are caused by toolchain faults, will report the Swift source code location of the call
     /// - Where errors are from Lex or Parse errors, will report the template source location of the error
     var localizedDescription: String {
-        let file = self.file.split(separator: "/").last
-        let src = "\(file ?? "?").\(function):\(line)"
+        let file = self.file.split(separator: "/").last ?? "?"
+        let src = "\(file).\(function):\(line)"
 
-        switch self.reason {
+        switch reason {
             case .illegalAccess(let message):
                 return "\(src) - \(message)"
             case .unknownError(let message):
@@ -89,7 +93,7 @@ public struct LeafError: Error, CustomStringConvertible {
             case .noTemplateExists(let key):
                 return "\(src) - No template found for \(key)"
             case .cyclicalReference(let key, let chain):
-                return "\(src) - \(key) cyclically referenced in [\(chain.joined(separator: " -> "))]"
+                return "\(src) - \(key) cyclically referenced in [\((chain + ["!\(key)"]).joined(separator: " -> "))]"
             case .lexerError(let e):
                 return "Lexing error - \(e.localizedDescription)"
         }
@@ -123,7 +127,9 @@ public struct LexerError: Error, CustomStringConvertible {
         // MARK: Errors occuring during Lexing
         /// A character not usable in parameters is present when Lexer is not expecting it
         case invalidParameterToken(Character)
-        /// A string was opened but never terminated by end of file
+        /// An invalid operator was used
+        case invalidOperator(LeafOperator)
+        /// A string was opened but never terminated by end of line
         case unterminatedStringLiteral
         /// Use in place of fatalError to indicate extreme issue
         case unknownError(String)
@@ -179,6 +185,25 @@ public struct LexerError: Error, CustomStringConvertible {
 
 // MARK: - Internal Conveniences
 
+@inline(__always)
+internal func succeed<T>(_ value: T, on eL: EventLoop) -> EventLoopFuture<T> { eL.makeSucceededFuture(value) }
+
+@inline(__always)
+internal func fail<T>(_ error: LeafError, on eL: EventLoop) -> EventLoopFuture<T> { eL.makeFailedFuture(error) }
+
+@inline(__always)
+internal func fail<T>(_ error: LeafErrorCause, on eL: EventLoop,
+                      _ file: String = #file, _ function: String = #function,
+                      _ line: UInt = #line, _ column: UInt = #column) -> EventLoopFuture<T> {
+    eL.makeFailedFuture(leafError(error, file, function, line, column)) }
+
+@inline(__always)
+internal func leafError(_ reason: LeafErrorCause, _ file: String = #file,
+                        _ function: String = #function, _ line: UInt = #line,
+                        _ column: UInt = #column) -> LeafError {
+    LeafError(reason, file: file, function: function, line: line, column: column) }
+
+@inline(__always)
 internal func __MajorBug(_ message: String,
               file: String = #file,
               function: String = #function,

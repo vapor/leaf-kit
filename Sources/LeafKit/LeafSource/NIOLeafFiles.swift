@@ -51,7 +51,7 @@ public struct NIOLeafFiles: LeafSource {
                 defaultExtension: String = "leaf") {
         self.fileio = fileio
         self.limits = limits
-        self.extension = defaultExtension
+        self.fileExt = defaultExtension
         let sD = URL(fileURLWithPath: sandboxDirectory, isDirectory: true).standardized.path.appending("/")
         let vD = URL(fileURLWithPath: viewDirectory, isDirectory: true).standardized.path.appending("/")
         // Ensure provided sandboxDir is directly reachable from viewDir, otherwise only use viewDir
@@ -68,34 +68,37 @@ public struct NIOLeafFiles: LeafSource {
     ///   - eventLoop: `EventLoop` on which to perform file access
     /// - Returns: A succeeded `EventLoopFuture` holding a `ByteBuffer` with the raw
     ///            template, or an appropriate failed state ELFuture (not found, illegal access, etc)
-    public func file(template: String, escape: Bool = false, on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer> {
-        var template = URL(fileURLWithPath: sandbox + viewRelative + template, isDirectory: false).standardized.path
-        /// If default extension is enforced for template files, add it if it's not on the file, or if no extension present
-        if limits.contains(.onlyLeafExtensions), !template.hasSuffix(".\(self.extension)")
-            { template += ".\(self.extension)" }
-        else if limits.contains(.requireExtensions), !template.split(separator: "/").last!.contains(".")
-            { template += ".\(self.extension)" }
+    public func file(template: String,
+                     escape: Bool = false,
+                     on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+        /// Remove all `.` & `..` indirections
+        var template = URL(fileURLWithPath: sandbox + viewRelative + template,
+                           isDirectory: false).standardized.path
         
-        if !limits.isDisjoint(with: .dirLimited), [".","/"].contains(template.first) {
+        /// If default extension is enforced for template files, add it if it's not on the file, or if no extension present
+        if limits.contains(.onlyLeafExtensions),
+           !template.hasSuffix(".\(fileExt)")
+            { template += ".\(fileExt)" }
+        else if limits.contains(.requireExtensions),
+                !template.split(separator: "/").last!.contains(".")
+            { template += ".\(fileExt)" }
+        
+        if !limits.isDisjoint(with: .dirLimited) {
             /// If sandboxing is enforced and the path contains a potential escaping path, look harder
-            if limits.contains(.toVisibleFiles) {
-                let protected = template.split(separator: "/")
-                    .compactMap {
-                        guard $0.count > 1, $0.first == ".", !$0.hasPrefix("..") else { return nil }
-                        return String($0)
-                    }
-                .joined(separator: ",")
-                if protected.count > 0 { throw LeafError(.illegalAccess("Attempted to access \(protected)")) }
+            if limits.contains(.toVisibleFiles), template.contains("/.") {
+                let hit = template.split(separator: "/")
+                                  .first(where: { $0.first == "."})
+                if let hit = hit { return fail(.illegalAccess("Attempted to access \(hit)"), on: eventLoop) }
             }
             
             if limits.contains(.toSandbox) {
                 let limitedTo = escape ? sandbox : sandbox + viewRelative
                 guard template.hasPrefix(limitedTo)
-                    else { throw LeafError(.illegalAccess("Attempted to escape sandbox: \(template)")) }
+                else { return fail(.illegalAccess("Attempted to escape sandbox: \(template)"), on: eventLoop) }
             }
         }
 
-        return self.read(path: template, on: eventLoop)
+        return read(path: template, on: eventLoop)
     }
     
     // MARK: - Internal/Private Only
@@ -104,20 +107,19 @@ public struct NIOLeafFiles: LeafSource {
     internal let limits: Limit
     internal let sandbox: String
     internal let viewRelative: String
-    internal let `extension`: String
+    internal let fileExt: String
     
     /// Attempt to read a fully pathed template and return a ByteBuffer or fail
-    private func read(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
-        let openFile = self.fileio.openFile(path: path, eventLoop: eventLoop)
-        return openFile.flatMapErrorThrowing { error in
-            throw LeafError(.noTemplateExists(path))
-        }.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
-            let allocator = ByteBufferAllocator()
-            let read = self.fileio.read(fileRegion: region, allocator: allocator, eventLoop: eventLoop)
-            return read.flatMapThrowing { (buffer)  in
-                try handle.close()
-                return buffer
-            }
-        }
+    private func read(path: String, on eL: EventLoop) -> EventLoopFuture<ByteBuffer> {
+        let openFile = fileio.openFile(path: path, eventLoop: eL)
+        return openFile.flatMapError { _ in fail(.noTemplateExists(path), on: eL) }
+                       .flatMap { (handle, region) in
+                                  let allocator = ByteBufferAllocator()
+                                  return self.fileio.read(fileRegion: region,
+                                                          allocator: allocator,
+                                                          eventLoop: eL)
+                                             .flatMapThrowing { try handle.close()
+                                                                return $0 }
+                                }
     }
 }

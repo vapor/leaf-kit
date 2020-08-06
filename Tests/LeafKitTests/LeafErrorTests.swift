@@ -11,17 +11,12 @@ final class LeafErrorTests: LeafTestClass {
         test.files["/a.leaf"] = "#extend(\"b\")"
         test.files["/b.leaf"] = "#extend(\"c\")"
         test.files["/c.leaf"] = "#extend(\"a\")"
+        let expected = "a cyclically referenced in [a -> b -> c -> !a]"
 
-        do {
-            _ = try TestRenderer(sources: .singleSource(test)).render(path: "a").wait()
-            XCTFail("Should have thrown LeafError.cyclicalReference")
-        } catch let error as LeafError {
-            switch error.reason {
-                case .cyclicalReference(let name, let cycle):
-                    XCTAssertEqual([name: cycle], ["a": ["a","b","c","a"]])
-                default: XCTFail("Wrong error: \(error.localizedDescription)")
-            }
-        } catch { XCTFail("Wrong error: \(error.localizedDescription)") }
+        do { _ = try TestRenderer(sources: .singleSource(test)).render(path: "a").wait()
+             XCTFail("Should have thrown LeafError.cyclicalReference") }
+        catch let error as LeafError { XCTAssert(error.localizedDescription.contains(expected)) }
+        catch { XCTFail("Should have thrown LeafError.cyclicalReference") }
     }
     
     /// Verify that referecing a non-existent template will throw `LeafError.noTemplateExists`
@@ -29,15 +24,11 @@ final class LeafErrorTests: LeafTestClass {
         var test = TestFiles()
         test.files["/a.leaf"] = "#extend(\"b\")"
         test.files["/b.leaf"] = "#extend(\"c\")"
+        let expected = "No template found for c"
 
-        do {
-            _ = try TestRenderer(sources: .singleSource(test)).render(path: "a").wait()
-            XCTFail("Should have thrown LeafError.noTemplateExists")
-        } catch let error as LeafError {
-            switch error.reason {
-                case .noTemplateExists(let name): XCTAssertEqual(name, "c")
-                default: XCTFail("Wrong error: \(error.localizedDescription)")
-            }
-        } catch { XCTFail("Wrong error: \(error.localizedDescription)") }
+        do { _ = try TestRenderer(sources: .singleSource(test)).render(path: "a").wait()
+             XCTFail("Should have thrown LeafError.noTemplateExists") }
+        catch let error as LeafError { XCTAssert(error.localizedDescription.contains(expected)) }
+        catch { XCTFail("Should have thrown LeafError.noTemplateExists") }
     }
 }

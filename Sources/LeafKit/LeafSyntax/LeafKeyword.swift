@@ -19,7 +19,6 @@ public enum LeafKeyword: String, Hashable, CaseIterable, SymbolPrintable {
          leaf    //
     
     // MARK: - SymbolPrintable
-    
     public var description: String { rawValue }
     public var short: String { rawValue }
 
@@ -30,7 +29,5 @@ public enum LeafKeyword: String, Hashable, CaseIterable, SymbolPrintable {
     internal var isBooleanValued: Bool { [.true, .false, .yes, .no].contains(self) }
     
     // Value or value-indicating returns
-    internal var bool: Bool? {
-        isBooleanValued ? [.true, .yes].contains(self) : nil
-    }
+    internal var bool: Bool? { isBooleanValued ? [.true, .yes].contains(self) : nil }
 }

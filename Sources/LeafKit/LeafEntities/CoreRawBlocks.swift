@@ -15,6 +15,11 @@ extension ByteBuffer: RawBlock {
         data ?? ByteBufferAllocator().buffer(capacity: 0)
     }
     
+    internal static func instantiate(size: UInt64,
+                                     encoding: String.Encoding) -> RawBlock {
+        ByteBufferAllocator().buffer(capacity: Int(size))
+    }
+    
     /// Never errors
     public var error: String? { nil }
 

@@ -18,18 +18,18 @@ internal class LeafTestClass: XCTestCase {
 /// Directly run a String "template" through `LeafLexer`
 /// - Parameter str: Raw String holding Leaf template source data
 /// - Returns: A lexed array of LeafTokens
-internal func lex(_ str: String) throws -> [LeafToken] {
-    var lexer = LeafLexer(name: "lex-test", template: str)
+internal func lex(_ str: String, name: String = "default") throws -> [LeafToken] {
+    var lexer = LeafLexer(name: name, raw: str)
     return try lexer.lex()
 }
 
 /// Directly run a String "template" through `LeafLexer` and `LeafParser`
 /// - Parameter str: Raw String holding Leaf template source data
 /// - Returns: A lexed and parsed array of Syntax
-internal func parse(_ str: String) throws -> Leaf4AST {
-    var lexer = LeafLexer(name: "alt-parse", template: str)
+internal func parse(_ str: String, name: String = "default") throws -> Leaf4AST {
+    var lexer = LeafLexer(name: name, raw: str)
     let tokens = try! lexer.lex()
-    var parser = Leaf4Parser(name: "alt-parse", tokens: tokens)
+    var parser = Leaf4Parser(name, tokens)
     let syntax = try! parser.parse()
 
     return syntax
@@ -40,9 +40,9 @@ internal func parse(_ str: String) throws -> Leaf4AST {
 /// - Parameter context: LeafData context
 /// - Returns: A fully rendered view
 internal func render(name: String = "test-render", _ template: String, _ context: [String: LeafData] = [:]) throws -> String {
-    var lexer = LeafLexer(name: name, template: template)
+    var lexer = LeafLexer(name: name, raw: template)
     let tokens = try lexer.lex()
-    var parser = Leaf4Parser(name: name, tokens: tokens)
+    var parser = Leaf4Parser(name, tokens)
     let ast = try parser.parse()
     let buffer = ByteBufferAllocator().buffer(capacity: Int(ast.underestimatedSize))
     var block = ByteBuffer.instantiate(data: buffer, encoding: LeafConfiguration.encoding)
@@ -79,16 +79,14 @@ internal class TestRenderer {
     
     func render(source: String? = nil, path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
         lock.withLock { counter += 1 }
-        if let source = source {
-            return self.r.render(source: source, path: path, context: context)
-        } else {
-            return self.r.render(path: path, context: context)
-        }
+        if let s = source { return r.render(path: path, from: s, context: context)}
+        return r.render(path: path, context: context)
     }
     
-    public var isDone: Bool { lock.withLock { counter == 0 } ? true : false }
+    internal var queued: Int { lock.withLock { counter } }
+    internal var isDone: Bool { lock.withLock { counter == 0 } ? true : false }
+    internal func finishTask() { lock.withLock { counter -= 1 } }
     
-    func finishTask() { lock.withLock { counter -= 1 } }
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
@@ -129,20 +127,11 @@ internal extension Array where Element == LeafToken {
     var string: String { filter { $0 != .raw("\n") }.map { $0.description + "\n" } .reduce("", +) }
 }
 
-internal extension Array where Element == Syntax {
-    var string: String { map { $0.description } .joined(separator: "\n") }
-}
-
 // MARK: - Helper Variables
 
 /// Automatic path discovery for the Templates folder in this package
-internal var templateFolder: String {
-    return projectTestFolder + "Templates/"
-}
-
-internal var projectTestFolder: String {
-    "/\(#file.split(separator: "/").dropLast().joined(separator: "/"))/"
-}
+internal var templateFolder: String { projectTestFolder + "Templates/" }
+internal var projectTestFolder: String { "/\(#file.split(separator: "/").dropLast().joined(separator: "/"))/"}
 
 // MARK: - Internal Tests
 

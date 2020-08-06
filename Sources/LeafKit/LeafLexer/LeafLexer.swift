@@ -11,38 +11,20 @@ internal struct LeafLexer {
     // MARK: - Internal Only
     
     /// Convenience to initialize `LeafLexer` with a `String`
-    init(name: String, template string: String) {
-        self.name = name
-        self.src = LeafRawTemplate(name: name, src: string)
-        self.state = .raw
-        
-        self.openers = .init()
-        self.closers = .init()
-        
-        self.openers.formUnion(LeafConfiguration.entities.blockFactories.keys)
-        self.openers.formUnion(LeafConfiguration.entities.functions.keys)
-        
-        for (tag, factory) in LeafConfiguration.entities.blockFactories {
-            if let chained = factory as? ChainedBlock.Type {
-                if chained.chainsTo.isEmpty { closers.insert("end" + tag) }
-                else if chained.callSignature.isEmpty { closers.insert(tag) }
-            } else { closers.insert("end" + tag) }
-        }
-    }
+    init(name: String, raw: String) { self.init(LeafRawTemplate(name, raw)) }
     
     /// Init with `LeafRawTemplate`
-    init(name: String, template: LeafRawTemplate) {
-        self.name = name
+    init(_ template: LeafRawTemplate) {
+        self.name = template.name
         self.src = template
         self.state = .raw
         
-        self.openers = .init()
+        self.entities = LeafConfiguration.entities
+        self.openers = .init(entities.blockFactories.keys)
+        self.openers.formUnion(entities.functions.keys)
         self.closers = .init()
         
-        self.openers.formUnion(LeafConfiguration.entities.blockFactories.keys)
-        self.openers.formUnion(LeafConfiguration.entities.functions.keys)
-        
-        for (tag, factory) in LeafConfiguration.entities.blockFactories {
+        for (tag, factory) in entities.blockFactories {
             if let chained = factory as? ChainedBlock.Type {
                 if chained.chainsTo.isEmpty { closers.insert("end" + tag) }
                 else if chained.callSignature.isEmpty { closers.insert(tag) }
@@ -54,16 +36,11 @@ internal struct LeafLexer {
     /// - Throws: `LexerError`
     /// - Returns: An array of fully built `LeafTokens`, to then be parsed by `LeafParser`
     mutating func lex() throws -> [LeafToken] {
-        // FIXME: Adjust to keep lexing if `try` throws a recoverable LexerError
-        while let next = try nextToken() {
-            lexed.append(next)
-            offset += 1
-        }
+        while let next = try nextToken() { lexed.append(next) }
         return lexed
     }
     
     // MARK: - Private Only
-    
     private enum State {
         /// Parse as raw, until it finds `#` (but consuming escaped `\#`)
         case raw
@@ -79,52 +56,49 @@ internal struct LeafLexer {
     private var state: State
     /// Current parameter depth, when in a Parameter-lexing state
     private var depth = 0
-    /// Current index in `lexed` that we want to insert at
-    private var offset = 0
-    /// Streat of `LeafTokens` that have been successfully lexed
+    /// Current index in `lexed`
+    private var offset: Int { lexed.count }
+    /// Stream of `LeafTokens` that have been successfully lexed
     private var lexed: [LeafToken] = []
     /// The originating template source content (ie, raw characters)
     private var src: LeafRawTemplate
     /// Name of the template (as opposed to file name) - eg if file = "/views/template.leaf", `template`
     private var name: String
-    
+    /// Configured entitites
+    private let entities: LeafEntities
     private var openers: Set<String>
     private var closers: Set<String>
+    
+    /// Convenience for the current character to read
+    private var current: Character? { src.peek() }
+    /// Convenience to pop the current character
+    @discardableResult
+    mutating private func pop() -> Character? { src.pop() }
+    
+    /// Convenience for an escaped tagIndicator token
+    private let escapedTagID: LeafToken = .raw(Character.tagIndicator.description)
     
     // MARK: - Private - Actual implementation of Lexer
 
     private mutating func nextToken() throws -> LeafToken? {
         // if EOF, return nil - no more to read
-        guard let current = src.peek() else { return nil }
-        let isTagID = current == .tagIndicator
-        let isTagVal = current.canStartIdentifier
-        let isCol = current == .colon
-        let next = src.peek(aheadBy: 1)
+        guard let current = current else { return nil }
 
-        switch   (state,       isTagID, isTagVal, isCol, next) {
-            case (.raw,        false,   _,        _,     _):     return lexRaw()
-            case (.raw,        true,    _,        _,     .some): return lexCheckTagIndicator()
-            case (.raw,        true,    _,        _,     .none): return .raw(Character.tagIndicator.description)
-            case (.tag,        _,       true,     _,     _):     return try lexNamedTag()
-            case (.tag,        _,       false,    _,     _):     return lexAnonymousTag()
-            case (.parameters, _,   _,   _,  _):
-                var token: LeafToken?
-                repeat { token = try lexParameters() } while token == nil
-                guard let found = token else {
-                    throw LexerError(.unknownError("Template ended on open parameters"), src: src, lexed: lexed)
-                }
-                return found
-            case (.body,       _,   _, true,  _):                return lexBodyIndicator()
-            default:
-                throw LexerError(.unknownError("Template cannot be lexed"), src: src, lexed: lexed)
+        switch state {
+            case .raw where current == .tagIndicator
+                             : return lexCheckTagIndicator()
+            case .tag where current.canStartIdentifier
+                             : return try lexNamedTag()
+            case .raw        : return lexRaw()
+            case .tag        : return lexAnonymousTag()
+            case .parameters : var part: LeafToken?
+                               repeat { part = try lexParameters() }
+                                   while part == nil && self.current != nil
+                               if let paramPart = part { return paramPart }
+                               throw unknownError("Template ended on open parameters")
+            default          : throw unknownError("Template cannot be lexed")
         }
     }
-
-    // Lexing subroutines that can produce state changes:
-    // * to .raw:           lexRaw, lexCheckTagIndicator
-    // * to .tag:           lexCheckTagIndicator
-    // * to .parameters:    lexAnonymousTag, lexNamedTag
-    // * to .body:          lexNamedTag
 
     private mutating func lexAnonymousTag() -> LeafToken {
         state = .parameters
@@ -133,148 +107,135 @@ internal struct LeafLexer {
     }
 
     private mutating func lexNamedTag() throws -> LeafToken {
-        let identifier = src.readWhile { $0.isValidInIdentifier }
+        let id = src.readWhile { $0.isValidInIdentifier }
 
         // if not a recognized identifier decay to raw and rewrite tagIndicator
-        guard openers.contains(identifier) || closers.contains(identifier) else {
-            lexed[offset - 1] = .raw("#")
+        guard openers.contains(id) || closers.contains(id) else {
+            lexed[offset - 1] = escapedTagID
             state = .raw;
-            return .raw(identifier)
+            return .raw(id)
         }
         
-        let xor = (params: src.peek() == .leftParenthesis, closer: closers.contains(identifier))
-        
+        /// If the tag has parameters, and if it's a "closer" (end_xxxx, chained terminal tag eg: else)
+        let xor = (params: current == .leftParenthesis, terminal: closers.contains(id))
         switch xor {
-            case (params: true, closer: true):
-                throw LexerError(.unknownError("Closing tags can't have parameters"), src: src, lexed: lexed)
-            case (params: false, closer: false):
-                throw LexerError(.unknownError("Tags must have parameters"), src: src, lexed: lexed)
-            case (params: true, closer: false):
-                state = .parameters
-                depth = 0
-                return .tag(identifier)
-            case (params: false, closer: true):
-                if LeafConfiguration.entities.blockFactories.keys.contains(identifier) {
-                    guard src.peek() == .colon else {
-                        throw LexerError(.unknownError("Chained block missing `:`"), src: src, lexed: lexed)
-                    }
-                    lexed.append(.tag(identifier))
-                    offset += 1
-                    return lexBodyIndicator()
-                } else {
-                    state = .raw
-                    return .tag(identifier)
-                }
+            /// Terminal chained tags can't have params (eg, else)
+            case (true , true ) : throw unknownError("Closing tags can't have parameters")
+            /// A normal tag call *must* have parameters, even if empty
+            case (false, false) : throw unknownError("Tags must have parameters")
+            /// Atomic function/block normal case
+            case (true , false) : state = .parameters
+                                  depth = 0
+                                  return .tag(id)
+            /// Terminal chained tag normal case
+            case (false, true ) where openers.contains(id)
+                                : if pop() != .colon {
+                                    throw unknownError("Chained block missing `:`") }
+                                  lexed.append(.tag(id))
+                                  state = .raw
+                                  return .scopeIndicator
+            /// End tag normal case
+            case (false, true ) : state = .raw
+                                  return .tag(id)
         }
     }
 
-    /// Consume all data until hitting an unescaped `tagIndicator` and return a `.raw` token
+    /// Consume all data until hitting a `tagIndicator` that might open a tag/expression, escaping backslashed
     private mutating func lexRaw() -> LeafToken {
         var slice = ""
-        while let current = src.peek(), current != .tagIndicator {
-            slice += src.readWhile { $0 != .tagIndicator && $0 != .backSlash }
-            guard let newCurrent = src.peek(), newCurrent == .backSlash else { break }
-            if let next = src.peek(aheadBy: 1), next == .tagIndicator {
-                src.pop()
+        scan:
+        while let current = current {
+            let peek = src.peek(aheadBy: 1) ?? .backSlash /// Magic - \ can't be an ID start
+            switch current {
+                case .tagIndicator where peek.canStartIdentifier || peek == .leftParenthesis
+                        : break scan
+                case .backSlash where peek == .tagIndicator
+                        : pop()
+                          fallthrough
+                case .tagIndicator, .backSlash
+                        : slice += src.pop(count: 1)
+                default : slice += src.readWhileNot([.tagIndicator, .backSlash])
             }
-            slice += src.pop()!.description
         }
         return .raw(slice)
     }
 
     /// Consume `#`, change state to `.tag` or `.raw`, return appropriate token
     private mutating func lexCheckTagIndicator() -> LeafToken {
-        // consume `#`
-        src.pop()
-        // if tag indicator is followed by an invalid token, assume that it is unrelated to leaf
-        let current = src.peek()
-        if let current = current, current.canStartIdentifier || current == .leftParenthesis {
-            state = .tag
-            return .tagIndicator
-        } else {
-            state = .raw
-            return .raw(Character.tagIndicator.description)
-        }
+        pop()
+        let valid = current == .leftParenthesis || current?.canStartIdentifier ?? false
+        state = valid ? .tag : .raw
+        return valid ? .tagIndicator : escapedTagID
     }
 
-    /// Consume `:`, change state to `.raw`, return `.scopeIndicator`
-    private mutating func lexBodyIndicator() -> LeafToken {
-        src.pop()
-        state = .raw
-        return .scopeIndicator
-    }
-
-    /// Parameter hot mess
+    /// Parameter lexing - very monolithic, would be nice to break this up.
     private mutating func lexParameters() throws -> LeafToken? {
-        // consume first character regardless of what it is
-        let current = src.pop()!
+        /// Consume first character regardless of what it is
+        let current = pop()!
 
-        // Simple returning cases - .parametersStart/Delimiter/End, .literal(.string()), ParameterToken, space/comment discard
+        /// Simple returning cases - .parametersStart/Delimiter/End, .literal(.string()), ParameterToken, space/comment discard
         switch current {
-            case .leftParenthesis: depth += 1; return .parametersStart
-            case .rightParenthesis:
-                switch (depth <= 1, src.peek() == .colon) {
-                    case (true, true):  state = .body
-                    case (true, false): state = .raw
-                    case (false, _):    depth -= 1
-                }
-                return .parametersEnd
-            case .comma:  return .parameterDelimiter
-            case .quote:
-                let read = src.readWhile { $0 != .quote && $0 != .newLine }
-                guard src.peek() == .quote else {
-                    throw LexerError(.unterminatedStringLiteral, src: src, lexed: lexed)
-                }
-                src.pop() // consume final quote
+            case .tab, .newLine, .space /// Whitespace - silently discard
+                                     : src.popWhile { $0.isWhitespace }
+                                       return nil
+            case .leftParenthesis    : depth += 1
+                                       return .parametersStart
+            case .rightParenthesis where depth <= 1
+                                     : state = .raw
+                                       let body = self.current == .colon
+                                       if body { pop()
+                                                 lexed.append(.parametersEnd)
+                                                 return .scopeIndicator
+                                       } else  { return .parametersEnd }
+            case .rightParenthesis   : depth -= 1
+                                       return .parametersEnd
+            case .comma              : return .parameterDelimiter
+            case .colon              : return .scopeIndicator
+            case .leftBracket where self.current == .rightBracket
+                                     : pop()
+                                       return .parameter(.literal(.emptyArray))
+            case .underscore where self.current?.isWhitespace ?? true
+                                     : return .parameter(.keyword(._))
+            case .quote              :
+                let read = src.readWhileNot([.quote, .newLine])
+                if pop() != .quote { throw unterminatedString }
                 return .parameter(.literal(.string(read)))
-            case .tab, .newLine, .space: // Whitespace - silently discard
-                src.popWhile { $0.isWhitespace }
+            case .tagIndicator       : /// A comment - silently discard
+                let _ = src.readWhileNot([.tagIndicator])
+                if pop() != .tagIndicator {
+                    throw unknownError("Template ended in open comment") }
                 return nil
-            case .tagIndicator: // A comment - silently discard
-                src.popWhile { $0 != .tagIndicator }
-                guard src.pop() == .tagIndicator else {
-                    throw LexerError(.unknownError("Template ended in open comment"), src: src, lexed: lexed)
-                }
-                return nil
-            case .colon: return .scopeIndicator
-            case .underscore:
-                if !(src.peek()?.isWhiteSpace ?? false) { break }
-                return .parameter(.keyword(._))
-            case .leftBracket:
-                if src.peek() == .rightBracket { src.pop(); return .parameter(.literal(.emptyArray)) }
             default: break
         }
 
-        // Complex ParameterToken lexing situations - enhanced to allow non-space separated values
-        // Complicated by overlap in acceptable isValidInParameter characters between possible types
-        // Process from most restrictive options to least to help prevent overly aggressive tokens
-        // Possible results, most restrictive to least
-        // * Operator
-        // * Constant(Int)
-        // * Constant(Double)
-        // * Keyword
-        // * Tag
-        // * Variable
+        /// Complex ParameterToken lexing situations - enhanced to allow non-space separated values
+        /// Complicated by overlap in acceptable isValidInParameter characters between possible types
+        /// Process from most restrictive options to least to help prevent overly aggressive tokens
+        /// Possible results, most restrictive to least
+        /// * Operator
+        /// * Constant(Int)
+        /// * Constant(Double)
+        /// * Keyword
+        /// * Tag
+        /// * Variable
 
-        // if current character isn't valid for any kind of parameter, something's majorly wrong
-        guard current.isValidInParameter else {
-            throw LexerError(.invalidParameterToken(current), src: src, lexed: lexed)
-        }
+        /// If current character isn't valid for any kind of parameter, something's majorly wrong
+        guard current.isValidInParameter else { throw badToken(current) }
 
-        // Test for Operator first - this will only handle max two character operators, not ideal
-        // Can't switch on this, MUST happen before trying to read tags
+        /// Test for Operator first - this will only handle max two character operators, not ideal
+        /// Can't switch on this, MUST happen before trying to read tags
         if current.isValidOperator {
-            // Try to get a valid 2char Op
-            var op = LeafOperator(rawValue: String(current) + String(src.peek()!))
-            if op != nil, !op!.lexable { throw LeafError(.unknownError("\(op!) is not yet supported as an operator")) }
-            if op == nil { op = LeafOperator(rawValue: String(current)) } else { src.pop() }
-            if op != nil, !op!.lexable { throw LeafError(.unknownError("\(op!) is not yet supported as an operator")) }
-            return .parameter(.operator(op!))
+            /// Try to get a 2char Op first, then a 1 char Op if can't do 2
+            let twoOp = LeafOperator(rawValue: String(current) + String(self.current!))
+            let op = twoOp != nil ? twoOp! : LeafOperator(rawValue: String(current))!
+            guard op.lexable else { throw badOperator(op) }
+            if twoOp != nil { pop() }
+            return .parameter(.operator(op))
         }
 
-        // Test for numerics next. This is not very intelligent but will read base2/8/10/16
-        // for Ints and base 10/16 for decimal through native Swift initialization
-        // Will not adequately decay to handle things like `0b0A` and recognize as invalid.
+        /// Test for numerics next. This is not very intelligent but will read base2/8/10/16  for Ints and base
+        /// 10/16 for decimal through native Swift initialization. Will not adequately decay to handle things
+        /// like `0b0A` and recognize it as an invalid numeric.
         if current.canStartNumeric {
             var testInt: Int?
             var testDouble: Double?
@@ -284,10 +245,9 @@ internal struct LeafLexer {
             let next = src.peek()!
             let peekRaw = String(current) + (src.peekWhile { $0.isValidInNumeric })
             var peekNum = peekRaw.replacingOccurrences(of: String(.underscore), with: "")
-            // We must be immediately preceeded by a minus to flip the sign
-            // And only flip back if immediately preceeded by a const, tag or variable
-            // (which we assume will provide a numeric). Grammatical errors in the
-            // template (eg, keyword-numeric) may throw here
+            /// We must be immediately preceeded by a minus to flip the sign and only flip back if
+            /// immediately preceeded by a const, tag or variable (which we assume will provide a
+            /// numeric). Grammatical errors in the template (eg, keyword-numeric) may throw here
             if case .parameter(let p) = lexed[offset - 1],
                case .operator(let op) = p, op == .minus {
                 switch lexed[offset - 2] {
@@ -295,7 +255,7 @@ internal struct LeafLexer {
                         switch p {
                             case .literal, .function, .variable: sign = 1
                             case .operator: sign = -1
-                            case .keyword: throw LexerError(.invalidParameterToken(.minus), src: src)
+                            case .keyword: throw badToken(.minus)
                         }
                     default: sign = -1
                 }
@@ -317,27 +277,37 @@ internal struct LeafLexer {
 
             if testInt != nil || testDouble != nil {
                 // discard the minus if negative
-                if sign == -1 { self.lexed.removeLast(); offset -= 1 }
+                if sign == -1 { self.lexed.removeLast() }
                 src.popWhile { $0.isValidInNumeric }
                 if testInt != nil { return .parameter(.literal(.int(testInt! * sign))) }
                 else { return .parameter(.literal(.double(testDouble! * Double(sign)))) }
             }
         }
         
-        guard current.canStartIdentifier else {
-            throw LexerError(.invalidParameterToken(current), src: src)
-        }
+        guard current.canStartIdentifier else { throw badToken(current) }
         
-        // At this point, just read anything that's identifier valid,
+        /// At this point, just read the longest possible identifier-valid part (NO operators)
         let identifier = String(current) + (src.readWhile { $0.isValidInIdentifier })
 
-        // If it's a keyword, return that (or convert to variable if `self`
-        if let keyword = LeafKeyword(rawValue: identifier) {
-            return .parameter(.keyword(keyword))
-        }
+        /// If it's a keyword, return that
+        if let kw = LeafKeyword(rawValue: identifier) { return .parameter(.keyword(kw)) }
         
-        // If identifier is followed by leftParen it's a tag, otherwise a variable
+        /// If identifier is followed by leftParen it's a function or method call, otherwise a variable
         if src.peek()! == .leftParenthesis { return .parameter(.function(identifier)) }
         else { return .parameter(.variable(identifier)) }
+    }
+    
+    /// Conveniences for making nested LeafError->LexerErrors
+    private func unknownError(_ reason: String) -> LeafError {
+        LeafError(.lexerError(.init(.unknownError(reason), src: src, lexed: lexed)))
+    }
+    private func badToken(_ character: Character) -> LeafError {
+        LeafError(.lexerError(.init(.invalidParameterToken(character), src: src, lexed: lexed)))
+    }
+    private func badOperator(_ op: LeafOperator) -> LeafError {
+        LeafError(.lexerError(.init(.invalidOperator(op), src: src, lexed: lexed)))
+    }
+    private var unterminatedString: LeafError {
+        LeafError(.lexerError(.init(.unterminatedStringLiteral, src: src, lexed: lexed)))
     }
 }

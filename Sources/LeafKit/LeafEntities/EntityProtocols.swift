@@ -28,12 +28,21 @@ public struct CallParameter: SymbolPrintable, Equatable {
         _sanity()
     }
     
-    /// Validate that a concrete `LeafData` object can match this parameter
-    internal func matches(_ value: LeafData) -> Bool {
-        if !optional && value.isNil { return false }
-        if types.contains(value.celf) { return true }
-        if types.first(where: { value.isCoercible(to: $0) }) != nil
-            { return true } else { return false }
+    /// Return the parameter value if it's valid, coerce if possible, nil if not an interpretable match.
+    internal func match(_ value: LeafData) -> LeafData? {
+        /// 1:1 expected match, valid as long as expecatation isn't non-optional with optional value
+        if types.contains(value.celf) { return !value.isNil || optional ? value : nil }
+        /// If not 1:1 match, non-optional but expecting a bool, nil coerces implicitly to false
+        if types.contains(.bool) && value.isNil, !optional { return .bool(false) }
+        /// All remaining nil values are invalid
+        if value.isNil { return nil }
+        /// If only one type, return coerced value as long as it doesn't coerce to .trueNil (and for .bool always true)
+        if types.count == 1 {
+            let coerced = value.coerce(to: types.first!)
+            return coerced != .trueNil ? coerced : types.first! == .bool ? .bool(true) : nil
+        }
+        /// Otherwise assume function will handle coercion itself as long as one potential match exists
+        return types.first(where: {value.isCoercible(to: $0)}) != nil ? value : nil
     }
     
     static func types(_ types: Set<LeafDataType>) -> CallParameter { .init(types: types) }
@@ -84,19 +93,11 @@ public struct ParameterValues {
                    _ tuple: LeafTuple,
                    _ symbols: SymbolMap) {
         if sig.isEmpty && tuple.isEmpty { values = []; labels = [:]; return }
-        self.labels = tuple.labels
-        var failed = false
-        self.values = tuple.values.enumerated().map {
-            var result = $0.element.evaluate(symbols)
-            let expected = sig[$0.offset]
-            // Special case - evaluated to nil, non-optional signature,
-            // but accepts bool - rewrite nil evaluation to `false`
-            if result.isNil, !expected.optional,
-               expected.types.contains(.bool) { result = .bool(false) }
-            if !expected.matches(result) { failed = true }
-            return result
-        }
-        if failed { return nil }
+        labels = tuple.labels
+        do { values = try tuple.values.enumerated().map {
+                let e = sig[$0.offset].match($0.element.evaluate(symbols))
+                if let e = e { return e } else { throw "" } }
+        } catch { return nil }
     }
     
     internal init(_ values: [LeafData], _ labels: [String: Int]) {

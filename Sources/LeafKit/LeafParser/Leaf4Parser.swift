@@ -9,7 +9,7 @@ internal struct Leaf4Parser {
     
     let name: String
     
-    init(name: String, tokens: [LeafToken]) {
+    init(_ name: String, _ tokens: [LeafToken]) {
         self.entities = LeafConfiguration.entities
         self.name = name
         self.tokens = tokens
@@ -19,13 +19,12 @@ internal struct Leaf4Parser {
     mutating func parse() throws -> Leaf4AST {
         var more = true
         while more { more = advance() }
-        guard error == nil else { throw error! }
-        return .init(name: name,
-                     scopes: scopes,
-                     defines: defines,
-                     inlines: inlines,
-                     underestimatedSize: underestimatedSize,
-                     ownFinalScope: scopes.indices.last!)
+        if let error = error { throw error }
+        return Leaf4AST(name,
+                        scopes,
+                        defines,
+                        inlines,
+                        underestimatedSize)
     }
 
     // MARK: - Private Only
@@ -84,7 +83,7 @@ internal struct Leaf4Parser {
             guard error == nil else { return false }
             // Validate tuple is single parameter, append or evaluate & append raw if invariant
             guard tuple?.count ?? 0 <= 1 else {
-                return leafError("Anonymous tag can't have multiple parameters") }
+                return parseError("Anonymous tag can't have multiple parameters") }
             if let tuple = tuple, let value = tuple[0] {
                 guard case .value(let data) = value.container,
                       data.resolved && data.invariant else { append(value); return true }
@@ -112,7 +111,7 @@ internal struct Leaf4Parser {
             // 5E. A full-stop "end*" tag
             guard let lastBlock = lastBlock else {
                 // 5F. No open blocks on the stack. Failure to close
-                return leafError("No open block to close matching #\(tagName)")
+                return parseError("No open block to close matching #\(tagName)")
             }
             
             let openTag = tagName.dropFirst(3)
@@ -132,7 +131,7 @@ internal struct Leaf4Parser {
                 else { break }
             }
             // 5H. No matching open block on the stack. Failure to close.
-            guard canClose else { return leafError("No open block to close matching #\(tagName)") }
+            guard canClose else { return parseError("No open block to close matching #\(tagName)") }
             // Decay chained blocks from the open stack if we were in one.
             var closeRaw = false
             for _ in 0...pass { closeRaw = openBlocks.removeLast().block == RawSwitch.self }
@@ -151,7 +150,7 @@ internal struct Leaf4Parser {
         guard case .success(let block) = result else {
             // 5K. Any failure to make, short of "not a block", is an error
             if case .failure(let reason) = result,
-               !reason.contains("not a block") { return leafError(reason) }
+               !reason.contains("not a block") { return parseError(reason) }
             // 5L. A normal function call with a trailing colon, decay `:`
             decayTokenTo(":")
             return appendFunction(tagName, tuple)
@@ -165,7 +164,7 @@ internal struct Leaf4Parser {
             // chained interstitial - must be able to close current block
             guard let previous = openBlocks.last?.block as? ChainedBlock.Type,
                   chained.chainsTo.contains(where: {$0 == previous})
-            else { return leafError("No open block for #\(tagName) to close") }
+            else { return parseError("No open block for #\(tagName) to close") }
             guard closeBlock() else { return false }
         }
         
@@ -247,7 +246,7 @@ internal struct Leaf4Parser {
         let result = entities.validateFunction(t, p)
         underestimatedSize += 16
         switch result {
-            case .failure(let r): return leafError("\(t) couldn't be parsed: \(r)")
+            case .failure(let r): return parseError("\(t) couldn't be parsed: \(r)")
             case .success(let f): return append(.function(t, f.0, f.1))
         }
     }
@@ -266,7 +265,7 @@ internal struct Leaf4Parser {
     
     /// Close the current scope. If the closing scope is empty or single element, remove its table and inline in place of scope.
     private mutating func closeBlock(_ rawBlock: Bool = false) -> Bool {
-        guard currentScope > 0 else { return leafError("Can't close top scope") }
+        guard currentScope > 0 else { return parseError("Can't close top scope") }
         if scopes[currentScope].count < 2 {
             let decayed = scopes.removeLast()
             scopeStack.removeLast()
@@ -292,7 +291,7 @@ internal struct Leaf4Parser {
                 guard let tuple = tuple, tuple.count == 2 - (isBlock ? 1 : 0),
                       case .variable(let v) = tuple[0]?.container, v.atomic,
                       tuple.count == 2 ? (tuple[1]!.isValued) : true
-                else { return leafError("#\(name) \(Define.warning)") }
+                else { return parseError("#\(name) \(Define.warning)") }
                 let definition = Define(identifier: v.member!,
                                         table: currentScope,
                                         row: scopes[currentScope].count + 1)
@@ -308,20 +307,20 @@ internal struct Leaf4Parser {
                                      row: definition.row + 1))
             case .evaluate:
                 guard let tuple = tuple, tuple.count == 1, let param = tuple[0] else {
-                    return leafError("#\(name) \(Evaluate.warning)") }
+                    return parseError("#\(name) \(Evaluate.warning)") }
                 let definedName: String
                 let defaultValue: LeafParameter?
                 switch param.container {
                     case .expression(let e) where e.op == .nilCoalesce:
                         guard case .variable(let v) = e.lhs?.container,
                               v.atomic, let coalesce = e.rhs, coalesce.isValued
-                        else { return leafError("#\(name) \(Evaluate.warning)") }
+                        else { return parseError("#\(name) \(Evaluate.warning)") }
                         definedName = v.member!
                         defaultValue = coalesce
                     case .variable(let v) where v.atomic:
                         definedName = String(v.member!)
                         defaultValue = nil
-                    default: return leafError("#\(name) \(Evaluate.warning)")
+                    default: return parseError("#\(name) \(Evaluate.warning)")
                 }
                 scopes[currentScope].append(.block(name, Evaluate(identifier: definedName), tuple))
                 scopes[currentScope].append(defaultValue == nil ? .scope(nil)
@@ -330,18 +329,18 @@ internal struct Leaf4Parser {
             case .inline:
                 guard let tuple = tuple, (1...2).contains(tuple.count),
                       case .string(let file) = tuple[0]?.data?.container
-                else { return leafError("#\(name) requires a string literal argument for the file") }
+                else { return parseError("#\(name) requires a string literal argument for the file") }
                 var process = false
                 var raw: String? = nil
                 if tuple.count == 2 {
                     guard tuple.labels["as"] == 1, let behavior = tuple[1]?.container
-                    else { return leafError("#\(name)(\"file\", as: type) where type is `leaf` or a raw handler") }
+                    else { return parseError("#\(name)(\"file\", as: type) where type is `leaf` or a raw handler") }
                     if case .keyword(.leaf) = behavior { process = true }
                     else if case .variable(let v) = behavior, v.atomic,
                             let handler = String(v.member!) as String?,
                             handler == "raw" || entities.rawFactories[handler] != nil {
                         raw = handler != "raw" ? handler : nil
-                    } else { return leafError("#\(name)(\"file\", as: type) where type is `leaf`, `raw`, or a named raw handler") }
+                    } else { return parseError("#\(name)(\"file\", as: type) where type is `leaf`, `raw`, or a named raw handler") }
                 } else { process = true }
                 let inline = Inline(file, process: process, rawIdentifier: process ? nil : raw )
                 inlines.append((inline: .init(identifier: file,
@@ -355,7 +354,7 @@ internal struct Leaf4Parser {
                     if process { appendRaw(Character.tagIndicator.description) }
                 }
             case .rawSwitch:
-                guard tuple?.isEmpty ?? true else { return leafError("Using #\(name)() with parameters is not yet supported") }
+                guard tuple?.isEmpty ?? true else { return parseError("Using #\(name)() with parameters is not yet supported") }
                 if isBlock {
                     // When enabled, type will be picked from parameter & params will be passed
                     rawStack.append(type(of: rawStack.last!).instantiate(data: nil, encoding: .utf8))
@@ -419,7 +418,7 @@ internal struct Leaf4Parser {
         @discardableResult
         func tupleAppend() -> Bool {
             guard currentComplex.count <= 1 else {
-                return leafError("Couldn't resolve parameter") }
+                return parseError("Couldn't resolve parameter") }
             defer { currentState = .start; currentLabel = nil;
                     complexes.removeLast(); complexes.append([]) }
             guard !currentComplex.isEmpty else { return true }
@@ -441,15 +440,15 @@ internal struct Leaf4Parser {
             if sanity {
                 if currentState == .uncertainVariable {
                     guard let variable = makeVariable()
-                        else { return leafError("Couldn't close a variable identifier") }
+                        else { return parseError("Couldn't close a variable identifier") }
                     complexes[complexes.indices.last!].append(.variable(variable))
                 }
                 if let op = a.operator, op.infix {
                     guard !currentComplex.isEmpty, currentComplex.last!.isValued
-                        else { return leafError("Can't operate on non-valued parameter") }
+                        else { return parseError("Can't operate on non-valued parameter") }
                 } else if !currentComplex.isEmpty, !blockParse {
                     guard let op = currentComplex.last?.operator, !op.unaryPostfix
-                        else { return leafError("Missing operator between parameters") }
+                        else { return parseError("Missing operator between parameters") }
                 }
             }
             complexes[complexes.indices.last!].append(a)
@@ -468,9 +467,9 @@ internal struct Leaf4Parser {
         }
         
         func makeVariable() -> LeafVariable? {
-            if currentState < .uncertainVariable { leafError("No valid variable identifier"); return nil }
+            if currentState < .uncertainVariable { parseError("No valid variable identifier"); return nil }
             let valid = LeafVariable(openScope, openMember, openPath.isEmpty ? nil : openPath)
-            guard let variable = valid else { leafError("Invalid variable identifier"); return nil }
+            guard let variable = valid else { parseError("Invalid variable identifier"); return nil }
             currentState = .start
             openScope = nil; openMember = ""; openPath = []; needIdentifier = false;
             return variable
@@ -480,11 +479,11 @@ internal struct Leaf4Parser {
             guard let last = currentComplex.indices.last,
                   currentComplex.count >= 3, currentComplex[last].isValued,
                   case .operator(.subScript) = currentComplex[last - 1].container
-            else { leafError("Can't close subscript"); return }
+            else { parseError("Can't close subscript"); return }
             guard let parameter = express([currentComplex[last - 2],
                                        .operator(.subScript),
                                        currentComplex[last]])
-            else { leafError("Couldn't subscript"); return }
+            else { parseError("Couldn't subscript"); return }
             complexDrop(3)
             complexAppend(parameter, sanity: false)
         }
@@ -507,9 +506,9 @@ internal struct Leaf4Parser {
                 case .scopeMember:
                     if !needIdentifier, currentState >= .uncertainVariable { needIdentifier = true }
                     else if currentComplex.last?.isValued ?? false { currentState = .chain }
-                    else { leafError("Ambiguous accessor - Expected identifier") }
+                    else { parseError("Ambiguous accessor - Expected identifier") }
                 case .scopeRoot:
-                    if currentState > .uncertainScope { leafError("Can't reference a new variable"); break }
+                    if currentState > .uncertainScope { parseError("Can't reference a new variable"); break }
                     currentState = .scopeRequired; needIdentifier = true
                 case .subOpen:
                     // check for an open variable & close it
@@ -526,7 +525,7 @@ internal struct Leaf4Parser {
                     }
                     resolveSubscript()
                 // TODO: Assignment, evaluate
-                case .assignment, .evaluate: leafError("\(op) not yet implemented")
+                case .assignment, .evaluate: parseError("\(op) not yet implemented")
                 default:
                     complexAppend(.operator(op))
                     needIdentifier = true
@@ -587,7 +586,7 @@ internal struct Leaf4Parser {
             
             // check for an open variable & close it
             if currentState == .uncertainVariable {
-                guard !open else { return leafError("Unexpected accessor; expected property or method") }
+                guard !open else { return parseError("Unexpected accessor; expected property or method") }
                 guard let variable = makeVariable() else { return false }
                 exp.append(.variable(variable))
             }
@@ -648,7 +647,7 @@ internal struct Leaf4Parser {
         
         func resolveExpression() {
             guard let tuple = tuples.popLast(), tuple.values.count <= 1 else {
-                leafError("Expressions must return a single value"); return }
+                parseError("Expressions must return a single value"); return }
             if tuple.count == 1, let value = tuple.values.first { complexAppend(value) }
         }
     
@@ -670,13 +669,13 @@ internal struct Leaf4Parser {
                     }
                 case .parameterDelimiter       :
                     // Try to close the current complex expression and append to the current tuple
-                    guard closeComplex(needIdentifier) else { if error == nil { leafError("Couldn't close expression") } ; break }
+                    guard closeComplex(needIdentifier) else { if error == nil { parseError("Couldn't close expression") } ; break }
                     tupleAppend()
                 case .parametersEnd            :
                     // Try to close the current complex expression, append to the current tuple,
                     // and close the current tuple
                     let chained = states.count > 1 ? states[states.indices.last! - 1] == .chain : false
-                    guard closeComplex(needIdentifier) else { if error == nil { leafError("Couldn't close expression") } ; break }
+                    guard closeComplex(needIdentifier) else { if error == nil { parseError("Couldn't close expression") } ; break }
                     guard tupleAppend() else { break }
                     guard tuples.count > 1 || chained else { return currentTuple }
                     let function = functions.removeLast()
@@ -694,19 +693,19 @@ internal struct Leaf4Parser {
                         // Method function
                         case .some(let m) where chained:
                             guard !currentComplex.isEmpty, let operand = currentComplex.popLast(),
-                                  operand.isValued else { leafError("Can't call method on non-valued parameter"); break }
+                                  operand.isValued else { parseError("Can't call method on non-valued parameter"); break }
                             tuple.labels = tuple.labels.mapValues { $0 + 1 }
                             tuple.values.insert(operand, at: 0)
                             let result = entities.validateMethod(m, tuple)
                             switch result {
-                                case .failure(let r): leafError("\(m) couldn't be parsed: \(r)")
+                                case .failure(let r): parseError("\(m) couldn't be parsed: \(r)")
                                 case .success(let M): complexAppend(.function(m, M.0, M.1))
                             }
                         // Atomic function
                         case .some(let f):
                             let result = entities.validateFunction(f, tuple)
                             switch result {
-                                case .failure(let r): leafError("\(f) couldn't be parsed: \(r)")
+                                case .failure(let r): parseError("\(f) couldn't be parsed: \(r)")
                                 case .success(let F): complexAppend(.function(f, F.0, F.1))
                             }
                     }
@@ -716,10 +715,10 @@ internal struct Leaf4Parser {
                     // wrapping an expression - Not yet valid in a variable
                     // chain until evaluate exists
                     guard currentState < .scopeRequired else {
-                        leafError("Can't use expressions in variable identifier"); break }
+                        parseError("Can't use expressions in variable identifier"); break }
                     currentState = .start
                     newTuple()
-                case .scopeIndicator           : leafError("`:` only usable as label separator for function parameters")
+                case .scopeIndicator           : parseError("`:` only usable as label separator for function parameters")
                 case .tag, .tagIndicator, .raw : __MajorBug("Lexer produced \(next) inside parameters")
             }
             
@@ -730,17 +729,17 @@ internal struct Leaf4Parser {
         // Error states from parameter parsing
         if error != nil { return nil }
         // Error state from grammatically correct but unclosed parameters
-        if tuples.count != 1 { leafError("Couldn't close parameters") }
+        if tuples.count != 1 { parseError("Couldn't close parameters") }
         return tuples.popLast()
     }
     
     /// Set parsing error state and return false to halt parsing
     @discardableResult
-    private mutating func leafError(_ reason: String,
-                                    file: String = #file,
-                                    function: String = #function,
-                                    line: UInt = #line,
-                                    column: UInt = #column) -> Bool {
+    private mutating func parseError(_ reason: String,
+                                     file: String = #file,
+                                     function: String = #function,
+                                     line: UInt = #line,
+                                     column: UInt = #column) -> Bool {
         error = LeafError(.unknownError(reason),
                           file: String(file.split(separator: "/").last ?? ""),
                           function: function, line: line, column: column)

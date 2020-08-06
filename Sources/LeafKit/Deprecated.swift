@@ -36,12 +36,13 @@ extension LeafSource {
     /// Default implementation for non-adhering protocol implementations mimicing older LeafRenderer expansion
     /// This wrapper will be removed in a future release.
     @available(*, deprecated, message: "Update to adhere to `file(template, escape, eventLoop)`")
-    func file(template: String, escape: Bool, on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer> {
+    func file(template: String, escape: Bool, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
         var path = template
         if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2,
            !path.hasSuffix(".leaf") { path += ".leaf" }
         if !path.hasPrefix("/") { path = "/" + path }
-        return try self.file(path: path, on: eventLoop)
+        do { return try self.file(path: path, on: eventLoop) }
+        catch { return fail(.noTemplateExists(template), on: eventLoop) }
     }
     
     /// Deprecated in Leaf-Kit 1.0.0rc-1.11

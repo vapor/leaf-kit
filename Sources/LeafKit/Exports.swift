@@ -3,6 +3,8 @@
 
 @_exported import NIO
 
+extension String: Error {}
+
 // MARK: - Static Conveniences
 
 public extension Set where Element == LeafDataType {

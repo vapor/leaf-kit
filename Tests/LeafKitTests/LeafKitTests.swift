@@ -112,11 +112,11 @@ final class ParserTests: LeafTestClass {
            0: raw(ByteBuffer: 12B))
         """
 
-        var baseAST = try parse(base)
+        var baseAST = try parse(base, name: "base")
         
         XCTAssertEqual(baseAST.terse, preinline)
-        let headerAST = try parse(header)
-        baseAST.inline(asts: ["header": headerAST])
+        let headerAST = try parse(header, name: "header")
+        baseAST.inline(ast: headerAST)
         
         XCTAssertEqual(baseAST.terse, expectation)
     }
@@ -164,12 +164,12 @@ final class ParserTests: LeafTestClass {
            7: scope(undefined)
         """
         
-        let headerAST = try parse(header)
-        var baseAST = try parse(base)
-        var homeAST = try parse(home)
+        let headerAST = try parse(header, name: "header")
+        var baseAST = try parse(base, name: "base")
+        var homeAST = try parse(home, name: "home")
     
-        baseAST.inline(asts: ["header": headerAST])
-        homeAST.inline(asts: ["base": baseAST])
+        baseAST.inline(ast: headerAST)
+        homeAST.inline(ast: baseAST)
         
         XCTAssertEqual(homeAST.terse, expectation)
     }
@@ -462,13 +462,8 @@ final class LeafKitTests: LeafTestClass {
         let input = """
         Todo: #(todo.title)
         """
-        var lexer = LeafLexer(name: "nested-echo", template: input)
-        let tokens = try lexer.lex()
-        var parser = LeafParser(name: "nested-echo", tokens: tokens)
-        let ast = try parser.parse()
-        var serializer = LeafSerializer(ast: ast, context: ["todo": ["title": "Leaf!"]])
-        let view = try serializer.serialize()
-        XCTAssertEqual(view.string, "Todo: Leaf!")
+        let view = try render(input, ["todo": ["title": "Leaf!"]])
+        XCTAssertEqual(view, "Todo: Leaf!")
     }
 
     func _testRenderer() throws {
@@ -541,7 +536,7 @@ final class LeafKitTests: LeafTestClass {
 
     func testCacheSpeedLinear() {
         self.measure {
-            self._testCacheSpeedLinear(templates: 10, iterations: 100)
+            self._testCacheSpeedLinear(templates: 10, iterations: 1_000_000)
         }
     }
 
@@ -559,8 +554,9 @@ final class LeafKitTests: LeafTestClass {
             let template = String((iteration % templates) + 1)
             renderer.render(path: template).whenComplete { _ in renderer.finishTask() }
         }
-
-        while !renderer.isDone { usleep(10) }
+        
+        // Sleep 10 µs per queued task
+        while !renderer.isDone { usleep(10 * UInt32(renderer.queued)) }
         group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, templates) }
     }
 
@@ -635,10 +631,10 @@ final class LeafKitTests: LeafTestClass {
     func testDeepResolve() {
         var test = TestFiles()
         test.files["/a.leaf"] = """
-        #for(a in b):#if(false):Hi#elseif(true && false):Hi#else:#extend("b"):#export("derp"):DEEP RESOLUTION #(a)#endexport#endextend#endif#endfor
+        #for(a in b):#if(false):Hi#elseif(true && false):Hi#else:#export(derp):DEEP RESOLUTION #(a)#endexport#extend("b")#endif#endfor
         """
         test.files["/b.leaf"] = """
-        #import("derp")
+        #import(derp)
 
         """
 

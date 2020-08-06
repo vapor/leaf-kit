@@ -29,12 +29,12 @@ internal struct LeafExpression: LeafSymbol {
     
     internal func evaluate(_ symbols: SymbolMap = [:]) -> LeafData {
         if [.custom, .assignment].contains(form.0) { return .trueNil }
-  //      let mapped = storage.map { $0.operator != nil ? $0 : .value($0.evaluate(symbols)) }
-        let temp = LeafExpression(.init(storage.map { $0.operator != nil ? $0 : .value($0.evaluate(symbols)) }), form)
+        let lhsData = lhs?.evaluate(symbols) ?? .trueNil
+        let rhsData = rhs?.evaluate(symbols) ?? .trueNil
         switch form.1 {
-            case .infix        : return temp.evalInfix(symbols)
-            case .unaryPrefix  : return temp.evalPrefix(symbols)
-            case .unaryPostfix : return temp.evalPostfix(symbols)
+            case .infix        : return evalInfix(lhsData, op!, rhsData)
+            case .unaryPrefix  : return evalPrefix(op!, rhsData)
+            case .unaryPostfix : return evalPostfix(lhsData, op!)
             case .none         : return .trueNil
         }
     }
@@ -190,15 +190,9 @@ internal struct LeafExpression: LeafSymbol {
     }
  
     /// Evaluate an infix expression
-    private func evalInfix(_ symbols: SymbolMap = [:]) -> LeafData {
-        assert(op?.infix ?? false && op?.parseable ?? false,
-               "`evalInfix` called on non-infix expression")
-        // Unevaluable expression if we can't get this
-        guard let lhs = lhs?.data?.evaluate(symbols),
-              let rhs = rhs?.data?.evaluate(symbols),
-              lhs != .trueNil && rhs != .trueNil,
-              let op = op else { return .trueNil }
-                
+    private func evalInfix(_ lhs: LeafData, _ op: LeafOperator, _ rhs: LeafData) -> LeafData {
+        assert(op.infix && op.parseable, "`evalInfix` called on non-infix expression")
+                        
         switch op {
             case .nilCoalesce    : return lhs.isNil ? rhs : lhs
             // Equatable conformance passthrough
@@ -259,11 +253,9 @@ internal struct LeafExpression: LeafSymbol {
     }
     
     /// Evaluate a prefix expression
-    private func evalPrefix(_ symbols: SymbolMap = [:]) -> LeafData {
-        assert(op?.unaryPrefix ?? false && op?.parseable ?? false,
-               "`evalPrefix` called on non-prefix expression")
-        guard let rhs = rhs?.data?.evaluate(symbols),
-              rhs != .trueNil, let op = op else { return .trueNil }
+    private func evalPrefix(_ op: LeafOperator, _ rhs: LeafData) -> LeafData {
+        assert(op.unaryPrefix && op.parseable, "`evalPrefix` called on non-prefix expression")
+       
         switch op {
             // nil == false; ergo !nil == true
             case .not   : return .bool(!(rhs.bool ?? false))
@@ -277,7 +269,7 @@ internal struct LeafExpression: LeafSymbol {
     }
     
     /// Evaluate a postfix expression
-    private func evalPostfix(_ symbols: SymbolMap = [:]) -> LeafData { .trueNil }
+    private func evalPostfix(_ lhs: LeafData, _ op: LeafOperator) -> LeafData { .trueNil }
     
     /// Encapsulated calculation for `>, >=, <, <=`
     /// Nil returning unless both sides are in [.int, .double] or both are string-convertible & non-nil

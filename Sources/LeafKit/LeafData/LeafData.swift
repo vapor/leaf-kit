@@ -167,52 +167,53 @@ public struct LeafData: LeafSymbol,
 
     // MARK: - Fuzzy Conversions from Storage to Types
 
-    /// Attempts to convert to `Bool` or returns `nil`.
+    /// Attempts to convert to `Bool`: if a nil optional Bool, returns `nil` - returns t/f if bool-evaluated.
+    /// Anything that is tangible but not evaluable to bool reports on its optional-ness as truth.
     public var bool: Bool? {
         if case .bool(let b) = container { return b }
-        guard case .bool(let b) = convert(to: .bool).container else { return nil }
+        guard case .bool(let b) = coerce(to: .bool).container else { return nil }
         return b
     }
 
     /// Attempts to convert to `String` or returns `nil`.
     public var string: String? {
         if case .string(let s) = container { return s }
-        guard case .string(let s) = convert(to: .string).container else { return nil }
+        guard case .string(let s) = coerce(to: .string).container else { return nil }
         return s
     }
 
     /// Attempts to convert to `Int` or returns `nil`.
     public var int: Int? {
         if case .int(let i) = container { return i }
-        guard case .int(let i) = convert(to: .int).container else { return nil }
+        guard case .int(let i) = coerce(to: .int).container else { return nil }
         return i
     }
 
     /// Attempts to convert to `Double` or returns `nil`.
     public var double: Double? {
         if case .double(let d) = container { return d }
-        guard case .double(let d) = convert(to: .double).container else { return nil }
+        guard case .double(let d) = coerce(to: .double).container else { return nil }
         return d
     }
 
     /// Attempts to convert to `Data` or returns `nil`.
     public var data: Data? {
         if case .data(let d) = container { return d }
-        guard case .data(let d) = convert(to: .data).container else { return nil }
+        guard case .data(let d) = coerce(to: .data).container else { return nil }
         return d
     }
 
     /// Attempts to convert to `[String: LeafData]` or returns `nil`.
     public var dictionary: [String: LeafData]? {
         if case .dictionary(let d) = container { return d }
-        guard case .dictionary(let d) = convert(to: .dictionary).container else { return nil }
+        guard case .dictionary(let d) = coerce(to: .dictionary).container else { return nil }
         return d
     }
 
     /// Attempts to convert to `[LeafData]` or returns `nil`.
     public var array: [LeafData]? {
         if case .array(let a) = container { return a }
-        guard case .array(let a) = convert(to: .array).container else { return nil }
+        guard case .array(let a) = coerce(to: .array).container else { return nil }
         return a
     }
     
@@ -260,9 +261,10 @@ public struct LeafData: LeafSymbol,
         LeafData(.lazy(f: lambda, returns: type, invariant: sideEffects))
     }
     
-    /// Try to convert one concrete object to a second type.
+    /// Try to convert one concrete object to a second type. Special handling for optional converting to bool.
     internal func convert(to output: LeafDataType, _ level: DataConvertible = .castable) -> LeafData {
         guard celf != output && invariant else { return self }
+        if celf == .void && output == .bool { return .bool(false) }
         if case .lazy(let f,_,_) = container {
             return celf == output ? f() : f().convert(to: output, level) }
         guard let input = container.unwrap else { return .trueNil }
@@ -318,9 +320,8 @@ fileprivate enum _ConverterMap {
     typealias ArrayMap = (`is`: DataConvertible, via: ([LeafData]) -> LeafData)
     static let arrayMaps: [LeafDataType: ArrayMap] = [
         .array      : (is: .identity, via: { .array($0) }),
-        
-        .bool       : (is: .coercible, via: { .bool($0.isEmpty) }),
-        
+
+        .bool       : (is: .ambiguous, via: { _ in .trueNil }),
         .data       : (is: .ambiguous, via: { _ in .trueNil }),
         .double     : (is: .ambiguous, via: { _ in .trueNil }),
         .dictionary : (is: .ambiguous, via: { Dictionary(uniqueKeysWithValues: $0.enumerated().map {(String($0), $1)}).leafData }),
@@ -372,7 +373,7 @@ fileprivate enum _ConverterMap {
     static let doubleMaps: [LeafDataType: DoubleMap] = [
         .double     : (is: .identity, via: { $0.leafData }),
         
-        .bool       : (is: .castable, via: { .bool([0.0, 1.0].contains($0) ? $0 == 1.0 : nil) }),
+        .bool       : (is: .castable, via: { .bool([0.0, 1.0].contains($0) ? $0 == 1.0 : false) }),
         .string     : (is: .castable, via: { .string($0.description) }),
         
         .int        : (is: .coercible, via: { .int(Int(exactly: $0.rounded())) }),
@@ -386,7 +387,7 @@ fileprivate enum _ConverterMap {
     static let intMaps: [LeafDataType: IntMap] = [
         .int        : (is: .identity, via: { $0.leafData }),
         
-        .bool       : (is: .castable, via: { .bool([0, 1].contains($0) ? $0 == 1 : nil) }),
+        .bool       : (is: .castable, via: { .bool([0, 1].contains($0) ? $0 == 1 : false) }),
         .double     : (is: .castable, via: { .double(Double($0)) }),
         .string     : (is: .castable, via: { .string($0.description) }),
         
@@ -399,7 +400,7 @@ fileprivate enum _ConverterMap {
     static let stringMaps: [LeafDataType: StringMap] = [
         .string     : (is: .identity, via: { $0.leafData }),
         
-        .bool       : (is: .castable, via: { .bool(Bool($0)) }),
+        .bool       : (is: .castable, via: { .bool(Bool($0.lowercased()) ?? true) }),
         .double     : (is: .castable, via: { .double(Double($0)) }),
         .int        : (is: .castable, via: { .int(Int($0)) } ),
         

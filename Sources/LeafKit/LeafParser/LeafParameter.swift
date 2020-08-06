@@ -31,43 +31,6 @@ public indirect enum ParameterDeclaration: SymbolPrintable {
             case .tag:        return "function"
         }
     }
-    
-    // MARK: - Internal Only
-    
-    internal func imports() -> Set<String> {
-        switch self {
-            case .parameter(_): return .init()
-            case .expression(let e): return e.imports()
-            case .tag(let t):
-                guard t.name == "import" else { return t.imports() }
-                guard let parameter = t.params.first,
-                      case .parameter(let p) = parameter,
-                      case .literal(.string(let key)) = p,
-                      !key.isEmpty else { return .init() }
-                return .init(arrayLiteral: key)
-        }
-    }
-    
-    internal func inlineImports(_ imports: [String : Syntax.Export]) -> ParameterDeclaration {
-        switch self {
-            case .parameter(_): return self
-            case .tag(let t):
-                guard t.name == "import" else {
-                    return .tag(.init(name: t.name, params: t.params.inlineImports(imports)))
-                }
-                guard let parameter = t.params.first,
-                      case .parameter(let p) = parameter,
-                      case .literal(.string(let key)) = p,
-                      let export = imports[key]?.body.first,
-                      case .expression(let exp) = export,
-                      exp.count == 1,
-                      let e = exp.first else { return self }
-                return e
-            case .expression(let e):
-                guard !e.isEmpty else { return self }
-                return .expression(e.inlineImports(imports))
-        }
-    }
 }
 
 // MARK: - Internal Helper Extensions
@@ -278,18 +241,6 @@ internal extension Array where Element == ParameterDeclaration {
     
     func describe(_ joinBy: String = " ") -> String {
         self.map {$0.short }.joined(separator: joinBy)
-    }
-    
-    func imports() -> Set<String> {
-        var result = Set<String>()
-        self.forEach { result.formUnion($0.imports()) }
-        return result
-    }
-    
-    func inlineImports(_ imports: [String : Syntax.Export]) -> [ParameterDeclaration] {
-        guard !isEmpty else { return self }
-        guard !imports.isEmpty else { return self }
-        return self.map { $0.inlineImports(imports) }
     }
     
     func atomicRaw() -> Syntax? {

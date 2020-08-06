@@ -13,7 +13,7 @@ public protocol LeafSource {
     ///            template, or an appropriate failed state ELFuture (not found, illegal access, etc)
     func file(template: String,
               escape: Bool,
-              on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer>
+              on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer>
     
     /// DO NOT IMPLEMENT. Deprecated as of Leaf-Kit 1.0.0rc1.11
     @available(*, deprecated, message: "Update to adhere to `file(template, escape, eventLoop)`")

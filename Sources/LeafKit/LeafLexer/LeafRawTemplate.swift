@@ -1,19 +1,25 @@
 // MARK: Subject to change prior to 1.0.0 release
 // MARK: -
 
+// FIXME: Should really be initializable directly from `ByteBuffer`
 // TODO: Make `LeafSource` return this instead of `ByteBuffer` via extension
 internal struct LeafRawTemplate {
     // MARK: - Internal Only
     let name: String
     
-    init(name: String, src: String) {
+    init(_ name: String, _ source: String) {
         self.name = name
-        self.body = src
+        self.body = source
         self.current = body.startIndex
     }
     
     mutating func readWhile(_ check: (Character) -> Bool) -> String {
         readSliceWhile(pop: true, check)
+    }
+    
+    @discardableResult
+    mutating func readWhileNot(_ check: Set<Character>) -> String {
+        readSliceWhile(pop: true, { !check.contains($0) })
     }
 
     mutating func peekWhile(_ check: (Character) -> Bool) -> String {
@@ -38,6 +44,12 @@ internal struct LeafRawTemplate {
         line += body[current] == .newLine ? 1 : 0
         defer { current = body.index(after: current) }
         return body[current]
+    }
+    
+    mutating func pop(count: Int) -> String {
+        var result = ""
+        for _ in 0..<count { result += pop()?.description ?? "" }
+        return result
     }
     
     // MARK: - Private Only

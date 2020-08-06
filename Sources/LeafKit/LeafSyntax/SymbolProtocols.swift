@@ -6,8 +6,7 @@ typealias SymbolMap = [LeafVariable: LeafData]
 
 internal extension Dictionary where Key == LeafVariable, Value == LeafData {
     func match(_ variable: LeafVariable) -> LeafData {
-        if let exact = self[variable] { return exact }
-        return self[variable.contextualized] ?? .trueNil
+        self[variable] ?? self[variable.contextualized] ?? .trueNil
     }
 }
 
@@ -45,7 +44,7 @@ internal protocol LeafSymbol: SymbolPrintable {
 }
 
 /// Provide `description` and `short` printable representations for convenience
-internal protocol SymbolPrintable {
+internal protocol SymbolPrintable: CustomStringConvertible {
     /// - Ex: `bool(true)` or `raw("This is a raw block")` - description should be descriptive
     var description: String { get }
     /// - Ex: `true` or `raw(19)` - short form should be descriptive but succinct
