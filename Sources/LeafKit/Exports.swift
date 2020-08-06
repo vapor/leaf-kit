@@ -119,10 +119,10 @@ internal extension Double {
 }
 
 internal extension Int {
-    var formatBytes: String { UInt64(self.magnitude).formatBytes }
+    var formatBytes: String { magnitude.formatBytes }
 }
 
-internal extension UInt64 {
+internal extension UnsignedInteger {
     var formatBytes: String {
         if self > 1024 * 512 { return String(format: "%.2fmB", Double(self)/1024.0/1024.0) }
         if self > 512 { return String(format: "%.2fkB", Double(self)/1024.0) }

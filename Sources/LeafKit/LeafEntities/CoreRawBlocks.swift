@@ -13,10 +13,11 @@ extension ByteBuffer: RawBlock {
     public static func instantiate(data: ByteBuffer?,
                                    encoding: String.Encoding) -> RawBlock {
         data ?? ByteBufferAllocator().buffer(capacity: 0)
+
     }
     
-    internal static func instantiate(size: UInt64,
-                                     encoding: String.Encoding) -> RawBlock {
+    public static func instantiate(size: UInt32,
+                                   encoding: String.Encoding) -> RawBlock {
         ByteBufferAllocator().buffer(capacity: Int(size))
     }
     
@@ -63,7 +64,7 @@ extension ByteBuffer: RawBlock {
         }
     }
     
-    public var byteCount: UInt64 { UInt64(readableBytes) }
+    public var byteCount: UInt32 { UInt32(readableBytes) }
     public var contents: String { getString(at: readerIndex, length: readableBytes) ?? "" }
     
     internal static let newLine = instantiate(data: .init(string: "\n"), encoding: .utf8)

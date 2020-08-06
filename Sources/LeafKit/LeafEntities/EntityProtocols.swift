@@ -216,10 +216,16 @@ public protocol RawBlock: LeafFunction {
     
     /// Generate a `.raw` block
     /// - Parameters:
-    ///   - parameters: The parameters this object requires at parse time
     ///   - data: Raw ByteBuffer input, if any exists yet
     ///   - encoding: Encoding of the incoming string.
     static func instantiate(data: ByteBuffer?,
+                            encoding: String.Encoding) -> RawBlock
+    
+    /// Generate a `.raw` block
+    /// - Parameters:
+    ///   - size: Expected minimum byte count required
+    ///   - encoding: Encoding of the incoming string.
+    static func instantiate(size: UInt32,
                             encoding: String.Encoding) -> RawBlock
     
     /// Adherent must be able to provide a serialized view of itself in entirety
@@ -246,7 +252,7 @@ public protocol RawBlock: LeafFunction {
     mutating func append(_ data: LeafData)
     
     /// Bytes in the raw buffer
-    var byteCount: UInt64 { get }
+    var byteCount: UInt32 { get }
     var contents: String { get }
 }
 

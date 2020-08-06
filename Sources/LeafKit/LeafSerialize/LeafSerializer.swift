@@ -9,8 +9,11 @@ internal struct Leaf4Serializer {
         self.start = Date.distantFuture.timeIntervalSinceReferenceDate
         self.lapTime = Date.distantPast.timeIntervalSinceReferenceDate
         self.threshold = LeafConfiguration.timeout
-        self.stack = [.init(count: 1,
-                            variables: [.`self`: .dictionary(context)])]
+        self.stack = .init()
+        self.stack.reserveCapacity(16)
+        self.stack.append(.init(count: 1,
+                                variables: .init(minimumCapacity: 64)))
+        self.stack[0].variables[.`self`] = .dictionary(context)
         expandDict(.dictionary(context))
     }
     
@@ -22,11 +25,17 @@ internal struct Leaf4Serializer {
         }
     }
     
-    mutating func serialize(buffer output: UnsafeMutablePointer<RawBlock>,
+    mutating func serialize(buffer output: inout RawBlock,
                             timeout threshold: Double? = nil) -> Result<Double, LeafError> {
         guard !ast.scopes[0].isEmpty else { return .success(0) }
         if let threshold = threshold { self.threshold = threshold }
-        self.stack[0].bufferStack.append(output)
+        
+        let ptr = UnsafeMutablePointer<RawBlock>.allocate(capacity: 1)
+        defer { ptr.deallocate() }
+        ptr.initialize(to: type(of: output).instantiate(size: ast.info.minSize,
+                                                        encoding: LeafConfiguration.encoding))
+        self.stack[0].bufferStack.append(ptr)
+        
         start = Date().timeIntervalSinceReferenceDate
         
         serialize:
@@ -168,6 +177,9 @@ internal struct Leaf4Serializer {
             }
             offset += 1
         }
+        stack.removeAll()
+        output = ptr.pointee
+        
         guard !cutoff else { return .failure(LeafError(.unknownError("Execution timed out")))}
         if error == nil { return .success(Date.timeIntervalSinceReferenceDate - start) }
         else { return .failure(error!) }
@@ -203,11 +215,11 @@ internal struct Leaf4Serializer {
         }
     }
     
-    private var stack: [ScopeState]
+    private var stack: ContiguousArray<ScopeState>
     
     private var depth: Int { stack.count - 1 }
     private var table: Int { stack[depth].table }
-    private var scope: [Leaf4Syntax] { ast.scopes[table] }
+    private var scope: ContiguousArray<Leaf4Syntax> { ast.scopes[table] }
     private var evalCount: Int? { stack[depth].count }
     private var variables: SymbolMap { stack[depth].variables }
     private var currentRaw: Int { stack[depth].bufferStack.count - 1 }
@@ -307,16 +319,19 @@ internal struct Leaf4Serializer {
         } else { return false }
     }
     
+    @inline(__always)
     mutating func append(_ block: inout RawBlock) {
         do { try stack[depth].bufferStack[currentRaw].pointee.append(&block) }
         catch { self.error = LeafError(.unknownError("Serializing error")) }
     }
     
+    @inline(__always)
     mutating func append(_ buffer: inout ByteBuffer) {
         do { try stack[depth].bufferStack[currentRaw].pointee.append(&buffer) }
         catch { self.error = LeafError(.unknownError("Serializing error")) }
     }
     
+    @inline(__always)
     mutating func append(_ data: LeafData) {
         stack[depth].bufferStack[currentRaw].pointee.append(data)
     }

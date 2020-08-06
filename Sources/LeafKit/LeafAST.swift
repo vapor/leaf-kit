@@ -14,7 +14,7 @@ public struct Leaf4AST: Hashable {
     
     public struct Info {
         public internal(set) var parsed: Date = .distantPast
-        public internal(set) var minSize: UInt64 = 0
+        public internal(set) var minSize: UInt32 = 0
         public internal(set) var resolved: Bool = true
         public internal(set) var ownTables: Int = 0
         public internal(set) var cachedTables: Int = 0
@@ -39,26 +39,26 @@ public struct Leaf4AST: Hashable {
     }
     
     /// The AST scope tables
-    internal var scopes: [[Leaf4Syntax]]
+    internal var scopes: ContiguousArray<ContiguousArray<Leaf4Syntax>>
     /// Reference pointers to all `Define` metablocks
-    internal var defines: [ScopeReference]
+    internal var defines: ContiguousArray<ScopeReference>
     /// Reference pointers to all `Inline` metablocks, whether they're templates, and timestamp for when they were inlined
     ///
     /// If the block has *not* been inlined, `Date` will be .distantFuture
-    internal var inlines: [(inline: ScopeReference, process: Bool, at: Date)]
+    internal var inlines: ContiguousArray<(inline: ScopeReference, process: Bool, at: Date)>
     /// Absolute minimum size of a rendered document from this AST
-    internal let underestimatedSize: UInt64
+    internal let underestimatedSize: UInt32
     /// The final indices that are the template's own (uninlined scope)
     internal let own: (scopes: Int, defines: Int, inlines: Int)
     
     /// Any required files, whether template or raw, required to fully resolve
     internal var requiredFiles: Set<String> { requiredASTs.union(requiredRaws) }
     /// List of any external templates needed to fully resolve the document.
-    internal private(set) var requiredASTs: Set<String> = .init()
+    internal private(set) var requiredASTs: Set<String>
     /// List of any external unprocessed raw inlines needed to fully resolve the document
-    internal private(set) var requiredRaws: Set<String> = .init()
+    internal private(set) var requiredRaws: Set<String>
  
-    internal var cached: Bool = false
+    internal var cached: Bool
     
     
     /// Inline Leaf templates
@@ -117,7 +117,7 @@ public struct Leaf4AST: Hashable {
             let insert = type(of: r).instantiate(data: buffer, encoding: .utf8)
             scopes[p.table][p.row + 1] = .raw(insert)
             inlines[index].at = stamp
-            info.minSize += UInt64(buffer.readableBytes) - r.byteCount
+            info.minSize += UInt32(buffer.byteCount) - r.byteCount
         }
         raws.keys.forEach { info.requiredRaws.remove($0) }
         info.requiredFiles = info.requiredRaws.union(info.requiredASTs).sorted()
@@ -164,17 +164,20 @@ public struct Leaf4AST: Hashable {
                   _ scopes: [[Leaf4Syntax]],
                   _ defines: [Leaf4AST.ScopeReference],
                   _ inlines: [(inline: Leaf4AST.ScopeReference, process: Bool, at: Date)],
-                  _ underestimatedSize: UInt64) {
+                  _ underestimatedSize: UInt32) {
         self.key = key.first != "$" ? "$:\(key)" : key
-        self.scopes = scopes
-        self.defines = defines
-        self.inlines = inlines
+        self.cached = false
+        self.scopes = scopes.contiguous()
+        self.defines = .init(defines)
+        self.inlines = .init(inlines)
+        self.requiredASTs = .init()
+        self.requiredRaws = .init()
         self.underestimatedSize = underestimatedSize
         self.own = (scopes: scopes.indices.last!,
                     defines: defines.indices.last ?? -1,
                     inlines: inlines.indices.last ?? -1)
-        self.requiredASTs = _requiredASTs
-        self.requiredRaws = _requiredRaws
+        self.requiredASTs.formUnion(_requiredASTs)
+        self.requiredRaws.formUnion(_requiredRaws)
         self.info.parsed = Date()
         self.info.minSize = underestimatedSize
         self.info.resolved = requiredFiles.isEmpty

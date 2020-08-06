@@ -76,8 +76,8 @@ public final class LeafRenderer {
     public func render(path: String,
                        from source: String,
                        context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        guard !path.isEmpty else { return fail(.noTemplateExists("No template name provided"), on: eL) }
-        guard !source.isEmpty else { return fail(.noTemplateExists("No LeafSource key provided"), on: eL) }
+        if path.isEmpty { return fail(.noTemplateExists("No template name provided"), on: eL) }
+        if source.isEmpty { return fail(.noTemplateExists("No LeafSource key provided"), on: eL) }
         return fetch(source: source, path).flatMap { self.arbitrate($0)
                                                          .flatMap { self.serialize($0, context) } }
     }
@@ -106,7 +106,6 @@ public final class LeafRenderer {
             return succeed(try! blockingCache!.insert(ast, replace: true)!, on: eL) }
         /// Future-based cache insertion and succeed
         return cache.insert(ast, on: eL, replace: true)
-                    .flatMap { self.arbitrate($0) }
     }
     
     
@@ -167,8 +166,7 @@ public final class LeafRenderer {
                            _ context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
         
         // FIXME: serialize should fork to a threadpool?
-        var block = ByteBuffer.instantiate(size: ast.info.minSize,
-                                           encoding: LeafConfiguration.encoding)
+        var block = ByteBuffer.instantiate(size: 0, encoding: LeafConfiguration.encoding)
         var serializer = Leaf4Serializer(ast: ast, context: context)
         switch serializer.serialize(buffer: &block) {
             case .success(_)     : return succeed(block as! ByteBuffer, on: eL)

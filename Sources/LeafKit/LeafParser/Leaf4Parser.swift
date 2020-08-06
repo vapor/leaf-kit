@@ -39,7 +39,7 @@ internal struct Leaf4Parser {
     private var defines: [Leaf4AST.ScopeReference] = []
     /// References to all `inline` blocks
     private var inlines: [(inline: Leaf4AST.ScopeReference, process: Bool, at: Date)] = []
-    private var underestimatedSize: UInt64 = 0
+    private var underestimatedSize: UInt32 = 0
     
     private var scopeStack = [0]
     private var currentScope: Int { scopeStack.last! }
@@ -186,7 +186,7 @@ internal struct Leaf4Parser {
     @discardableResult
     private mutating func append(_ syntax: LeafParameter) -> Bool {
         scopes[currentScope].append(.passthrough(syntax))
-        let estimate: UInt64
+        let estimate: UInt32
         switch syntax.container {
             case .expression, .function,
                  .variable, .value : estimate = 16
@@ -202,7 +202,7 @@ internal struct Leaf4Parser {
     private mutating func appendRaw(_ raw: String) -> Bool {
         var buffer = ByteBufferAllocator().buffer(capacity: raw.count)
         buffer.writeString(raw)
-        underestimatedSize += UInt64(buffer.readableBytes)
+        underestimatedSize += UInt32(buffer.readableBytes)
         var newRaw = type(of: rawStack.last!).instantiate(data: buffer, encoding: .utf8)
         let checkAt = scopes[currentScope].count - 2
         let blockCheck: Bool

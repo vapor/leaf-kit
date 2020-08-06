@@ -75,13 +75,13 @@ internal struct Leaf4Syntax: SymbolPrintable {
     }
 }
 
-extension Array where Element == [Leaf4Syntax] {
+extension ContiguousArray where Element == ContiguousArray<Leaf4Syntax> {
     var formatted: String { self[0].print(0, self) }
     var terse: String { self[0].print(0, self, true) }
 }
 
-extension Array where Element == Leaf4Syntax {
-    func print(_ depth: Int = 0, _ tables: [[Leaf4Syntax]], _ terse: Bool = false) -> String {
+extension ContiguousArray where Element == Leaf4Syntax {
+    func print(_ depth: Int = 0, _ tables: ContiguousArray<Self>, _ terse: Bool = false) -> String {
         let rule = (!terse) ? String(repeating: " ", count: depth) + repeatElement("-", count: 60 - depth) + "\n" : ""
         var result = rule
         let maxBuffer = String(self.count - 1).count
@@ -101,6 +101,23 @@ extension Array where Element == Leaf4Syntax {
     }
     static let indent = " "
     func indent(_ depth: Int = 0) -> String { .init(repeating: Self.indent, count: depth) }
+}
+
+extension Array where Element == [Leaf4Syntax] {
+    func contiguous() -> ContiguousArray<ContiguousArray<Leaf4Syntax>> {
+        var contig: ContiguousArray<ContiguousArray<Leaf4Syntax>> = .init()
+        self.forEach { contig.append($0.contiguous()) }
+        return contig
+    }
+}
+
+extension Array where Element == Leaf4Syntax {
+    func contiguous() -> ContiguousArray<Leaf4Syntax> {
+        var contig: ContiguousArray<Leaf4Syntax> = .init()
+        contig.reserveCapacity(self.count)
+        contig.append(contentsOf: self)
+        return contig
+    }
 }
 
 
