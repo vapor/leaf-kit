@@ -18,9 +18,7 @@ public struct NIOLeafFiles: LeafSource {
     /// A new `NIOLeafFiles` defaults to [.toSandbox, .toVisibleFiles, .requireExtensions]
     public struct Limit: OptionSet {
         public let rawValue: Int
-        public init(rawValue: Int) {
-            self.rawValue = rawValue
-        }
+        public init(rawValue: Int) { self.rawValue = rawValue }
         
         /// Require any referenced file have an extension
         public static let requireExtensions = Limit(rawValue: 1 << 0)

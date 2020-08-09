@@ -3,7 +3,7 @@
 
 import Foundation
 
-internal struct LeafExpression: LeafSymbol {
+internal struct LeafExpression: LKSymbol {
     // MARK: - Internal Only
     // MARK: - Generators
         
@@ -19,7 +19,7 @@ internal struct LeafExpression: LeafSymbol {
     // MARK: - LeafSymbol Conformance
     private(set) var resolved: Bool
     private(set) var invariant: Bool
-    private(set) var symbols: Set<LeafVariable>
+    private(set) var symbols: Set<LKVariable>
     
     private(set) var concreteType: LeafDataType?
     
@@ -52,7 +52,7 @@ internal struct LeafExpression: LeafSymbol {
 
     // MARK: - LeafExpression Specific
     /// The form expressions may take: `[.assignment, .calculation, .custom]`
-    internal enum Form: String, SymbolPrintable {
+    internal enum Form: String, LKPrintable {
         case assignment
         case calculation
         case custom
@@ -218,14 +218,16 @@ internal struct LeafExpression: LeafSymbol {
             // If left side is array, append rhs as single value
             // Anything else fails
             case .plus           :
-                if lhs.container.isNumeric && rhs.container.isNumeric {
+                if lhs.state.intersection(rhs.state).contains(.numeric) {
                     guard let numeric = numericOp(op, lhs, rhs) else { fallthrough }
                     return numeric
                 } else if lhs.celf == .string {
                     return .string(lhs.string! + (rhs.string ?? ""))
                 } else if lhs.celf == .data {
                     return .data(lhs.data! + (rhs.data ?? Data()))
-                } else if (lhs.isCollection && rhs.isCollection) && (lhs.celf == rhs.celf) {
+                } else if !lhs.state.intersection(rhs.state)
+                                    .intersection([.celfMask, .collection])
+                                    .contains(.void) {
                     if lhs.celf == .array { return .array(lhs.array! + rhs.array!) }
                     guard let lhs = lhs.dictionary, let rhs = rhs.dictionary,
                           Set(lhs.keys).intersection(Set(rhs.keys)).isEmpty else { fallthrough }
@@ -236,7 +238,7 @@ internal struct LeafExpression: LeafSymbol {
                     return .string((lhs.string ?? "") + rhs.string!)
                 } else { return .trueNil }
             case .minus, .divide, .multiply, .modulo :
-                if lhs.container.isNumeric && rhs.container.isNumeric {
+                if lhs.state.intersection(rhs.state).contains(.numeric) {
                     guard let numeric = numericOp(op, lhs, rhs) else { fallthrough }
                     return numeric
                 } else { fallthrough }
@@ -298,7 +300,7 @@ internal struct LeafExpression: LeafSymbol {
     /// Encapsulated calculation for `+, -, *, /, %`
     /// Nil returning unless both sides are in [.int, .double]
     private func numericOp(_ op: LeafOperator, _ lhs: LeafData, _ rhs: LeafData) -> LeafData? {
-        guard lhs.container.isNumeric && rhs.container.isNumeric else { return nil }
+        guard lhs.state.intersection(rhs.state).contains(.numeric) else { return nil }
         if lhs.celf == .int {
             guard let lhsI = lhs.int, let rhsI = rhs.convert(to: .int, .coercible).int else { return nil }
             let value: (partialValue: Int, overflow: Bool)

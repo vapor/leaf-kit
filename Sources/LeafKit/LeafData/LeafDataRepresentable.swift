@@ -42,7 +42,9 @@ extension BinaryFloatingPoint {
 
 extension Float: LeafDataRepresentable {}
 extension Double: LeafDataRepresentable {}
+#if arch(i386) || arch(x86_64)
 extension Float80: LeafDataRepresentable {}
+#endif
 
 extension Bool: LeafDataRepresentable {
     public var leafData: LeafData { .bool(self) }

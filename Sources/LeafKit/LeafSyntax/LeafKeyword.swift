@@ -3,7 +3,7 @@
 /// `Keyword`s are identifiers which take precedence over syntax/variable names - may potentially have
 /// representable state themselves as value when used with operators (eg, `true`, `false` when
 /// used with logical operators, `nil` when used with equality operators, and so forth)
-public enum LeafKeyword: String, Hashable, CaseIterable, SymbolPrintable {
+public enum LeafKeyword: String, Hashable, CaseIterable, LKPrintable {
     // MARK: - Cases
     
     //               Eval -> Bool / Other
@@ -18,7 +18,7 @@ public enum LeafKeyword: String, Hashable, CaseIterable, SymbolPrintable {
          `_`,     //
          leaf    //
     
-    // MARK: - SymbolPrintable
+    // MARK: - LKPrintable
     public var description: String { rawValue }
     public var short: String { rawValue }
 

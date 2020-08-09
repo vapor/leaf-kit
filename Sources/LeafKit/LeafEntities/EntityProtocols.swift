@@ -4,7 +4,7 @@
 // MARK: - Protocols
 
 /// A representation of a function parameter defintion - equivalent to a Swift parameter defintion
-public struct CallParameter: SymbolPrintable, Equatable {
+public struct CallParameter: LKPrintable, Equatable {
     internal let label: String?
     internal let types: Set<LeafDataType>
     internal let optional: Bool
@@ -83,26 +83,31 @@ public indirect enum ParseParameter: Hashable {
 /// `.trueNil` is a unique case that never is an actual parameter value the function has received - it
 /// signals out-of-bounds indexing of the parameter value object.
 public struct ParameterValues {
-    subscript(index: String) -> LeafData { self[labels[index] ?? -1] }
-    subscript(index: Int) -> LeafData { values.indices.contains(index) ? values[index] : .trueNil }
+    subscript(index: String) -> LeafData { labels[index] != nil ? self[labels[index]!] : .trueNil }
+    subscript(index: UInt8) -> LeafData { index < count ? values[Int(index)] : .trueNil }
     
     internal let values: [LeafData]
-    internal let labels: [String: Int]
+    internal let labels: [String: UInt8]
+    internal let count: UInt8
     
     internal init?(_ sig: [CallParameter],
                    _ tuple: LeafTuple,
                    _ symbols: SymbolMap) {
-        if sig.isEmpty && tuple.isEmpty { values = []; labels = [:]; return }
-        labels = tuple.labels
-        do { values = try tuple.values.enumerated().map {
+        if sig.isEmpty && tuple.isEmpty { values = []; labels = [:]; count = 0; return }
+        self.labels = tuple.labels
+        do {
+            self.values = try tuple.values.enumerated().map {
                 let e = sig[$0.offset].match($0.element.evaluate(symbols))
-                if let e = e { return e } else { throw "" } }
+                if let e = e { return e } else { throw "" }
+            }
         } catch { return nil }
+        self.count = UInt8(values.count)
     }
     
-    internal init(_ values: [LeafData], _ labels: [String: Int]) {
+    internal init(_ values: [LeafData], _ labels: [String: UInt8]) {
         self.values = values
         self.labels = labels
+        self.count = UInt8(labels.count)
     }
 }
 

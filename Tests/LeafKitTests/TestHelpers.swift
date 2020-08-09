@@ -1,5 +1,6 @@
 import XCTest
 import NIOConcurrencyHelpers
+import Foundation
 @testable import LeafKit
 
 /// Assorted multi-purpose helper pieces for LeafKit tests
@@ -29,7 +30,7 @@ internal func lex(_ str: String, name: String = "default") throws -> [LeafToken]
 internal func parse(_ str: String, name: String = "default") throws -> Leaf4AST {
     var lexer = LeafLexer(name: name, raw: str)
     let tokens = try! lexer.lex()
-    var parser = Leaf4Parser(name, tokens)
+    var parser = Leaf4Parser(.searchKey(name), tokens)
     let syntax = try! parser.parse()
 
     return syntax
@@ -42,7 +43,7 @@ internal func parse(_ str: String, name: String = "default") throws -> Leaf4AST 
 internal func render(name: String = "test-render", _ template: String, _ context: [String: LeafData] = [:]) throws -> String {
     var lexer = LeafLexer(name: name, raw: template)
     let tokens = try lexer.lex()
-    var parser = Leaf4Parser(name, tokens)
+    var parser = Leaf4Parser(.searchKey(name), tokens)
     let ast = try parser.parse()
     let buffer = ByteBufferAllocator().buffer(capacity: Int(ast.underestimatedSize))
     var block = ByteBuffer.instantiate(data: buffer, encoding: LeafConfiguration.encoding)
@@ -59,15 +60,17 @@ internal func render(name: String = "test-render", _ template: String, _ context
 internal class TestRenderer {
     var r: LeafRenderer
     private let lock: Lock
-    private var counter: Int = 0
+    private var counter: Int
     private static var configured = false
+    private var timer: Date = .distantPast
     
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
             tags: [String : LeafTag] = defaultTags,
             cache: LeafCache = DefaultLeafCache(),
             sources: LeafSources = .singleSource(TestFiles()),
             eventLoop: EventLoop = EmbeddedEventLoop(),
-            userInfo: [AnyHashable : Any] = [:]) {        
+            userInfo: [AnyHashable : Any] = [:],
+            tasks: Int = 1) {
         self.r = .init(configuration: configuration,
                               tags: tags,
                               cache: cache,
@@ -75,18 +78,18 @@ internal class TestRenderer {
                               eventLoop: eventLoop,
                               userInfo: userInfo)
         lock = .init()
+        counter = tasks
     }
     
     func render(source: String? = nil, path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
-        lock.withLock { counter += 1 }
-        if let s = source { return r.render(path: path, from: s, context: context)}
-        return r.render(path: path, context: context)
+        if timer == .distantPast { timer = Date() }
+        return r.render(path: path, from: source != nil ? source! : "$", context: context)
     }
     
     internal var queued: Int { lock.withLock { counter } }
     internal var isDone: Bool { lock.withLock { counter == 0 } ? true : false }
     internal func finishTask() { lock.withLock { counter -= 1 } }
-    
+    internal var lap: Double { let lap = timer.distance(to: Date()); timer = Date(); return lap }
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
@@ -121,6 +124,17 @@ internal struct TestFiles: LeafSource {
 
 internal extension ByteBuffer {
     var string: String { String(decoding: readableBytesView, as: UTF8.self) }
+    var terse: String { var result = String(decoding: readableBytesView, as: UTF8.self)
+                        var index = result.indices.index(after: result.indices.startIndex)
+                        while index < result.indices.endIndex {
+                            if result[index] == .newLine,
+                               result[index] == result[result.indices.index(before: index)]
+                            { result.remove(at: index) }
+                            else { index = result.indices.index(after: index) }
+                        }
+                        return result
+                      }
+    
 }
 
 internal extension Array where Element == LeafToken {

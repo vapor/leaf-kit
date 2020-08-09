@@ -18,13 +18,14 @@ public final class LeafSources {
     // MARK: - Public
     
     /// All available `LeafSource`s of templates
-    public var all: Set<String> { lock.withLock { .init(sources.keys) } }
+    public var all: Set<String> { lock.withLock { keys } }
     /// Configured default implicit search order of `LeafSource`'s
     public var searchOrder: [String] { lock.withLock { order } }
     
     public init() {
-        self.sources = [:]
+        self.keys = []
         self.order = []
+        self.sources = [:]
     }
     
     /// Register a `LeafSource` as `key`
@@ -36,8 +37,11 @@ public final class LeafSources {
     public func register(source key: String = "default",
                          using source: LeafSource,
                          searchable: Bool = true) throws {
-        if sources.keys.contains(key) { throw "Can't replace source at \(key)" }
+        if key.first == "$" { throw "Source name may not start with `$`" }
+        if key.contains(":") { throw "Source name may not contain `:`" }
+        if keys.contains(key) { throw "Can't replace source at \(key)" }
         lock.withLock {
+            keys.insert(key)
             sources[key] = source
             if searchable { order.append(key) }
         }
@@ -55,25 +59,29 @@ public final class LeafSources {
     // MARK: - Internal/Private Only
     internal private(set) var sources: [String: LeafSource]
     private var order: [String]
+    private var keys: Set<String>
     private let lock: Lock = .init()
     
     /// Locate a template from the sources; if a specific source is named, only try to read from it.
     /// Otherwise, use the specified search order. Key (and thus AST name) are "$:template" when no source
     /// was specified, or "source:template" when specified
-    internal func find(_ template: String,
-                       in source: String? = nil,
+    internal func find(_ key: Leaf4AST.Key,
                        on eL: EventLoop) -> EventLoopFuture<(key: String,
                                                              buffer: ByteBuffer)> {
-        let sourced = source == nil
-        let sources = sourced ? searchOrder
-                              : all.contains(source!) ? [source!] : []
-        if sources.isEmpty {
-            let e = sourced ? "No searchable sources exist"
-                            : "Invalid source \(source!) specified"
-            return fail(.illegalAccess(e), on: eL)
+        let source = key._src
+        let template = key._name
+        if source != "$", keys.contains(source) {
+            return searchSources(template, [source], on: eL)
+                                .map { ("\(source):\(template)", $0.buffer) }
+        } else if source == "$", !order.isEmpty {
+            return searchSources(template, order, on: eL)
+                                .map { ("\(source):\(template)", $0.buffer) }
         }
-        return searchSources(template, sources, on: eL).map {
-                    ((sourced ? "$" : source!) + ":\(template)", $0.buffer) }
+        
+        let e = source == "$" ? "No searchable sources exist"
+                              : "Invalid source \(source) specified"
+        return fail(.illegalAccess(e), on: eL)
+   
     }
     
     

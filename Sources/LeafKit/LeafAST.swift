@@ -9,22 +9,81 @@ public struct Leaf4AST: Hashable {
     
     public func hash(into hasher: inout Hasher) { hasher.combine(key) }
     public static func ==(lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key }
-    public let key: String
-    public var name: String { String(key.split(separator: ":", maxSplits: 1)[1]) }
+    public let key: Key
+    public let name: String
+    
+    mutating public func touch(values: TouchValue) {
+        info.touched = Date()
+        info.touches = info.touches == Int.max ? 2 : info.touches + 1
+        if values.exec > info.maximums.exec { info.maximums.exec = values.exec }
+        if values.size > info.maximums.size { info.maximums.size = values.size }
+        guard info.touches != 1 else { info.averages = values; return }
+        info.averages.exec = info.averages.exec +
+                            ((values.exec - info.averages.exec) / Double(info.touches))
+        info.averages.size = info.averages.size +
+                            ((values.size - info.averages.size) / UInt32(info.touches))
+    }
+    
+    public struct Key: Hashable {
+        internal let _key: String
+        internal var _src: String {
+            String(_key.prefix(while: { $0 != ":"}))
+        }
+        internal var _name: String {
+            String(_key.split(separator: ":", maxSplits: 1)[1])
+        }
+        internal init(_ src: String, _ path: String) {
+            self._key = "\(src):\(path)"
+        }
+        static func searchKey(_ name: String) -> Self { .init("$", name) }
+    }
     
     public struct Info {
+        // MARK: - Publicly Readable
+        
+        /// Timestamp of when the AST was parsed
         public internal(set) var parsed: Date = .distantPast
-        public internal(set) var minSize: UInt32 = 0
+        /// Timestamp when the AST was last serialized
+        public internal(set) var touched: Date = .distantPast
+        /// Average and maximum duration of serialization for the AST
+        public var serializeTimes: (average: Double, maximum: Double) {
+            (averages.exec, maximums.exec)
+        }
+        /// Average and maximum size of serialized output for the AST
+        public var serializeSizes: (average: Int, maximum: Int) {
+            (Int(averages.size), Int(maximums.size))
+        }
+        /// Whether the AST is fully resolved
         public internal(set) var resolved: Bool = true
-        public internal(set) var ownTables: Int = 0
-        public internal(set) var cachedTables: Int = 0
+        /// Any evaluable blocks defined in the AST
         public internal(set) var defines: [String] = []
+        /// All external inlined files, whether processed as templates or raw contents
         public internal(set) var inlines: [String] = []
+        /// Any files required to resolve, if not resolved
         public internal(set) var requiredFiles: [String] = []
+        /// Any files required to resolve as a flat AST
         public internal(set) var requiredASTs: Set<String> = []
+        /// Any files required to inline as raw contents
         public internal(set) var requiredRaws: Set<String> = []
+       
+        // MARK: - Internal Only
+        
+        /// Estimated minimum size of the serialized view (may be inaccurate)
+        internal var minSize: UInt32 = 0
+        internal var stackDepths: (overallMax: UInt16, inlineMax: UInt16) = (1,0)
+        internal var ownTables: Int = 0
+        internal var cachedTables: Int = 0
         internal var includedASTs: Set<String> = []
+        internal var touches: Int = 0
+        internal var averages: TouchValue = .init(exec: 0, size: 0)
+        internal var maximums: TouchValue = .init(exec: 0, size: 0)
     }
+    
+    public struct TouchValue {
+        internal var exec: Double
+        internal var size: UInt32
+    }
+    
     
     // MARK: - Internal/Private Only
     internal struct ScopeReference: Hashable {
@@ -58,6 +117,8 @@ public struct Leaf4AST: Hashable {
     /// List of any external unprocessed raw inlines needed to fully resolve the document
     internal private(set) var requiredRaws: Set<String>
  
+    internal var stackDepths: (overallMax: UInt16, inlineMax: UInt16)
+    
     internal var cached: Bool
     
     
@@ -71,37 +132,51 @@ public struct Leaf4AST: Hashable {
         var inAST = toInline
         let inName = toInline.name
         let offset = scopes.count
-        // Remap incoming AST's elements to their new table offset
-        for (s, inScope) in inAST.scopes.enumerated() {
-            for (r, inRow) in inScope.enumerated() {
-                if case .scope(let t) = inRow.container, let table = t {
-                    inAST.scopes[s][r] = .scope(table + offset) }
-                if case .block(let n, var b as Define, let p) = inRow.container {
-                    b.remap(offset: offset)
-                    inAST.scopes[s][r] = .block(n, b, p) }
+        
+        // Atomic incoming AST; 1 scope, 1 element - inherently passthrough or raw
+        let nonAtomic = inAST.scopes[0].count != 1       
+        if nonAtomic {
+            // Remap incoming AST's elements to their new table offset
+            for (s, inScope) in inAST.scopes.enumerated() {
+                for (r, inRow) in inScope.enumerated() {
+                    if case .scope(let t) = inRow.container, let table = t {
+                        inAST.scopes[s][r] = .scope(table + offset) }
+                    if case .block(let n, var b as Define, let p) = inRow.container {
+                        b.remap(offset: offset)
+                        inAST.scopes[s][r] = .block(n, b, p) }
+                }
             }
+            // Append the new scopes
+            scopes.append(contentsOf: inAST.scopes)
         }
-        // Append the new scopes
-        scopes.append(contentsOf: inAST.scopes)
+        
         // Replace own AST's scope placeholders with correct offset references
         for (index, p) in inlines.enumerated() where p.process && p.at == .distantFuture {
-            if case .block(_, let meta as Inline, _) = scopes[p.inline.table][p.inline.row].container,
+            let t = p.inline.table
+            let r = p.inline.row
+            if case .block(_, let meta as Inline, _) = scopes[t][r].container,
                meta.file == inName {
-                scopes[p.inline.table][p.inline.row + 1] = .scope(offset)
                 inlines[index].at = stamp
-                info.minSize += inAST.underestimatedSize
+                scopes[t][r + 1] = nonAtomic ? .scope(offset)
+                                             : inAST.scopes[0][0]
+                info.minSize += nonAtomic ? inAST.underestimatedSize
+                                          : inAST.scopes[0][0].underestimatedSize
             }
         }
-        // Append remapped incoming AST define/inlines
-        for d in inAST.defines { defines.append(d.remap(by: offset)) }
-        for i in inAST.inlines { inlines.append((inline: i.inline.remap(by: offset),
-                                                 process: i.process,
-                                                 at: i.at)) }
         
+        if nonAtomic {
+            // Append remapped incoming AST define/inlines
+            for d in inAST.defines { defines.append(d.remap(by: offset)) }
+            for i in inAST.inlines { inlines.append((inline: i.inline.remap(by: offset),
+                                                     process: i.process,
+                                                     at: i.at)) }
+            
+            info.stackDepths.inlineMax = stackDepths.inlineMax + inAST.stackDepths.inlineMax
+            info.defines = Set(info.defines + inAST.info.defines).sorted()
+            info.inlines = Set(info.inlines + inAST.info.inlines).sorted()
+        }
         
         info.includedASTs.insert(info.requiredASTs.remove(inName)!)
-        info.defines = Set(info.defines + inAST.info.defines).sorted()
-        info.inlines = Set(info.inlines + inAST.info.inlines).sorted()
         info.requiredFiles = info.requiredASTs.union(info.requiredRaws).sorted()
         cached = false
     }
@@ -140,6 +215,7 @@ public struct Leaf4AST: Hashable {
         info.defines = Set(defines.map {$0.identifier}).sorted()
         info.inlines = Set(inlines.map {$0.inline.identifier}).sorted()
         info.requiredFiles = requiredASTs.union(requiredRaws).sorted()
+        info.stackDepths = stackDepths
         cached = false
     }
     
@@ -160,16 +236,19 @@ public struct Leaf4AST: Hashable {
     internal var formatted: String { summary + scopes.formatted }
     internal var terse: String { scopes.terse }
     
-    internal init(_ key: String,
+    internal init(_ key: Key,
                   _ scopes: [[Leaf4Syntax]],
                   _ defines: [Leaf4AST.ScopeReference],
                   _ inlines: [(inline: Leaf4AST.ScopeReference, process: Bool, at: Date)],
-                  _ underestimatedSize: UInt32) {
-        self.key = key.first != "$" ? "$:\(key)" : key
+                  _ underestimatedSize: UInt32,
+                  _ stackDepths: (overallMax: UInt16, inlineMax: UInt16)) {
+        self.key = key
+        self.name = key._name
         self.cached = false
         self.scopes = scopes.contiguous()
         self.defines = .init(defines)
         self.inlines = .init(inlines)
+        self.stackDepths = stackDepths
         self.requiredASTs = .init()
         self.requiredRaws = .init()
         self.underestimatedSize = underestimatedSize
@@ -180,6 +259,7 @@ public struct Leaf4AST: Hashable {
         self.requiredRaws.formUnion(_requiredRaws)
         self.info.parsed = Date()
         self.info.minSize = underestimatedSize
+        self.info.stackDepths = stackDepths
         self.info.resolved = requiredFiles.isEmpty
         self.info.cachedTables = scopes.count - 1 - own.scopes
         self.info.defines = Set(defines.map {$0.identifier}).sorted()

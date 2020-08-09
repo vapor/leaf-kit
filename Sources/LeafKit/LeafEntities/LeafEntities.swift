@@ -236,12 +236,9 @@ public final class LeafEntities {
     func validateTupleCall(_ tuple: LeafTuple?, _ expected: [CallParameter]) -> Result<LeafTuple, String> {
         /// True if actual parameter matches expected parameter value type, or if actual parameter is uncertain type
         func matches(_ actual: LeafParameter, _ expected: CallParameter) -> Bool {
-            if let type = actual.concreteType {
-                if !expected.types.contains(type),
-                   expected.types.allSatisfy({type.casts(to: $0) != .ambiguous}) {
-                return false }
-            }
-            return true
+            guard let t = actual.concreteType else { return true }
+            return expected.types.contains(t) ? true
+                 : expected.types.first(where: {t.casts(to: $0) != .ambiguous}) != nil
         }
         func output() -> Result<LeafTuple, String> {
             for i in 0 ..< count.out {
@@ -250,7 +247,9 @@ public final class LeafEntities {
             }
             return .success(tuples.out)
         }
-
+        
+        guard expected.count < 256 else { return .failure("Can't have more than 255 params") }
+        
         var tuples = (in: tuple ?? LeafTuple(), out: LeafTuple())
 
         // All input must be valued types
@@ -259,9 +258,9 @@ public final class LeafEntities {
         
         let count = (in: tuples.in.count, out: expected.count)
         let defaults = expected.compactMap({ $0.defaultValue }).count
-        // Guard that in.count <= out.count && out.count - in.count <= defaulted params
-        if count.out - count.in < 0 { return .failure("Too many parameters") }
-        if count.out - count.in > defaults { return .failure("Not enough parameters") }
+        // Guard that in.count <= out.count && in.count + default >= out.count
+        if count.in > count.out { return .failure("Too many parameters") }
+        if Int(count.in) + defaults < count.out { return .failure("Not enough parameters") }
 
         // guard that if the signature has labels, input is fully contained and in order
         let labels = (in: tuples.in.labels.keys, out: expected.compactMap {$0.label})
@@ -272,7 +271,7 @@ public final class LeafEntities {
         
         // Copy all labels to out and labels and/or default values to temp
         for (i, p) in expected.enumerated() {
-            if let label = p.label { tuples.out.labels[label] = i }
+            if let label = p.label { tuples.out.labels[label] = UInt8(i) }
             if let data = p.defaultValue { temp[i] = .value(data) }
         }
         
@@ -280,13 +279,13 @@ public final class LeafEntities {
         if count.in == 0 { return output() }
         
         // Map labeled input parameters to their correct position in the temp array
-        for label in labels.in { temp[tuples.out.labels[label]!] = tuples.in[label] }
+        for label in labels.in { temp[Int(tuples.out.labels[label]!)] = tuples.in[label] }
 
         // At this point any nil value in the temp array is undefaulted, and
         // the only values uncopied from tuple.in are unlabeled values
         var index = 0
         let last = (in: (tuples.in.labels.values.min() ?? count.in) - 1,
-                    out: (tuples.out.labels.values.min() ?? count.out) - 1)
+                    out: (tuples.out.labels.values.min() ?? UInt8(count.out)) - 1)
         while index <= last.in, index <= last.out {
             let param = tuples.in.values[index]
             // apply all unlabeled input params to temp, unsetting if not matching expected
@@ -353,6 +352,8 @@ internal extension CallParameter {
 private extension Array where Element == CallParameter {
     /// Veryify the `[CallParameter]` is valid
     func _sanity() {
+        precondition(self.count < 256,
+                     "Functions may not have more than 255 parameters")
         precondition(0 == self.compactMap({$0.label}).count -
                           Set(self.compactMap { $0.label }).count,
                      "Labels must be unique")

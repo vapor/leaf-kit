@@ -10,7 +10,7 @@ let package = Package(
         .library(name: "LeafKit", targets: ["LeafKit"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.2.0"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.20.2"),
     ],
     targets: [
         .target(name: "LeafKit", dependencies: [

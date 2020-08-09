@@ -29,19 +29,23 @@ public protocol LeafCache {
                 replace: Bool) -> EventLoopFuture<Leaf4AST>
     
     /// - Parameters:
-    ///   - name: Name of the `LeafAST`  to try to return
+    ///   - key: `LeafAST.key`  to try to return
     ///   - loop: `EventLoop` to return futures on
     /// - Returns: `EventLoopFuture<LeafAST?>` holding the `LeafAST` or nil if no matching result
-    func retrieve(_ name: String,
+    func retrieve(_ key: Leaf4AST.Key,
                   on loop: EventLoop) -> EventLoopFuture<Leaf4AST?>
 
     /// - Parameters:
-    ///   - name: Name of the `LeafAST`  to try to purge from the cache
+    ///   - key: `LeafAST.key`  to try to purge from the cache
     ///   - loop: `EventLoop` to return futures on
     /// - Returns: `EventLoopFuture<Bool?>` - If no document exists, returns nil. If removed,
     ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
-    func remove(_ name: String,
+    func remove(_ key: Leaf4AST.Key,
                 on loop: EventLoop) -> EventLoopFuture<Bool?>
+    
+    /// Touch a stored AST with an execution time
+    func touch(_ key: Leaf4AST.Key,
+               _ value: Leaf4AST.TouchValue)
 }
 
 /// A `LeafCache` that provides certain blocking methods for non-future access to the cache
@@ -52,24 +56,15 @@ internal protocol SynchronousLeafCache: LeafCache {
     /// - Parameters:
     ///   - document: The `LeafAST` to store
     ///   - replace: If a document with the same name is already cached, whether to replace or not
-    /// - Returns: The document provided as an identity return, or nil if it can't guarantee completion rapidly
-    /// - Throws: `LeafError` .keyExists if replace is false and document already exists
-    func insert(_ document: Leaf4AST, replace: Bool) throws -> Leaf4AST?
+    /// - Returns: The document provided as an identity return when success, or a failure error
+    func insert(_ document: Leaf4AST, replace: Bool) -> Result<Leaf4AST, LeafError>
     
-    /// - Parameter name: Name of the `LeafAST` to try to return
-    /// - Returns: The requested `LeafAST` or nil if it can't guarantee completion rapidly
-    /// - Throws: `LeafError` .noValueForKey if no such document is cached
-    func retrieve(_ name: String) throws -> Leaf4AST?
+    /// - Parameter key: Name of the `LeafAST` to try to return
+    /// - Returns: The requested `LeafAST` or nil if not found
+    func retrieve(_ key: Leaf4AST.Key) -> Leaf4AST?
     
-    /// - Parameter name: Name of the `LeafAST`  to try to purge from the cache
+    /// - Parameter key: Name of the `LeafAST`  to try to purge from the cache
     /// - Returns: `Bool?` If removed,  returns true. If cache can't remove because of dependencies
-    ///      (not yet possible), returns false. Nil if it can't guarantee completion rapidly.
-    /// - Throws: `LeafError` .noValueForKey if no such document is cached
-    func remove(_ name: String) throws -> Bool?
-}
-
-internal extension SynchronousLeafCache {
-    func insert(_ document: Leaf4AST, replace: Bool) throws -> Leaf4AST? { nil }
-    func retrieve(_ name: String) throws -> Leaf4AST? { nil }
-    func remove(_ name: String) throws -> Bool? { nil }
+    ///      (not yet possible), returns false. Nil if no such cached key exists.
+    func remove(_ key: Leaf4AST.Key) -> Bool?
 }

@@ -5,7 +5,7 @@ import Foundation
 
 /// `LeafDataContainer` provides the tangible storage for concrete Swift values, representations of
 /// collections, optional value wrappers, and lazy data generators.
-internal indirect enum LeafDataContainer: Equatable, SymbolPrintable {
+internal indirect enum LeafDataContainer: Equatable, LKPrintable {
     // MARK: - Cases
     
     // Static values
@@ -23,23 +23,13 @@ internal indirect enum LeafDataContainer: Equatable, SymbolPrintable {
     case optional(_ wrapped: LeafDataContainer?, _ type: LeafDataType)
     
     // Lazy resolvable function
-    // Must specify return tuple giving (returnType, invariance)
-    case lazy(f: () -> (LeafData),
-              returns: LeafDataType,
-              invariant: Bool)
+    // Must specify return type. Assumed to be variant - LeafData immediately evaluates otherwise
+    case lazy(f: () -> (LeafData), returns: LeafDataType)
     
-    // MARK: - LeafSymbol Conformance
+    // MARK: - Properties
     
-    // MARK: Properties
-    internal var resolved: Bool { true }
-    internal var invariant: Bool { !isLazy }
-    internal var symbols: Set<String> { .init() }
-    internal var isAtomic: Bool { true }
-    internal var isExpression: Bool { false }
-    internal var isAny: Bool { false }
-    internal var isConcrete: Bool { true }
     /// Note: Will *always* return a value - can be force-unwrapped safely
-    internal var concreteType: LeafDataType? {
+    var concreteType: LeafDataType {
         switch self {
             // Concrete Types
             case .array              : return .array
@@ -50,39 +40,25 @@ internal indirect enum LeafDataContainer: Equatable, SymbolPrintable {
             case .int                : return .int
             case .string             : return .string
             // Internal Wrapped Types
-            case .lazy(_, let t, _),
+            case .lazy(_, let t),
                  .optional(_, let t) : return t
         }
     }
     
-    internal static let comparable: Set<LeafDataType> = [ .double, .int, .string ]
-    internal static let numerics: Set<LeafDataType> = [ .double, .int ]
-    internal var isNumeric: Bool { Self.numerics.contains(concreteType!) }
-    
-    // MARK: Functions
     
     /// Will resolve anything but variant Lazy data (99% of everything), and unwrap optionals
-    internal func resolve() -> LeafDataContainer {
-        guard invariant else { return self }
-        switch self {
-            case .lazy(let f, _, _)                 : return f().container
-            case .optional(.some(let o), _)         : return o
-            case .array(let a)                      :
-                let resolved: [LeafData] = a.map {
-                    LeafData($0.container.resolve())
-                }
-                return .array(resolved)
-            case .dictionary(let d)                 :
-                let resolved: [String: LeafData] = d.mapValues {
-                    LeafData($0.container.resolve())
-                }
-                return .dictionary(resolved)
-            default                                 : return self
-        }
-    }
+    var evaluate: LeafData {
+        if case .lazy(let f, _) = self { return f() } else { return .init(self) } }
     
+    static let numeric: Set<LeafDataType> = [ .double, .int ]
+    static let comparable: Set<LeafDataType> = [ .double, .int, .string ]
+    var isNumeric: Bool { Self.numeric.contains(concreteType) }
+    var isComparable: Bool { Self.comparable.contains(concreteType) }
+    
+    // MARK: Functions
+
     /// Will serialize anything to a String except Lazy -> Lazy
-    internal func serialize() -> String? {
+    func serialize() -> String? {
         let c = LeafConfiguration.self
         switch self {
             // Atomic non-containers
@@ -103,15 +79,16 @@ internal indirect enum LeafDataContainer: Equatable, SymbolPrintable {
             case .dictionary(let d)  :
                 let result = d.mapValues { $0.container.serialize() ?? c.nilFormatter()}
                 return c.dictFormatter(result)
-            case .lazy(let f, _, _)  :
-                guard let result = f() as LeafData?, !result.container.isLazy else {
-                    return c.nilFormatter() } // Silently fail lazy -> lazy. a better option would be nice
+            case .lazy(let f, _)     :
+                let result = f()
+                // Silently fail lazy -> lazy. a better option would be nice
+                guard !result.container.isLazy else { return c.nilFormatter() }
                 return result.container.serialize() ?? c.nilFormatter()
         }
     }
     
     /// Final serialization to a shared buffer
-    internal func serialize(buffer: inout ByteBuffer) throws {
+    func serialize(buffer: inout ByteBuffer) throws {
         if case .data(let d) = self { buffer.writeBytes(d); return }
         guard let data = serialize()?.data(using: LeafConfiguration.encoding)
             else { throw "Serialization Error" }
@@ -119,44 +96,38 @@ internal indirect enum LeafDataContainer: Equatable, SymbolPrintable {
     }
     
     // MARK: - Equatable Conformance
-   
     /// Strict equality comparision, with .nil/.void being equal - will fail on Lazy data that is variant
-    internal static func == (lhs: LeafDataContainer, rhs: LeafDataContainer) -> Bool {
-        // If both sides are optional and nil, equal
-        guard !lhs.isNil || !rhs.isNil else                   { return true }
-        // Both sides must be non-nil and same concrete type, or unequal
-        guard !lhs.isNil && !rhs.isNil,
-              lhs.concreteType == rhs.concreteType else       { return false }
-        // As long as both are static types, test them
-        if !lhs.isLazy && !rhs.isLazy {
-            switch (lhs, rhs) {
-                // Direct concrete type comparisons
-                case (     .array(let a),      .array(let b)) : return a == b
-                case (.dictionary(let a), .dictionary(let b)) : return a == b
-                case (      .bool(let a),       .bool(let b)) : return a == b
-                case (    .string(let a),     .string(let b)) : return a == b
-                case (       .int(let a),        .int(let b)) : return a == b
-                case (    .double(let a),     .double(let b)) : return a == b
-                case (      .data(let a),       .data(let b)) : return a == b
-                // Both/one side(s) are optional, unwrap and compare
-                case (.optional(.some(let l),_), .optional(.some(let r),_))
-                                                              : return l == r
-                case (.optional(.some(let l),_),           _) : return l == rhs
-                case (          _, .optional(.some(let r),_)) : return r == lhs
-                default                                       : return false
-            }
-        } else if case .lazy(let lhsF, let lhsR, let lhsI) = lhs,
-                  case .lazy(let rhsF, let rhsR, let rhsI) = rhs {
-            // Only compare lazy equality if invariant to avoid side-effects
-            guard lhsI && rhsI, lhsR == rhsR else             { return false }
-                                                                return lhsF() == rhsF()
-        } else                                                { return false }
+    static func == (lhs: LeafDataContainer, rhs: LeafDataContainer) -> Bool {
+        // If either side is optional and nil...
+        if lhs.isNil || rhs.isNil                             {
+            // Both sides must be nil
+            if lhs.isNil != rhs.isNil                         { return false }
+            // And concrete type must match
+                                 return lhs.concreteType == rhs.concreteType }
+        // Both sides must be invariant or we won't test at all
+        guard (lhs.isLazy || rhs.isLazy) == false else        { return false }
+        
+        // Direct tests on two concrete values of the same concrete type
+        switch (lhs, rhs) {
+            // Direct concrete type comparisons
+            case (     .array(let a),      .array(let b)) : return a == b
+            case (.dictionary(let a), .dictionary(let b)) : return a == b
+            case (      .bool(let a),       .bool(let b)) : return a == b
+            case (    .string(let a),     .string(let b)) : return a == b
+            case (       .int(let a),        .int(let b)) : return a == b
+            case (    .double(let a),     .double(let b)) : return a == b
+            case (      .data(let a),       .data(let b)) : return a == b
+            // Both/one side(s) are optional, unwrap and compare
+            case (.optional(.some(let l),_), .optional(.some(let r),_))
+                                                          : return l == r
+            case (.optional(.some(let l),_),           _) : return l == rhs
+            case (          _, .optional(.some(let r),_)) : return r == lhs
+            default                                       : return false
+        }
     }
     
-    // MARK: - CustomStringConvertible
-    internal var description: String { short }
-    
-    internal var short: String {
+    var description: String { short }
+    var short: String {
         switch self {
             case .array(let a)       : return "array(\(a.count))"
             case .bool(let b)        : return "bool(\(b))"
@@ -164,32 +135,73 @@ internal indirect enum LeafDataContainer: Equatable, SymbolPrintable {
             case .dictionary(let d)  : return "dictionary(\(d.count))"
             case .double(let d)      : return "double(\(d))"
             case .int(let i)         : return "int(\(i))"
-            case .lazy(_, let r, _)  : return "lazy(() -> \(r)?)"
+            case .lazy(_, let r)     : return "lazy(() -> \(r)?)"
             case .optional(_, let t) : return "\(t)()?"
             case .string(let s)      : return "string(\(s))"
         }
     }
     
     // MARK: - Other
-    internal var isNil: Bool {
-        switch self {
-            case .optional(let o, _) where o == nil : return true
-            default                                 : return false
-        }
-    }
-    
-    internal var isLazy: Bool {
-        if case .lazy = self { return true } else { return false }
-    }
+    var isOptional: Bool { if case .optional = self { return true } else { return false } }
+    var isNil: Bool { if case .optional(nil, _) = self { return true } else { return false } }
+    var isLazy: Bool { if case .lazy = self { return true } else { return false } }
 
     /// Flat mapping behavior - will never re-wrap .optional
-    internal var wrap: LeafDataContainer {
-        if case .optional = self { return self }
-        return .optional(self, concreteType!)
-    }
+    var wrap: LeafDataContainer { isOptional ? self : .optional(self, concreteType) }
+    var unwrap: LeafDataContainer? {
+        if case .optional(let o, _) = self { return o } else { return self } }
     
-    internal var unwrap: LeafDataContainer? {
-        guard case .optional(let optional, _) = self else { return self }
-        return optional
+    var state: LeafDataState {
+        var state: LeafDataState
+        switch concreteType {
+            case .array      : state = .array
+            case .bool       : state = .bool
+            case .data       : state = .data
+            case .dictionary : state = .dictionary
+            case .double     : state = .double
+            case .int        : state = .int
+            case .string     : state = .string
+            case .void       : state = .void
+        }
+        switch self {
+            case .lazy               : state.formUnion(.variant)
+            case .optional(.none, _) : state.formUnion([.optional, .nil])
+            case .optional           : state.formUnion(.optional)
+            default: break
+        }
+        return state
     }
+}
+
+
+internal struct LeafDataState: OptionSet {
+    let rawValue: UInt16
+    init(rawValue: UInt16) { self.rawValue = rawValue }
+            
+    /// Top 4 bits for container case
+    static let celfMask = Self(rawValue: 0xF000)
+    static let _void = Self(rawValue: 0 << 12)
+    static let _bool = Self(rawValue: 1 << 12)
+    static let _int = Self(rawValue: 2 << 12)
+    static let _double = Self(rawValue: 3 << 12)
+    static let _string = Self(rawValue: 4 << 12)
+    static let _array = Self(rawValue: 5 << 12)
+    static let _dictionary = Self(rawValue: 6 << 12)
+    static let _data = Self(rawValue: 7 << 12)
+    
+    static let numeric = Self(rawValue: 1 << 0)
+    static let comparable = Self(rawValue: 1 << 1)
+    static let collection = Self(rawValue: 1 << 2)
+    static let variant = Self(rawValue: 1 << 3)
+    static let optional = Self(rawValue: 1 << 4)
+    static let `nil` = Self(rawValue: 1 << 5)
+    
+    static let void: Self = [_void]
+    static let bool: Self = [_bool, comparable]
+    static let int: Self = [_int, comparable, numeric]
+    static let double: Self = [_double, comparable, numeric]
+    static let string: Self = [_string, comparable]
+    static let array: Self = [_array, collection]
+    static let dictionary: Self = [_dictionary, collection]
+    static let data: Self = [_data]
 }

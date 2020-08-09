@@ -4,7 +4,7 @@
 import Foundation
 
 /// The concrete instantiable object types for a `LeafData`
-public enum LeafDataType: String, CaseIterable, Hashable {
+public enum LeafDataType: UInt8, CaseIterable, Hashable {
     case bool
     case string
     case int
@@ -37,7 +37,7 @@ public enum LeafDataType: String, CaseIterable, Hashable {
 ///     supported, all of which may also be representable as `Optional` values.
 /// - `CaseType` presents these cases plus `Void` as a case for functional `LeafSymbols`
 /// - `nil` is creatable, but only within context of a root base type - eg, `.nil(.bool)` == `Bool?`
-public struct LeafData: LeafSymbol,
+public struct LeafData: LKSymbol,
                         Equatable,
                         ExpressibleByDictionaryLiteral,
                         ExpressibleByStringLiteral,
@@ -47,13 +47,14 @@ public struct LeafData: LeafSymbol,
                         ExpressibleByFloatLiteral,
                         ExpressibleByNilLiteral {
     
-    /// The case-self identity
-    public var celf: LeafDataType { container.concreteType! }
+    internal let state: LeafDataState
     
+    /// The case-self identity
+    public let celf: LeafDataType
     /// Returns `true` if the data is `nil` or `void`.
-    public var isNil: Bool { container.isNil }
-    /// Returns `true` if the data can hold other data - we don't consider `Optional` for this purpose
-    public var isCollection: Bool { [.array, .dictionary].contains(container.concreteType!) }
+    public var isNil: Bool { state.contains(.nil) }
+    /// Returns `true` if the data can hold other data - we don't consider an optional container for this purpose
+    public var isCollection: Bool  { state.contains(.collection) }
     
     /// Returns `true` if concrete object can be exactly or losslessly cast to a second type
     /// - EG: `.nil ` -> `.string("")`, `.int(1)` ->  `.double(1.0)`,
@@ -83,7 +84,7 @@ public struct LeafData: LeafSymbol,
         return lhs == rhs
     }
     
-    // MARK: - SymbolPrintable
+    // MARK: - LKPrintable
     public var description: String { container.description }
     public var short: String { container.short }
     
@@ -92,29 +93,31 @@ public struct LeafData: LeafSymbol,
     /// - True or false for containers if determinable
     /// - Nil if the object is variant lazy data, or invariant lazy producing a container, or a container holding such
     public var hasUniformType: Bool? {
-        // Default case - anything that doesn't return a container
-        if !isCollection { return true }
-        // A container-returning lazy (unknowable) - specific test to avoid invariant check
-        if container.isLazy && isCollection { return nil }
-        // A non-lazy container - somewhat expensive to check
-        if case .array(let a) = container {
-            guard a.count > 1, let first = a.first?.concreteType else { return true }
-            return a.allSatisfy { $0.celf == first && $0.hasUniformType ?? false }
-        } else if case .dictionary(let d) = container {
-            guard d.count > 1, let first = d.values.first?.concreteType else { return true }
-            return d.values.allSatisfy { $0.celf == first && $0.hasUniformType ?? false }
-        } else { return nil }
+        guard state.contains(.collection) else { return uniformType != nil }
+        return uniformType != nil ? true : false
     }
     
     /// Returns the uniform type of the object, or nil if it can't be determined/is a non-uniform container
     public var uniformType: LeafDataType? {
-        guard let determinable = hasUniformType, determinable else { return nil }
-        if !isCollection { return container.concreteType! }
+        // Default case - anything that doesn't return a container
+        if !state.contains(.collection) { return celf }
+        // A container-returning lazy (unknowable) - specific test to avoid invariant check
+        if state.contains(.variant) { return nil }
+        // A non-lazy container - somewhat expensive to check. 0 or 1 element
+        // is always uniform of that type. Only 1 layer deep, considers collection
+        // elements, even if all the same type, unequal
         if case .array(let a) = container {
-            return a.isEmpty ? .void : a.first?.concreteType ?? nil
+            guard a.count > 1 else { return a.first?.celf }
+            if a.first!.isCollection { return nil }
+            let types = a.reduce(into: Set<LeafDataType>.init(), { $0.insert($1.celf) })
+            return types.count == 1 ? types.first! : nil
         } else if case .dictionary(let d) = container {
-            return d.values.isEmpty ? .void : d.values.first?.concreteType ?? nil
-        } else { return nil }
+            guard d.count > 1 else { return d.values.first?.celf }
+            if d.values.first!.isCollection { return nil }
+            let types = d.values.reduce(into: Set<LeafDataType>.init(), { $0.insert($1.celf) })
+            return types.count == 1 ? types.first! : nil
+        }
+        return nil
     }
     
     // MARK: - Generic `LeafDataRepresentable` Initializer
@@ -229,44 +232,37 @@ public struct LeafData: LeafSymbol,
     internal private(set) var container: LeafDataContainer
     
     // MARK: - LeafSymbol Conformance
-    internal var resolved: Bool { container.resolved }
-    internal var invariant: Bool { container.invariant }
-    internal var symbols: Set<LeafVariable> { .init() }
-    internal var isAtomic: Bool { true }
-    internal var isExpression: Bool { false }
-    internal var isConcrete: Bool { false }
-    internal var isAny: Bool { true }
-    internal var concreteType: LeafDataType? { nil }
-    internal func resolve() -> LeafData { LeafData(container.resolve()) }
-    
-    internal func serialize() throws -> String? { container.serialize() }
-    internal func serialize(buffer: inout ByteBuffer) throws {
-        try container.serialize(buffer: &buffer)
-    }
+    internal var resolved: Bool { !state.contains(.variant) }
+    internal var invariant: Bool { !state.contains(.variant) }
+    internal var symbols: Set<LKVariable> { [] }
     
     internal func resolve(_ symbols: SymbolMap = [:]) -> Self { self }
     internal func evaluate(_ symbols: SymbolMap = [:]) -> LeafData {
-        if case .lazy(let f, _, _) = container { return f() }
-        return self
+        invariant ? self : container.evaluate
     }
 
     /// Creates a new `LeafData`.
-    internal init(_ container: LeafDataContainer) { self.container = container }
+    internal init(_ container: LeafDataContainer) {
+        self.container = container
+        self.celf = container.concreteType
+        self.state = container.state
+    }
     
     /// Creates a new `LeafData` from `() -> LeafData` if possible or `nil` if not possible.
     /// `returns` must specify a `CaseType` that the function will return
     internal static func lazy(_ lambda: @escaping () -> LeafData,
                             returns type: LeafDataType,
-                            invariant sideEffects: Bool) throws -> LeafData {
-        LeafData(.lazy(f: lambda, returns: type, invariant: sideEffects))
+                            variant sideEffects: Bool) throws -> LeafData {
+        guard sideEffects else { return lambda() }
+        return LeafData(.lazy(f: lambda, returns: type))
     }
     
     /// Try to convert one concrete object to a second type. Special handling for optional converting to bool.
     internal func convert(to output: LeafDataType, _ level: DataConvertible = .castable) -> LeafData {
         guard celf != output && invariant else { return self }
         if celf == .void && output == .bool { return .bool(false) }
-        if case .lazy(let f,_,_) = container {
-            return celf == output ? f() : f().convert(to: output, level) }
+        if case .lazy(let f, let t) = container {
+            return t == output ? f() : f().convert(to: output, level) }
         guard let input = container.unwrap else { return .trueNil }
         switch input {
             case .array(let a)      : let m = _ConverterMap.arrayMaps[output]!
@@ -291,7 +287,7 @@ public struct LeafData: LeafSymbol,
 // MARK: - Data Converter Static Mapping
 
 /// Stages of convertibility
-internal enum DataConvertible: Int, Equatable, Comparable {
+internal enum DataConvertible: UInt8, Hashable, Comparable {
     /// Not implicitly convertible automatically
     case ambiguous = 0
     /// A coercion with a clear meaning in one direction
@@ -312,9 +308,6 @@ internal enum DataConvertible: Int, Equatable, Comparable {
 ///
 /// Converters are guaranteed to be provided non-nil input. Failable converters must return LeafData.trueNil
 fileprivate enum _ConverterMap {
-    
-    
-    
     private static let c = LeafConfiguration.self
     
     typealias ArrayMap = (`is`: DataConvertible, via: ([LeafData]) -> LeafData)

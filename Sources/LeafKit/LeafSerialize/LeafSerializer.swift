@@ -17,9 +17,9 @@ internal struct Leaf4Serializer {
         expandDict(.dictionary(context))
     }
     
-    mutating func expandDict(_ leafData: LeafData, _ base: LeafVariable = .`self`) {
+    mutating func expandDict(_ leafData: LeafData, _ base: LKVariable = .`self`) {
         for (identifier, value) in leafData.dictionary ?? [:] {
-            let key: LeafVariable = base.extend(with: identifier)
+            let key: LKVariable = base.extend(with: identifier)
             stack[depth].variables[key] = value
             if value.celf == .dictionary { expandDict(value, key) }
         }
@@ -32,7 +32,7 @@ internal struct Leaf4Serializer {
         
         let ptr = UnsafeMutablePointer<RawBlock>.allocate(capacity: 1)
         defer { ptr.deallocate() }
-        ptr.initialize(to: type(of: output).instantiate(size: ast.info.minSize,
+        ptr.initialize(to: type(of: output).instantiate(size: ast.info.averages.size,
                                                         encoding: LeafConfiguration.encoding))
         self.stack[0].bufferStack.append(ptr)
         
@@ -231,7 +231,7 @@ internal struct Leaf4Serializer {
         set { stack[depth].offset = newValue }
     }
     
-    private var idCache: [String: LeafVariable] = [:]
+    private var idCache: [String: LKVariable] = [:]
     
     private var peek: Leaf4Syntax? { scope.count > offset ? scope[offset] : nil }
     
@@ -274,6 +274,10 @@ internal struct Leaf4Serializer {
     
     mutating func evaluateScope() -> Bool? {
         if table < 0 || (table > 0 && offset == 0), stack[depth].block != nil {
+            // All metablocks will always run only once
+            guard stack[depth].block as? MetaBlock == nil else { stack[depth].count = 0
+                                                                 return true }
+            
             guard let params = ParameterValues(stack[depth].block!.sig, stack[depth].tuple!, variables) else {
                 error = LeafError(.unknownError("Couldn't evaluate scope variables"))
                 return nil

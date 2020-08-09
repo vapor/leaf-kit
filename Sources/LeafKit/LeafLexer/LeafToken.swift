@@ -28,7 +28,7 @@
 ///
 /// # TODO
 /// - LeafTokens would ideally also store the range of their location in the original source template
-internal enum LeafToken: SymbolPrintable, Hashable  {
+internal enum LeafToken: LKPrintable, Hashable  {
     /// Holds a variable-length string of data that will be passed through with no processing
     case raw(String)
     
@@ -80,84 +80,82 @@ internal enum LeafToken: SymbolPrintable, Hashable  {
             case .parameter          : return "param"
         }
     }
-}
-
-// FIXME: - MOVE INTERNAL TO LEAFTOKEN
-
-/// A token that represents the valid objects that will be lexed inside parameters
-public enum LeafTokenParameter: SymbolPrintable, Hashable {
-    /// Any tokenized literal value with a native Swift type
-    ///
-    /// ```
-    /// case int(Int)       // A Swift `Int`
-    /// case double(Double) // A Swift `Double`
-    /// case string(String) // A Swift `String`
-    case literal(Literal)
-    /// Any Leaf keyword with no restrictions
-    case keyword(LeafKeyword)
-    /// Any Leaf operator - must be `.isLexable`
-    case `operator`(LeafOperator)
-    /// A single part of a variable scope - must be non-empty
-    case variable(String)
-    /// An identifier signifying a function or method name - must be non-empty
-    case function(String)
     
-    /// Returns `parameterCase(parameterValue)`
-    public var description: String {
-        switch self {
-            case .literal(let c)  : return "literal(\(c.description))"
-            case .variable(let v) : return "variable(part: \(v))"
-            case .keyword(let k)  : return "keyword(.\(k.short))"
-            case .operator(let o) : return "operator(\(o.description))"
-            case .function(let f) : return "function(id: \"\(f)\")"
-        }
-    }
-    
-    /// Returns `parameterValue` or `"parameterValue"` as appropriate for type
-    var short: String {
-        switch self {
-            case .literal(let c)  : return "lit(\(c.short))"
-            case .variable(let v) : return "var(\(v))"
-            case .keyword(let k)  : return "kw(.\(k.short))"
-            case .operator(let o) : return "op(\(o.short))"
-            case .function(let f) : return "func(\(f))"
-        }
-    }
-    
-    /// An integer, double, or string constant value parameter (eg `1_000`, `-42.0`, `"string"`)
-    public enum Literal: SymbolPrintable, LeafDataRepresentable, Hashable {
-        /// A Swift `Int`
-        case int(Int)
-        /// A Swift `Double`
-        case double(Double)
-        /// A Swift `String`
-        case string(String)
-        /// A Swift `Array` - only used to provide empty array literal currently
-        case emptyArray
-
-        public var description: String {
+    /// A token that represents the valid objects that will be lexed inside parameters
+    enum LeafTokenParameter: LKPrintable, Hashable {
+        /// Any tokenized literal value with a native Swift type
+        ///
+        /// ```
+        /// case int(Int)       // A Swift `Int`
+        /// case double(Double) // A Swift `Double`
+        /// case string(String) // A Swift `String`
+        case literal(Literal)
+        /// Any Leaf keyword with no restrictions
+        case keyword(LeafKeyword)
+        /// Any Leaf operator - must be `.isLexable`
+        case `operator`(LeafOperator)
+        /// A single part of a variable scope - must be non-empty
+        case variable(String)
+        /// An identifier signifying a function or method name - must be non-empty
+        case function(String)
+        
+        /// Returns `parameterCase(parameterValue)`
+        var description: String {
             switch self {
-                case .double(let d) : return "Double: \(d.description)"
-                case .emptyArray    : return "Array: empty"
-                case .int(let i)    : return "Int: \(i.description)"
-                case .string(let s) : return "String: \"\(s)\""
-            }
-        }
-        public var short: String {
-            switch self {
-                case .int(let i)    : return i.description
-                case .double(let d) : return d.description
-                case .string(let s) : return "\"\(s)\""
-                case .emptyArray    : return "[]"
+                case .literal(let c)  : return "literal(\(c.description))"
+                case .variable(let v) : return "variable(part: \(v))"
+                case .keyword(let k)  : return "keyword(.\(k.short))"
+                case .operator(let o) : return "operator(\(o.description))"
+                case .function(let f) : return "function(id: \"\(f)\")"
             }
         }
         
-        public var leafData: LeafData {
+        /// Returns `parameterValue` or `"parameterValue"` as appropriate for type
+        var short: String {
             switch self {
-                case .int(let i)    : return .int(i)
-                case .double(let d) : return .double(d)
-                case .string(let s) : return .string(s)
-                case .emptyArray    : return .array([])
+                case .literal(let c)  : return "lit(\(c.short))"
+                case .variable(let v) : return "var(\(v))"
+                case .keyword(let k)  : return "kw(.\(k.short))"
+                case .operator(let o) : return "op(\(o.short))"
+                case .function(let f) : return "func(\(f))"
+            }
+        }
+        
+        /// An integer, double, or string constant value parameter (eg `1_000`, `-42.0`, `"string"`)
+        enum Literal: LKPrintable, LeafDataRepresentable, Hashable {
+            /// A Swift `Int`
+            case int(Int)
+            /// A Swift `Double`
+            case double(Double)
+            /// A Swift `String`
+            case string(String)
+            /// A Swift `Array` - only used to provide empty array literal currently
+            case emptyArray
+
+            var description: String {
+                switch self {
+                    case .double(let d) : return "Double: \(d.description)"
+                    case .emptyArray    : return "Array: empty"
+                    case .int(let i)    : return "Int: \(i.description)"
+                    case .string(let s) : return "String: \"\(s)\""
+                }
+            }
+            var short: String {
+                switch self {
+                    case .int(let i)    : return i.description
+                    case .double(let d) : return d.description
+                    case .string(let s) : return "\"\(s)\""
+                    case .emptyArray    : return "[]"
+                }
+            }
+            
+            var leafData: LeafData {
+                switch self {
+                    case .int(let i)    : return .int(i)
+                    case .double(let d) : return .double(d)
+                    case .string(let s) : return .string(s)
+                    case .emptyArray    : return .array([])
+                }
             }
         }
     }

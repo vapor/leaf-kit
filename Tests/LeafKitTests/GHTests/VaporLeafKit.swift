@@ -18,30 +18,30 @@ final class GHLeafKitIssuesTest: LeafTestClass {
         """
         test.files["/page.leaf"] = """
         #export(body):
-        Snippet added through export/import
+            Snippet added through export/import
         #extend("partials/picture.svg")
         #endexport
-
+        
         #extend("base")
         """
         test.files["/partials/picture.svg"] = """
-        <svg><path d="M0..."></svg>
+            <svg><path d="M0..."></svg>
         """
 
         let expected = """
+
         <body>
             Directly extended snippet
-            <svg><path d="M0..."></svg>
+                <svg><path d="M0..."></svg>
             
             Snippet added through export/import
             <svg><path d="M0..."></svg>
-
         </body>
         """
         
         let renderer = TestRenderer(sources: .singleSource(test))
         let page = try! renderer.render(path: "page").wait()
-        XCTAssertEqual(page.string, expected)
+        XCTAssertEqual(page.terse, expected)
     }
     
     
@@ -64,12 +64,12 @@ final class GHLeafKitIssuesTest: LeafTestClass {
         HI
         HI
         HI
-
+        
         """
-
         
-        
-        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "a", context: ["challenges":["","",""]]).wait()
-            XCTAssertEqual(page.string, expected)
+        let renderer = TestRenderer(sources: .singleSource(test))
+        let page = try! renderer.render(path: "a",
+                                        context: ["challenges":["","",""]]).wait()
+        XCTAssertEqual(page.terse, expected)
     }
 }

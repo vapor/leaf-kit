@@ -509,25 +509,21 @@ final class LeafKitTests: LeafTestClass {
         XCTAssertEqual(view.string, "Hello barvapor")
     }
 
-// MARK: testCyclicalError() - moved to LeafErrorTests.swift
-// MARK: testDependencyError() - moved to LeafErrorTests.swift
-
     func testImportResolve() {
         var test = TestFiles()
         test.files["/a.leaf"] = """
-        #extend("b"):
-        #export("variable"):Hello#endexport
-        #endextend
+        #export(variable):Hello#endexport
+        #extend("b")
         """
         test.files["/b.leaf"] = """
-        #import("variable")
+        #import(variable)
         """
 
         let renderer = TestRenderer(sources: .singleSource(test))
 
         do {
             let output = try renderer.render(path: "a").wait().string
-            XCTAssertEqual(output, "Hello")
+            XCTAssertEqual(output, "\nHello")
         } catch {
             let e = error as! LeafError
             XCTFail(e.localizedDescription)
@@ -535,39 +531,102 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testCacheSpeedLinear() {
+        let iterations = 100_000
+        var dur: Double = 0
+        var ser: Double = 0
+        var stop: Double = 0
         self.measure {
-            self._testCacheSpeedLinear(templates: 10, iterations: 1_000_000)
+            let start = Date()
+            let result = self._testCacheSpeedLinear(templates: 10, iterations: iterations)
+            dur += result.0
+            ser += result.1
+            stop += start.distance(to: Date())
         }
+        dur /= 10
+        ser /= 10
+        stop /= 10
+        print("Linear Cache Speed: \(iterations) render")
+        print("\(String(format:"%.2f%%", 100.0*(stop-dur)/stop)) test overhead")
+        print("\(dur.formatSeconds) avg/test: \((dur/Double(iterations)).formatSeconds)/\(ser.formatSeconds) pipe:serialize/iteration")
     }
 
-    func _testCacheSpeedLinear(templates: Int, iterations: Int) {
+    func _testCacheSpeedLinear(templates: Int, iterations: Int) -> (Double, Double) {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
         var test = TestFiles()
-
-        for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf" }
+        
+//        for name in 1...templates { test.files["/\(name).leaf"] = """
+//        #lowercased(\"Template /\(name).leaf\")"
+//        #uppercased(\"Template /\(name).leaf\")"
+//        #(true == 5 + variable)
+//        #(uppercased(variable))
+//        """ }
+        for name in 1...templates { test.files["/\(name).leaf"] = "#lowercased(\"Template /\(name).leaf\")" }
+//        for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf\"" }
         let renderer = TestRenderer(
             sources: .singleSource(test),
-            eventLoop: group.next()
+            eventLoop: group.next(),
+            tasks: iterations
         )
 
         for iteration in 1...iterations {
             let template = String((iteration % templates) + 1)
-            renderer.render(path: template).whenComplete { _ in renderer.finishTask() }
+            renderer.r.eventLoop.makeSucceededFuture(template).flatMap {
+                renderer.render(path: $0, context: [:])
+            }.whenComplete {
+                switch $0 {
+                    case .failure(let e): XCTFail(e.localizedDescription)
+                    case .success: renderer.finishTask()
+                }
+            }
         }
         
-        // Sleep 10 µs per queued task
-        while !renderer.isDone { usleep(10 * UInt32(renderer.queued)) }
+        // Sleep 1 µs per queued task
+        while !renderer.isDone { usleep(UInt32(renderer.queued)) }
+        let duration = renderer.lap
+        var serialize = (renderer.r.cache as! DefaultLeafCache).cache.values
+                        .reduce(into: Double.init(0)) { $0 += $1.info.averages.exec }
+        serialize /= Double((renderer.r.cache as! DefaultLeafCache).cache.values.count)
+        
+//        (renderer.r.cache as! DefaultLeafCache).cache.values.forEach {
+//            let avg = $0.info.averages
+//            let max = $0.info.maximums
+//            let summary = """
+//            \($0.key): \($0.info.touches) cache hits
+//                Execution Time: \(avg.exec.formatSeconds) average, \(max.exec.formatSeconds) maximum
+//               Serialized Size: \(avg.size.formatBytes) average, \(max.size.formatBytes) maximum
+//            """
+//            print(summary)
+//        }
+        
         group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, templates) }
+        return (duration, serialize)
     }
 
     func testCacheSpeedRandom() {
+        let iterations = 100_000
+        var dur: Double = 0
+        var ser: Double = 0
+        var stop: Double = 0
         self.measure {
+            let start = Date()
             // layer1 > layer2 > layer3
-            self._testCacheSpeedRandom(layer1: 100, layer2: 20, layer3: 10, iterations: 130)
+            let result = self._testCacheSpeedRandom(layer1: 100, layer2: 20, layer3: 10, iterations: iterations)
+            dur += result.0
+            ser += result.1
+            stop += start.distance(to: Date())
         }
+        dur /= 10
+        ser /= 10
+        stop /= 10
+        print("Random Cache Speed: \(iterations) render")
+        print("\(String(format:"%.2f%%", 100.0*(stop-dur)/stop)) test overhead")
+        print("\(dur.formatSeconds) avg/test: \((dur/Double(iterations)).formatSeconds)/\(ser.formatSeconds) pipe:serialize/iteration")
     }
 
-    func _testCacheSpeedRandom(layer1: Int, layer2: Int, layer3: Int, iterations: Int) {
+    func _testCacheSpeedRandom(layer1: Int,
+                               layer2: Int,
+                               layer3: Int,
+                               iterations: Int) -> (Double, Double) {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
         var test = TestFiles()
 
@@ -582,36 +641,60 @@ final class LeafKitTests: LeafTestClass {
 
         let renderer = TestRenderer(
             sources: .singleSource(test),
-            eventLoop: group.next()
+            eventLoop: group.next(),
+            tasks: iterations
         )
 
         for x in (0..<iterations).reversed() {
             let template: String
             if x / ratio < hitList.count { template = hitList.removeFirst() }
             else { template = allKeys[Int.random(in: 0 ..< totalTemplates)] }
-            renderer.render(path: template).whenComplete { _ in renderer.finishTask() }
+            renderer.r.eventLoop.makeSucceededFuture(template).flatMap {
+                renderer.render(path: $0, context: [:])
+            }.whenComplete {
+                switch $0 {
+                    case .failure(let e): XCTFail(e.localizedDescription)
+                    case .success: renderer.finishTask()
+                }
+            }
         }
 
-        while !renderer.isDone { usleep(10) }
+        // Sleep 1 µs per queued task
+        while !renderer.isDone { usleep(UInt32(renderer.queued)) }
+        let duration = renderer.lap
+        var serialize = (renderer.r.cache as! DefaultLeafCache).cache.values
+                        .reduce(into: Double.init(0)) { $0 += $1.info.averages.exec }
+        serialize /= Double((renderer.r.cache as! DefaultLeafCache).cache.values.count)
+        
+//        (renderer.r.cache as! DefaultLeafCache).cache.values.forEach {
+//            let avg = $0.info.averages
+//            let max = $0.info.maximums
+//            let summary = """
+//            \($0.key): \($0.info.touches) cache hits
+//                Execution Time: \(avg.exec.formatSeconds) average, \(max.exec.formatSeconds) maximum
+//               Serialized Size: \(avg.size.formatBytes) average, \(max.size.formatBytes) maximum
+//            """
+//            print(summary)
+//        }
+        
         group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, layer1+layer2+layer3) }
+        return (duration, serialize)
     }
 
     func testImportParameter() throws {
         var test = TestFiles()
         test.files["/base.leaf"] = """
-        #extend("parameter"):
-            #export("admin", admin)
-        #endextend
+        #define(adminValue, admin)
+        #inline("parameter")
         """
         test.files["/delegate.leaf"] = """
-        #extend("parameter"):
-            #export("delegated", false || bypass)
-        #endextend
+        #define(delegated, false || bypass)
+        #inline("parameter")
         """
         test.files["/parameter.leaf"] = """
-        #if(import("admin")):
+        #if(evaluate(adminValue)):
             Hi Admin
-        #elseif(import("delegated")):
+        #elseif(evaluate(delegated)):
             Also an admin
         #else:
             No Access

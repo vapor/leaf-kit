@@ -104,7 +104,7 @@ public struct LeafConfiguration {
     
     internal static var _entities: LeafEntities = .leaf4Core
     internal static var _encoding: String.Encoding = .utf8
-    internal static var _timeout: Double = 30
+    internal static var _timeout: Double = 30.0
     internal static var _boolFormatter: (Bool) -> String = { $0.description }
     internal static var _intFormatter: (Int) -> String = { $0.description }
     internal static var _doubleFormatter: (Double) -> String = { $0.description }

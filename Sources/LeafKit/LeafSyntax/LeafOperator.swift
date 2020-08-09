@@ -1,9 +1,9 @@
 // MARK: Subject to change prior to 1.0.0 release
 
 /// Mathematical and Logical operators
-public enum LeafOperator: String, Hashable, CaseIterable, SymbolPrintable {
+public enum LeafOperator: String, Hashable, CaseIterable, LKPrintable {
     /// Associated enum used with a `LeafOperator` to disambiguate contextual meaning
-    internal enum Form: String, Hashable, SymbolPrintable {
+    internal enum Form: String, Hashable, LKPrintable {
         case unaryPrefix
         case unaryPostfix
         case infix

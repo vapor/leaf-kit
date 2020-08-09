@@ -1,35 +1,8 @@
 // MARK: Subject to change prior to 1.0.0 release
 // MARK: -
 
-public extension Dictionary where Key == String, Value == LeafData {
-    subscript(keyPath keyPath: String) -> LeafData? {
-        let comps = keyPath.split(separator: ".").map(String.init)
-        return self[keyPath: comps]
-    }
-
-    subscript(keyPath comps: [String]) -> LeafData? {
-        if comps.isEmpty { return nil }
-        else if comps.count == 1 { return self[comps[0]] }
-
-        var comps = comps
-        let key = comps.removeFirst()
-        guard let val = self[key]?.dictionary else { return nil }
-        return val[keyPath: comps]
-    }
-}
-
-internal extension ParameterDeclaration {
-    var `operator`: LeafOperator? {
-        guard case .parameter(let p) = self,
-              case .operator(let op) = p else { return nil }
-        return op
-    }
-}
-
-
-
-internal struct Leaf4Syntax: SymbolPrintable {
-    internal enum Container {
+internal struct Leaf4Syntax: LKPrintable {
+    enum Container {
         // Passthrough and raw are atomic syntaxes.
         case passthrough(LeafParameter.Container) // where LP.isValued
         case raw(RawBlock)
@@ -40,7 +13,7 @@ internal struct Leaf4Syntax: SymbolPrintable {
         case scope(table: Int?) // Scopes
     }
     
-    internal private(set) var container: Container
+    private(set) var container: Container
     
     static func raw(_ store: RawBlock) -> Leaf4Syntax {
         .init(container: .raw(store))
@@ -71,6 +44,14 @@ internal struct Leaf4Syntax: SymbolPrintable {
             case .raw(let r): return "raw(\(type(of: r)): \(r.byteCount.formatBytes)))"
             case .scope(let table) where table != nil: return "scope(table: \(table!))"
             case .scope: return "scope(undefined)"
+        }
+    }
+    
+    var underestimatedSize: UInt32 {
+        switch container {
+            case .passthrough : return 16
+            case .raw(let r)  : return r.byteCount
+            default           : return 0
         }
     }
 }
@@ -130,7 +111,7 @@ extension Array where Element == Leaf4Syntax {
 /// case keyword(LeafKeyword)       // Parameter.keyword - unvalued
 /// case `operator`(LeafOperator)   // Parameter.operator - limited subset
 /// // Atomic Symbols
-/// case variable(LeafVariable)     // Parameter.variable
+/// case variable(LKVariable)     // Parameter.variable
 /// // Expression
 /// case expression(LeafExpression) // A constrained 2-3 value Expression
 /// // Tuple
@@ -138,40 +119,14 @@ extension Array where Element == Leaf4Syntax {
 /// // Function
 /// case function(String, LeafFunction, [LeafParameter])
 ///
-internal struct LeafParameter: LeafSymbol {
-/*
-    /// The signature for what concrete values can match a particular parameter
-    internal enum Signature: SymbolPrintable {
-        case data(Set<LeafDataType>)
-        case keyword(Set<LeafKeyword>)
-        case `operator`(Set<LeafOperator>)
-        
-        /// `case(Members)`
-        var description: String {
-            switch self {
-                case .data(let d)     : return "\(short)(\(d.description))"
-                case .keyword(let k)  : return "\(short)(\(k.description))"
-                case .operator(let o) : return "\(short)(\(o.description))"
-            }
-        }
-        
-        /// Signature case
-        var short: String {
-            switch self {
-                case .data     : return "datatypes"
-                case .keyword  : return "keywords"
-                case .operator : return "operators"
-            }
-        }
-    }*/
-    
+internal struct LeafParameter: LKSymbol {
     // MARK: - Passthrough generators
     
     /// Generate a `LeafParameter` holding concrete `LeafData`
     static func value(_ store: LeafData) -> LeafParameter { .init(.value(store)) }
     
     /// Generate a `LeafParameter` holding a fully scoped `.variable`
-    static func variable(_ store: LeafVariable) -> LeafParameter { .init(.variable(store)) }
+    static func variable(_ store: LKVariable) -> LeafParameter { .init(.variable(store)) }
     
     /// Generate a `LeafParameter` holding a validated `LeafExpression`
     static func expression(_ store: LeafExpression) -> LeafParameter { .init(.expression(store)) }
@@ -212,18 +167,19 @@ internal struct LeafParameter: LeafSymbol {
     static let invalid: LeafParameter = .init(.operator(.subOpen))
     
     /// Wrapped storage object for the actual value the `LeafParameter` holds
-    enum Container: LeafSymbol {
+    enum Container: LKSymbol {
         // Atomic Invariants
         case value(LeafData)              // Parameter.literal
         case keyword(LeafKeyword)         // Parameter.keyword - unvalued
         case `operator`(LeafOperator)     // Parameter.operator - limited subset
         // Atomic Symbols
-        case variable(LeafVariable)       // Parameter.variable
+        case variable(LKVariable)       // Parameter.variable
         // Expression
         case expression(LeafExpression)   // A constrained 2-3 value Expression
         // Tuple
         case tuple(LeafTuple)             // A 0...n array of LeafParameters
-        // Function
+        // Function(s)
+        // FIXME: Need to store all potentially resolvable functions at parse time
         case function(String, LeafFunction, LeafTuple)
         
         var description: String {
@@ -269,7 +225,7 @@ internal struct LeafParameter: LeafSymbol {
                 case .function(_, let f, let p) : return f.invariant && p.invariant
             }
         }
-        var symbols: Set<LeafVariable> {
+        var symbols: Set<LKVariable> {
             switch self {
                 case .keyword, .operator, .value : return []
                 case .variable(let v)            : return [v]
@@ -302,7 +258,11 @@ internal struct LeafParameter: LeafSymbol {
                 case .variable(let v):            return symbols.match(v)
                 case .expression(let e):          return e.evaluate(symbols)
                 case .function(_, let f, let p):
-                    if let params = ParameterValues(f.sig, p, symbols) {
+                    // FIXME: This won't regress to overloaded functions
+                    // Without an explicit cast, a parameter that was "any" type
+                    // will have caught the first function of the name.
+                    if let params = ParameterValues(f.sig, p, symbols),
+                       params.values.first(where: { $0.celf == .void }) == nil {
                         return f.evaluate(params) }
                     else { return .trueNil }
                 case .keyword(let k) where k.isEvaluable:
@@ -321,12 +281,12 @@ internal struct LeafParameter: LeafSymbol {
     
     internal private(set) var resolved: Bool
     internal private(set) var invariant: Bool
-    internal private(set) var symbols: Set<LeafVariable>
+    internal private(set) var symbols: Set<LKVariable>
 
     internal var concreteType: LeafDataType? {
         switch container {
             case .expression(let e): return e.concreteType
-            case .value(let d): return d.concreteType
+            case .value(let d): return d.celf
             case .keyword, .operator, .tuple, .variable: return nil
             case .function(_, let f, _):
                 return type(of: f).returns.count == 1 ? type(of: f).returns.first : nil
@@ -410,22 +370,21 @@ internal struct LeafParameter: LeafSymbol {
 }
 
 
-internal struct LeafTuple: LeafSymbol {
+internal struct LeafTuple: LKSymbol {
     func resolve(_ symbols: SymbolMap) -> Self { self }
     func evaluate(_ symbols: SymbolMap) -> LeafData { .trueNil }
     
     subscript(index: String) -> LeafParameter? {
-        get { self[labels[index] ?? -1] }
-        set { if values.indices.contains(labels[index] ?? -1)
-                { self[labels[index]!] = newValue } }
+        get { if let i = labels[index] { return i < count ? self[i] : nil }; return nil }
+        set { if let i = labels[index], i < count { self[i] = newValue } }
     }
-    subscript(index: Int) -> LeafParameter? {
-        get { values.indices.contains(index) ? values[index] : nil }
-        set { if values.indices.contains(index) { values[index] = newValue! } }
+    subscript(index: UInt8) -> LeafParameter? {
+        get { index < count ? values[Int(index)] : nil }
+        set { if index < count { values[Int(index)] = newValue! } }
     }
     
     var values: [LeafParameter] { didSet { setStates() } }
-    var labels: [String: Int]
+    var labels: [String: UInt8]
     
     init(_ tuple: [(label: String?, param: LeafParameter)] = []) {
         self.values = []
@@ -433,66 +392,47 @@ internal struct LeafTuple: LeafSymbol {
         self.symbols = []
         self.resolved = false
         self.invariant = false
-        for index in tuple.indices {
+        self.count = 0
+        for index in 0..<tuple.count {
             values.append(tuple[index].param)
-            if let label = tuple[index].label { labels[label] = index }
+            if let label = tuple[index].label { labels[label] = UInt8(index) }
         }
-        setStates()
     }
     
     // MARK: - Fake Collection Adherence
-    var isEmpty: Bool { values.isEmpty }
-    var count: Int { values.count }
+    var isEmpty: Bool { count == 0 }
+    var count: UInt8
     var enumerated: [(label: String?, value: LeafParameter)] {
         let inverted = Dictionary(uniqueKeysWithValues: labels.map { ($0.value, $0.key) })
-        return values.enumerated().map { (inverted[$0.offset], $0.element) }
+        return values.enumerated().map { (inverted[UInt8($0.offset)], $0.element) }
     }
     
-    // MARK: - SymbolContainer
+    // MARK: - LKSymbol
     private(set) var resolved: Bool
     private(set) var invariant: Bool
-    private(set) var symbols: Set<LeafVariable>
-    
-//    func resolve(_ symbols: SymbolMap? = nil) -> SymbolicBox {
-//        let results = values.map { $0.resolve(symbols) }
-//        var resolved: [LeafParameter] = []
-//        for index in values.indices {
-//            switch results[index] {
-//                case (.none, .none): return (nil, nil)
-//                case (_, .some(let d)): resolved.append(.value(d))
-//                case (.some(let p), _): resolved.append(p)
-//            }
-//        }
-//        return (.init(labels: labels, values: resolved), nil)
-//    }
-//
-    private init(labels: [String: Int], values: [LeafParameter]) {
-        self.labels = labels
-        self.values = values
-        self.resolved = values.allSatisfy { $0.resolved }
-        self.invariant = values.allSatisfy { $0.invariant }
-        self.symbols = values.reduce(into: .init()) { $0.formUnion($1.symbols) }
-    }
+    private(set) var symbols: Set<LKVariable>
     
     mutating private func setStates() {
         resolved = values.allSatisfy { $0.resolved }
         invariant = values.allSatisfy { $0.invariant }
         symbols = values.reduce(into: .init()) { $0.formUnion($1.symbols) }
+        count = UInt8(values.count)
     }
     
     mutating internal func append(_ more: Self) {
         self.values.append(contentsOf: more.values)
         more.labels.mapValues { $0 + self.count }.forEach { labels[$0.key] = $0.value }
+        self.count += more.count
     }
     
-    // MARK: - SymbolPrintable
+    // MARK: - LKPrintable
     
     /// `(_: value(1), isValid: bool(true), ...)`
     var description: String {
         let inverted = labels.map { ($0.value, $0.key) }
         var labeled: [String] = []
         for (index, value) in values.enumerated() {
-            let label = inverted.first?.0 == index ? inverted.first!.1 : "_"
+            let label = inverted.first?.0 == UInt8(index) ? inverted.first!.1 : "_"
             labeled.append("\(label): \(value.description)")
         }
         return "(\(labeled.joined(separator: ", ")))"
