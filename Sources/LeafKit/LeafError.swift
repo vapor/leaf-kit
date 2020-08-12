@@ -6,7 +6,6 @@
 public typealias LeafErrorCause = LeafError.Reason
 public typealias LexErrorCause = LexerError.Reason
 
-
 /// `LeafError` reports errors during the template rendering process, wrapping more specific
 /// errors if necessary during Lexing and Parsing stages.
 ///
@@ -147,7 +146,7 @@ public struct LexerError: Error, CustomStringConvertible {
     // MARK: - Internal Only
     
     /// State of tokens already processed by Lexer prior to error
-    internal let lexed: [LeafToken]
+    internal let lexed: [LKToken]
     /// Flag to true if lexing error is something that may be recoverable during parsing;
     /// EG, `"#anhtmlanchor"` may lex as a tag name but fail to tokenize to tag because it isn't
     /// followed by a left paren. Parser may be able to recover by decaying it to `.raw`.
@@ -157,12 +156,12 @@ public struct LexerError: Error, CustomStringConvertible {
     /// - Parameters:
     ///   - reason: The specific reason for the error
     ///   - src: File being lexed
-    ///   - lexed: `LeafTokens` already lexed prior to error
+    ///   - lexed: `LKTokens` already lexed prior to error
     ///   - recoverable: Flag to say whether the error can potentially be recovered during Parse
     internal init(
         _ reason: Reason,
-        src: LeafRawTemplate,
-        lexed: [LeafToken] = [],
+        src: LKRawTemplate,
+        lexed: [LKToken] = [],
         recoverable: Bool = false
     ) {
         self.line = src.line
@@ -181,7 +180,6 @@ public struct LexerError: Error, CustomStringConvertible {
 // MARK: - `ParserError` Summary (Wrapped by LeafError)
 // FIXME: Implement a specific ParserError type
 /// `ParserError` reports errors during the stage.
-
 
 // MARK: - Internal Conveniences
 

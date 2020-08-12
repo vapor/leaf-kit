@@ -1,35 +1,34 @@
 // MARK: Subject to change prior to 1.0.0 release
-// MARK: -
 
 import Foundation
 
-/// `LeafDataContainer` provides the tangible storage for concrete Swift values, representations of
+// MARK: - LKDContainer Definition
+
+/// `LKDContainer` provides the tangible storage for concrete Swift values, representations of
 /// collections, optional value wrappers, and lazy data generators.
-internal indirect enum LeafDataContainer: Equatable, LKPrintable {
+internal indirect enum LKDContainer: Equatable, LKPrintable {
     // MARK: - Cases
-    
-    // Static values
     case bool(Bool)
     case string(String)
     case int(Int)
     case double(Double)
     case data(Data)
     
-    // Collections (potentially holding lazy values)
-    case dictionary([String: LeafData])
-    case array([LeafData])
+    /// `[String: LeafData]`
+    case dictionary([String: LKD])
+    /// `[LeafData]`
+    case array([LKD])
 
-    // Wrapped `Optional<LeafDataStorage>`
-    case optional(_ wrapped: LeafDataContainer?, _ type: LeafDataType)
+    /// Wrapped `Optional<LDContainer>`
+    case optional(_ wrapped: Self?, _ type: LKDT)
     
-    // Lazy resolvable function
-    // Must specify return type. Assumed to be variant - LeafData immediately evaluates otherwise
-    case lazy(f: () -> (LeafData), returns: LeafDataType)
+    /// Lazy resolvable `() -> LeafData` where return is of `LeafDataType`
+    case lazy(f: () -> (LKD), returns: LKDT)
     
     // MARK: - Properties
     
-    /// Note: Will *always* return a value - can be force-unwrapped safely
-    var concreteType: LeafDataType {
+    /// The LeafDataType the container will evaluate to
+    var baseType: LKDT {
         switch self {
             // Concrete Types
             case .array              : return .array
@@ -45,65 +44,19 @@ internal indirect enum LeafDataContainer: Equatable, LKPrintable {
         }
     }
     
-    
     /// Will resolve anything but variant Lazy data (99% of everything), and unwrap optionals
-    var evaluate: LeafData {
+    var evaluate: LKD {
         if case .lazy(let f, _) = self { return f() } else { return .init(self) } }
-    
-    static let numeric: Set<LeafDataType> = [ .double, .int ]
-    static let comparable: Set<LeafDataType> = [ .double, .int, .string ]
-    var isNumeric: Bool { Self.numeric.contains(concreteType) }
-    var isComparable: Bool { Self.comparable.contains(concreteType) }
-    
-    // MARK: Functions
 
-    /// Will serialize anything to a String except Lazy -> Lazy
-    func serialize() -> String? {
-        let c = LeafConfiguration.self
-        switch self {
-            // Atomic non-containers
-            case .bool(let b)        : return c.boolFormatter(b)
-            case .int(let i)         : return c.intFormatter(i)
-            case .double(let d)      : return c.doubleFormatter(d)
-            case .string(let s)      : return c.stringFormatter(s)
-            // Data
-            case .data(let d)        : return c.dataFormatter(d)
-            // Wrapped
-            case .optional(let o, _) :
-                guard let wrapped = o else { return c.nilFormatter() }
-                return wrapped.serialize()
-            // Atomic containers
-            case .array(let a)       :
-                let result = a.map { $0.container.serialize() ?? c.nilFormatter() }
-                return c.arrayFormatter(result)
-            case .dictionary(let d)  :
-                let result = d.mapValues { $0.container.serialize() ?? c.nilFormatter()}
-                return c.dictFormatter(result)
-            case .lazy(let f, _)     :
-                let result = f()
-                // Silently fail lazy -> lazy. a better option would be nice
-                guard !result.container.isLazy else { return c.nilFormatter() }
-                return result.container.serialize() ?? c.nilFormatter()
-        }
-    }
-    
-    /// Final serialization to a shared buffer
-    func serialize(buffer: inout ByteBuffer) throws {
-        if case .data(let d) = self { buffer.writeBytes(d); return }
-        guard let data = serialize()?.data(using: LeafConfiguration.encoding)
-            else { throw "Serialization Error" }
-        buffer.writeBytes(data)
-    }
-    
     // MARK: - Equatable Conformance
     /// Strict equality comparision, with .nil/.void being equal - will fail on Lazy data that is variant
-    static func == (lhs: LeafDataContainer, rhs: LeafDataContainer) -> Bool {
+    static func ==(lhs: Self, rhs: Self) -> Bool {
         // If either side is optional and nil...
         if lhs.isNil || rhs.isNil                             {
             // Both sides must be nil
             if lhs.isNil != rhs.isNil                         { return false }
             // And concrete type must match
-                                 return lhs.concreteType == rhs.concreteType }
+                                         return lhs.baseType == rhs.baseType }
         // Both sides must be invariant or we won't test at all
         guard (lhs.isLazy || rhs.isLazy) == false else        { return false }
         
@@ -147,13 +100,12 @@ internal indirect enum LeafDataContainer: Equatable, LKPrintable {
     var isLazy: Bool { if case .lazy = self { return true } else { return false } }
 
     /// Flat mapping behavior - will never re-wrap .optional
-    var wrap: LeafDataContainer { isOptional ? self : .optional(self, concreteType) }
-    var unwrap: LeafDataContainer? {
-        if case .optional(let o, _) = self { return o } else { return self } }
+    var wrap: Self { isOptional ? self : .optional(self, baseType) }
+    var unwrap: Self? { if case .optional(let o, _) = self { return o } else { return self } }
     
-    var state: LeafDataState {
-        var state: LeafDataState
-        switch concreteType {
+    var state: LKDState {
+        var state: LKDState
+        switch baseType {
             case .array      : state = .array
             case .bool       : state = .bool
             case .data       : state = .data
@@ -173,8 +125,9 @@ internal indirect enum LeafDataContainer: Equatable, LKPrintable {
     }
 }
 
+// MARK: - LDState Definition
 
-internal struct LeafDataState: OptionSet {
+internal struct LKDState: OptionSet {
     let rawValue: UInt16
     init(rawValue: UInt16) { self.rawValue = rawValue }
             
@@ -204,4 +157,5 @@ internal struct LeafDataState: OptionSet {
     static let array: Self = [_array, collection]
     static let dictionary: Self = [_dictionary, collection]
     static let data: Self = [_data]
+    static let trueNil: Self = [_void, optional, `nil`]
 }

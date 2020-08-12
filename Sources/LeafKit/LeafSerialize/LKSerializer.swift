@@ -2,38 +2,68 @@
 // MARK: -
 import Foundation
 
-internal struct Leaf4Serializer {
-    init(ast: Leaf4AST,
-         context: [String: LeafData]) {
+internal final class LKSerializer {
+    private var stack: ContiguousArray<ScopeState>
+    private var stackDepth: Int = 0
+    
+    private var context: UnsafeMutablePointer<LKVarTable>
+    
+    private var currentState: ScopeState { stack[stackDepth] }
+    
+    private var table: Int { currentState.table }
+    private var scope: ContiguousArray<LKSyntax> { ast.scopes[table] }
+    private var evalCount: Int? { currentState.count }
+    private var currentVariables: UnsafeMutablePointer<LKVarTable> { currentState.variables.0 }
+    private var currentRaw: Int { currentState.bufferStack.count - 1 }
+    private var currentCount: Int? { currentState.count }
+    private var currentBlock: LeafBlock? { currentState.block }
+    private var currentTuple: LKTuple? { currentState.tuple }
+  
+    private var offset: Int {
+        get { stack[stackDepth].offset }
+        set { stack[stackDepth].offset = newValue }
+    }
+    
+    private var idCache: [String: LKVariable] = [:]
+    
+    private var peek: LKSyntax? { scope.count > offset ? scope[offset] : nil }
+    
+    init(ast: LeafAST, context: [String: LKD]) {
         self.ast = ast
         self.start = Date.distantFuture.timeIntervalSinceReferenceDate
         self.lapTime = Date.distantPast.timeIntervalSinceReferenceDate
-        self.threshold = LeafConfiguration.timeout
-        self.stack = .init()
-        self.stack.reserveCapacity(16)
-        self.stack.append(.init(count: 1,
-                                variables: .init(minimumCapacity: 64)))
-        self.stack[0].variables[.`self`] = .dictionary(context)
-        expandDict(.dictionary(context))
+        self.threshold = LKConf.timeout
+        self.context = UnsafeMutablePointer<LKVarTable>.allocate(capacity: 1)
+        self.context.initialize(to: .init(minimumCapacity: context.count * 2))
+        self.context.pointee[.`self`] = .dictionary(context)
+        self.stack = .init(repeating: .init(count: 1,
+                                            variables: self.context),
+                           count: Int(ast.info.stackDepths.overallMax))
+        expandDict(.dictionary(context), .`self`, false)
     }
     
-    mutating func expandDict(_ leafData: LeafData, _ base: LKVariable = .`self`) {
-        for (identifier, value) in leafData.dictionary ?? [:] {
-            let key: LKVariable = base.extend(with: identifier)
-            stack[depth].variables[key] = value
-            if value.celf == .dictionary { expandDict(value, key) }
+    deinit { self.context.deallocate() }
+    
+    func expandDict(_ data: LKD, _ base: LKVariable = .`self`, _ toStack: Bool = true) {
+        data.dictionary.map {
+            for (identifier, value) in $0 {
+                let key: LKVariable = base.extend(with: identifier)
+                if toStack { currentVariables.pointee[key] = value }
+                else { context.pointee[key] = value }
+                if value.celf == .dictionary { expandDict(value, key, toStack) }
+            }
         }
     }
     
-    mutating func serialize(buffer output: inout RawBlock,
-                            timeout threshold: Double? = nil) -> Result<Double, LeafError> {
+    func serialize(buffer output: inout RawBlock,
+                   timeout threshold: Double? = nil) -> Result<Double, LeafError> {
         guard !ast.scopes[0].isEmpty else { return .success(0) }
         if let threshold = threshold { self.threshold = threshold }
         
         let ptr = UnsafeMutablePointer<RawBlock>.allocate(capacity: 1)
         defer { ptr.deallocate() }
         ptr.initialize(to: type(of: output).instantiate(size: ast.info.averages.size,
-                                                        encoding: LeafConfiguration.encoding))
+                                                        encoding: LKConf.encoding))
         self.stack[0].bufferStack.append(ptr)
         
         start = Date().timeIntervalSinceReferenceDate
@@ -59,20 +89,20 @@ internal struct Leaf4Serializer {
                     tick()
                     guard let eval = evaluateScope() else { break serialize }
                     guard eval else { continue serialize }
-                    switch ast.scopes[(stack[depth].table * -1) - 1][offset].container {
+                    switch ast.scopes[(currentState.table * -1) - 1][offset].container {
                         case .raw(var raw): append(&raw)
                         case .passthrough(let param):
-                            append(param.evaluate(variables))
+                            append(param.evaluate(currentVariables.pointee))
                         default: __MajorBug("Non-atomic atomic scope")
                     }
                 }
                 while (currentCount ?? 0) > 0, !cutoff {
                     tick()
                     guard reEvaluateScope() else { continue serialize }
-                    switch ast.scopes[(stack[depth].table * -1) - 1][offset].container {
+                    switch ast.scopes[(currentState.table * -1) - 1][offset].container {
                         case .raw(var raw): append(&raw)
                         case .passthrough(let param):
-                            append(param.evaluate(variables))
+                            append(param.evaluate(currentVariables.pointee))
                         default: __MajorBug("Non-atomic atomic scope")
                     }
                 }
@@ -83,15 +113,15 @@ internal struct Leaf4Serializer {
             }
 
             let next = peek
-            if next == nil && depth == 0 { break }
+            if next == nil && stackDepth == 0 { break }
             switch next?.container {
                 // Basic cases. Append evaluated atomics/raws to the current buffer
                 case .raw(var raw)           : append(&raw)
-                case .passthrough(let param) : append(param.evaluate(variables))
+                case .passthrough(let param) : append(param.evaluate(currentVariables.pointee))
                 // Blocks
                 case .block(_, let b, let p):
                     // Handle meta first
-                    if let meta = b as? MetaBlock {
+                    if let meta = b as? LKMetaBlock {
                         switch meta.form {
                             case .inline: // Elide - scope block dictates action
                                 break
@@ -102,15 +132,15 @@ internal struct Leaf4Serializer {
                                 let define = meta as! Define
                                 // If define body is nil, unset
                                 if case .passthrough(.keyword(.nil)) = scope[offset + 1].container {
-                                    stack[depth].defines[define.identifier] = nil
+                                    stack[stackDepth].defines[define.identifier] = nil
                                 }      // .. or add the define to the stack
-                                else { stack[depth].defines[define.identifier] = define }
+                                else { stack[stackDepth].defines[define.identifier] = define }
                                 offset += 2
                                 continue serialize
                             case .evaluate:
                                 let evaluate = meta as! Evaluate
                                 // If the definition exists, open a new stack and point it at the ref scope or atomic defintion
-                                if let jump = stack[depth].defines[evaluate.identifier] {
+                                if let jump = currentState.defines[evaluate.identifier] {
                                     offset += 2
                                     let jumper = ast.scopes[jump.table][jump.row]
                                     if case .scope(let t) = jumper.container {
@@ -136,15 +166,15 @@ internal struct Leaf4Serializer {
                     // Otherwise actual scopes:
                     // Next check if a chained block and not at end of scope.
                     if let chained = b as? ChainedBlock {
-                        switch stack[depth].breakChain {
+                        switch currentState.breakChain {
                             // First block in a chain - set state to false
-                            case .none        : stack[depth].breakChain = false
+                            case .none        : stack[stackDepth].breakChain = false
                             // Nth block in chain where none succeeded: normal
                             case .some(false) : break
                             // Previous chained block succeeded - elide (and reset breakChain if end)
                             case .some(true)  : offset += 2
                                                 if !nextMatchesChain(type(of: chained)) {
-                                                    stack[depth].breakChain = nil }
+                                                    stack[stackDepth].breakChain = nil }
                                                 continue serialize
                         }
                     }
@@ -185,7 +215,7 @@ internal struct Leaf4Serializer {
         else { return .failure(error!) }
     }
     
-    private let ast: Leaf4AST
+    private let ast: LeafAST
     private var error: LeafError? = nil
     
     private struct ScopeState {
@@ -193,70 +223,59 @@ internal struct Leaf4Serializer {
         var table: Int = 0
         var offset: Int = 0
         var block: LeafBlock? = nil
-        var tuple: LeafTuple? = nil
+        var tuple: LKTuple? = nil
         var breakChain: Bool? = nil
-        var variables: SymbolMap = [:]
+        var variables: (UnsafeMutablePointer<LKVarTable>, allocated: Bool)
         var scopeFirstPass: Bool = true
         var scopeIDs: Set<String> = []
         var defines: [String: Define] = [:]
         var bufferStack: [UnsafeMutablePointer<RawBlock>] = []
         
-        init(count: Int? = nil, variables: SymbolMap = [:]) {
+        init(count: Int? = nil, variables: UnsafeMutablePointer<LKVarTable>) {
             self.count = count
-            self.variables = variables
+            self.variables = (variables, false)
         }
         
-        init(from: Self, block: LeafBlock, tuple: LeafTuple) {
+        init(from: Self, block: LeafBlock, tuple: LKTuple) {
             self.block = block
             self.tuple = tuple
-            self.variables = from.variables
+            self.variables = (from.variables.0, false)
             self.defines = from.defines
             self.bufferStack = from.bufferStack
         }
     }
     
-    private var stack: ContiguousArray<ScopeState>
-    
-    private var depth: Int { stack.count - 1 }
-    private var table: Int { stack[depth].table }
-    private var scope: ContiguousArray<Leaf4Syntax> { ast.scopes[table] }
-    private var evalCount: Int? { stack[depth].count }
-    private var variables: SymbolMap { stack[depth].variables }
-    private var currentRaw: Int { stack[depth].bufferStack.count - 1 }
-    private var currentCount: Int? { stack[depth].count }
-    private var currentBlock: LeafBlock? { stack[depth].block }
-  
-    private var offset: Int {
-        get { stack[depth].offset }
-        set { stack[depth].offset = newValue }
-    }
-    
-    private var idCache: [String: LKVariable] = [:]
-    
-    private var peek: Leaf4Syntax? { scope.count > offset ? scope[offset] : nil }
-    
-    private mutating func newScope(from block: LeafBlock,
-                                   params tuple: LeafTuple,
+    func newScope(from block: LeafBlock,
+                                   params tuple: LKTuple,
                                    table: Int,
                                    offset: Int) {
-        stack.append(.init(from: stack[depth], block: block, tuple: tuple))
-        stack[depth].table = table
-        stack[depth].offset = offset
+        let new: ScopeState = .init(from: stack[stackDepth], block: block, tuple: tuple)
+        stackDepth += 1
+        if stackDepth == stack.count { stack.append(new) }
+        else { stack[stackDepth] = new }
+        stack[stackDepth].table = table
+        stack[stackDepth].offset = offset
+        block.scopeVariables.map {
+            for identifier in $0 where identifier.isValidIdentifier {
+                idCache[identifier] = .atomic(identifier)
+                stack[stackDepth].scopeIDs.insert(identifier)
+            }
+        }
     }
     
-    private mutating func closeScope() {
+    func closeScope() {
         precondition(stack.count > 1, "Can't close top scope")
-        // Store the current block type if it's chained before closing current scope
-        let chained = currentBlock as? ChainedBlock
-        stack.removeLast()
+        if currentState.variables.allocated { currentState.variables.0.deallocate() }
+        stackDepth -= 1
         // Reset breakChain if we were at end of chain
-        if let chained = chained, !nextMatchesChain(type(of: chained)) {
-            stack[depth].breakChain = nil
+        if let chained = stack[stackDepth + 1].block as? ChainedBlock,
+           !nextMatchesChain(type(of: chained)) {
+            stack[stackDepth].breakChain = nil
         }
     }
     
     private func nextMatchesChain(_ antecedent: ChainedBlock.Type) -> Bool {
-        guard stack[depth].breakChain != nil, let next = peek,
+        guard stack[stackDepth].breakChain != nil, let next = peek,
               case .block(_, let n as ChainedBlock, _) = next.container,
               type(of: n).chainsTo.contains(where: {$0 == antecedent}) else { return false }
         return true
@@ -268,75 +287,69 @@ internal struct Leaf4Serializer {
     private var tickCount: UInt8 = 0
     private var cutoff: Bool { threshold < (lapTime - start) }
     
-    mutating private func tick() { tickCount &+= 1; if tickCount == 0 { lap() } }
-    mutating private func lap() { lapTime = Date().timeIntervalSinceReferenceDate }
+    private func tick() { tickCount &+= 1; if tickCount == 0 { lap() } }
+    private func lap() { lapTime = Date().timeIntervalSinceReferenceDate }
     
-    
-    mutating func evaluateScope() -> Bool? {
-        if table < 0 || (table > 0 && offset == 0), stack[depth].block != nil {
+    func evaluateScope() -> Bool? {
+        if table < 0 || (table > 0 && offset == 0), currentBlock != nil {
             // All metablocks will always run only once
-            guard stack[depth].block as? MetaBlock == nil else { stack[depth].count = 0
-                                                                 return true }
+            guard currentBlock as? LKMetaBlock == nil else { stack[stackDepth].count = 0
+                                                           return true }
             
-            guard let params = ParameterValues(stack[depth].block!.sig, stack[depth].tuple!, variables) else {
-                error = LeafError(.unknownError("Couldn't evaluate scope variables"))
+            guard let params = ParameterValues(currentBlock!.sig, currentTuple!, currentVariables.pointee) else {
+                error = LeafError(.unknownError("Couldn't evaluate scope parameters"))
                 return nil
             }
-            var scopeVariables: [String: LeafData] = [:]
-            let scopeValue = stack[depth].block!.evaluateNilScope(params, &scopeVariables)
+            var scopeVariables: [String: LeafData] = .init(uniqueKeysWithValues: currentState.scopeIDs.map { ($0, .trueNil) })
+            let scopeValue = stack[stackDepth].block!.evaluateNilScope(params, &scopeVariables)
             // if evaluate to discard, stop immediately and end the current block
             if scopeValue == 0 { closeScope(); return false }
             
             // If this is a chained block, we've hit - set breakChain at the previous stack depth
-            if currentBlock as? ChainedBlock != nil { stack[depth - 1].breakChain = true }
+            if currentBlock as? ChainedBlock != nil { stack[stackDepth - 1].breakChain = true }
             
             if !scopeVariables.isEmpty {
-                for (key, value) in scopeVariables where key.isValidIdentifier {
-                    stack[depth].scopeIDs.insert(key)
-                    idCache[key] = .atomic(key)
-                    stack[depth].variables[idCache[key]!] = value
+                let newVars = UnsafeMutablePointer<LKVarTable>.allocate(capacity: 1)
+                newVars.initialize(from: stack[stackDepth].variables.0, count: 1)
+                stack[stackDepth].variables = (newVars, true)
+                for (key, value) in scopeVariables where currentState.scopeIDs.contains(key) {
+                    currentVariables.pointee[idCache[key]!] = value
                     if value.celf == .dictionary { expandDict(value, idCache[key]!) }
                 }
             }
-            if let count = scopeValue { stack[depth].count = count - 1 }
-            else { stack[depth].count = nil }
+            if let count = scopeValue { stack[stackDepth].count = count - 1 }
+            else { stack[stackDepth].count = nil }
         }
         return true
     }
     
-    mutating func reEvaluateScope() -> Bool {
-        if stack[depth].block != nil, currentCount != nil, currentCount! > 0 {
-            var scopeVariables: [String: LeafData] = [:]
-            let scopeValue = stack[depth].block!.reEvaluateScope(&scopeVariables)
+    func reEvaluateScope() -> Bool {
+        if currentBlock != nil, currentCount != nil, currentCount! > 0 {
+            var scopeVariables: [String: LeafData] = .init(uniqueKeysWithValues: currentState.scopeIDs.map { ($0, .trueNil) })
+            let scopeValue = stack[stackDepth].block!.reEvaluateScope(&scopeVariables)
             // if evaluate to discard, stop immediately and end the current block
             guard let toGo = scopeValue else {
                 error = LeafError(.unknownError("Blocks must not return nil evaluation after having reported a concrete count"))
                 return false
             }
             if toGo == 0 { closeScope(); return false }
-            for (key, value) in scopeVariables where stack[depth].scopeIDs.contains(key) {
-                stack[depth].variables[idCache[key]!] = value
+            for (key, value) in scopeVariables where stack[stackDepth].scopeIDs.contains(key) {
+                currentVariables.pointee[idCache[key]!] = value
                 if value.celf == .dictionary { expandDict(value, idCache[key]!) }
             }
-            stack[depth].count = toGo - 1
+            stack[stackDepth].count = toGo - 1
             return true
         } else { return false }
     }
     
     @inline(__always)
-    mutating func append(_ block: inout RawBlock) {
-        do { try stack[depth].bufferStack[currentRaw].pointee.append(&block) }
+    func append(_ block: inout RawBlock) {
+        do { try stack[stackDepth].bufferStack[currentRaw].pointee.append(&block) }
         catch { self.error = LeafError(.unknownError("Serializing error")) }
     }
-    
+  
     @inline(__always)
-    mutating func append(_ buffer: inout ByteBuffer) {
-        do { try stack[depth].bufferStack[currentRaw].pointee.append(&buffer) }
-        catch { self.error = LeafError(.unknownError("Serializing error")) }
-    }
-    
-    @inline(__always)
-    mutating func append(_ data: LeafData) {
-        stack[depth].bufferStack[currentRaw].pointee.append(data)
+    func append(_ data: LeafData) {
+        stack[stackDepth].bufferStack[currentRaw].pointee.append(data)
     }
 }

@@ -5,7 +5,6 @@
 /// used with logical operators, `nil` when used with equality operators, and so forth)
 public enum LeafKeyword: String, Hashable, CaseIterable, LKPrintable {
     // MARK: - Cases
-    
     //               Eval -> Bool / Other
     //            -----------------------
     case `in`,    //
@@ -16,18 +15,17 @@ public enum LeafKeyword: String, Hashable, CaseIterable, LKPrintable {
          `yes`,   //   X       T
          `no`,    //   X       F
          `_`,     //
-         leaf    //
+         leaf     //
     
     // MARK: - LKPrintable
     public var description: String { rawValue }
     public var short: String { rawValue }
 
     // MARK: Internal Only
-    
-    // State booleans
+    /// Whether the keyword has an evaluable representation
     internal var isEvaluable: Bool { ![.in, ._, .leaf].contains(self) }
+    /// Whether the keyword can represent a logical value
     internal var isBooleanValued: Bool { [.true, .false, .yes, .no].contains(self) }
-    
-    // Value or value-indicating returns
+    /// Evaluate to a logical state, if possible
     internal var bool: Bool? { isBooleanValued ? [.true, .yes].contains(self) : nil }
 }

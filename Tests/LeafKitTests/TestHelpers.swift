@@ -3,34 +3,35 @@ import NIOConcurrencyHelpers
 import Foundation
 @testable import LeafKit
 
+internal typealias LKConf = LeafConfiguration
+
 /// Assorted multi-purpose helper pieces for LeafKit tests
 
 /// Inherit from `LeafTestClass` rather than XCTestCase to avoid "Already running" assertions from other tests
 internal class LeafTestClass: XCTestCase {
     override func setUp() {
-        LeafConfiguration.__reset()
-        LeafConfiguration.entities = .leaf4Core
+        LKConf.__reset()
+        LKConf.entities = .leaf4Core
     }
 }
 
-
 // MARK: - Helper Functions
 
-/// Directly run a String "template" through `LeafLexer`
+/// Directly run a String "template" through `LKLexer`
 /// - Parameter str: Raw String holding Leaf template source data
-/// - Returns: A lexed array of LeafTokens
-internal func lex(_ str: String, name: String = "default") throws -> [LeafToken] {
-    var lexer = LeafLexer(name: name, raw: str)
+/// - Returns: A lexed array of LKTokens
+internal func lex(_ str: String, name: String = "default") throws -> [LKToken] {
+    var lexer = LKLexer(name: name, raw: str)
     return try lexer.lex()
 }
 
-/// Directly run a String "template" through `LeafLexer` and `LeafParser`
+/// Directly run a String "template" through `LKLexer` and `LeafParser`
 /// - Parameter str: Raw String holding Leaf template source data
 /// - Returns: A lexed and parsed array of Syntax
-internal func parse(_ str: String, name: String = "default") throws -> Leaf4AST {
-    var lexer = LeafLexer(name: name, raw: str)
+internal func parse(_ str: String, name: String = "default") throws -> LeafAST {
+    var lexer = LKLexer(name: name, raw: str)
     let tokens = try! lexer.lex()
-    var parser = Leaf4Parser(.searchKey(name), tokens)
+    var parser = LKParser(.searchKey(name), tokens)
     let syntax = try! parser.parse()
 
     return syntax
@@ -40,14 +41,16 @@ internal func parse(_ str: String, name: String = "default") throws -> Leaf4AST 
 /// - Parameter template: Raw String holding Leaf template source data
 /// - Parameter context: LeafData context
 /// - Returns: A fully rendered view
-internal func render(name: String = "test-render", _ template: String, _ context: [String: LeafData] = [:]) throws -> String {
-    var lexer = LeafLexer(name: name, raw: template)
+internal func render(name: String = "test-render",
+                     _ template: String,
+                     _ context: [String: LKD] = [:]) throws -> String {
+    var lexer = LKLexer(name: name, raw: template)
     let tokens = try lexer.lex()
-    var parser = Leaf4Parser(.searchKey(name), tokens)
+    var parser = LKParser(.searchKey(name), tokens)
     let ast = try parser.parse()
     let buffer = ByteBufferAllocator().buffer(capacity: Int(ast.underestimatedSize))
-    var block = ByteBuffer.instantiate(data: buffer, encoding: LeafConfiguration.encoding)
-    var serializer = Leaf4Serializer(ast: ast, context: context)
+    var block = ByteBuffer.instantiate(data: buffer, encoding: LKConf.encoding)
+    let serializer = LKSerializer(ast: ast, context: context)
     switch serializer.serialize(buffer: &block) {
         case .success(_)     : return block.contents
         case .failure(let e) : throw e
@@ -86,10 +89,10 @@ internal class TestRenderer {
         return r.render(path: path, from: source != nil ? source! : "$", context: context)
     }
     
-    internal var queued: Int { lock.withLock { counter } }
-    internal var isDone: Bool { lock.withLock { counter == 0 } ? true : false }
-    internal func finishTask() { lock.withLock { counter -= 1 } }
-    internal var lap: Double { let lap = timer.distance(to: Date()); timer = Date(); return lap }
+    var queued: Int { lock.withLock { counter } }
+    var isDone: Bool { lock.withLock { counter == 0 } ? true : false }
+    func finishTask() { lock.withLock { counter -= 1 } }
+    var lap: Double { let lap = timer.distance(to: Date()); timer = Date(); return lap }
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
@@ -137,7 +140,7 @@ internal extension ByteBuffer {
     
 }
 
-internal extension Array where Element == LeafToken {
+internal extension Array where Element == LKToken {
     var string: String { filter { $0 != .raw("\n") }.map { $0.description + "\n" } .reduce("", +) }
 }
 

@@ -1,7 +1,5 @@
 // MARK: Subject to change prior to 1.0.0 release
 
-
-
 // MARK: - `LeafRenderer` Summary
 
 /// `LeafRenderer` implements the full Leaf language pipeline.
@@ -26,7 +24,7 @@ public final class LeafRenderer {
     /// A thread-safe implementation of `LeafSource` protocol
     public let sources: LeafSources
     /// The NIO `EventLoop` on which this instance of `LeafRenderer` will operate
-    public let eventLoop: EventLoop
+    public var eventLoop: EventLoop { eL }
     /// Any custom instance data to use (eg, in Vapor, the `Application` and/or `Request` data)
     public let userInfo: [AnyHashable: Any]
     
@@ -43,17 +41,19 @@ public final class LeafRenderer {
         self.tags = tags
         self.cache = cache
         self.sources = sources
-        self.eventLoop = eventLoop
+        self.eL = eventLoop
         self.userInfo = userInfo
-        
-        self.blockingCache = cache as? SynchronousLeafCache
+        self.blockingCache = cache as? LKSynchronousCache
         self.cacheIsSync = blockingCache != nil
     }
     
-    private var eL: EventLoop { self.eventLoop }
+    private let eL: EventLoop
     private let cacheIsSync: Bool
-    private let blockingCache: SynchronousLeafCache?
+    private let blockingCache: LKSynchronousCache?
     
+    // 50 ms limit for execution to act in a blocking fashion
+    private static let blockLimit = 0.050
+
     /// The public interface to `LeafRenderer`
     /// - Parameter path: Name of the template to be used
     /// - Parameter context: Any unique context data for the template to use
@@ -83,11 +83,7 @@ public final class LeafRenderer {
         return _render(.init(source, path), context)
     }
     
-    internal static let blockLimit = 0.050 // 50 ms limit for execution to act in a blocking fashion
-    
-    @inline(__always)
-    internal func _render(_ key: Leaf4AST.Key,
-                          _ ctx: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
+    func _render(_ key: LeafASTKey, _ ctx: [String: LKD]) -> ELF<ByteBuffer> {
         /// Short circuit for resolved blocking cache hits
         if cacheIsSync, let hit = blockingCache!.retrieve(key),
            hit.info.requiredASTs.isEmpty, hit.info.averages.exec < Self.blockLimit {
@@ -98,13 +94,11 @@ public final class LeafRenderer {
                          .flatMap { self.serialize($0, ctx) }
     }
 
-
     // MARK: - Private Only
         
     /// Call with any state of ASTBox - will fork to various behaviors as required until finally returning a
     /// cached and serializable AST, if a failure hasn't bubbled out
-    private func arbitrate(_ ast: Leaf4AST,
-                           via chain: [String] = []) -> EventLoopFuture<Leaf4AST> {
+    private func arbitrate(_ ast: LeafAST, via chain: [String] = []) -> ELF<LeafAST> {
         if ast.info.requiredASTs.isEmpty {
             /// Succeed immediately if the ast is cached and doesn't need resolution
             if ast.cached { return succeed(ast, on: eL) }
@@ -129,14 +123,12 @@ public final class LeafRenderer {
         return resolve(ast, chain)
     }
     
-    
-    
     /// Get a `LeafAST` from the configured `LeafCache` or read the raw template if none is cached
     ///
     /// - If the AST can't be found (either from cache or reading), future errors
     /// - If found or read, return complete AST and a Bool signaling whether it was a cache hit or not
-    private func fetch(_ key: Leaf4AST.Key) -> EventLoopFuture<Leaf4AST> {
-        /// Try to hit blocking cache first, otherwise hit async cache, then try if no cache hit - read a template
+    private func fetch(_ key: LeafASTKey) -> ELF<LeafAST> {
+        /// Try to hit blocking cache LeafAST, otherwise hit async cache, then try if no cache hit - read a template
         if cacheIsSync, let hit = blockingCache!.retrieve(key) { return succeed(hit, on: eL) }
         return cache.retrieve(key, on: eL)
                     .flatMapThrowing { if let hit = $0 { return hit } else { throw "" } }
@@ -147,8 +139,7 @@ public final class LeafRenderer {
     ///
     /// If the configured `LeafSource` can't read a file, future will fail
     /// Otherwise, a complete (but not necessarily flat) `LeafAST` will be returned.
-    private func read(_ key: Leaf4AST.Key,
-                      _ escape: Bool = false) -> EventLoopFuture<Leaf4AST> {
+    private func read(_ key: LeafASTKey, _ escape: Bool = false) -> ELF<LeafAST> {
         let found = sources.find(key, on: eL)
         return found.flatMapThrowing { (src, buf) in
             let name = src
@@ -158,33 +149,29 @@ public final class LeafRenderer {
                 throw leafError(.unknownError("\(name) exists but was unreadable")) }
             
             // FIXME: lex/parse should fork to a threadpool?
-            var lexer = LeafLexer(LeafRawTemplate(name, str))
+            var lexer = LKLexer(LKRawTemplate(name, str))
             let tokens = try lexer.lex()
-            var parser = Leaf4Parser(key, tokens)
+            var parser = LKParser(key, tokens)
             return try parser.parse()
         }
     }
 
     /// Attempt to resolve a `LeafAST` - call only when ast has unresolved inlines
-    private func resolve(_ ast: Leaf4AST,
-                         _ chain: [String] = []) -> EventLoopFuture<Leaf4AST> {
+    private func resolve(_ ast: LeafAST, _ chain: [String] = []) -> ELF<LeafAST> {
         // FIXME: A configuration flag should dictate handling of unresolved ASTS
         let fetches = ast.info.requiredASTs.map { self.fetch(.searchKey($0))
                                            .flatMap { self.arbitrate($0, via: chain) } }
         
-        return EventLoopFuture.reduce(into: ast,
-                                      fetches,
-                                      on: eL) { $0.inline(ast: $1) }
-                              .flatMap {  self.arbitrate($0) }
+        return ELF.reduce(into: ast, fetches, on: eL) { $0.inline(ast: $1) }
+                  .flatMap { self.arbitrate($0) }
     }
     
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
-    private func serialize(_ ast: Leaf4AST,
-                           _ context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        
+    private func serialize(_ ast: LeafAST,
+                           _ context: [String: LKD]) -> ELF<ByteBuffer> {
         // FIXME: serialize should fork to a threadpool?
         var block = ByteBuffer.instantiate(size: 0, encoding: LeafConfiguration.encoding)
-        var serializer = Leaf4Serializer(ast: ast, context: context)
+        let serializer = LKSerializer(ast: ast, context: context)
         switch serializer.serialize(buffer: &block) {
             case .success(let t) : let buffer = block as! ByteBuffer
                                    cache.touch(ast.key,
@@ -193,6 +180,5 @@ public final class LeafRenderer {
                                    return succeed(buffer, on: eL)
             case .failure(let e) : return fail(e, on: eL)
         }
-        
     }
 }

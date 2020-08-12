@@ -1,10 +1,10 @@
 // MARK: Subject to change prior to 1.0.0 release
 // MARK: -
 
-// MARK: `LeafToken` Summary
+// MARK: `LKToken` Summary
 
-/// `LeafToken` represents the first stage of parsing Leaf templates - a raw file/bytestream `String`
-/// will be read by `LeafLexer` and interpreted into `[LeafToken]` representing a stream of tokens.
+/// `LKToken` represents the first stage of parsing Leaf templates - a raw file/bytestream `String`
+/// will be read by `LKLexer` and interpreted into `[LKToken]` representing a stream of tokens.
 ///
 /// # STABLE TOKEN DEFINITIONS
 /// - `.raw`: A variable-length string of data that will eventually be output directly without processing
@@ -27,8 +27,8 @@
 ///            However it probably should be evaluted while in `raw` state for indenting control
 ///
 /// # TODO
-/// - LeafTokens would ideally also store the range of their location in the original source template
-internal enum LeafToken: LKPrintable, Hashable  {
+/// - LKTokens would ideally also store the range of their location in the original source template
+internal enum LKToken: LKPrintable, Hashable  {
     /// Holds a variable-length string of data that will be passed through with no processing
     case raw(String)
     
@@ -47,7 +47,7 @@ internal enum LeafToken: LKPrintable, Hashable  {
     /// `,` -  Indicates separation of a tag's parameters
     case parameterDelimiter
     /// Holds a `ParameterToken` enum
-    case parameter(LeafTokenParameter)
+    case parameter(LKTokenParameter)
     /// `)` -  Indicates the end of a tag's parameters
     case parametersEnd
     
@@ -82,7 +82,7 @@ internal enum LeafToken: LKPrintable, Hashable  {
     }
     
     /// A token that represents the valid objects that will be lexed inside parameters
-    enum LeafTokenParameter: LKPrintable, Hashable {
+    enum LKTokenParameter: LKPrintable, Hashable {
         /// Any tokenized literal value with a native Swift type
         ///
         /// ```

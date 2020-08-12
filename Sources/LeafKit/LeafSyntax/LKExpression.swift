@@ -3,155 +3,140 @@
 
 import Foundation
 
-internal struct LeafExpression: LKSymbol {
+internal struct LKExpression: LKSymbol {
     // MARK: - Internal Only
     // MARK: - Generators
         
-    /// Generate a LeafExpression from a 2-3 value parameters that is internally resolvable
-    static func express(_ params: [LeafParameter]) -> LeafExpression? {
-        LeafExpression(params)
-    }
-    /// Generate a custom LeafExpression from any 2-3 value parameters, regardless of grammar
-    static func expressAny(_ params: [LeafParameter]) -> LeafExpression? {
-        LeafExpression(params, custom: true)
-    }
+    /// Generate an LKExpression from a 2-3 value parameters that is internally resolvable
+    static func express(_ params: LKParams) -> Self? { Self(params) }
+    /// Generate an LKExpression from a 3 value ternary conditional
+    static func expressTernary(_ params: LKParams) -> Self? { Self(ternary: params) }
+    /// Generate a custom LKExpression from any 2-3 value parameters, regardless of grammar
+    static func expressAny(_ params: LKParams) -> Self? { Self(custom: params) }
     
     // MARK: - LeafSymbol Conformance
     private(set) var resolved: Bool
     private(set) var invariant: Bool
     private(set) var symbols: Set<LKVariable>
     
-    private(set) var concreteType: LeafDataType?
+    private(set) var baseType: LKDT?
     
-    internal func resolve(_ symbols: SymbolMap = [:]) -> Self {
+    func resolve(_ symbols: LKVarTable = [:]) -> Self {
         .init(.init(storage.map { $0.resolve(symbols) }), form)
     }
     
-    internal func evaluate(_ symbols: SymbolMap = [:]) -> LeafData {
-        if [.custom, .assignment].contains(form.0) { return .trueNil }
+    func evaluate(_ symbols: LKVarTable = [:]) -> LKD {
+        if [.custom, .assignment].contains(form.exp) { return .trueNil }
+        if form.exp == .ternary { return evalTernary(symbols) }
         let lhsData = lhs?.evaluate(symbols) ?? .trueNil
         let rhsData = rhs?.evaluate(symbols) ?? .trueNil
-        switch form.1 {
+        switch form.op! {
             case .infix        : return evalInfix(lhsData, op!, rhsData)
             case .unaryPrefix  : return evalPrefix(op!, rhsData)
             case .unaryPostfix : return evalPostfix(lhsData, op!)
-            case .none         : return .trueNil
         }
     }
     
     /// Short String description: `lhs op rhs` for assignment/calc, `first second third?` for custom
-    internal var short: String {
-        if form.0 == .custom {
-            return "[\(storage.compactMap { $0.operator != .subOpen ? $0.short : nil }.joined(separator: " "))]"
-        } else {
-            return "[\([lhs?.short ?? "", op?.short ?? "", rhs?.short ?? ""].joined(separator: " "))]"
+    var short: String {
+        switch form.exp {
+            case .assignment,
+                 .calculation: return "[\([lhs?.short ?? "", op?.short ?? "", rhs?.short ?? ""].joined(separator: " "))]"
+            case .ternary: return "[\(storage[0].short) ? \(storage[1].short) : \(storage[2].short) ]"
+            case .custom: return "[\(storage.compactMap { $0.operator != .subOpen ? $0.short : nil }.joined(separator: " "))]"
         }
     }
     /// String description: `expressionform[expression.short]`
-    internal var description: String { "\(form.0.short)[\(short)]" }
+    var description: String { "\(form.exp.short)[\(short)]" }
 
-    // MARK: - LeafExpression Specific
-    /// The form expressions may take: `[.assignment, .calculation, .custom]`
-    internal enum Form: String, LKPrintable {
-        case assignment
+    // MARK: - LKExpression Specific
+    /// The form expression storage takes: `[.calculation, .assignment, .ternary, .custom]`
+    enum Form: String, LKPrintable {
         case calculation
+        case assignment
+        case ternary
         case custom
         
-        internal var description: String  { rawValue }
-        internal var short: String        { rawValue }
+        var description: String  { rawValue }
+        var short: String        { rawValue }
     }
-    /// Tuple stating an object's particular expression form, and if relevant, operator form (not present for custom)
-    internal typealias ContainerForm = (LeafExpression.Form, LeafOperator.Form?)
     
-    /// Reveal the form of the expression, and of the operator when expression form is not .custom
-    internal let form: ContainerForm
+    typealias CombinedForm = (exp: LKExpression.Form, op: LeafOperator.Form?)
+    /// Reveal the form of the expression, and of the operator when expression form is relevant
+    let form: CombinedForm
     
     /// Convenience referent name available when form is not .custom
-    internal var op: LeafOperator?  {
-        switch form.1 {
-            case .infix,
-                 .unaryPostfix : return storage[1].operator
-            case .unaryPrefix  : return storage[0].operator
-            case .none         : return nil
-        }
-    }
+    var op: LeafOperator?  { form.op == nil ? nil : form.op! == .unaryPrefix ? storage[0].operator : storage[1].operator }
     /// Convenience referent name available when form is not .custom
-    internal var lhs: LeafParameter? {
-        switch form.1 {
-            case .infix,
-                 .unaryPostfix : return storage[0]
-            case .unaryPrefix,
-                 .none         : return nil
-        }
-    }
+    var lhs: LKParameter? { [.infix, .unaryPostfix].contains(form.op) ? storage[0] : nil }
     /// Convenience referent name available when form is not .custom
-    internal var rhs: LeafParameter? {
-        switch form.1 {
-            case .unaryPrefix  : return storage[1]
-            case .infix        : return storage[2]
-            case .unaryPostfix,
-                 .none         : return nil
-        }
-    }
+    var rhs: LKParameter? { form.op == .infix ? storage[2] : form.op == .unaryPrefix ? storage[1] : nil }
     /// Convenience referent name by position within expression
-    internal var first: LeafParameter   { storage[0] }
+    var first: LKParameter   { storage[0] }
     /// Convenience referent name by position within expression
-    internal var second: LeafParameter  { storage[1] }
+    var second: LKParameter  { storage[1] }
     /// Convenience referent name by position within expression
-    internal var third: LeafParameter?   { storage[2].operator != .subOpen ? storage[2] : nil }
+    var third: LKParameter?  { storage[2].operator != .subOpen ? storage[2] : nil }
     
     // MARK: - Private Only
     /// Actual storage of 2 or 3 Parameters
-    private var storage: ContiguousArray<LeafParameter> { didSet { setStates() } }
+    private var storage: ContiguousArray<LKParameter> { didSet { setStates() } }
     
-    /// Generate a `LeafExpression` if possible. Guards for expressibility unless "custom" is true
-    private init?(_ params: [LeafParameter], custom: Bool = false) {
+    /// Generate a `LKExpression` if possible. Guards for expressibility unless "custom" is true
+    private init?(_ params: LKParams, ternary: Bool = false) {
         // .assignment/.calculation is failable, .custom does not check
-        guard (2...3).contains(params.count) else { return nil }
+        guard (2...3).contains(params.count),
+              let form = Self.expressible(params) else { return nil }
         
-        var storage = params
-        var form: ContainerForm
+        let storage = params.count == 3 ? params : params + [.invalid]
         
-        if storage.count == 2 { storage.append(.invalid) }
-        if custom { form = (.custom, nil) } else {
-            guard let f = Self.expressible(params) else { return nil }
-            form = f
-        }
         // Rewrite prefix minus special case into rhs * -1
-        if let unary = form.1, unary == .unaryPrefix,
+        if let unary = form.op, unary == .unaryPrefix,
            let op = params[0].operator, op == .minus {
-            storage = [params[1], .operator(.multiply), .value(.int(-1))]
-            form = (.calculation, .infix)
+            self = .init(.init(arrayLiteral: params[1], .operator(.multiply), .value(.int(-1))), (.calculation, .infix))
+        } else {
+            self = .init(.init(storage), form)
         }
-        self = .init(.init(arrayLiteral: storage[0], storage[1], storage[2]), form)
+        
     }
     
-    private init(_ storage: ContiguousArray<LeafParameter>, _ form: ContainerForm) {
+    /// Generate a custom `LKExpression` if possible.
+    private init?(custom: LKParams) {
+        guard (2...3).contains(custom.count) else { return nil }
+        let storage = custom.count == 3 ? custom : custom + [.invalid]
+        self = .init(.init(storage), (.custom, nil))
+    }
+    
+    /// Generate a ternary `LKExpression` if possible.
+    private init?(ternary: LKParams) {
+        guard ternary.count == 3 else { return nil }
+        self = .init(.init(ternary), (.ternary, nil))
+    }
+    
+    
+    private init(_ storage: ContiguousArray<LKParameter>, _ form: CombinedForm) {
         self.storage = storage
         self.form = form
         self.resolved = false
         self.invariant = false
         self.symbols = []
-        switch (lhs, rhs) {
-            case (.some, .some):
-                if lhs!.concreteType == rhs!.concreteType
-                                { self.concreteType = lhs!.concreteType }
-                else            { self.concreteType = nil }
-            case (.some, .none) : self.concreteType = lhs!.concreteType
-            case (.none, .some) : self.concreteType = rhs!.concreteType
-            default             : self.concreteType = nil
+        switch form.exp {
+            case .calculation : self.baseType = lhs != nil ? lhs!.baseType : rhs!.baseType
+            case .ternary     : self.baseType = second.baseType == third!.baseType ? second.baseType : nil
+            case .assignment  : self.baseType = op == .assignment ? rhs!.baseType : lhs!.baseType
+            default           : self.baseType = nil
         }
         setStates()
     }
     
     private mutating func setStates() {
-        self.resolved = storage.allSatisfy { $0.resolved }
-        self.invariant = storage.first(where: {!$0.invariant}) != nil
-        self.storage.forEach { symbols.formUnion($0.symbols) }
+        resolved = storage.allSatisfy { $0.resolved }
+        invariant = storage.first(where: {!$0.invariant}) != nil
+        storage.forEach { symbols.formUnion($0.symbols) }
     }
     
     /// Return the Expression and Operator Forms if the array of Parameters forms a syntactically correct Expression
-    private static func expressible(_ p: [LeafParameter]) -> ContainerForm? {
+    private static func expressible(_ p: LKParams) -> CombinedForm? {
         let op: LeafOperator
         let opForm: LeafOperator.Form
         guard p.count == 2 || p.count == 3 else { return nil }
@@ -171,26 +156,26 @@ internal struct LeafExpression: LKSymbol {
     }
     
     /// Return the operator if the three parameters are syntactically an infix expression
-    private static func infixExp(_ a: LeafParameter, _ b: LeafParameter, _ c: LeafParameter) -> LeafOperator? {
+    private static func infixExp(_ a: LKParameter, _ b: LKParameter, _ c: LKParameter) -> LeafOperator? {
         guard let op = b.operator, op.infix,
               a.operator == nil, c.operator == nil else { return nil }
         return op
     }
     
     /// Return the operator if the two parameters is syntactically a unaryPrefix expression
-    private static func unaryPreExp(_ a: LeafParameter, _ b: LeafParameter) -> LeafOperator? {
+    private static func unaryPreExp(_ a: LKParameter, _ b: LKParameter) -> LeafOperator? {
         guard let op = a.operator, op.unaryPrefix, b.operator == nil else { return nil}
         return op
     }
     
     /// Return the operator if the two parameters is syntactically a unaryPostfix expression
-    private static func unaryPostExp(_ a: LeafParameter, _ b: LeafParameter) -> LeafOperator? {
+    private static func unaryPostExp(_ a: LKParameter, _ b: LKParameter) -> LeafOperator? {
         guard let op = b.operator, op.unaryPostfix, a.operator == nil else { return nil}
         return op
     }
  
     /// Evaluate an infix expression
-    private func evalInfix(_ lhs: LeafData, _ op: LeafOperator, _ rhs: LeafData) -> LeafData {
+    private func evalInfix(_ lhs: LKD, _ op: LeafOperator, _ rhs: LKD) -> LKD {
         assert(op.infix && op.parseable, "`evalInfix` called on non-infix expression")
                         
         switch op {
@@ -254,8 +239,20 @@ internal struct LeafExpression: LKSymbol {
         
     }
     
+    /// Evaluate a ternary expression
+    private func evalTernary(_ symbols: LKVarTable) -> LKD {
+        let condition = first.evaluate(symbols)
+        switch condition.bool {
+            case .some(true),
+                 .none where !condition.isNil: return second.evaluate(symbols)
+            case .some(false),
+                 .none where condition.isNil: return third!.evaluate(symbols)
+            case .none: __MajorBug("Ternary condition returned non-bool")
+        }
+    }
+    
     /// Evaluate a prefix expression
-    private func evalPrefix(_ op: LeafOperator, _ rhs: LeafData) -> LeafData {
+    private func evalPrefix(_ op: LeafOperator, _ rhs: LKD) -> LKD {
         assert(op.unaryPrefix && op.parseable, "`evalPrefix` called on non-prefix expression")
        
         switch op {
@@ -271,16 +268,16 @@ internal struct LeafExpression: LKSymbol {
     }
     
     /// Evaluate a postfix expression
-    private func evalPostfix(_ lhs: LeafData, _ op: LeafOperator) -> LeafData { .trueNil }
+    private func evalPostfix(_ lhs: LKD, _ op: LeafOperator) -> LKD { .trueNil }
     
     /// Encapsulated calculation for `>, >=, <, <=`
     /// Nil returning unless both sides are in [.int, .double] or both are string-convertible & non-nil
-    private func comparisonOp(_ op: LeafOperator, _ lhs: LeafData, _ rhs: LeafData) -> Bool? {
+    private func comparisonOp(_ op: LeafOperator, _ lhs: LKD, _ rhs: LKD) -> Bool? {
         if lhs.isCollection || rhs.isCollection || lhs.isNil || rhs.isNil { return nil }
         var op = op
         var lhs = lhs
         var rhs = rhs
-        let numeric = lhs.container.isNumeric && rhs.container.isNumeric
+        let numeric = lhs.isNumeric && rhs.isNumeric
         let manner = !numeric ? .string : lhs.celf == rhs.celf ? lhs.celf : .double
         if op == .lesserOrEqual || op == .greaterOrEqual {
             swap(&lhs, &rhs)
@@ -299,7 +296,7 @@ internal struct LeafExpression: LKSymbol {
     
     /// Encapsulated calculation for `+, -, *, /, %`
     /// Nil returning unless both sides are in [.int, .double]
-    private func numericOp(_ op: LeafOperator, _ lhs: LeafData, _ rhs: LeafData) -> LeafData? {
+    private func numericOp(_ op: LeafOperator, _ lhs: LKD, _ rhs: LKD) -> LKD? {
         guard lhs.state.intersection(rhs.state).contains(.numeric) else { return nil }
         if lhs.celf == .int {
             guard let lhsI = lhs.int, let rhsI = rhs.convert(to: .int, .coercible).int else { return nil }

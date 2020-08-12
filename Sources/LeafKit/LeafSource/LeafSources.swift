@@ -1,7 +1,6 @@
 // MARK: Subject to change prior to 1.0.0 release
 // MARK: -
 
-
 import NIOConcurrencyHelpers
 
 /// An opaque object holding named `LeafSource` adherants specifying a default search order.
@@ -65,7 +64,7 @@ public final class LeafSources {
     /// Locate a template from the sources; if a specific source is named, only try to read from it.
     /// Otherwise, use the specified search order. Key (and thus AST name) are "$:template" when no source
     /// was specified, or "source:template" when specified
-    internal func find(_ key: Leaf4AST.Key,
+    internal func find(_ key: LeafASTKey,
                        on eL: EventLoop) -> EventLoopFuture<(key: String,
                                                              buffer: ByteBuffer)> {
         let source = key._src

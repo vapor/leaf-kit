@@ -39,13 +39,12 @@ extension ByteBuffer: RawBlock {
     
     // appends data using configured serializer views
     public mutating func append(_ data: LeafData) {
-        let c = LeafConfiguration.self
         switch data.celf {
-            case .bool       : writeString(c.boolFormatter(data.bool!))
-            case .data       : writeString(c.dataFormatter(data.data!) ?? "")
-            case .double     : writeString(c.doubleFormatter(data.double!))
-            case .int        : writeString(c.intFormatter(data.int!))
-            case .string     : writeString(c.stringFormatter(data.string!))
+            case .bool       : writeString(LKConf.boolFormatter(data.bool!))
+            case .data       : writeString(LKConf.dataFormatter(data.data!) ?? "")
+            case .double     : writeString(LKConf.doubleFormatter(data.double!))
+            case .int        : writeString(LKConf.intFormatter(data.int!))
+            case .string     : writeString(LKConf.stringFormatter(data.string!))
             case .void       : break
             case .array      : let a = data.array!
                                writeString("[")

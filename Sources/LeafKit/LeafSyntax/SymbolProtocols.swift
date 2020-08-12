@@ -1,15 +1,7 @@
 // MARK: Subject to change prior to 1.0.0 release
 // MARK: -
 
-/// A `SymbolMap` provides a Dictionary of concrete `LeafData` available for a symbolic key
-internal typealias SymbolMap = [LKVariable: LeafData]
 
-internal extension Dictionary where Key == LKVariable, Value == LeafData {
-    func match(_ variable: LKVariable) -> LeafData {
-        keys.contains(variable) ? self[variable]!
-                                : self[variable.contextualized] ?? .trueNil
-    }
-}
 
 /// Adhere to `SymbolContainer`to provide generic property/method that allow resolution by Leaf
 internal protocol LKSymbol: LKPrintable {
@@ -29,13 +21,13 @@ internal protocol LKSymbol: LKPrintable {
     /// Attempt to resolve with provided symbols.
     ///
     /// Always returns the same type of object,
-    func resolve(_ symbols: SymbolMap) -> Self
+    func resolve(_ symbols: LKVarTable) -> Self
     
     /// Force attempt to evalute the symbol with provided symbols
     ///
     /// Atomic symbols should always result in `LeafData` or`.trueNil` if unevaluable due to lack
     /// of needed symbols, or if a non-atomic (eg, `Tuple` or a non-calculation `Expression`)
-    func evaluate(_ symbols: SymbolMap) -> LeafData
+    func evaluate(_ symbols: LKVarTable) -> LeafData
 }
 
 /// Provide `description` and `short` printable representations for convenience

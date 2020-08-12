@@ -1,13 +1,26 @@
 // MARK: Subject to change prior to 1.0.0 release
 //
 
-// MARK: - RawSwitch: Metablock
+// MARK: - LKMetaBlock
+
+internal protocol LKMetaBlock: LeafBlock {
+    static var form: LKMetaForm { get }
+}
+
+internal enum LKMetaForm: Int, Hashable {
+    case rawSwitch
+    case define
+    case evaluate
+    case inline
+}
+
+// MARK: - Define/Evaluate/Inline/RawSwitch
 
 /// `Define` blocks will be followed by a normal scope table reference or an atomic syntax
-internal struct Define: MetaBlock {
-    static let form: MetaBlockForm = .define
+internal struct Define: LKMetaBlock {
+    static let form: LKMetaForm = .define
     static let callSignature: [CallParameter] = []
-    static let returns: Set<LeafDataType> = [.void]
+    static let returns: Set<LKDT> = [.void]
     static let invariant: Bool = true
     
     var identifier: String
@@ -23,10 +36,10 @@ internal struct Define: MetaBlock {
 }
 
 /// `Evaluate` blocks will be followed by either a nil scope syntax or a passthrough syntax if it has a defaulted value
-internal struct Evaluate: MetaBlock {
-    static let form: MetaBlockForm = .evaluate
+internal struct Evaluate: LKMetaBlock {
+    static let form: LKMetaForm = .evaluate
     static let callSignature: [CallParameter] = []
-    static let returns: Set<LeafDataType> = .any
+    static let returns: Set<LKDT> = .any
     static let invariant: Bool = true
     
     var identifier: String
@@ -40,16 +53,16 @@ internal struct Evaluate: MetaBlock {
 /// scope syntax will point to the inlined file's remapped entry table.
 /// If inlined file is not being processed, rawBlock will be replaced with one of the same type with the inlined
 /// raw document's contents.
-internal struct Inline: MetaBlock {
-    internal init(_ file: String, process: Bool, rawIdentifier: String?) {
+internal struct Inline: LKMetaBlock {
+    init(_ file: String, process: Bool, rawIdentifier: String?) {
         self.file = file
         self.process = process
         self.rawIdentifier = rawIdentifier
     }
     
-    static let form: MetaBlockForm = .inline
+    static let form: LKMetaForm = .inline
     static let callSignature: [CallParameter] = []
-    static let returns: Set<LeafDataType> = [.void]
+    static let returns: Set<LKDT> = [.void]
     static let invariant: Bool = true
     
     var file: String
@@ -58,13 +71,13 @@ internal struct Inline: MetaBlock {
 }
 
 /// `RawSwitch` either alters the current raw handler when by itself, or produces an isolated raw handling block with an attached scope
-internal struct RawSwitch: MetaBlock {
-    static let form: MetaBlockForm = .rawSwitch
+internal struct RawSwitch: LKMetaBlock {
+    static let form: LKMetaForm = .rawSwitch
     static let callSignature: [CallParameter] = []
-    static let returns: Set<LeafDataType> = .any
+    static let returns: Set<LKDT> = .any
     static let invariant: Bool = true
     
-    init(_ factory: RawBlock.Type, _ tuple: LeafTuple) {
+    init(_ factory: RawBlock.Type, _ tuple: LKTuple) {
         self.factory = factory
         self.params = .init(tuple.values.map {$0.data!} , tuple.labels)
     }

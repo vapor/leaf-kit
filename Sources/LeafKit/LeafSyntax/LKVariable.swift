@@ -1,7 +1,6 @@
 // MARK: Subject to change prior to 1.0.0 release
 // MARK: -
 
-
 internal struct LKVariable: LKSymbol, Hashable {
     let flat: String
     private let memberStart: Int
@@ -23,8 +22,8 @@ internal struct LKVariable: LKSymbol, Hashable {
     let resolved: Bool = false
     var invariant: Bool { memberStart == -1 || memberStart > 2 }
     var symbols: Set<LKVariable> { [self] }
-    func resolve(_ symbols: SymbolMap) -> Self { self }
-    func evaluate(_ symbols: SymbolMap) -> LeafData { symbols.match(self) }
+    func resolve(_ symbols: LKVarTable) -> Self { self }
+    func evaluate(_ symbols: LKVarTable) -> LeafData { symbols.match(self) }
     
     // MARK: - LKPrintable
     var description: String { flat }

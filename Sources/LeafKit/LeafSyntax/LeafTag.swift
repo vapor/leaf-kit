@@ -6,4 +6,3 @@ public protocol LeafTag {
 }
 
 public var defaultTags: [String: LeafTag] = [:]
-

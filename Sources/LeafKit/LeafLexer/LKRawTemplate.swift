@@ -3,7 +3,7 @@
 
 // FIXME: Should really be initializable directly from `ByteBuffer`
 // TODO: Make `LeafSource` return this instead of `ByteBuffer` via extension
-internal struct LeafRawTemplate {
+internal struct LKRawTemplate{
     // MARK: - Internal Only
     let name: String
     

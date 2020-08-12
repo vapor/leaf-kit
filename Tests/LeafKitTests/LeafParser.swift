@@ -2,7 +2,7 @@ import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
 
-final class Leaf4ParserTests: LeafTestClass {
+final class LKParserTests: LeafTestClass {
     func testParser() throws {
         let sampleTemplate = """
         #define(aBlock):
@@ -46,12 +46,12 @@ final class Leaf4ParserTests: LeafTestClass {
         """
        
         var tokens = try lex(sampleTemplate)
-        var parser = Leaf4Parser(.searchKey("sampleTemplate"), tokens)
+        var parser = LKParser(.searchKey("sampleTemplate"), tokens)
         var firstAST = try parser.parse()
         print(firstAST.formatted)
         
         tokens = try lex(template2)
-        parser = Leaf4Parser(.searchKey("template2"), tokens)
+        parser = LKParser(.searchKey("template2"), tokens)
         let secondAST = try parser.parse()
         print(secondAST.summary)
         
@@ -83,12 +83,12 @@ final class Leaf4ParserTests: LeafTestClass {
             "aDict" : ["one": 1, "two": 2.0, "three": ["five", "ten"]]
         ]
         let start = Date()
-        var sampleParse = try! Leaf4Parser(.searchKey("s"), lex(sample))
+        var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
         let sampleAST = try! sampleParse.parse()
         let parsedTime = start.distance(to: Date())
         
         print(sampleAST.formatted)
-        var serializer = Leaf4Serializer(ast: sampleAST, context: context)
+        let serializer = LKSerializer(ast: sampleAST, context: context)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
         
@@ -123,11 +123,11 @@ final class Leaf4ParserTests: LeafTestClass {
         var leafBuffer: ByteBuffer = ByteBufferAllocator().buffer(capacity: 0)
         for x in 1...10 {
             var lap = Date()
-            var sampleParse = try! Leaf4Parser(.searchKey("s"), lex(sample))
+            var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
             let sampleAST = try! sampleParse.parse()
             print("    Parse: " + lap.distance(to: Date()).formatSeconds)
             lap = Date()
-            var serializer = Leaf4Serializer(ast: sampleAST, context: context)
+            let serializer = LKSerializer(ast: sampleAST, context: context)
             let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
             var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
             print("    Setup: " + lap.distance(to: Date()).formatSeconds)
@@ -182,13 +182,13 @@ final class Leaf4ParserTests: LeafTestClass {
             "name": "Teague",
             "me": "Teague"
         ]
-        var sampleParse: Leaf4Parser
+        var sampleParse: LKParser
         do {
-            sampleParse = try Leaf4Parser(.searchKey("s"), lex(sample))
+            sampleParse = try LKParser(.searchKey("s"), lex(sample))
         } catch let e as LeafError { throw e.localizedDescription }
         let sampleAST = try! sampleParse.parse()
         print(sampleAST.formatted)
-        var serializer = Leaf4Serializer(ast: sampleAST, context: context)
+        let serializer = LKSerializer(ast: sampleAST, context: context)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
         
@@ -208,10 +208,10 @@ final class Leaf4ParserTests: LeafTestClass {
         """
         
         let context: [String: LeafData] = [:]
-        var sampleParse = try! Leaf4Parser(.searchKey("s"), lex(sample))
+        var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
         let sampleAST = try! sampleParse.parse()
         print(sampleAST.formatted)
-        var serializer = Leaf4Serializer(ast: sampleAST, context: context)
+        let serializer = LKSerializer(ast: sampleAST, context: context)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
         

@@ -101,15 +101,13 @@ final class ParserTests: LeafTestClass {
         
         let expectation = """
         0: inline(string(header)):
-        1: scope(table: 1)
-           0: raw(ByteBuffer: 12B))
+        1: raw(ByteBuffer: 12B))
         2: raw(ByteBuffer: 8B))
         3: evaluate($:title):
         4: scope(undefined)
         5: raw(ByteBuffer: 9B))
         6: inline(string(header)):
-        7: scope(table: 1)
-           0: raw(ByteBuffer: 12B))
+        7: raw(ByteBuffer: 12B))
         """
 
         var baseAST = try parse(base, name: "base")

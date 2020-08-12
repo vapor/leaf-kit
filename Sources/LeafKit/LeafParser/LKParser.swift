@@ -4,23 +4,23 @@
 import Foundation
 import NIO
 
-internal struct Leaf4Parser {
+internal struct LKParser {
     // MARK: - Internal Only
     
-    let key: Leaf4AST.Key
+    let key: LeafASTKey
     
-    init(_ key: Leaf4AST.Key, _ tokens: [LeafToken]) {
-        self.entities = LeafConfiguration.entities
+    init(_ key: LeafASTKey, _ tokens: [LKToken]) {
+        self.entities = LKConf.entities
         self.key = key
         self.tokens = tokens
         self.rawStack = [entities.raw.instantiate(data: nil, encoding: .utf8)]
     }
     
-    mutating func parse() throws -> Leaf4AST {
+    mutating func parse() throws -> LeafAST {
         var more = true
         while more { more = advance() }
         if let error = error { throw error }
-        return Leaf4AST(key,
+        return LeafAST(key,
                         scopes,
                         defines,
                         inlines,
@@ -32,14 +32,14 @@ internal struct Leaf4Parser {
     /// The active entities reference object
     private var entities: LeafEntities
     /// The incoming tokens
-    private var tokens: [LeafToken]
+    private var tokens: [LKToken]
     
     /// The AST scope tables
-    private var scopes: [[Leaf4Syntax]] = [[]]
+    private var scopes: [[LKSyntax]] = [[]]
     /// References to all `define` blocks
-    private var defines: [Leaf4AST.ScopeReference] = []
+    private var defines: [LeafAST.Jump] = []
     /// References to all `inline` blocks
-    private var inlines: [(inline: Leaf4AST.ScopeReference, process: Bool, at: Date)] = []
+    private var inlines: [(inline: LeafAST.Jump, process: Bool, at: Date)] = []
     private var underestimatedSize: UInt32 = 0
     
     private var scopeStack = [0]
@@ -53,11 +53,11 @@ internal struct Leaf4Parser {
     private var offset: Int = 0
     private var error: LeafError? = nil { willSet {  } }
     
-    private var peek: LeafToken? { offset < tokens.count ? tokens[offset] : nil }
+    private var peek: LKToken? { offset < tokens.count ? tokens[offset] : nil }
     
     private var rawStack: [RawBlock]
     
-        /// Process the next `LeafToken` or multiple tokens.
+        /// Process the next `LKToken` or multiple tokens.
     private mutating func advance() -> Bool {
         guard let current = pop(), error == nil else { return false }
         
@@ -95,7 +95,7 @@ internal struct Leaf4Parser {
             return true
         }
         
-        if let meta = entities.blockFactories[tagName] as? MetaBlock.Type {
+        if let meta = entities.blockFactories[tagName] as? LKMetaBlock.Type {
             return handleMeta(tagName, meta, parseTuple(tagName)) }
         
         let blockBypass: Bool
@@ -176,7 +176,7 @@ internal struct Leaf4Parser {
     }
 
     @discardableResult
-    private mutating func pop() -> LeafToken? {
+    private mutating func pop() -> LKToken? {
         if let next = peek { offset += 1; return next }; return nil
     }
     
@@ -187,7 +187,7 @@ internal struct Leaf4Parser {
     
     /// Append a passthrough syntax object to the current scope and return true to continue parsing
     @discardableResult
-    private mutating func append(_ syntax: LeafParameter) -> Bool {
+    private mutating func append(_ syntax: LKParameter) -> Bool {
         scopes[currentScope].append(.passthrough(syntax))
         let estimate: UInt32
         switch syntax.container {
@@ -222,7 +222,7 @@ internal struct Leaf4Parser {
     
     /// Append a new raw block.
     @discardableResult
-    private mutating func appendRaw(_ data: LeafData) -> Bool {
+    private mutating func appendRaw(_ data: LKD) -> Bool {
         let checkAt = scopes[currentScope].count - 2
         let blockCheck: Bool
         if checkAt >= 0, case .block = scopes[currentScope][checkAt].container { blockCheck = true }
@@ -245,7 +245,7 @@ internal struct Leaf4Parser {
     }
     
     /// If the tag name and parameters can create a valid function call, true and append or set error
-    private mutating func appendFunction(_ t: String, _ p: LeafTuple?) -> Bool {
+    private mutating func appendFunction(_ t: String, _ p: LKTuple?) -> Bool {
         let result = entities.validateFunction(t, p)
         underestimatedSize += 16
         switch result {
@@ -256,15 +256,15 @@ internal struct Leaf4Parser {
     
     /// Open a new block scope.
     private mutating
-    func openBlock(_ n: String, _ b: LeafBlock, _ p: LeafTuple?) -> Bool {
+    func openBlock(_ n: String, _ b: LeafBlock, _ p: LKTuple?) -> Bool {
         // New syntaxes in current scope
         scopes[currentScope].append(.block(n, b, p))
         scopes[currentScope].append(.scope(scopes.count))
         openBlocks.append((n, type(of: b))) // Push block onto open stack
         scopes.append([])                   // Create new scope
         scopeStack.append(scopes.count - 1) // Push new scope reference
-        scopeDepths.overallMax >?= UInt16(scopes.count)
-        if type(of: b) == Inline.self { scopeDepths.inlineMax >?= UInt16(scopes.count) }
+        scopeDepths.overallMax.maxAssign(UInt16(scopes.count))
+        if type(of: b) == Inline.self { scopeDepths.inlineMax.maxAssign(UInt16(scopes.count)) }
         return true
     }
     
@@ -279,16 +279,14 @@ internal struct Leaf4Parser {
             }
             scopes[currentScope].removeLast()
             scopes[currentScope].append(decayed.isEmpty ? .scope(nil) : decayed[0] )
-        } else {
-            scopeStack.removeLast()
-        }
+        } else { scopeStack.removeLast() }
         if rawBlock { rawStack.removeLast() }
         return true
     }
     
     private mutating func handleMeta(_ name: String,
-                                     _ meta: MetaBlock.Type,
-                                     _ tuple: LeafTuple?) -> Bool {
+                                     _ meta: LKMetaBlock.Type,
+                                     _ tuple: LKTuple?) -> Bool {
         let isBlock: Bool = peek == .scopeIndicator
         if isBlock { pop() }
         switch meta.form {
@@ -314,7 +312,7 @@ internal struct Leaf4Parser {
                 guard let tuple = tuple, tuple.count == 1, let param = tuple[0] else {
                     return parseError("#\(name) \(Evaluate.warning)") }
                 let definedName: String
-                let defaultValue: LeafParameter?
+                let defaultValue: LKParameter?
                 switch param.container {
                     case .expression(let e) where e.op == .nilCoalesce:
                         guard case .variable(let v) = e.lhs?.container,
@@ -376,22 +374,22 @@ internal struct Leaf4Parser {
     }
     
     /// Try to read parameters. Return nil if no parameters present. Nil for `function` if for expression.
-    private mutating func parseTuple(_ function: String?, forParse: Bool = false) -> LeafTuple? {
+    private mutating func parseTuple(_ function: String?, forParse: Bool = false) -> LKTuple? {
         if peek == .parametersStart { pop() } else { return nil }
         
         // Stacks
         var functions: [String?] = []
-        var tuples: [LeafTuple] = []
+        var tuples: [LKTuple] = []
         var labels: [String?] = []
         var states: [VarState] = []
-        var complexes: [[LeafParameter]] = []
+        var complexes: [[LKParameter]] = []
         
         // Conveniences to current stacks
         var currentFunction: String? {
             get { functions.last! }
             set { functions[functions.indices.last!] = newValue}
         }
-        var currentTuple: LeafTuple {
+        var currentTuple: LKTuple {
             get { tuples.last! }
             set { tuples[tuples.indices.last!] = newValue }
         }
@@ -403,11 +401,11 @@ internal struct Leaf4Parser {
             get { states.last! }
             set { states[states.indices.last!] = newValue }
         }
-        var currentComplex: [LeafParameter] {
+        var currentComplex: [LKParameter] {
             get { complexes.last! }
             set { complexes[complexes.indices.last!] = newValue }
         }
-        var atomicComplex: LeafParameter? {
+        var atomicComplex: LKParameter? {
             currentComplex.count > 1     ? nil
                 : currentComplex.isEmpty ? .value(.trueNil)
                                          : currentComplex[0]
@@ -434,12 +432,12 @@ internal struct Leaf4Parser {
             // Get the current label if one exists, return if it's nil
             guard let label = currentLabel else { return true }
             // Add the label to the tuple's labels for the new position
-            tuples[tuples.indices.last!].labels[label] = currentTuple.count
+            tuples[tuples.indices.last!].labels[label] = currentTuple.count - 1
             return true
         }
         
         @discardableResult
-        func complexAppend(_ a: LeafParameter, sanity: Bool = true) -> Bool {
+        func complexAppend(_ a: LKParameter, sanity: Bool = true) -> Bool {
             var blockParse = false
             if let bypass = retrying, bypass { blockParse = true }
             if sanity {
@@ -493,13 +491,13 @@ internal struct Leaf4Parser {
             complexAppend(parameter, sanity: false)
         }
         
-        /// Generate a LeafExpression, or if an evaluable, invariant expression, a value
-        func express(_ params: [LeafParameter]) -> LeafParameter? {
-            if let expression = LeafExpression.express(params) {
+        /// Generate a LKExpression, or if an evaluable, invariant expression, a value
+        func express(_ params: [LKParameter]) -> LKParameter? {
+            if let expression = LKExpression.express(params) {
                 if expression.invariant && expression.resolved
                    { return .value(expression.evaluate()) }
                 return .expression(expression)
-            } else if let expression = LeafExpression.expressAny(params) {
+            } else if let expression = LKExpression.expressAny(params) {
                 return .expression(expression)
             }
             return nil
@@ -529,8 +527,21 @@ internal struct Leaf4Parser {
                         complexAppend(.variable(variable))
                     }
                     resolveSubscript()
-                // TODO: Assignment, evaluate
-                case .assignment, .evaluate: parseError("\(op) not yet implemented")
+                // FIXME: !!!
+                case .ternaryTrue:
+                    // Need to open a new complex expression for ternary true after guarding that an evaluable exists
+                    if currentComplex.isEmpty { parseError("? with no evaluable antecedent condition"); break }
+                    parseError("\(op) not yet implemented")
+                case .ternaryFalse:
+                    // Must guard that last complex opened ternary
+                    parseError("\(op) not yet implemented")
+                case .assignment:
+                    if complexes.count > 1 { parseError("= only valid at top level expression"); break }
+                    if !currentComplex.isEmpty { parseError("= only valid as first operation"); break }
+                    guard let variable = makeVariable() else { parseError("No variable to assign to"); break}
+                    if variable.scope != nil { parseError("Named scope variables are constant; can't assign"); break }
+                    fallthrough
+                case .evaluate: parseError("\(op) not yet implemented")
                 default:
                     complexAppend(.operator(op))
                     needIdentifier = true
@@ -614,19 +625,19 @@ internal struct Leaf4Parser {
             }
             
             var opCount: Int { countOpsWhere { _ in true } }
-            
             var ops = opCount
-            // Next wrap evaluation operations
+                        
+            // Next wrap calc operations
             if ops > 0 {
-                wrapOps:
+                wrapCalculations:
                 for map in LeafOperator.evalPrecedenceMap {
                     while let index = lastOpWhere(map.check) {
-                        if (map.infixed ? !wrapInfix(index) : !wrapNot(index)) { break wrapOps }
-                        ops -= 1; if opCount == 0 { break wrapOps }
+                        if (map.infixed ? !wrapInfix(index) : !wrapNot(index)) { break wrapCalculations }
+                        ops -= 1; if opCount == 0 { break wrapCalculations }
                     }
                 }
             }
-            
+
             // Customs expressions can still be at most 3-part, anything more is invalid
             if exp.count > 3 { return false }
             else if exp.count > 1 {
@@ -634,9 +645,10 @@ internal struct Leaf4Parser {
                 // expression above the first tuple must be atomic - but if we're retrying, bypass
                 if tuples.count > 1 || currentFunction == nil, !(retrying ?? false) { return false }
                 // Blocks may parse custom expressions so wrap into any expression
-                exp = [.expression(LeafExpression.expressAny(exp)!)]
+                exp = [.expression(LKExpression.expressAny(exp)!)]
             }
             complexes.append(exp)
+            
             return true
         }
         
@@ -675,6 +687,7 @@ internal struct Leaf4Parser {
                 case .parameterDelimiter       :
                     // Try to close the current complex expression and append to the current tuple
                     guard closeComplex(needIdentifier) else { if error == nil { parseError("Couldn't close expression") } ; break }
+                    needIdentifier = true
                     tupleAppend()
                 case .parametersEnd            :
                     // Try to close the current complex expression, append to the current tuple,
@@ -751,7 +764,6 @@ internal struct Leaf4Parser {
         return false
     }
 }
-
 
 private extension String {
     static let malformedToken = "Lexer produced malformed tokens"

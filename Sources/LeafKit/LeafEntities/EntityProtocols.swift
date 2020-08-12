@@ -45,13 +45,13 @@ public struct CallParameter: LKPrintable, Equatable {
         return types.first(where: {value.isCoercible(to: $0)}) != nil ? value : nil
     }
     
-    static func types(_ types: Set<LeafDataType>) -> CallParameter { .init(types: types) }
-    static func optionalTypes(_ types: Set<LeafDataType>) -> CallParameter { .init(types: types, optional: true) }
+    public static func types(_ types: Set<LeafDataType>) -> CallParameter { .init(types: types) }
+    public static func optionalTypes(_ types: Set<LeafDataType>) -> CallParameter { .init(types: types, optional: true) }
     
     /// `(_: value(1), isValid: bool(true), ...)`
     public var description: String { short }
     /// `(value(1), bool(true), ...)`
-    var short: String {
+    internal var short: String {
         (label ?? "_") + ": " + types.description + (optional ? "?" : "") + (defaultValue != nil ? " = \(defaultValue!.short)" : "")
     }
 }
@@ -84,16 +84,16 @@ public indirect enum ParseParameter: Hashable {
 /// signals out-of-bounds indexing of the parameter value object.
 public struct ParameterValues {
     subscript(index: String) -> LeafData { labels[index] != nil ? self[labels[index]!] : .trueNil }
-    subscript(index: UInt8) -> LeafData { index < count ? values[Int(index)] : .trueNil }
+    subscript(index: Int) -> LeafData { (0..<count).contains(index) ? values[index] : .trueNil }
     
     internal let values: [LeafData]
-    internal let labels: [String: UInt8]
-    internal let count: UInt8
+    internal let labels: [String: Int]
+    internal var count: Int { values.count }
     
     internal init?(_ sig: [CallParameter],
-                   _ tuple: LeafTuple,
-                   _ symbols: SymbolMap) {
-        if sig.isEmpty && tuple.isEmpty { values = []; labels = [:]; count = 0; return }
+                   _ tuple: LKTuple,
+                   _ symbols: LKVarTable) {
+        if sig.isEmpty && tuple.isEmpty { values = []; labels = [:]; return }
         self.labels = tuple.labels
         do {
             self.values = try tuple.values.enumerated().map {
@@ -101,13 +101,11 @@ public struct ParameterValues {
                 if let e = e { return e } else { throw "" }
             }
         } catch { return nil }
-        self.count = UInt8(values.count)
     }
     
-    internal init(_ values: [LeafData], _ labels: [String: UInt8]) {
+    internal init(_ values: [LeafData], _ labels: [String: Int]) {
         self.values = values
         self.labels = labels
-        self.count = UInt8(labels.count)
     }
 }
 
@@ -196,7 +194,6 @@ public protocol LeafBlock: LeafFunction {
     mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> ScopeCount
 }
 
-
 /// An object that can be chained to other `ChainedBlock` objects
 ///
 /// - Ex: `#if(): #elseif(): #else: #endif`
@@ -261,16 +258,6 @@ public protocol RawBlock: LeafFunction {
     var contents: String { get }
 }
 
-internal protocol MetaBlock: LeafBlock {
-    static var form: MetaBlockForm { get }
-}
-
-internal enum MetaBlockForm: Int, Hashable {
-    case rawSwitch
-    case define
-    case evaluate
-    case inline
-}
 
 // MARK: - Default Conformances
 
@@ -308,12 +295,12 @@ extension ChainedBlock {
     mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> ScopeCount { __MajorBug("ChainedBlocks only called once") }
 }
 
-extension MetaBlock {
-    static var parseSignatures: [String: [ParseParameter]]? { __MajorBug("MetaBlock") }
+extension LKMetaBlock {
+    static var parseSignatures: [String: [ParseParameter]]? { __MajorBug("LKMetaBlock") }
     static var evaluable: Bool  { false }
-    static func instantiate(_ signature: String?, _ params: [String]) throws -> Self  { __MajorBug("MetaBlock") }
+    static func instantiate(_ signature: String?, _ params: [String]) throws -> Self  { __MajorBug("LKMetaBlock") }
     
-    var form: MetaBlockForm { Self.form }
+    var form: LKMetaForm { Self.form }
     
     var scopeVariables: [String]? { nil }
     mutating func evaluateNilScope(_ params: ParameterValues,  _ variables: inout [String: LeafData]) -> ScopeCount  { .once }

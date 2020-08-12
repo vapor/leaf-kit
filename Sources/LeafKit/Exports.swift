@@ -16,7 +16,6 @@ public extension Set where Element == LeafDataType {
     static var numerics: Self { [.int, .double] }
 }
 
-
 /// Public helper identities
 public extension Character {
     /// Global setting of `tagIndicator` for Leaf-Kit - by default, `#`
@@ -30,10 +29,9 @@ public extension String {
     }
 }
 
-
 /// Various internal helper identities for convenience
 internal extension Character {
-    // MARK: - LeafToken specific identities
+    // MARK: - LKToken specific identities
     
     var canStartIdentifier: Bool { isLowercaseLetter || isUppercaseLetter || self == .underscore }
     var isValidInIdentifier: Bool { self.canStartIdentifier || self.isDecimal }
@@ -106,26 +104,4 @@ internal extension Character {
     static let underscore = "_".first!
     static let modulo = "%".first!
     static let upcaret = "^".first!
-}
-
-
-internal extension Double {
-    var formatSeconds: String {
-        let abs = self.magnitude
-        if abs * 10 > 1 { return String(format: "%.3f%", abs) + " s"}
-        if abs * 1_000 > 1 { return String(format: "%.3f%", abs * 1_000) + " ms" }
-        return String(format: "%.3f%", abs * 1_000_000) + " µs"
-    }
-}
-
-internal extension Int {
-    var formatBytes: String { magnitude.formatBytes }
-}
-
-internal extension UnsignedInteger {
-    var formatBytes: String {
-        if self > 1024 * 512 { return String(format: "%.2fmB", Double(self)/1024.0/1024.0) }
-        if self > 512 { return String(format: "%.2fkB", Double(self)/1024.0) }
-        return "\(self)B"
-    }
 }

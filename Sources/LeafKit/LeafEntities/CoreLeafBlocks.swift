@@ -90,8 +90,8 @@ internal struct ForLoop: LeafBlock {
     mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> ScopeCount {
         guard pass < passes else { return .discard }
         guard set else { pass += 1; return .repeating(passes - pass + 1) }
-        if pass == 1 { variables[first] = .bool(false) }
-        if pass == passes - 1 { variables[last] = .bool(true) }
+        if set      { variables[first] = .bool(pass == 0)
+                      variables[last] = .bool(pass == passes - 1) }
         if setKey   { variables[key] = cache[pass].0 }
         if setValue { variables[value] = cache[pass].1 }
         pass += 1

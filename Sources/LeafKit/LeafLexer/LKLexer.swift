@@ -1,25 +1,25 @@
 // MARK: Stable?!!
 // MARK: -
 
-// MARK: `LeafLexer` Summary
+// MARK: `LKLexer` Summary
 
-/// `LeafLexer` is an opaque structure that wraps the lexing logic of Leaf-Kit.
+/// `LKLexer` is an opaque structure that wraps the lexing logic of Leaf-Kit.
 ///
-/// Initialized with a `LeafRawTemplate` (raw string-providing representation of a file or other source),
-/// used by evaluating with `LeafLexer.lex()` and either erroring or returning `[LeafToken]`
-internal struct LeafLexer {
+/// Initialized with a `LKRawTemplate` (raw string-providing representation of a file or other source),
+/// used by evaluating with `LKLexer.lex()` and either erroring or returning `[LKToken]`
+internal struct LKLexer {
     // MARK: - Internal Only
     
-    /// Convenience to initialize `LeafLexer` with a `String`
-    init(name: String, raw: String) { self.init(LeafRawTemplate(name, raw)) }
+    /// Convenience to initialize `LKLexer` with a `String`
+    init(name: String, raw: String) { self.init(LKRawTemplate(name, raw)) }
     
-    /// Init with `LeafRawTemplate`
-    init(_ template: LeafRawTemplate) {
+    /// Init with `LKRawTemplate`
+    init(_ template: LKRawTemplate) {
         self.name = template.name
         self.src = template
         self.state = .raw
         
-        self.entities = LeafConfiguration.entities
+        self.entities = LKConf.entities
         self.openers = .init(entities.blockFactories.keys)
         self.openers.formUnion(entities.functions.keys)
         self.closers = .init()
@@ -32,10 +32,10 @@ internal struct LeafLexer {
         }
     }
     
-    /// Lex the stored `LeafRawTemplate`
+    /// Lex the stored `LKRawTemplate`
     /// - Throws: `LexerError`
-    /// - Returns: An array of fully built `LeafTokens`, to then be parsed by `LeafParser`
-    mutating func lex() throws -> [LeafToken] {
+    /// - Returns: An array of fully built `LKTokens`, to then be parsed by `LeafParser`
+    mutating func lex() throws -> [LKToken] {
         while let next = try nextToken() { lexed.append(next) }
         return lexed
     }
@@ -58,10 +58,10 @@ internal struct LeafLexer {
     private var depth = 0
     /// Current index in `lexed`
     private var offset: Int { lexed.count }
-    /// Stream of `LeafTokens` that have been successfully lexed
-    private var lexed: [LeafToken] = []
+    /// Stream of `LKTokens` that have been successfully lexed
+    private var lexed: [LKToken] = []
     /// The originating template source content (ie, raw characters)
-    private var src: LeafRawTemplate
+    private var src: LKRawTemplate
     /// Name of the template (as opposed to file name) - eg if file = "/views/template.leaf", `template`
     private var name: String
     /// Configured entitites
@@ -76,11 +76,11 @@ internal struct LeafLexer {
     mutating private func pop() -> Character? { src.pop() }
     
     /// Convenience for an escaped tagIndicator token
-    private let escapedTagID: LeafToken = .raw(Character.tagIndicator.description)
+    private let escapedTagID: LKToken = .raw(Character.tagIndicator.description)
     
     // MARK: - Private - Actual implementation of Lexer
 
-    private mutating func nextToken() throws -> LeafToken? {
+    private mutating func nextToken() throws -> LKToken? {
         // if EOF, return nil - no more to read
         guard let current = current else { return nil }
 
@@ -91,7 +91,7 @@ internal struct LeafLexer {
                              : return try lexNamedTag()
             case .raw        : return lexRaw()
             case .tag        : return lexAnonymousTag()
-            case .parameters : var part: LeafToken?
+            case .parameters : var part: LKToken?
                                repeat { part = try lexParameters() }
                                    while part == nil && self.current != nil
                                if let paramPart = part { return paramPart }
@@ -100,13 +100,13 @@ internal struct LeafLexer {
         }
     }
 
-    private mutating func lexAnonymousTag() -> LeafToken {
+    private mutating func lexAnonymousTag() -> LKToken {
         state = .parameters
         depth = 0
         return .tag(nil)
     }
 
-    private mutating func lexNamedTag() throws -> LeafToken {
+    private mutating func lexNamedTag() throws -> LKToken {
         let id = src.readWhile { $0.isValidInIdentifier }
 
         // if not a recognized identifier decay to raw and rewrite tagIndicator
@@ -141,7 +141,7 @@ internal struct LeafLexer {
     }
 
     /// Consume all data until hitting a `tagIndicator` that might open a tag/expression, escaping backslashed
-    private mutating func lexRaw() -> LeafToken {
+    private mutating func lexRaw() -> LKToken {
         var slice = ""
         scan:
         while let current = current {
@@ -161,7 +161,7 @@ internal struct LeafLexer {
     }
 
     /// Consume `#`, change state to `.tag` or `.raw`, return appropriate token
-    private mutating func lexCheckTagIndicator() -> LeafToken {
+    private mutating func lexCheckTagIndicator() -> LKToken {
         pop()
         let valid = current == .leftParenthesis || current?.canStartIdentifier ?? false
         state = valid ? .tag : .raw
@@ -169,7 +169,7 @@ internal struct LeafLexer {
     }
 
     /// Parameter lexing - very monolithic, would be nice to break this up.
-    private mutating func lexParameters() throws -> LeafToken? {
+    private mutating func lexParameters() throws -> LKToken? {
         /// Consume first character regardless of what it is
         let current = pop()!
 
