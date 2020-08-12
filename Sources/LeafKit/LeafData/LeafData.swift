@@ -179,10 +179,10 @@ extension LeafData: LKSymbol {
     
     /// Creates a new `LeafData` from `() -> LeafData` if possible or `nil` if not possible.
     /// `returns` must specify a `CaseType` that the function will return
-    static func lazy(_ lambda: @escaping () -> LKD,
-                     returns type: LKDT,
-                     variant: Bool) throws -> LKD {
-        variant ? LKD(.lazy(f: lambda, returns: type)) : lambda()
+    static func lazy(_ lambda: @escaping () -> LKData,
+                     returns type: LKDType,
+                     variant: Bool) throws -> LKData {
+        variant ? LKData(.lazy(f: lambda, returns: type)) : lambda()
     }
     
     /// Note - we don't consider an optional container true for this purpose
@@ -202,7 +202,7 @@ extension LeafData: LKSymbol {
     var hasUniformType: Bool? { !isCollection ? true : uniformType.map {_ in true } ?? false }
     
     /// Returns the uniform type of the object, or nil if it can't be determined/is a non-uniform container
-    var uniformType: LKDT? {
+    var uniformType: LKDType? {
         // Default case - anything that doesn't return a container, or lazy containers
         if !isCollection { return celf } else if isLazy { return nil }
         // A non-lazy container - somewhat expensive to check. 0 or 1 element
@@ -211,21 +211,21 @@ extension LeafData: LKSymbol {
         if case .array(let a) = container {
             guard a.count > 1 else { return a.first?.celf }
             if a.first!.isCollection { return nil }
-            let types = a.reduce(into: Set<LKDT>.init(), { $0.insert($1.celf) })
+            let types = a.reduce(into: Set<LKDType>.init(), { $0.insert($1.celf) })
             return types.count == 1 ? types.first! : nil
         } else if case .dictionary(let d) = container {
             guard d.count > 1 else { return d.values.first?.celf }
             if d.values.first!.isCollection { return nil }
-            let types = d.values.reduce(into: Set<LKDT>.init(), { $0.insert($1.celf) })
+            let types = d.values.reduce(into: Set<LKDType>.init(), { $0.insert($1.celf) })
             return types.count == 1 ? types.first! : nil
         } else { return nil }
     }
     
-    func cast(to: LKDT) -> LKD   { convert(to: to, .castable) }
-    func coerce(to: LKDT) -> LKD { convert(to: to, .coercible) }
+    func cast(to: LKDType) -> LKData   { convert(to: to, .castable) }
+    func coerce(to: LKDType) -> LKData { convert(to: to, .coercible) }
     
     /// Try to convert one concrete object to a second type. Special handling for optional converting to bool.
-    func convert(to output: LKDT, _ level: LKDConversion = .castable) -> LKD {
+    func convert(to output: LKDType, _ level: LKDConversion = .castable) -> LKData {
         typealias _Map = LKDConverters
         // If celf is identity, return directly if invariant or return lazy evaluation
         if celf == output { return invariant ? self : container.evaluate }
@@ -262,5 +262,5 @@ extension LeafData: LKSymbol {
     var symbols: Set<LKVariable> { [] }
     
     func resolve(_ symbols: LKVarTable = [:]) -> Self { self }
-    func evaluate(_ symbols: LKVarTable = [:]) -> LKD { invariant ? self : container.evaluate }
+    func evaluate(_ symbols: LKVarTable = [:]) -> LKData { invariant ? self : container.evaluate }
 }

@@ -20,7 +20,7 @@ internal enum LKMetaForm: Int, Hashable {
 internal struct Define: LKMetaBlock {
     static let form: LKMetaForm = .define
     static let callSignature: [CallParameter] = []
-    static let returns: Set<LKDT> = [.void]
+    static let returns: Set<LKDType> = [.void]
     static let invariant: Bool = true
     
     var identifier: String
@@ -39,7 +39,7 @@ internal struct Define: LKMetaBlock {
 internal struct Evaluate: LKMetaBlock {
     static let form: LKMetaForm = .evaluate
     static let callSignature: [CallParameter] = []
-    static let returns: Set<LKDT> = .any
+    static let returns: Set<LKDType> = .any
     static let invariant: Bool = true
     
     var identifier: String
@@ -62,7 +62,7 @@ internal struct Inline: LKMetaBlock {
     
     static let form: LKMetaForm = .inline
     static let callSignature: [CallParameter] = []
-    static let returns: Set<LKDT> = [.void]
+    static let returns: Set<LKDType> = [.void]
     static let invariant: Bool = true
     
     var file: String
@@ -74,7 +74,7 @@ internal struct Inline: LKMetaBlock {
 internal struct RawSwitch: LKMetaBlock {
     static let form: LKMetaForm = .rawSwitch
     static let callSignature: [CallParameter] = []
-    static let returns: Set<LKDT> = .any
+    static let returns: Set<LKDType> = .any
     static let invariant: Bool = true
     
     init(_ factory: RawBlock.Type, _ tuple: LKTuple) {

@@ -43,7 +43,7 @@ internal func parse(_ str: String, name: String = "default") throws -> LeafAST {
 /// - Returns: A fully rendered view
 internal func render(name: String = "test-render",
                      _ template: String,
-                     _ context: [String: LKD] = [:]) throws -> String {
+                     _ context: [String: LKData] = [:]) throws -> String {
     var lexer = LKLexer(name: name, raw: template)
     let tokens = try lexer.lex()
     var parser = LKParser(.searchKey(name), tokens)

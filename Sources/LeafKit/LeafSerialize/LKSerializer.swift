@@ -28,7 +28,7 @@ internal final class LKSerializer {
     
     private var peek: LKSyntax? { scope.count > offset ? scope[offset] : nil }
     
-    init(ast: LeafAST, context: [String: LKD]) {
+    init(ast: LeafAST, context: [String: LKData]) {
         self.ast = ast
         self.start = Date.distantFuture.timeIntervalSinceReferenceDate
         self.lapTime = Date.distantPast.timeIntervalSinceReferenceDate
@@ -44,7 +44,7 @@ internal final class LKSerializer {
     
     deinit { self.context.deallocate() }
     
-    func expandDict(_ data: LKD, _ base: LKVariable = .`self`, _ toStack: Bool = true) {
+    func expandDict(_ data: LKData, _ base: LKVariable = .`self`, _ toStack: Bool = true) {
         data.dictionary.map {
             for (identifier, value) in $0 {
                 let key: LKVariable = base.extend(with: identifier)

@@ -21,11 +21,11 @@ internal struct LKParser {
         while more { more = advance() }
         if let error = error { throw error }
         return LeafAST(key,
-                        scopes,
-                        defines,
-                        inlines,
-                        underestimatedSize,
-                        scopeDepths)
+                       scopes,
+                       defines,
+                       inlines,
+                       underestimatedSize,
+                       scopeDepths)
     }
 
     // MARK: - Private Only
@@ -37,7 +37,7 @@ internal struct LKParser {
     /// The AST scope tables
     private var scopes: [[LKSyntax]] = [[]]
     /// References to all `define` blocks
-    private var defines: [LeafAST.Jump] = []
+    private var defines: Set<String> = []
     /// References to all `inline` blocks
     private var inlines: [(inline: LeafAST.Jump, process: Bool, at: Date)] = []
     private var underestimatedSize: UInt32 = 0
@@ -222,7 +222,7 @@ internal struct LKParser {
     
     /// Append a new raw block.
     @discardableResult
-    private mutating func appendRaw(_ data: LKD) -> Bool {
+    private mutating func appendRaw(_ data: LKData) -> Bool {
         let checkAt = scopes[currentScope].count - 2
         let blockCheck: Bool
         if checkAt >= 0, case .block = scopes[currentScope][checkAt].container { blockCheck = true }
@@ -304,10 +304,7 @@ internal struct LKParser {
                     scopes[currentScope].append(.block(name, definition, tuple))
                     scopes[currentScope].append(.passthrough(value))
                 }
-                // Init with identifier and jump point to be evaluated
-                defines.append(.init(identifier: v.member!,
-                                     table: definition.table,
-                                     row: definition.row + 1))
+                defines.insert(v.member!)
             case .evaluate:
                 guard let tuple = tuple, tuple.count == 1, let param = tuple[0] else {
                     return parseError("#\(name) \(Evaluate.warning)") }

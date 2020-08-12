@@ -83,7 +83,7 @@ public final class LeafRenderer {
         return _render(.init(source, path), context)
     }
     
-    func _render(_ key: LeafASTKey, _ ctx: [String: LKD]) -> ELF<ByteBuffer> {
+    func _render(_ key: LeafASTKey, _ ctx: [String: LKData]) -> ELF<ByteBuffer> {
         /// Short circuit for resolved blocking cache hits
         if cacheIsSync, let hit = blockingCache!.retrieve(key),
            hit.info.requiredASTs.isEmpty, hit.info.averages.exec < Self.blockLimit {
@@ -168,7 +168,7 @@ public final class LeafRenderer {
     
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
     private func serialize(_ ast: LeafAST,
-                           _ context: [String: LKD]) -> ELF<ByteBuffer> {
+                           _ context: [String: LKData]) -> ELF<ByteBuffer> {
         // FIXME: serialize should fork to a threadpool?
         var block = ByteBuffer.instantiate(size: 0, encoding: LeafConfiguration.encoding)
         let serializer = LKSerializer(ast: ast, context: context)

@@ -19,13 +19,13 @@ internal struct LKExpression: LKSymbol {
     private(set) var invariant: Bool
     private(set) var symbols: Set<LKVariable>
     
-    private(set) var baseType: LKDT?
+    private(set) var baseType: LKDType?
     
     func resolve(_ symbols: LKVarTable = [:]) -> Self {
         .init(.init(storage.map { $0.resolve(symbols) }), form)
     }
     
-    func evaluate(_ symbols: LKVarTable = [:]) -> LKD {
+    func evaluate(_ symbols: LKVarTable = [:]) -> LKData {
         if [.custom, .assignment].contains(form.exp) { return .trueNil }
         if form.exp == .ternary { return evalTernary(symbols) }
         let lhsData = lhs?.evaluate(symbols) ?? .trueNil
@@ -175,7 +175,7 @@ internal struct LKExpression: LKSymbol {
     }
  
     /// Evaluate an infix expression
-    private func evalInfix(_ lhs: LKD, _ op: LeafOperator, _ rhs: LKD) -> LKD {
+    private func evalInfix(_ lhs: LKData, _ op: LeafOperator, _ rhs: LKData) -> LKData {
         assert(op.infix && op.parseable, "`evalInfix` called on non-infix expression")
                         
         switch op {
@@ -240,7 +240,7 @@ internal struct LKExpression: LKSymbol {
     }
     
     /// Evaluate a ternary expression
-    private func evalTernary(_ symbols: LKVarTable) -> LKD {
+    private func evalTernary(_ symbols: LKVarTable) -> LKData {
         let condition = first.evaluate(symbols)
         switch condition.bool {
             case .some(true),
@@ -252,7 +252,7 @@ internal struct LKExpression: LKSymbol {
     }
     
     /// Evaluate a prefix expression
-    private func evalPrefix(_ op: LeafOperator, _ rhs: LKD) -> LKD {
+    private func evalPrefix(_ op: LeafOperator, _ rhs: LKData) -> LKData {
         assert(op.unaryPrefix && op.parseable, "`evalPrefix` called on non-prefix expression")
        
         switch op {
@@ -268,11 +268,11 @@ internal struct LKExpression: LKSymbol {
     }
     
     /// Evaluate a postfix expression
-    private func evalPostfix(_ lhs: LKD, _ op: LeafOperator) -> LKD { .trueNil }
+    private func evalPostfix(_ lhs: LKData, _ op: LeafOperator) -> LKData { .trueNil }
     
     /// Encapsulated calculation for `>, >=, <, <=`
     /// Nil returning unless both sides are in [.int, .double] or both are string-convertible & non-nil
-    private func comparisonOp(_ op: LeafOperator, _ lhs: LKD, _ rhs: LKD) -> Bool? {
+    private func comparisonOp(_ op: LeafOperator, _ lhs: LKData, _ rhs: LKData) -> Bool? {
         if lhs.isCollection || rhs.isCollection || lhs.isNil || rhs.isNil { return nil }
         var op = op
         var lhs = lhs
@@ -296,7 +296,7 @@ internal struct LKExpression: LKSymbol {
     
     /// Encapsulated calculation for `+, -, *, /, %`
     /// Nil returning unless both sides are in [.int, .double]
-    private func numericOp(_ op: LeafOperator, _ lhs: LKD, _ rhs: LKD) -> LKD? {
+    private func numericOp(_ op: LeafOperator, _ lhs: LKData, _ rhs: LKData) -> LKData? {
         guard lhs.state.intersection(rhs.state).contains(.numeric) else { return nil }
         if lhs.celf == .int {
             guard let lhsI = lhs.int, let rhsI = rhs.convert(to: .int, .coercible).int else { return nil }

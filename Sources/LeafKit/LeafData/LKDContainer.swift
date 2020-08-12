@@ -15,20 +15,20 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     case data(Data)
     
     /// `[String: LeafData]`
-    case dictionary([String: LKD])
+    case dictionary([String: LKData])
     /// `[LeafData]`
-    case array([LKD])
+    case array([LKData])
 
     /// Wrapped `Optional<LDContainer>`
-    case optional(_ wrapped: Self?, _ type: LKDT)
+    case optional(_ wrapped: Self?, _ type: LKDType)
     
     /// Lazy resolvable `() -> LeafData` where return is of `LeafDataType`
-    case lazy(f: () -> (LKD), returns: LKDT)
+    case lazy(f: () -> (LKData), returns: LKDType)
     
     // MARK: - Properties
     
     /// The LeafDataType the container will evaluate to
-    var baseType: LKDT {
+    var baseType: LKDType {
         switch self {
             // Concrete Types
             case .array              : return .array
@@ -45,7 +45,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     }
     
     /// Will resolve anything but variant Lazy data (99% of everything), and unwrap optionals
-    var evaluate: LKD {
+    var evaluate: LKData {
         if case .lazy(let f, _) = self { return f() } else { return .init(self) } }
 
     // MARK: - Equatable Conformance

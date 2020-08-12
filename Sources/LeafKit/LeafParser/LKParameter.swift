@@ -195,7 +195,7 @@ internal struct LKParameter: LKSymbol {
     /// Will always resolve to a new LKParameter
     func resolve(_ symbols: LKVarTable) -> Self { .init(container.resolve(symbols)) }
     /// Will always evaluate to a .value container, potentially holding trueNil
-    func evaluate(_ symbols: LKVarTable) -> LKD { container.evaluate(symbols) }
+    func evaluate(_ symbols: LKVarTable) -> LKData { container.evaluate(symbols) }
     
     /// Whether the parameter can return actual `LeafData` when resolved
     var isValued: Bool {

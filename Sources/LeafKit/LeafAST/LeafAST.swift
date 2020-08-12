@@ -17,8 +17,8 @@ public struct LeafAST: Hashable {
     // MARK: - Internal Stored Properties
     /// The AST scope tables
     var scopes: ContiguousArray<ContiguousArray<LKSyntax>>
-    /// Reference pointers to all `Define` metablocks
-    var defines: ContiguousArray<Jump>
+    /// References for all `Define` identifiers used
+    var defines: Set<String>
     /// Reference pointers to all `Inline` metablocks, whether they're templates, and timestamp for when they were inlined
     ///
     /// If the block has *not* been inlined, `Date` will be .distantFuture
@@ -28,7 +28,7 @@ public struct LeafAST: Hashable {
     /// Absolute minimum size of a rendered document from this AST
     let underestimatedSize: UInt32
     /// The final indices that are the template's own (uninlined scope)
-    let own: (scopes: Int, defines: Int, inlines: Int)
+    let own: (scopes: Int, inlines: Int)
     /// List of any external templates needed to fully resolve the document.
     let requiredASTs: Set<String>
     /// List of any external unprocessed raw inlines needed to fully resolve the document
@@ -127,7 +127,7 @@ public struct LeafAST: Hashable {
 internal extension LeafAST {
     init(_ key: Key,
          _ scopes: [[LKSyntax]],
-         _ defines: [Jump],
+         _ defines: Set<String>,
          _ inlines: [(inline: Jump, process: Bool, at: Date)],
          _ underestimatedSize: UInt32,
          _ stackDepths: (overallMax: UInt16, inlineMax: UInt16)) {
@@ -136,12 +136,11 @@ internal extension LeafAST {
         self.name = key._name
         self.cached = false
         self.scopes = scopes.contiguous()
-        self.defines = .init(defines)
+        self.defines = defines
         self.inlines = .init(inlines)
         self.stackDepths = stackDepths
         self.underestimatedSize = underestimatedSize
         self.own = (scopes: scopes.indices.last!,
-                    defines: defines.indices.last ?? -1,
                     inlines: inlines.indices.last ?? -1)
         self.requiredASTs = inlines.filter { $0.at == .distantFuture && $0.process }
                                    .reduce(into: .init(), { $0.insert($1.inline.identifier) })
@@ -150,7 +149,7 @@ internal extension LeafAST {
         
         // Info properties (start same as actual AST, may modify from resolving
         self.info = .init(parsed: Date(),
-                          defines: Set(defines.map {$0.identifier}).sorted(),
+                          defines: defines.sorted(),
                           inlines: Set(inlines.map {$0.inline.identifier}).sorted(),
                           requiredASTs: requiredASTs,
                           requiredRaws: requiredRaws,
@@ -205,7 +204,6 @@ internal extension LeafAST {
         
         if nonAtomic {
             // Append remapped incoming AST define/inlines
-            for d in inAST.defines { defines.append(d.remap(by: offset)) }
             for i in inAST.inlines { inlines.append((inline: i.inline.remap(by: offset),
                                                      process: i.process,
                                                      at: i.at)) }
@@ -214,7 +212,7 @@ internal extension LeafAST {
                                                   inAST.stackDepths.overallMax)
             info.stackDepths.inlineMax.maxAssign(stackDepths.inlineMax +
                                                  inAST.stackDepths.inlineMax)
-            info.defines = Set(info.defines + inAST.info.defines).sorted()
+            info.defines = defines.union(inAST.info.defines).sorted()
             info.inlines = Set(info.inlines + inAST.info.inlines).sorted()
         }
         
@@ -243,12 +241,11 @@ internal extension LeafAST {
         cached = false
         scopes.removeLast(scopes.count - own.scopes)
         inlines.removeLast(inlines.count - own.inlines)
-        defines.removeLast(defines.count - own.defines)
         inlines.indices.forEach { inlines[$0].at = .distantFuture
                                   let p = inlines[$0].inline
                                   scopes[p.table][p.row + 1] = .scope(nil) }
         
-        info.defines = Set(defines.map {$0.identifier}).sorted()
+        info.defines = defines.sorted()
         info.inlines = Set(inlines.map {$0.inline.identifier}).sorted()
         info.requiredASTs = requiredASTs
         info.requiredRaws = requiredRaws

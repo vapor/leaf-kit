@@ -9,13 +9,13 @@ public typealias LeafASTTouch = LeafAST.Touch
 internal typealias LKConf = LeafConfiguration
 internal typealias ELF = EventLoopFuture
 /// `Leaf(Kit)Data`
-internal typealias LKD = LeafData
+internal typealias LKData = LeafData
 /// `Leaf(Kit)DataType`
-internal typealias LKDT = LeafDataType
+internal typealias LKDType = LeafDataType
 /// `[LKParameter]` - no special bounds enforced, used to pass to `LKTuple` which validates
 internal typealias LKParams = [LKParameter]
 /// A `LKVarTable` provides a Dictionary of concrete `LeafData` available for a symbolic key
-internal typealias LKVarTable = [LKVariable: LKD]
+internal typealias LKVarTable = [LKVariable: LKData]
 
 // MARK: - Internal Helper Extensions
 
@@ -49,7 +49,7 @@ internal extension UnsignedInteger {
 }
 
 internal extension LKVarTable {
-    func match(_ variable: LKVariable) -> LKD {
+    func match(_ variable: LKVariable) -> LKData {
         keys.contains(variable) ? self[variable]!
                                 : self[variable.contextualized] ?? .trueNil
     }
