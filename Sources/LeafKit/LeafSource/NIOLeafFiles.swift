@@ -89,6 +89,7 @@ public struct NIOLeafFiles: LeafSource {
     }
     
     // MARK: - Scoped Type
+    
     /// Various options for configuring an instance of `NIOLeafFiles`
     ///
     /// - `.requireExtensions` - When set, any template *must* have a file extension

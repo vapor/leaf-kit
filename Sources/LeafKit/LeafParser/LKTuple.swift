@@ -1,5 +1,3 @@
-
-
 internal struct LKTuple: LKSymbol {
     // MARK: - Stored Properties
 
@@ -39,9 +37,7 @@ internal struct LKTuple: LKSymbol {
     }
 
     /// `(value(1), bool(true), ...)`
-    var short: String {
-        "(\(values.map { $0.short }.joined(separator: ", ")))"
-    }
+    var short: String { "(\(values.map { $0.short }.joined(separator: ", ")))" }
 
     // MARK: LKSymbol
     func resolve(_ symbols: LKVarTablePointer) -> Self {

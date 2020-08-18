@@ -125,7 +125,7 @@ internal struct LKLexer {
                                     throw unknownError("Chained block missing `:`") }
                                   lexed.append(.tag(id))
                                   state = .raw
-                                  return .scopeIndicator
+                                  return .blockMark
             /// End tag normal case
             case (false, true ) : state = .raw
                                   return .tag(id)
@@ -157,7 +157,7 @@ internal struct LKLexer {
         pop()
         let valid = current == .leftParenthesis || current?.canStartIdentifier ?? false
         state = valid ? .tag : .raw
-        return valid ? .tagIndicator : escapedTagID
+        return valid ? .tagMark : escapedTagID
     }
 
     /// Parameter lexing - very monolithic, would be nice to break this up.
@@ -171,36 +171,36 @@ internal struct LKLexer {
                                      : let x = src.readWhile {$0.isWhitespace}
                                        return retainWhitespace ? .whiteSpace(x) : nil
             case .leftParenthesis    : depth += 1
-                                       return .parametersStart
+                                       return .paramsStart
             case .rightParenthesis where depth > 1
                                      : depth -= 1
-                                       return .parametersEnd
+                                       return .paramsEnd
             case .rightParenthesis   : state = .raw
                                        let body = current == .colon
                                        if body { pop()
-                                                 lexed.append(.parametersEnd)
-                                                 return .scopeIndicator
-                                       } else  { return .parametersEnd }
-            case .comma              : return .parameterDelimiter
-            case .colon where [.parametersStart,
-                               .parameterDelimiter,
-                               .parameter(.operator(.subOpen))].contains(lexed[offset - 1])
-                                     : return .labelIndicator
+                                                 lexed.append(.paramsEnd)
+                                                 return .blockMark
+                                       } else  { return .paramsEnd }
+            case .comma              : return .paramDelimit
+            case .colon where [.paramsStart,
+                               .paramDelimit,
+                               .param(.operator(.subOpen))].contains(lexed[offset - 1])
+                                     : return .labelMark
             case .leftBracket where current == .rightBracket
                                      : pop()
-                                       return .parameter(.literal(.emptyArray))
+                                       return .param(.literal(.emptyArray))
             case .leftBracket where current == .colon
                                      : pop()
                                        if current == .rightBracket {
                                             pop()
-                                            return .parameter(.literal(.emptyDict))
+                                            return .param(.literal(.emptyDict))
                                        } else { throw unknownError("Expected empty dictionary literal") }
             case .underscore where current?.isWhitespace ?? false
-                                     : return .parameter(.keyword(._))
+                                     : return .param(.keyword(._))
             case .quote              :
                 let read = src.readWhileNot([.quote, .newLine])
                 if pop() != .quote { throw unterminatedString }
-                return .parameter(.literal(.string(read)))
+                return .param(.literal(.string(read)))
             case .tagIndicator       : /// A comment - silently discard
                 src.readWhileNot([.tagIndicator])
                 if pop() != .tagIndicator {
@@ -240,7 +240,7 @@ internal struct LKLexer {
                 if op == .scopeMember, case .whiteSpace(_) = lexed[offset] {
                     throw unknownError("\(op) may not have leading whitespace") }
             }
-            return .parameter(.operator(op))
+            return .param(.operator(op))
         }
 
         /// Test for numerics next. This is not very intelligent but will read base2/8/10/16  for Ints and base
@@ -258,10 +258,10 @@ internal struct LKLexer {
             /// We must be immediately preceeded by a minus to flip the sign and only flip back if
             /// immediately preceeded by a const, tag or variable (which we assume will provide a
             /// numeric). Grammatical errors in the template (eg, keyword-numeric) may throw here
-            if case .parameter(let p) = lexed[offset],
+            if case .param(let p) = lexed[offset],
                case .operator(let op) = p, op == .minus {
                 switch lexed[offset - 1] {
-                    case .parameter(let p):
+                    case .param(let p):
                         switch p {
                             case .literal,
                                  .function,
@@ -291,8 +291,8 @@ internal struct LKLexer {
                 // discard the minus if negative
                 if sign == -1 { lexed.removeLast() }
                 src.popWhile { $0.isValidInNumeric }
-                if testInt != nil { return .parameter(.literal(.int(testInt! * sign))) }
-                else { return .parameter(.literal(.double(testDouble! * Double(sign)))) }
+                if testInt != nil { return .param(.literal(.int(testInt! * sign))) }
+                else { return .param(.literal(.double(testDouble! * Double(sign)))) }
             }
         }
 
@@ -301,11 +301,11 @@ internal struct LKLexer {
         let identifier = String(first) + src.readWhile { $0.isValidInIdentifier }
         
         /// If it's a keyword, return that
-        if let kw = LeafKeyword(rawValue: identifier) { return .parameter(.keyword(kw)) }
+        if let kw = LeafKeyword(rawValue: identifier) { return .param(.keyword(kw)) }
         /// If identifier is followed by `(` it's a function or method call
-        if current! == .leftParenthesis { return .parameter(.function(identifier)) }
+        if current! == .leftParenthesis { return .param(.function(identifier)) }
         /// ... otherwise, a variable part
-        else { return .parameter(.variable(identifier)) }
+        else { return .param(.variable(identifier)) }
     }
     
     /// Signal whether whitespace should be retained (only needed currently for `[`)

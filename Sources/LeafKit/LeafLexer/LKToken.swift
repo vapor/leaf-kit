@@ -3,21 +3,20 @@
 ///
 /// # TOKEN DEFINITIONS
 /// - `.raw`: A variable-length string of data that will eventually be output directly without processing
-/// - `.tagIndicator`: The signal at top-level that a Leaf syntax object will follow. Default is `#` and
-///                   while it can be configured to be something else, only rare uses cases may want
-///                   to do so. `.tagindicator` can be escaped in source templates with a
-///                   backslash, which will automatically be consumed by `.raw` if so. Decays to
-///                   `.raw` automatically at lexing when not followed by a valid function identifier
-///                   or left parent indicating an anonymous expression
+/// - `.tagMark`: The signal at top-level that a Leaf syntax object will follow. Default is `#` and while it
+///              can be configured to be something else, only rare uses cases may want to do so.
+///              `.tagMark` can be escaped in source templates with a backslash, which will
+///              automatically be consumed by `.raw` if so. Decays to `.raw` automatically at lexing
+///              when not followed by a valid function identifier or left paren indicating anonymous expr.
 /// - `.tag(String?)`: The expected function/block name - in `#for(index in array)`, equivalent
 ///                   token is `.tag("for")`. Nil value represents the insterstitial point of an
 ///                   anonymous tag - eg, the void between `#` and `(` in `#()`
-/// - `.scopeIndicator`: Indicates the start of a scoped block from a `LeafBlock` tag - `:`
-/// - `.parametersStart`: Indicates the start of an expression/function/block's parameters - `(`
-/// - `.labelIndicator`: Indicates that preceding identifier is a label for a following parameter- `:`
-/// - `.parameterDelimiter`: Indicates a delimter between parameters - `,`
-/// - `.parameter(Parameter)`: Associated value enum storing a valid tag parameter.
-/// - `.parametersEnd`: Indicates the end of a tag's parameters - `)`
+/// - `.blockMark`: Indicates the start of a scoped block from a `LeafBlock` tag - `:`
+/// - `.paramsStart`: Indicates the start of an expression/function/block's parameters - `(`
+/// - `.labelMark`: Indicates that preceding identifier is a label for a following parameter- `:`
+/// - `.paramDelimit`: Indicates a delimter between parameters - `,`
+/// - `.param(Parameter)`: Associated value enum storing a valid tag parameter.
+/// - `.paramsEnd`: Indicates the end of a tag's parameters - `)`
 /// - `.whiteSpace(String)`: Currently only used inside parameters, and only preserved when needed
 ///                         to disambiguate things Lexer can't handle (eg, `[` as subscript (no
 ///                         whitespace) versus collection literal (can accept whitespace)
@@ -30,7 +29,7 @@ internal enum LKToken: LKPrintable, Hashable  {
     case raw(String)
 
     /// `#` (or as configured) - Top-level signal that indicates a Leaf tag/syntax object will follow.
-    case tagIndicator
+    case tagMark
     
     /// Holds the name of an expected tag or syntax object (eg, `for`) in `#for(index in array)`
     ///
@@ -38,18 +37,18 @@ internal enum LKToken: LKPrintable, Hashable  {
     /// - Non-nil:  A named function or block, or an endblock tag
     case tag(String?)
     /// `:` - Indicates the start of a scoped body-bearing block
-    case scopeIndicator
+    case blockMark
 
     /// `(` -  Indicates the start of a tag's parameters
-    case parametersStart
+    case paramsStart
     /// `:` - Indicates a delineation of `label : value` in parameters
-    case labelIndicator
+    case labelMark
     /// `,` -  Indicates separation of a tag's parameters
-    case parameterDelimiter
+    case paramDelimit
     /// Holds a `ParameterToken` enum
-    case parameter(Parameter)
+    case param(Parameter)
     /// `)` -  Indicates the end of a tag's parameters
-    case parametersEnd
+    case paramsEnd
 
     /// A stream of consecutive white space (currently only used inside parameters)
     case whiteSpace(String)
@@ -57,27 +56,27 @@ internal enum LKToken: LKPrintable, Hashable  {
     /// Returns `"tokenCase"` or `"tokenCase(valueAsString)"` if associated value
     var description: String {
         switch self {
-            case .raw(let r)         : return "\(short)(\(r.debugDescription))"
-            case .tag(.some(let t))  : return "\(short)(\"\(t)\")"
-            case .parameter(let p)   : return "\(short)(\(p.description))"
-            default                  : return short
+            case .raw(let r)        : return "\(short)(\(r.debugDescription))"
+            case .tag(.some(let t)) : return "\(short)(\"\(t)\")"
+            case .param(let p)      : return "\(short)(\(p.description))"
+            default                 : return short
         }
     }
 
     /// Token case
     var short: String {
         switch self {
-            case .raw                : return "raw"
-            case .tagIndicator       : return "tagIndicator"
-            case .tag(.none)         : return "expression"
-            case .tag(.some)         : return "function"
-            case .scopeIndicator     : return "blockIndicator"
-            case .parametersStart    : return "parametersStart"
-            case .labelIndicator     : return "labelIndicator"
-            case .parametersEnd      : return "parametersEnd"
-            case .parameterDelimiter : return "parameterDelimiter"
-            case .parameter          : return "param"
-            case .whiteSpace         : return "whiteSpace"
+            case .raw          : return "raw"
+            case .tagMark      : return "tagIndicator"
+            case .tag(.none)   : return "expression"
+            case .tag(.some)   : return "function"
+            case .blockMark    : return "blockIndicator"
+            case .paramsStart  : return "parametersStart"
+            case .labelMark    : return "labelIndicator"
+            case .paramsEnd    : return "parametersEnd"
+            case .paramDelimit : return "parameterDelimiter"
+            case .param        : return "parameter"
+            case .whiteSpace   : return "whiteSpace"
         }
     }
 

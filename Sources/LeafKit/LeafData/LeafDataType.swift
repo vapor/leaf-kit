@@ -1,6 +1,3 @@
-// MARK: Stable?!!
-// MARK: LeafDataType Public Definition
-
 /// The concrete instantiable object types for `LeafData`
 public enum LeafDataType: UInt8, CaseIterable, Hashable {
     // MARK: Cases
@@ -17,7 +14,7 @@ public enum LeafDataType: UInt8, CaseIterable, Hashable {
 }
 
 // MARK: - Internal Only
-extension LeafDataType: LKPrintable {
+extension LKDType: LKPrintable {
     internal var short: String {
         switch self {
             case .array      : return "array"
