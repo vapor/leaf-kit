@@ -12,7 +12,7 @@
 /// concurrent rendering, potentially with unique per-instance scoped data via `userInfo`.
 public final class LeafRenderer {
     // MARK: - Public Only
-    
+
     /// An initialized `LeafConfiguration` specificying default directory and tagIndicator
     public let configuration: LeafConfiguration
     /// A keyed dictionary of custom `LeafTags` to extend Leaf's basic functionality, registered
@@ -27,7 +27,7 @@ public final class LeafRenderer {
     public var eventLoop: EventLoop { eL }
     /// Any custom instance data to use (eg, in Vapor, the `Application` and/or `Request` data)
     public let userInfo: [AnyHashable: Any]
-    
+
     /// Initial configuration of LeafRenderer.
     public init(
         configuration: LeafConfiguration,
@@ -46,11 +46,11 @@ public final class LeafRenderer {
         self.blockingCache = cache as? LKSynchronousCache
         self.cacheIsSync = blockingCache != nil
     }
-    
+
     private let eL: EventLoop
     private let cacheIsSync: Bool
     private let blockingCache: LKSynchronousCache?
-    
+
     // 50 ms limit for execution to act in a blocking fashion
     private static let blockLimit = 0.050
 
@@ -71,7 +71,7 @@ public final class LeafRenderer {
         if path.isEmpty { return fail(.noTemplateExists("No template name provided"), on: eL) }
         return _render(.searchKey(path), context)
     }
-    
+
     public func render(path: String,
                        from source: String,
                        context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
@@ -82,20 +82,20 @@ public final class LeafRenderer {
         }
         return _render(.init(source, path), context)
     }
-    
+
     func _render(_ key: LeafASTKey, _ ctx: [String: LKData]) -> ELF<ByteBuffer> {
         /// Short circuit for resolved blocking cache hits
         if cacheIsSync, let hit = blockingCache!.retrieve(key),
            hit.info.requiredASTs.isEmpty, hit.info.averages.exec < Self.blockLimit {
             return serialize(hit, ctx)
         }
-        
+
         return fetch(key).flatMap { self.arbitrate($0) }
                          .flatMap { self.serialize($0, ctx) }
     }
 
     // MARK: - Private Only
-        
+
     /// Call with any state of ASTBox - will fork to various behaviors as required until finally returning a
     /// cached and serializable AST, if a failure hasn't bubbled out
     private func arbitrate(_ ast: LeafAST, via chain: [String] = []) -> ELF<LeafAST> {
@@ -122,7 +122,7 @@ public final class LeafRenderer {
         if !cycle.isEmpty { return fail(.cyclicalReference(cycle.first!, chain), on: eL) }
         return resolve(ast, chain)
     }
-    
+
     /// Get a `LeafAST` from the configured `LeafCache` or read the raw template if none is cached
     ///
     /// - If the AST can't be found (either from cache or reading), future errors
@@ -147,7 +147,7 @@ public final class LeafRenderer {
 
             guard let str = buf.readString(length: buf.readableBytes) else {
                 throw leafError(.unknownError("\(name) exists but was unreadable")) }
-            
+
             // FIXME: lex/parse should fork to a threadpool?
             var lexer = LKLexer(LKRawTemplate(name, str))
             let tokens = try lexer.lex()
@@ -161,11 +161,11 @@ public final class LeafRenderer {
         // FIXME: A configuration flag should dictate handling of unresolved ASTS
         let fetches = ast.info.requiredASTs.map { self.fetch(.searchKey($0))
                                            .flatMap { self.arbitrate($0, via: chain) } }
-        
+
         return ELF.reduce(into: ast, fetches, on: eL) { $0.inline(ast: $1) }
                   .flatMap { self.arbitrate($0) }
     }
-    
+
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
     private func serialize(_ ast: LeafAST,
                            _ context: [String: LKData]) -> ELF<ByteBuffer> {

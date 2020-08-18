@@ -1,4 +1,4 @@
-// MARK: Subject to change prior to 1.0.0 release
+// MARK: Stable?!!
 
 import Foundation
 
@@ -13,7 +13,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     case int(Int)
     case double(Double)
     case data(Data)
-    
+
     /// `[String: LeafData]`
     case dictionary([String: LKData])
     /// `[LeafData]`
@@ -21,12 +21,12 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
 
     /// Wrapped `Optional<LDContainer>`
     case optional(_ wrapped: Self?, _ type: LKDType)
-    
+
     /// Lazy resolvable `() -> LeafData` where return is of `LeafDataType`
     case lazy(f: () -> (LKData), returns: LKDType)
-    
+
     // MARK: - Properties
-    
+
     /// The LeafDataType the container will evaluate to
     var baseType: LKDType {
         switch self {
@@ -43,7 +43,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
                  .optional(_, let t) : return t
         }
     }
-    
+
     /// Will resolve anything but variant Lazy data (99% of everything), and unwrap optionals
     var evaluate: LKData {
         if case .lazy(let f, _) = self { return f() } else { return .init(self) } }
@@ -59,7 +59,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
                                          return lhs.baseType == rhs.baseType }
         // Both sides must be invariant or we won't test at all
         guard (lhs.isLazy || rhs.isLazy) == false else        { return false }
-        
+
         // Direct tests on two concrete values of the same concrete type
         switch (lhs, rhs) {
             // Direct concrete type comparisons
@@ -78,7 +78,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             default                                       : return false
         }
     }
-    
+
     var description: String { short }
     var short: String {
         switch self {
@@ -93,7 +93,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case .string(let s)      : return "string(\(s))"
         }
     }
-    
+
     // MARK: - Other
     var isOptional: Bool { if case .optional = self { return true } else { return false } }
     var isNil: Bool { if case .optional(nil, _) = self { return true } else { return false } }
@@ -102,7 +102,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     /// Flat mapping behavior - will never re-wrap .optional
     var wrap: Self { isOptional ? self : .optional(self, baseType) }
     var unwrap: Self? { if case .optional(let o, _) = self { return o } else { return self } }
-    
+
     var state: LKDState {
         var state: LKDState
         switch baseType {
@@ -130,7 +130,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
 internal struct LKDState: OptionSet {
     let rawValue: UInt16
     init(rawValue: UInt16) { self.rawValue = rawValue }
-            
+
     /// Top 4 bits for container case
     static let celfMask = Self(rawValue: 0xF000)
     static let _void = Self(rawValue: 0 << 12)
@@ -141,14 +141,14 @@ internal struct LKDState: OptionSet {
     static let _array = Self(rawValue: 5 << 12)
     static let _dictionary = Self(rawValue: 6 << 12)
     static let _data = Self(rawValue: 7 << 12)
-    
+
     static let numeric = Self(rawValue: 1 << 0)
     static let comparable = Self(rawValue: 1 << 1)
     static let collection = Self(rawValue: 1 << 2)
     static let variant = Self(rawValue: 1 << 3)
     static let optional = Self(rawValue: 1 << 4)
     static let `nil` = Self(rawValue: 1 << 5)
-    
+
     static let void: Self = [_void]
     static let bool: Self = [_bool, comparable]
     static let int: Self = [_int, comparable, numeric]

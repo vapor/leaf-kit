@@ -1,4 +1,4 @@
-// MARK: Subject to change prior to 1.0.0 release
+// MARK: Stable?!!
 
 import Foundation
 
@@ -14,7 +14,7 @@ internal enum LKDConversion: UInt8, Hashable, Comparable {
     case castable = 2
     /// An exact type match; identity
     case identity = 3
-    
+
     static func <(lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 }
 
@@ -31,18 +31,18 @@ internal enum LKDConverters {
         .array      : (is: .identity, via: { .array($0) }),
 
         .bool       : (is: .coercible, via: { _ in .bool(true) }),
-        
+
         .data       : (is: .ambiguous, via: { _ in .trueNil }),
         .double     : (is: .ambiguous, via: { _ in .trueNil }),
         .dictionary : (is: .ambiguous, via: { _ in .trueNil }),
         .int        : (is: .ambiguous, via: { _ in .trueNil }),
         .string     : (is: .ambiguous, via: { _ in .trueNil })
     ]
-    
+
     typealias BoolMap = (`is`: LKDConversion, via: (Bool) -> LKData)
     static let boolMaps: [LKDType: BoolMap] = [
         .bool       : (is: .identity, via: { .bool($0) }),
-        
+
         .double     : (is: .castable, via: { .double($0 ? 1.0 : 0.0) }),
         .int        : (is: .castable, via: { .int($0 ? 1 : 0) }),
         .string     : (is: .castable, via: { .string($0.description) }),
@@ -51,69 +51,69 @@ internal enum LKDConverters {
         .data       : (is: .ambiguous, via: { _ in .trueNil }),
         .dictionary : (is: .ambiguous, via: { _ in .trueNil })
     ]
-    
+
     typealias DataMap = (`is`: LKDConversion, via: (Data) -> LKData)
     static let dataMaps: [LKDType: DataMap] = [
         .data       : (is: .identity, via: { .data($0) }),
-        
+
         .bool       : (is: .coercible, via: { _ in .bool(true) }),
-        
+
         .array      : (is: .ambiguous, via: { _ in .trueNil }),
         .dictionary : (is: .ambiguous, via: { _ in .trueNil }),
         .double     : (is: .ambiguous, via: { _ in .trueNil }),
         .int        : (is: .ambiguous, via: { _ in .trueNil }),
         .string     : (is: .ambiguous, via: { _ in .trueNil })
     ]
-            
+
     typealias DictionaryMap = (`is`: LKDConversion, via: ([String: LKData]) -> LKData)
     static let dictionaryMaps: [LKDType: DictionaryMap] = [
         .dictionary : (is: .identity, via: { .dictionary($0) }),
-        
+
         .bool       : (is: .coercible, via: { _ in .bool(true) }),
-        
+
         .array      : (is: .ambiguous, via: { _ in .trueNil }),
         .data       : (is: .ambiguous, via: { _ in .trueNil }),
         .double     : (is: .ambiguous, via: { _ in .trueNil }),
         .int        : (is: .ambiguous, via: { _ in .trueNil }),
         .string     : (is: .ambiguous, via: { _ in .trueNil })
     ]
-    
+
     typealias DoubleMap = (`is`: LKDConversion, via: (Double) -> LKData)
     static let doubleMaps: [LKDType: DoubleMap] = [
         .double     : (is: .identity, via: { $0.leafData }),
-        
+
         .bool       : (is: .castable, via: { .bool([0.0, 1.0].contains($0) ? $0 == 1.0 : true) }),
         .string     : (is: .castable, via: { .string($0.description) }),
-        
+
         .int        : (is: .coercible, via: { .int(Int(exactly: $0.rounded())) }),
-        
+
         .array      : (is: .ambiguous, via: { _ in .trueNil }),
         .data       : (is: .ambiguous, via: { _ in .trueNil }),
         .dictionary : (is: .ambiguous, via: { _ in .trueNil }),
     ]
-    
+
     typealias IntMap = (`is`: LKDConversion, via: (Int) -> LKData)
     static let intMaps: [LKDType: IntMap] = [
         .int        : (is: .identity, via: { $0.leafData }),
-        
+
         .bool       : (is: .castable, via: { .bool([0, 1].contains($0) ? $0 == 1 : true) }),
         .double     : (is: .castable, via: { .double(Double($0)) }),
         .string     : (is: .castable, via: { .string($0.description) }),
-        
+
         .array      : (is: .ambiguous, via: { _ in .trueNil }),
         .data       : (is: .ambiguous, via: { _ in .trueNil }),
         .dictionary : (is: .ambiguous, via: { _ in .trueNil }),
     ]
-    
+
     typealias StringMap = (`is`: LKDConversion, via: (String) -> LKData)
     static let stringMaps: [LKDType: StringMap] = [
         .string     : (is: .identity, via: { $0.leafData }),
-        
+
         .bool       : (is: .castable, via: {
                         .bool(LeafKeyword(rawValue: $0.lowercased())?.bool ?? true) }),
         .double     : (is: .castable, via: { .double(Double($0)) }),
         .int        : (is: .castable, via: { .int(Int($0)) } ),
-        
+
         .array      : (is: .ambiguous, via: { _ in .trueNil }),
         .data       : (is: .ambiguous, via: { _ in .trueNil }),
         .dictionary : (is: .ambiguous, via: { _ in .trueNil }),

@@ -6,17 +6,17 @@
 internal struct LKRawTemplate{
     // MARK: - Internal Only
     let name: String
-    
+
     init(_ name: String, _ source: String) {
         self.name = name
         self.body = source
         self.current = body.startIndex
     }
-    
+
     mutating func readWhile(_ check: (Character) -> Bool) -> String {
         readSliceWhile(pop: true, check)
     }
-    
+
     @discardableResult
     mutating func readWhileNot(_ check: Set<Character>) -> String {
         readSliceWhile(pop: true, { !check.contains($0) })
@@ -25,7 +25,7 @@ internal struct LKRawTemplate{
     mutating func peekWhile(_ check: (Character) -> Bool) -> String {
         peekSliceWhile(check)
     }
-    
+
     @discardableResult
     mutating func popWhile(_ check: (Character) -> Bool) -> Int {
         readSliceWhile(pop: true, check).count
@@ -45,21 +45,21 @@ internal struct LKRawTemplate{
         defer { current = body.index(after: current) }
         return body[current]
     }
-    
+
     mutating func pop(count: Int) -> String {
         var result = ""
         for _ in 0..<count { result += pop()?.description ?? "" }
         return result
     }
-    
+
     // MARK: - Private Only
-    
+
     private(set) var line = 1
     private(set) var column = 1
 
     private let body: String
     private var current: String.Index
-    
+
     mutating private func readSliceWhile(pop: Bool, _ check: (Character) -> Bool) -> String {
         var str = [Character]()
         str.reserveCapacity(max(64,body.count/4)) // Buffer guess -

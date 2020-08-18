@@ -1,3 +1,4 @@
+// MARK: Stable?!!
 // MARK: LeafDataType Public Definition
 
 /// The concrete instantiable object types for `LeafData`
@@ -11,7 +12,7 @@ public enum LeafDataType: UInt8, CaseIterable, Hashable {
     case dictionary
     case array
     case void
-    
+
     public var description: String { short }
 }
 
@@ -29,7 +30,7 @@ extension LeafDataType: LKPrintable {
             case .void       : return "void"
         }
     }
-    
+
     /// Get the casting level for two types
     internal func casts(to type: Self) -> LKDConversion {
         typealias _Map = LKDConverters

@@ -20,30 +20,30 @@
 ///
 internal struct LKParameter: LKSymbol {
     // MARK: - Passthrough generators
-    
+
     /// Generate a `LKParameter` holding concrete `LeafData`
     static func value(_ store: LeafData) -> LKParameter { .init(.value(store)) }
-    
+
     /// Generate a `LKParameter` holding a fully scoped `.variable`
     static func variable(_ store: LKVariable) -> LKParameter { .init(.variable(store)) }
-    
+
     /// Generate a `LKParameter` holding a validated `LKExpression`
     static func expression(_ store: LKExpression) -> LKParameter { .init(.expression(store)) }
-    
+
     /// Generate a `LKParameter` holding an available `LeafOperator`
     static func `operator`(_ store: LeafOperator) -> LKParameter {
         if store.parseable { return .init(.operator(store)) }
         __MajorBug("Operator not available")
     }
-    
+
     /// Generate a `LKParameter` hodling a validated `LeafFunction` and its concrete parameters
     static func function(_ name: String,
                          _ function: LeafFunction,
                          _ params: LKTuple) -> LKParameter {
         .init(.function(name, function, params)) }
-    
+
     // MARK: - Auto-reducing generators
-    
+
     /// Generate a `LKParameter`, auto-reduce to a `.value` or .`.variable` or a non-evaluable`.keyword`
     static func keyword(_ store: LeafKeyword, reduce: Bool = false) -> LKParameter {
         if !store.isEvaluable
@@ -53,7 +53,7 @@ internal struct LKParameter: LKSymbol {
         if store == .nil         { return .init(.value(.trueNil)) }
         __MajorBug("Unhandled evaluable keyword")
     }
-    
+
     /// Generate a `LKParameter` holding a tuple of `LeafParameters` - auto-reduce multiple nested parens and decay to trueNil if void
     static func tuple(_ store: LKTuple) -> LKParameter {
         if store.count > 1 { return .init(.tuple(store)) }
@@ -64,7 +64,7 @@ internal struct LKParameter: LKSymbol {
 
     // `[` is always invalid in a parsed AST and is used as a magic value
     static let invalid: LKParameter = .init(.operator(.subOpen))
-    
+
     /// Wrapped storage object for the actual value the `LKParameter` holds
     enum Container: LKSymbol {
         // Atomic Invariants
@@ -76,11 +76,11 @@ internal struct LKParameter: LKSymbol {
         // Expression
         case expression(LKExpression)   // A constrained 2-3 value Expression
         // Tuple
-        case tuple(LKTuple)             // A 0...n array of LeafParameters
+        case tuple(LKTuple)             // A 0...n array of LeafParameters, possibly with labels
         // Function(s)
         // FIXME: Need to store all potentially resolvable functions at parse time
         case function(String, LeafFunction, LKTuple)
-        
+
         var description: String {
             switch self {
                 case .value(let v)              : return v.description
@@ -103,7 +103,7 @@ internal struct LKParameter: LKSymbol {
                 case .function(let f, _, let p) : return "\(f)\(p.short)"
             }
         }
-        
+
         var resolved: Bool {
             switch self {
                 case .keyword, .operator    : return true
@@ -133,8 +133,8 @@ internal struct LKParameter: LKSymbol {
                      .function(_, _, let t)      : return t.symbols
             }
         }
-        
-        func resolve(_ symbols: LKVarTable) -> Self {
+
+        func resolve(_ symbols: LKVarTablePointer) -> Self {
             if resolved && invariant { return .value(evaluate(symbols)) }
             switch self {
                 case .value, .keyword, .operator: return self
@@ -142,42 +142,44 @@ internal struct LKParameter: LKSymbol {
                 case .variable(let v):
                     // DO NOT contextualize - resolve may be called during parse
                     // and not know of unscoped variables' existence yet
-                    if let value = symbols[v] { return .value(value) }
+                    if let value = symbols.pointee[v] { return .value(value) }
                     return self
                 case .function(let n, let f, var p):
                     p.values = p.values.map { $0.resolve(symbols) }
                     return .function(n, f, p)
-                case .tuple: __MajorBug("Tuples should not exist")
-            }
-        }
-        
-        func evaluate(_ symbols: LKVarTable) -> LeafData {
-            switch self {
-                case .value(let v):               return v.evaluate()
-                case .variable(let v):            return symbols.match(v)
-                case .expression(let e):          return e.evaluate(symbols)
-                case .function(_, let f, let p):
-                    // FIXME: This won't regress to overloaded functions
-                    // Without an explicit cast, a parameter that was "any" type
-                    // will have caught the first function of the name.
-                    if let params = ParameterValues(f.sig, p, symbols),
-                       params.values.first(where: { $0.celf == .void }) == nil {
-                        return f.evaluate(params) }
-                    else { return .trueNil }
-                case .keyword(let k) where k.isEvaluable:
-                    let reduced = LKParameter.keyword(k, reduce: true).container
-                    return reduced.evaluate(symbols)
-                case .keyword, .operator: return .trueNil
-                case .tuple: __MajorBug("Tuples should not exist")
+                case .tuple(let t) where t.isEvaluable:
+                    return .tuple(t.resolve(symbols))
+                case .tuple: __MajorBug("Unevaluable Tuples should not exist")
             }
         }
 
-        
+        func evaluate(_ symbols: LKVarTablePointer) -> LeafData {
+            switch self {
+                case .value(let v)              : return v.evaluate(symbols)
+                case .variable(let v)           : return symbols.pointee.match(v) ?? .trueNil
+                case .expression(let e)         : return e.evaluate(symbols)
+                case .tuple(let t) where t.isEvaluable
+                                                : return t.evaluate(symbols)
+                case .function(_, let f, let p) :
+                    // FIXME: This won't regress to overloaded functions
+                    // Without an explicit cast, a parameter that was "any" type
+                    // will have caught the first function of the name.
+                    if let params = CallValues(f.sig, p, symbols),
+                       params.values.first(where: { $0.celf == .void }) == nil
+                    { return f.evaluate(params) } else { return .trueNil }
+                case .keyword(let k)
+                        where k.isEvaluable     : let x = LKParameter.keyword(k, reduce: true).container
+                                                  return x.evaluate(symbols)
+                case .keyword, .operator        : return .trueNil
+                case .tuple                     : __MajorBug("Unevaluable Tuples should not exist")
+            }
+        }
+
     }
 
     /// Actual storage for the object
     private(set) var container: Container { didSet { setStates() } }
-    
+
     private(set) var resolved: Bool
     private(set) var invariant: Bool
     private(set) var symbols: Set<LKVariable>
@@ -191,26 +193,27 @@ internal struct LKParameter: LKSymbol {
                 return type(of: f).returns.count == 1 ? type(of: f).returns.first : nil
         }
     }
-    
+
     /// Will always resolve to a new LKParameter
-    func resolve(_ symbols: LKVarTable) -> Self { .init(container.resolve(symbols)) }
+    func resolve(_ symbols: LKVarTablePointer) -> Self { .init(container.resolve(symbols)) }
     /// Will always evaluate to a .value container, potentially holding trueNil
-    func evaluate(_ symbols: LKVarTable) -> LKData { container.evaluate(symbols) }
-    
+    func evaluate(_ symbols: LKVarTablePointer) -> LKData { container.evaluate(symbols) }
+
     /// Whether the parameter can return actual `LeafData` when resolved
     var isValued: Bool {
         switch container {
             case .value, .variable  : return true
-            case .operator, .tuple  : return false
+            case .operator          : return false
+            case .tuple(let t)      : return t.isEvaluable
             case .keyword(let k)    : return k.isEvaluable
-            case .expression(let e) : return [.calculation, .ternary].contains(e.form.exp)
+            case .expression(let e) : return e.form.exp != .custom
             case .function          : return true
         }
     }
-    
+
     var description: String { container.description }
     var short: String { container.short }
-    
+
     /// Unchecked initializer - do not use directly except through static factories that guard conditions
     private init(_ store: Container) {
         self.container = store
@@ -219,7 +222,7 @@ internal struct LKParameter: LKSymbol {
         self.invariant = false
         setStates()
     }
-    
+
     /// Cache the stored states for `symbols, resolved, invariant`
     mutating private func setStates() {
         switch container {
@@ -250,12 +253,12 @@ internal struct LKParameter: LKSymbol {
                 // FIXME: Evaluate if resolved & invariant are true
         }
     }
-    
+
     var `operator`: LeafOperator? {
         guard case .operator(let o) = container else { return nil }
         return o
     }
-    
+
     var data: LeafData? {
         switch container {
             case .value(let d): return d
@@ -263,5 +266,4 @@ internal struct LKParameter: LKSymbol {
             default: return nil
         }
     }
-
 }

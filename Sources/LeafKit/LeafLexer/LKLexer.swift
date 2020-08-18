@@ -1,4 +1,4 @@
-// MARK: Stable?!!
+// MARK: Stable?!!!
 // MARK: -
 
 // MARK: `LKLexer` Summary
@@ -9,21 +9,21 @@
 /// used by evaluating with `LKLexer.lex()` and either erroring or returning `[LKToken]`
 internal struct LKLexer {
     // MARK: - Internal Only
-    
+
     /// Convenience to initialize `LKLexer` with a `String`
     init(name: String, raw: String) { self.init(LKRawTemplate(name, raw)) }
-    
+
     /// Init with `LKRawTemplate`
     init(_ template: LKRawTemplate) {
         self.name = template.name
         self.src = template
         self.state = .raw
-        
+
         self.entities = LKConf.entities
         self.openers = .init(entities.blockFactories.keys)
         self.openers.formUnion(entities.functions.keys)
         self.closers = .init()
-        
+
         for (tag, factory) in entities.blockFactories {
             if let chained = factory as? ChainedBlock.Type {
                 if chained.chainsTo.isEmpty { closers.insert("end" + tag) }
@@ -31,7 +31,7 @@ internal struct LKLexer {
             } else { closers.insert("end" + tag) }
         }
     }
-    
+
     /// Lex the stored `LKRawTemplate`
     /// - Throws: `LexerError`
     /// - Returns: An array of fully built `LKTokens`, to then be parsed by `LeafParser`
@@ -39,7 +39,7 @@ internal struct LKLexer {
         while let next = try nextToken() { lexed.append(next) }
         return lexed
     }
-    
+
     // MARK: - Private Only
     private enum State {
         /// Parse as raw, until it finds `#` (but consuming escaped `\#`)
@@ -51,13 +51,13 @@ internal struct LKLexer {
         /// Start attempting to sequence a tag body
         case body
     }
-    
+
     /// Current state of the Lexer
     private var state: State
     /// Current parameter depth, when in a Parameter-lexing state
     private var depth = 0
     /// Current index in `lexed`
-    private var offset: Int { lexed.count }
+    private var offset: Int { lexed.count - 1 }
     /// Stream of `LKTokens` that have been successfully lexed
     private var lexed: [LKToken] = []
     /// The originating template source content (ie, raw characters)
@@ -68,16 +68,16 @@ internal struct LKLexer {
     private let entities: LeafEntities
     private var openers: Set<String>
     private var closers: Set<String>
-    
+
     /// Convenience for the current character to read
     private var current: Character? { src.peek() }
     /// Convenience to pop the current character
     @discardableResult
     mutating private func pop() -> Character? { src.pop() }
-    
+
     /// Convenience for an escaped tagIndicator token
     private let escapedTagID: LKToken = .raw(Character.tagIndicator.description)
-    
+
     // MARK: - Private - Actual implementation of Lexer
 
     private mutating func nextToken() throws -> LKToken? {
@@ -111,11 +111,11 @@ internal struct LKLexer {
 
         // if not a recognized identifier decay to raw and rewrite tagIndicator
         guard openers.contains(id) || closers.contains(id) else {
-            lexed[offset - 1] = escapedTagID
+            lexed[offset] = escapedTagID
             state = .raw;
             return .raw(id)
         }
-        
+
         /// If the tag has parameters, and if it's a "closer" (end_xxxx, chained terminal tag eg: else)
         let xor = (params: current == .leftParenthesis, terminal: closers.contains(id))
         switch xor {
@@ -175,25 +175,34 @@ internal struct LKLexer {
 
         /// Simple returning cases - .parametersStart/Delimiter/End, .literal(.string()), ParameterToken, space/comment discard
         switch current {
-            case .tab, .newLine, .space /// Whitespace - silently discard
-                                     : src.popWhile { $0.isWhitespace }
-                                       return nil
+            case .tab, .newLine, .space
+                                     : let x = src.readWhile {$0.isWhitespace}
+                                       return retainWhitespace ? .whiteSpace(x) : nil
             case .leftParenthesis    : depth += 1
                                        return .parametersStart
-            case .rightParenthesis where depth <= 1
-                                     : state = .raw
+            case .rightParenthesis where depth > 1
+                                     : depth -= 1
+                                       return .parametersEnd
+            case .rightParenthesis   : state = .raw
                                        let body = self.current == .colon
                                        if body { pop()
                                                  lexed.append(.parametersEnd)
                                                  return .scopeIndicator
                                        } else  { return .parametersEnd }
-            case .rightParenthesis   : depth -= 1
-                                       return .parametersEnd
             case .comma              : return .parameterDelimiter
-            case .colon              : return .scopeIndicator
+            case .colon where [.parametersStart,
+                               .parameterDelimiter,
+                               .parameter(.operator(.subOpen))].contains(lexed[offset - 1])
+                                     : return .labelIndicator
             case .leftBracket where self.current == .rightBracket
                                      : pop()
                                        return .parameter(.literal(.emptyArray))
+            case .leftBracket where self.current == .colon
+                                     : pop()
+                                       if self.current == .rightBracket {
+                                            pop()
+                                            return .parameter(.literal(.emptyDict))
+                                       } else { throw unknownError("Expected empty dictionary literal") }
             case .underscore where self.current?.isWhitespace ?? true
                                      : return .parameter(.keyword(._))
             case .quote              :
@@ -230,6 +239,15 @@ internal struct LKLexer {
             let op = twoOp != nil ? twoOp! : LeafOperator(rawValue: String(current))!
             guard op.lexable else { throw badOperator(op) }
             if twoOp != nil { pop() }
+
+            /// Handle ops that require no whitespace on one/both sides (does not handle subOpen leading)
+            if [.evaluate, .scopeMember, .scopeRoot].contains(op) {
+                if src.peek()?.isWhitespace ?? false {
+                    throw unknownError("\(op) may not have trailing whitespace") }
+                if op == .scopeMember, case .whiteSpace(_) = lexed[offset] {
+                    throw unknownError("\(op) may not have leading whitespace") }
+            }
+
             return .parameter(.operator(op))
         }
 
@@ -248,9 +266,9 @@ internal struct LKLexer {
             /// We must be immediately preceeded by a minus to flip the sign and only flip back if
             /// immediately preceeded by a const, tag or variable (which we assume will provide a
             /// numeric). Grammatical errors in the template (eg, keyword-numeric) may throw here
-            if case .parameter(let p) = lexed[offset - 1],
+            if case .parameter(let p) = lexed[offset],
                case .operator(let op) = p, op == .minus {
-                switch lexed[offset - 2] {
+                switch lexed[offset - 1] {
                     case .parameter(let p):
                         switch p {
                             case .literal, .function, .variable: sign = 1
@@ -283,20 +301,23 @@ internal struct LKLexer {
                 else { return .parameter(.literal(.double(testDouble! * Double(sign)))) }
             }
         }
-        
+
         guard current.canStartIdentifier else { throw badToken(current) }
-        
+
         /// At this point, just read the longest possible identifier-valid part (NO operators)
         let identifier = String(current) + (src.readWhile { $0.isValidInIdentifier })
 
         /// If it's a keyword, return that
         if let kw = LeafKeyword(rawValue: identifier) { return .parameter(.keyword(kw)) }
-        
+
         /// If identifier is followed by leftParen it's a function or method call, otherwise a variable
         if src.peek()! == .leftParenthesis { return .parameter(.function(identifier)) }
         else { return .parameter(.variable(identifier)) }
     }
     
+    /// Signal whether whitespace should be retained (only needed currently for `[`)
+    private var retainWhitespace: Bool { current == .leftBracket ? true : false }
+
     /// Conveniences for making nested LeafError->LexerErrors
     private func unknownError(_ reason: String) -> LeafError {
         LeafError(.lexerError(.init(.unknownError(reason), src: src, lexed: lexed)))

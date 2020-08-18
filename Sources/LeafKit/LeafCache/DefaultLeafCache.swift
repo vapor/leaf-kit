@@ -9,17 +9,17 @@ public final class DefaultLeafCache: LKSynchronousCache {
         self.cache = [:]
         self.touches = [:]
     }
-    
+
     // MARK: - Public - LeafCache Conformance
-    
+
     /// Global setting for enabling or disabling the cache
     public var isEnabled: Bool {
-        get { locks.c.withLock { _isEnabled } }
-        set { locks.c.withLock { _isEnabled = newValue } }
+        get { locks.cache.withLock { _isEnabled } }
+        set { locks.cache.withLock { _isEnabled = newValue } }
     }
-    
+
     /// Current count of cached documents
-    public var count: Int { locks.t.withLock { touches.count } }
+    public var count: Int { locks.touch.withLock { touches.count } }
 
     /// - Parameters:
     ///   - document: The `LeafAST` to store
@@ -27,7 +27,7 @@ public final class DefaultLeafCache: LKSynchronousCache {
     ///   - replace: If a document with the same name is already cached, whether to replace or not.
     /// - Returns: The document provided as an identity return
     ///
-    /// Use `LeafAST.key` as the 
+    /// Use `LeafAST.key` as the
     public func insert(_ document: LeafAST,
                        on loop: EventLoop,
                        replace: Bool = false) -> EventLoopFuture<LeafAST> {
@@ -36,7 +36,7 @@ public final class DefaultLeafCache: LKSynchronousCache {
             case .failure(let err): return fail(err, on: loop)
         }
     }
-    
+
     /// - Parameters:
     ///   - name: Name of the `LeafAST`  to try to return
     ///   - loop: `EventLoop` to return futures on
@@ -56,53 +56,53 @@ public final class DefaultLeafCache: LKSynchronousCache {
         guard _isEnabled else { return fail(.cachingDisabled, on: loop) }
         return succeed(remove(key), on: loop)
     }
-    
+
     public func touch(_ key: LeafASTKey, _ values: LeafASTTouch) {
-        if _isEnabled { locks.t.withLockVoid { touches[key]!.append(values) } }
+        if _isEnabled { locks.touch.withLockVoid { touches[key]!.append(values) } }
     }
-    
+
     // MARK: - Internal - LKSynchronousCache
-    
+
     /// Blocking file load behavior
     func insert(_ document: LeafAST, replace: Bool) -> Result<LeafAST, LeafError> {
         guard _isEnabled else { return .failure(leafError(.cachingDisabled)) }
         /// Blind failure if caching is disabled
         var e: Bool = false
-        locks.c.withLockVoid {
+        locks.cache.withLockVoid {
             if replace || !cache.keys.contains(document.key) {
                 cache[document.key] = document
             } else { e = true }
         }
-        locks.t.withLockVoid {
+        locks.touch.withLockVoid {
             touches[document.key] = .init()
             touches[document.key]?.reserveCapacity(4)
         }
         guard !e else { return .failure(leafError(.keyExists(document.name))) }
         return .success(document)
     }
-    
+
     /// Blocking file load behavior
     func retrieve(_ key: LeafASTKey) -> LeafAST? {
         guard _isEnabled else { return nil }
-        locks.c.lock()
-        defer { locks.c.unlock() }
+        locks.cache.lock()
+        defer { locks.cache.unlock() }
         guard cache.keys.contains(key) else { return nil }
-        locks.t.lock()
-        defer { locks.t.unlock() }
+        locks.touch.lock()
+        defer { locks.touch.unlock() }
         while let touch = touches[key]!.popLast() { cache[key]!.touch(values: touch) }
         return cache[key]
     }
-    
+
     /// Blocking file load behavior
     func remove(_ key: LeafASTKey) -> Bool? {
-        if locks.t.withLock({ touches.removeValue(forKey: key) == nil }) { return nil }
-        locks.c.withLockVoid { cache.removeValue(forKey: key) }
+        if locks.touch.withLock({ touches.removeValue(forKey: key) == nil }) { return nil }
+        locks.cache.withLockVoid { cache.removeValue(forKey: key) }
         return true
     }
-    
+
     // MARK: - Stored Properties - Private Only
     private var _isEnabled: Bool = true
-    private let locks: (c: Lock, t: Lock)
+    private let locks: (cache: Lock, touch: Lock)
     /// NOTE: internal read-only purely for test access validation - not assured
     private(set) var cache: [LeafASTKey: LeafAST]
     private var touches: [LeafASTKey: ContiguousArray<LeafASTTouch>]

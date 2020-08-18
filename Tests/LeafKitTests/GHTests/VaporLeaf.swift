@@ -5,7 +5,7 @@ import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
 
-final class GHLeafIssuesTest: LeafTestClass {    
+final class GHLeafIssuesTest: LeafTestClass {
     /// https://github.com/vapor/leaf/issues/96
     func testGH96() throws {
         let template = """
@@ -24,7 +24,7 @@ final class GHLeafIssuesTest: LeafTestClass {
         """
         try XCTAssertEqual(render(template, ["names": ["tanner", "ziz", "vapor"]]), expected)
     }
-    
+
     /// https://github.com/vapor/leaf/issues/99
     func testGH99() throws {
         let template = """
@@ -44,7 +44,7 @@ final class GHLeafIssuesTest: LeafTestClass {
         let expected = "1:A2:B3:C"
         try XCTAssertEqual(render(template, ["foos": ["A", "B", "C"]]), expected)
     }
-    
+
     /// https://github.com/vapor/leaf/issues/105
     func testGH105() throws {
         do {
@@ -92,7 +92,7 @@ final class GHLeafIssuesTestArchive: LeafTestClass {
             try XCTAssertEqual(render(template, ["a": "a"]), expected)
         }
     }
-    
+
     // TODO: This commenting style is not used anymore but needs a replacement
     func _testGH127SingleLine() throws {
         do {

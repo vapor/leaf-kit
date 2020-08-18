@@ -15,18 +15,18 @@ extension ByteBuffer: RawBlock {
         data ?? ByteBufferAllocator().buffer(capacity: 0)
 
     }
-    
+
     public static func instantiate(size: UInt32,
                                    encoding: String.Encoding) -> RawBlock {
         ByteBufferAllocator().buffer(capacity: Int(size))
     }
-    
+
     /// Never errors
     public var error: String? { nil }
 
     /// Always identity return and valid
     public var serialized: (buffer: ByteBuffer, valid: Bool?) { (self, true) }
-    
+
     /// Always takes either the serialized view of a `RawBlock` or the direct result if it's a `ByteBuffer`
     mutating public func append(_ block: inout RawBlock) throws {
         var byteBuffer = block as? Self ?? block.serialized.buffer
@@ -36,7 +36,7 @@ extension ByteBuffer: RawBlock {
     public mutating func append(_ buffer: inout ByteBuffer) throws {
         writeBuffer(&buffer)
     }
-    
+
     // appends data using configured serializer views
     public mutating func append(_ data: LeafData) {
         switch data.celf {
@@ -49,7 +49,7 @@ extension ByteBuffer: RawBlock {
             case .array      : let a = data.array!
                                writeString("[")
                                a.forEach { append($0); writeString(", ") }
-                               moveWriterIndex(to: writerIndex - 2)
+                               if !a.isEmpty { moveWriterIndex(to: writerIndex - 2) }
                                writeString("]")
             case .dictionary : let d = data.dictionary!
                                writeString("[")
@@ -58,13 +58,14 @@ extension ByteBuffer: RawBlock {
                                     append($0.value)
                                     writeString(", ")
                                }
-                               moveWriterIndex(to: writerIndex - 2)
+                               if !d.isEmpty { moveWriterIndex(to: writerIndex - 2) }
+                               else { writeString(":") }
                                writeString("]")
         }
     }
-    
+
     public var byteCount: UInt32 { UInt32(readableBytes) }
     public var contents: String { getString(at: readerIndex, length: readableBytes) ?? "" }
-    
+
     internal static let newLine = instantiate(data: .init(string: "\n"), encoding: .utf8)
 }

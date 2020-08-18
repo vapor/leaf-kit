@@ -36,7 +36,7 @@ public struct LeafAST: Hashable {
     let stackDepths: (overallMax: UInt16, inlineMax: UInt16)
 
     // MARK: - Computed Properties And Methods
-    
+
     public func hash(into hasher: inout Hasher) { hasher.combine(key) }
     public static func ==(lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key }
 
@@ -57,20 +57,20 @@ public struct LeafAST: Hashable {
     /// An opaque object used as a key for storing `LeafAST`s in hash tables (eg, caches). Not directly readable.
     public struct Key: Hashable {
         let _key: String
-        
+
         init(_ src: String, _ path: String) { self._key = "\(src):\(path)" }
         static func searchKey(_ name: String) -> Self { .init("$", name) }
-        
+
         var _src: String { .init(_key.prefix(while: { $0 != ":"})) }
         var _name: String { .init(_key.split(separator: ":", maxSplits: 1)[1]) }
     }
-    
+
     /// An opaque object passed to a stored `LeafAST` via `LeafCache`
     public struct Touch {
         var exec: Double
         var size: UInt32
     }
-    
+
     /// A semi-opaque object providing information about the current state of the AST
     public struct Info {
         // MARK: Public Stored Properties
@@ -86,7 +86,7 @@ public struct LeafAST: Hashable {
         public internal(set) var requiredASTs: Set<String> = []
         /// Any files currently required to inline as raw contents
         public internal(set) var requiredRaws: Set<String> = []
-        
+
         // MARK: Internal Stored Properties
         /// Estimated minimum size of the serialized view (may be inaccurate)
         var underestimatedSize: UInt32 = 0
@@ -95,7 +95,7 @@ public struct LeafAST: Hashable {
         var touches: Int = 0
         var averages: Touch = .init(exec: 0, size: 0)
         var maximums: Touch = .init(exec: 0, size: 0)
-        
+
         // MARK: Computed Properties
         /// Whether the AST is fully resolved
         public var resolved: Bool { requiredASTs.union(requiredRaws).isEmpty }
@@ -108,15 +108,15 @@ public struct LeafAST: Hashable {
             (Int(averages.size), Int(maximums.size))
         }
     }
-    
+
     /// Internal only -
     internal struct Jump: Hashable {
         let identifier: String
         let table: Int
         let row: Int
-        
+
         func hash(into hasher: inout Hasher) { hasher.combine(identifier)}
-        
+
         func remap(by offset: Int = 0) -> Self {
             .init(identifier: identifier, table: table + offset, row: row) }
     }
@@ -146,7 +146,7 @@ internal extension LeafAST {
                                    .reduce(into: .init(), { $0.insert($1.inline.identifier) })
         self.requiredRaws = inlines.filter { $0.at == .distantFuture && !$0.process }
                                    .reduce(into: .init(), { $0.insert($1.inline.identifier) })
-        
+
         // Info properties (start same as actual AST, may modify from resolving
         self.info = .init(parsed: Date(),
                           defines: defines.sorted(),
@@ -156,10 +156,10 @@ internal extension LeafAST {
                           underestimatedSize: underestimatedSize,
                           stackDepths: stackDepths)
     }
-    
+
     /// Any required files, whether template or raw, required to fully resolve
     var requiredFiles: Set<String> { requiredASTs.union(requiredRaws) }
-    
+
     /// Inline Leaf templates
     ///
     /// Can be improved; if inlined templates themselves have inlines (A inlines B and C, B inlines C)
@@ -170,7 +170,7 @@ internal extension LeafAST {
         var inAST = toInline
         let inName = toInline.name
         let offset = scopes.count
-        
+
         // Atomic incoming AST; 1 scope, 1 element - inherently passthrough or raw
         let nonAtomic = inAST.scopes[0].count != 1
         if nonAtomic {
@@ -187,7 +187,7 @@ internal extension LeafAST {
             // Append the new scopes
             scopes.append(contentsOf: inAST.scopes)
         }
-        
+
         // Replace own AST's scope placeholders with correct offset references
         for (index, p) in inlines.enumerated() where p.process && p.at == .distantFuture {
             let t = p.inline.table
@@ -201,13 +201,13 @@ internal extension LeafAST {
                                                      : inAST.scopes[0][0].underestimatedSize
             }
         }
-        
+
         if nonAtomic {
             // Append remapped incoming AST define/inlines
             for i in inAST.inlines { inlines.append((inline: i.inline.remap(by: offset),
                                                      process: i.process,
                                                      at: i.at)) }
-            
+
             info.stackDepths.overallMax.maxAssign(stackDepths.inlineMax +
                                                   inAST.stackDepths.overallMax)
             info.stackDepths.inlineMax.maxAssign(stackDepths.inlineMax +
@@ -215,11 +215,11 @@ internal extension LeafAST {
             info.defines = defines.union(inAST.info.defines).sorted()
             info.inlines = Set(info.inlines + inAST.info.inlines).sorted()
         }
-        
+
         info.includedASTs.insert(info.requiredASTs.remove(inName)!)
         cached = false
     }
-    
+
     /// Inline raw ByteBuffers
     mutating func inline(raws: [String: ByteBuffer]) {
         let stamp = Date()
@@ -235,7 +235,7 @@ internal extension LeafAST {
         raws.keys.forEach { info.requiredRaws.remove($0) }
         cached = false
     }
-    
+
     /// Return to an unresolved state
     mutating func unresolve() {
         cached = false
@@ -244,7 +244,7 @@ internal extension LeafAST {
         inlines.indices.forEach { inlines[$0].at = .distantFuture
                                   let p = inlines[$0].inline
                                   scopes[p.table][p.row + 1] = .scope(nil) }
-        
+
         info.defines = defines.sorted()
         info.inlines = Set(inlines.map {$0.inline.identifier}).sorted()
         info.requiredASTs = requiredASTs
@@ -252,10 +252,10 @@ internal extension LeafAST {
         info.underestimatedSize = underestimatedSize
         info.stackDepths = stackDepths
     }
-    
+
     var formatted: String { summary + scopes.formatted }
     var terse: String { scopes.terse }
-    
+
     var summary: String {
         """
         LeafAST `\(name)`: \(scopes.count) tables (\(scopes.count) inlined), \(scopes.count - own.scopes - 1) minimum output bytes

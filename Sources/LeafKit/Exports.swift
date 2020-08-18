@@ -32,28 +32,27 @@ public extension String {
 /// Various internal helper identities for convenience
 internal extension Character {
     // MARK: - LKToken specific identities
-    
+
     var canStartIdentifier: Bool { isLowercaseLetter || isUppercaseLetter || self == .underscore }
     var isValidInIdentifier: Bool { self.canStartIdentifier || self.isDecimal }
-    
+
     var isValidInParameter: Bool { isValidInIdentifier || isValidOperator || isValidInNumeric }
 
     var isValidOperator: Bool { LeafOperator.validCharacters.contains(self) }
-    
+
     var canStartNumeric: Bool { isDecimal }
     var isValidInNumeric: Bool {
         if isHexadecimal { return true }
         return [.binaryNotation, .octalNotation, .hexNotation,
                 .underscore, .period].contains(self)
     }
-    
+
     var isWhiteSpace: Bool { [.newLine, .space, .tab].contains(self) }
 
-    
     // MARK: - General group-membership identities
     var isUppercaseLetter: Bool { (.A    ... .Z     ) ~= self }
     var isLowercaseLetter: Bool { (.a    ... .z     ) ~= self }
-    
+
     var isBinary: Bool          { (.zero ... .one   ) ~= self }
     var isOctal: Bool           { (.zero ... .seven ) ~= self }
     var isDecimal: Bool         { (.zero ... .nine  ) ~= self }
@@ -62,7 +61,6 @@ internal extension Character {
         return (.A ... .F) ~= self.uppercased().first!
     }
 
-    
     // MARK: - General static identities
     static let newLine = "\n".first!
     static let quote = "\"".first!

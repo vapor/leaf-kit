@@ -17,7 +17,7 @@ public struct LeafError: Error, CustomStringConvertible {
         // MARK: Errors related to loading raw templates
         /// Attempted to access a template blocked for security reasons
         case illegalAccess(String)
-        
+
         // MARK: Errors related to LeafCache access
         /// Attempt to modify cache entries when caching is globally disabled
         case cachingDisabled
@@ -46,14 +46,14 @@ public struct LeafError: Error, CustomStringConvertible {
         /// Errors due to malformed template syntax or grammar
         // FIXME: Implement a specific ParserError type
         // case parserError(ParserError)
-        
+
         // MARK: Errors lacking specificity
         /// Errors from protocol adherents that do not support newer features
         case unsupportedFeature(String)
         /// Errors only when no existing error reason is adequately clear
         case unknownError(String)
     }
-    
+
     /// Source file name causing error
     public let file: String
     /// Source function causing error
@@ -65,7 +65,6 @@ public struct LeafError: Error, CustomStringConvertible {
     /// The specific reason for the error
     public let reason: Reason
 
-    
     /// Provide  a custom description of the `LeafError` based on type.
     ///
     /// - Where errors are caused by toolchain faults, will report the Swift source code location of the call
@@ -97,9 +96,9 @@ public struct LeafError: Error, CustomStringConvertible {
                 return "Lexing error - \(e.localizedDescription)"
         }
     }
-    
+
     public var description: String { localizedDescription }
-    
+
     /// Create a `LeafError` - only `reason` typically used as source locations are auto-grabbed
     public init(
         _ reason: Reason,
@@ -121,7 +120,7 @@ public struct LeafError: Error, CustomStringConvertible {
 /// `LexerError` reports errors during the stage.
 public struct LexerError: Error, CustomStringConvertible {
     // MARK: - Public
-    
+
     public enum Reason {
         // MARK: Errors occuring during Lexing
         /// A character not usable in parameters is present when Lexer is not expecting it
@@ -133,7 +132,7 @@ public struct LexerError: Error, CustomStringConvertible {
         /// Use in place of fatalError to indicate extreme issue
         case unknownError(String)
     }
-    
+
     /// Template source file line where error occured
     public let line: Int
     /// Template source column where error occured
@@ -142,16 +141,16 @@ public struct LexerError: Error, CustomStringConvertible {
     public let name: String
     /// Stated reason for error
     public let reason: Reason
-    
+
     // MARK: - Internal Only
-    
+
     /// State of tokens already processed by Lexer prior to error
     internal let lexed: [LKToken]
     /// Flag to true if lexing error is something that may be recoverable during parsing;
     /// EG, `"#anhtmlanchor"` may lex as a tag name but fail to tokenize to tag because it isn't
     /// followed by a left paren. Parser may be able to recover by decaying it to `.raw`.
     internal let recoverable: Bool
-    
+
     /// Create a `LexerError`
     /// - Parameters:
     ///   - reason: The specific reason for the error
@@ -171,7 +170,7 @@ public struct LexerError: Error, CustomStringConvertible {
         self.name = src.name
         self.recoverable = recoverable
     }
-    
+
     /// Convenience description of source file name, error reason, and location in file of error source
     var localizedDescription: String { "\"\(name)\": \(reason) - \(line):\(column)" }
     public var description: String { localizedDescription }

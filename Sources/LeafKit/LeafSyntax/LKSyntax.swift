@@ -3,28 +3,27 @@
 
 internal struct LKSyntax: LKPrintable {
     private(set) var container: Container
-    
+
     enum Container {
         /// Passthrough and raw are atomic syntaxes.
         case passthrough(LKParameter.Container) // where LP.isValued
         case raw(RawBlock)
-        
+
         /// Blocks exist as the first of a pair, followed by scope, or passthrough || raw when atomic
         case block(String, LeafBlock, LKTuple?)
         /// A scope jump reference - special case of nil for placeholders
         case scope(table: Int?) // Scopes
     }
-    
+
     private init(_ container: Container) { self.container = container }
-    
+
     static func raw(_ store: RawBlock) -> Self { .init(.raw(store)) }
     static func passthrough(_ store: LKParameter) -> Self {.init(.passthrough(store.container)) }
     static func block(_ name: String,
                       _ block: LeafBlock,
                       _ params: LKTuple?) -> Self { .init(.block(name, block, params)) }
     static func scope(_ table: Int?) -> Self { .init(.scope(table: table)) }
-    
-    
+
     var description: String {
         switch container {
             case .block(let f, _, let t): return "\(f)\(t?.description ?? "()"):"
@@ -34,7 +33,7 @@ internal struct LKSyntax: LKPrintable {
             case .scope: return "scope(undefined)"
         }
     }
-    
+
     var short: String {
         switch container {
             case .block(let f, _, let t): return "\(f)\(t?.short ?? "()"):"
@@ -44,7 +43,7 @@ internal struct LKSyntax: LKPrintable {
             case .scope: return "scope(undefined)"
         }
     }
-    
+
     var underestimatedSize: UInt32 {
         switch container {
             case .passthrough : return 16
@@ -91,6 +90,7 @@ extension Array where Element == [LKSyntax] {
 }
 
 extension Array where Element == LKSyntax {
+
     func contiguous() -> ContiguousArray<LKSyntax> {
         var contig: ContiguousArray<LKSyntax> = .init()
         contig.reserveCapacity(self.count)

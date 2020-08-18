@@ -66,7 +66,7 @@ internal class TestRenderer {
     private var counter: Int
     private static var configured = false
     private var timer: Date = .distantPast
-    
+
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
             tags: [String : LeafTag] = defaultTags,
             cache: LeafCache = DefaultLeafCache(),
@@ -83,12 +83,12 @@ internal class TestRenderer {
         lock = .init()
         counter = tasks
     }
-    
+
     func render(source: String? = nil, path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
         if timer == .distantPast { timer = Date() }
         return r.render(path: path, from: source != nil ? source! : "$", context: context)
     }
-    
+
     var queued: Int { lock.withLock { counter } }
     var isDone: Bool { lock.withLock { counter == 0 } ? true : false }
     func finishTask() { lock.withLock { counter -= 1 } }
@@ -99,18 +99,18 @@ internal class TestRenderer {
 internal struct TestFiles: LeafSource {
     var files: [String: String]
     var lock: Lock
-    
+
     init() {
         files = [:]
         lock = .init()
     }
-    
+
     public func file(template: String, escape: Bool = false, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
         var path = template
         if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2,
            !path.hasSuffix(".leaf") { path += ".leaf" }
         if !path.hasPrefix("/") { path = "/" + path }
-        
+
         self.lock.lock()
         defer { self.lock.unlock() }
         if let file = self.files[path] {
@@ -127,21 +127,24 @@ internal struct TestFiles: LeafSource {
 
 internal extension ByteBuffer {
     var string: String { String(decoding: readableBytesView, as: UTF8.self) }
-    var terse: String { var result = String(decoding: readableBytesView, as: UTF8.self)
-                        var index = result.indices.index(after: result.indices.startIndex)
-                        while index < result.indices.endIndex {
-                            if result[index] == .newLine,
-                               result[index] == result[result.indices.index(before: index)]
-                            { result.remove(at: index) }
-                            else { index = result.indices.index(after: index) }
-                        }
-                        return result
-                      }
-    
+    var terse: String {
+        var result = String(decoding: readableBytesView, as: UTF8.self)
+        var index = result.indices.index(after: result.indices.startIndex)
+        while index < result.indices.endIndex {
+            if result[index] == .newLine,
+               result[index] == result[result.indices.index(before: index)] {
+                result.remove(at: index) }
+            else { index = result.indices.index(after: index) }
+        }
+        return result
+    }
 }
 
 internal extension Array where Element == LKToken {
-    var string: String { filter { $0 != .raw("\n") }.map { $0.description + "\n" } .reduce("", +) }
+    var string: String {
+        compactMap { if case .whiteSpace(_) = $0 { return nil }
+                     else if $0 == .raw("\n") { return nil }
+                     return $0.description + "\n" }.reduce("", +) }
 }
 
 // MARK: - Helper Variables
@@ -153,11 +156,11 @@ internal var projectTestFolder: String { "/\(#file.split(separator: "/").dropLas
 // MARK: - Internal Tests
 
 /// Test printing descriptions of Syntax objects
-final class PrintTests: XCTestCase {    
+final class PrintTests: XCTestCase {
     func testRaw() throws {
         let template = "hello, raw text"
         let expectation = "0: raw(ByteBuffer: 15B))"
-        
+
         let v = try parse(template)
         XCTAssertEqual(v.terse, expectation)
     }
@@ -165,7 +168,7 @@ final class PrintTests: XCTestCase {
     func testPassthrough() throws {
         let template = "#(foo)"
         let expectation = "0: $:foo"
-        
+
         let v = try parse(template)
         XCTAssertEqual(v.terse, expectation)
     }
@@ -183,7 +186,7 @@ final class PrintTests: XCTestCase {
            1: $:name
            2: raw(ByteBuffer: 2B))
         """
-        
+
         let v = try parse(template)
         XCTAssertEqual(v.terse, expectation)
     }
@@ -206,7 +209,7 @@ final class PrintTests: XCTestCase {
         4: else():
         5: raw(ByteBuffer: 14B))
         """
-        
+
         let v = try parse(template)
         XCTAssertEqual(v.terse, expectation)
     }
@@ -217,7 +220,7 @@ final class PrintTests: XCTestCase {
         0: import($:someimport):
         1: scope(undefined)
         """
-        
+
         let v = try parse(template)
         XCTAssertEqual(v.terse, expectation)
     }
@@ -238,11 +241,11 @@ final class PrintTests: XCTestCase {
         6: extend(string(base)):
         7: scope(undefined)
         """
-        
+
         let v = try parse(template)
         XCTAssertEqual(v.terse, expectation)
     }
-    
+
     // No longer relevant
     func _testCustomTag() throws {
         let template = """
@@ -254,7 +257,7 @@ final class PrintTests: XCTestCase {
         custom(variable(tag), [foo == bar]):
           raw("\\n    some body\\n")
         """
-        
+
         let v = try parse(template)
         XCTAssertEqual(v.terse, expectation)
     }

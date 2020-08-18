@@ -5,7 +5,7 @@ import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
 
-final class GHLeafKitIssuesTest: LeafTestClass {    
+final class GHLeafKitIssuesTest: LeafTestClass {
     /// https://github.com/vapor/leaf-kit/issues/33
     func testGH33() {
         var test = TestFiles()
@@ -21,7 +21,7 @@ final class GHLeafKitIssuesTest: LeafTestClass {
             Snippet added through export/import
         #extend("partials/picture.svg")
         #endexport
-        
+
         #extend("base")
         """
         test.files["/partials/picture.svg"] = """
@@ -38,13 +38,12 @@ final class GHLeafKitIssuesTest: LeafTestClass {
             <svg><path d="M0..."></svg>
         </body>
         """
-        
+
         let renderer = TestRenderer(sources: .singleSource(test))
         let page = try! renderer.render(path: "page").wait()
         XCTAssertEqual(page.terse, expected)
     }
-    
-    
+
     /// https://github.com/vapor/leaf-kit/issues/50
     func testGH50() {
         var test = TestFiles()
@@ -64,9 +63,9 @@ final class GHLeafKitIssuesTest: LeafTestClass {
         HI
         HI
         HI
-        
+
         """
-        
+
         let renderer = TestRenderer(sources: .singleSource(test))
         let page = try! renderer.render(path: "a",
                                         context: ["challenges":["","",""]]).wait()

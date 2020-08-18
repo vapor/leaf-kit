@@ -6,7 +6,7 @@ import Foundation
 /// Default initializer will
 public struct NIOLeafFiles: LeafSource {
     // MARK: - Public
-    
+
     /// Various options for configuring an instance of `NIOLeafFiles`
     ///
     /// - `.requireExtensions` - When set, any template *must* have a file extension
@@ -19,7 +19,7 @@ public struct NIOLeafFiles: LeafSource {
     public struct Limit: OptionSet {
         public let rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
-        
+
         /// Require any referenced file have an extension
         public static let requireExtensions = Limit(rawValue: 1 << 0)
         /// Require any referenced file end in `.leaf`
@@ -28,11 +28,11 @@ public struct NIOLeafFiles: LeafSource {
         public static let toSandbox = Limit(rawValue: 1 << 2)
         /// Limit access to visible files/directories
         public static let toVisibleFiles = Limit(rawValue: 1 << 3)
-        
+
         public static let `default`: Limit = [.toSandbox, .toVisibleFiles, .requireExtensions]
         public static let dirLimited: Limit = [.toSandbox, .toVisibleFiles]
     }
-    
+
     /// Initialize `NIOLeafFiles` with a NIO file IO object, limit options, and sandbox/view dirs
     /// - Parameters:
     ///   - fileio: `NonBlockingFileIO` file object
@@ -72,20 +72,20 @@ public struct NIOLeafFiles: LeafSource {
         /// Remove all `.` & `..` indirections
         var t = sandBox + viewDir + template
         t = URL(fileURLWithPath: t, isDirectory: false).standardized.path
-        
+
         /// If default extension is enforced for template files, add it if it's not on the file, or if no extension present
         if lim.contains(.onlyLeafExtensions), !t.hasSuffix(".\(fileExt)")
             { t += ".\(fileExt)" }
         else if lim.contains(.requireExtensions), !t.split(separator: "/").last!.contains(".")
             { t += ".\(fileExt)" }
-        
+
         if !lim.isDisjoint(with: .dirLimited) {
             /// If sandboxing is enforced and the path contains a potential escaping path, look harder
             if lim.contains(.toVisibleFiles), t.contains("/."),
                let hit = t.split(separator: "/").first(where: { $0.first == "."}) {
                 return fail(.illegalAccess("Attempted to access \(hit)"), on: eventLoop)
             }
-            
+
             if lim.contains(.toSandbox), !template.hasPrefix(sandBox + (escape ? viewDir : "")) {
                 return fail(.illegalAccess("Attempted to escape sandbox: \(t)"), on: eventLoop)
             }
@@ -93,14 +93,14 @@ public struct NIOLeafFiles: LeafSource {
 
         return read(path: template, on: eventLoop)
     }
-    
+
     // MARK: - Private Only
     private let fileio: NonBlockingFileIO
     private let lim: Limit
     private let sandBox: String
     private let viewDir: String
     private let fileExt: String
-    
+
     /// Attempt to read a fully pathed template and return a ByteBuffer or fail
     private func read(path: String, on eL: EventLoop) -> ELF<ByteBuffer> {
         fileio.openFile(path: path, eventLoop: eL)

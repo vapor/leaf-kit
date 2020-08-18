@@ -374,7 +374,7 @@ final class LeafTests: LeafTestClass {
 
         try XCTAssertEqual(render(template, ["isFirst": true]), expected)
     }
-  
+
     // Validate parse resolution of negative numbers
     func testNegatives() throws {
         let input = """

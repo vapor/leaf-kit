@@ -31,7 +31,7 @@
 internal enum LKToken: LKPrintable, Hashable  {
     /// Holds a variable-length string of data that will be passed through with no processing
     case raw(String)
-    
+
     /// `#` (or as configured) - Top-level signal that indicates a Leaf tag/syntax object will follow.
     case tagIndicator
     /// Holds the name of an expected tag or syntax object (eg, `for`) in `#for(index in array)`
@@ -44,28 +44,27 @@ internal enum LKToken: LKPrintable, Hashable  {
 
     /// `(` -  Indicates the start of a tag's parameters
     case parametersStart
+    /// `:` - Indicates a delineation of `label : value` in parameters
+    case labelIndicator
     /// `,` -  Indicates separation of a tag's parameters
     case parameterDelimiter
     /// Holds a `ParameterToken` enum
     case parameter(LKTokenParameter)
     /// `)` -  Indicates the end of a tag's parameters
     case parametersEnd
-    
+
+    case whiteSpace(String)
+
     /// Returns `"tokenCase"` or `"tokenCase(valueAsString)"` if associated value
     var description: String {
         switch self {
             case .raw(let r)         : return "\(short)(\(r.debugDescription))"
-            case .tagIndicator       : return short
-            case .tag(.none)         : return short
-            case .tag(.some(let t))  : return "\(short)(\(t.debugDescription))"
-            case .scopeIndicator     : return short
-            case .parametersStart    : return short
-            case .parametersEnd      : return short
-            case .parameterDelimiter : return short
+            case .tag(.some(let t))  : return "\(short)(\"\(t)\")"
             case .parameter(let p)   : return "\(short)(\(p.description))"
+            default                  : return short
         }
     }
-    
+
     /// Token case
     var short: String {
         switch self {
@@ -75,12 +74,14 @@ internal enum LKToken: LKPrintable, Hashable  {
             case .tag(.some)         : return "function"
             case .scopeIndicator     : return "blockIndicator"
             case .parametersStart    : return "parametersStart"
+            case .labelIndicator     : return "labelIndicator"
             case .parametersEnd      : return "parametersEnd"
             case .parameterDelimiter : return "parameterDelimiter"
             case .parameter          : return "param"
+            case .whiteSpace         : return "whiteSpace"
         }
     }
-    
+
     /// A token that represents the valid objects that will be lexed inside parameters
     enum LKTokenParameter: LKPrintable, Hashable {
         /// Any tokenized literal value with a native Swift type
@@ -98,7 +99,7 @@ internal enum LKToken: LKPrintable, Hashable  {
         case variable(String)
         /// An identifier signifying a function or method name - must be non-empty
         case function(String)
-        
+
         /// Returns `parameterCase(parameterValue)`
         var description: String {
             switch self {
@@ -109,7 +110,7 @@ internal enum LKToken: LKPrintable, Hashable  {
                 case .function(let f) : return "function(id: \"\(f)\")"
             }
         }
-        
+
         /// Returns `parameterValue` or `"parameterValue"` as appropriate for type
         var short: String {
             switch self {
@@ -120,9 +121,9 @@ internal enum LKToken: LKPrintable, Hashable  {
                 case .function(let f) : return "func(\(f))"
             }
         }
-        
+
         /// An integer, double, or string constant value parameter (eg `1_000`, `-42.0`, `"string"`)
-        enum Literal: LKPrintable, LeafDataRepresentable, Hashable {
+        indirect enum Literal: LKPrintable, LeafDataRepresentable, Hashable {
             /// A Swift `Int`
             case int(Int)
             /// A Swift `Double`
@@ -131,11 +132,14 @@ internal enum LKToken: LKPrintable, Hashable  {
             case string(String)
             /// A Swift `Array` - only used to provide empty array literal currently
             case emptyArray
+            /// A Swift `Dictionary` - only used to provide empty array literal currently
+            case emptyDict
 
             var description: String {
                 switch self {
                     case .double(let d) : return "Double: \(d.description)"
-                    case .emptyArray    : return "Array: empty"
+                    case .emptyArray    : return "Array (empty)"
+                    case .emptyDict     : return "Dictionary (empty)"
                     case .int(let i)    : return "Int: \(i.description)"
                     case .string(let s) : return "String: \"\(s)\""
                 }
@@ -146,15 +150,17 @@ internal enum LKToken: LKPrintable, Hashable  {
                     case .double(let d) : return d.description
                     case .string(let s) : return "\"\(s)\""
                     case .emptyArray    : return "[]"
+                    case .emptyDict     : return "[:]"
                 }
             }
-            
+
             var leafData: LeafData {
                 switch self {
                     case .int(let i)    : return .int(i)
                     case .double(let d) : return .double(d)
                     case .string(let s) : return .string(s)
                     case .emptyArray    : return .array([])
+                    case .emptyDict     : return .dictionary([:])
                 }
             }
         }

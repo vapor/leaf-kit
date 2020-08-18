@@ -16,7 +16,7 @@ public enum LeafKeyword: String, Hashable, CaseIterable, LKPrintable {
          `no`,    //   X       F
          `_`,     //
          leaf     //
-    
+
     // MARK: - LKPrintable
     public var description: String { rawValue }
     public var short: String { rawValue }

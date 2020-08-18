@@ -1,4 +1,4 @@
-// MARK: Subject to change prior to 1.0.0 release
+// MARK: Stable?!!
 
 import Foundation
 
@@ -11,19 +11,19 @@ import Foundation
 /// - `CaseType` presents these cases plus `Void` as a case for functional `LeafSymbols`
 /// - `nil` is creatable, but only within context of a root base type - eg, `.nil(.bool)` == `Bool?`
 public struct LeafData: Equatable {
-    
+
     // MARK: - Stored Properties
-    
+
     /// The case-self identity
     public let celf: LeafDataType
     /// Actual storage
     let container: LKDContainer
     /// State storage flags
     let state: LKDState
-    
+
     // MARK: - Custom String Convertible Conformance
     public var description: String { container.description }
-    
+
     // MARK: - Equatable Conformance
     public static func ==(lhs: LeafData, rhs: LeafData) -> Bool {
         // Strict compare of invariant stored values; considers .nil & .void equal
@@ -40,23 +40,22 @@ public struct LeafData: Equatable {
     }
 
     // MARK: - State
-    
+
     /// Returns `true` if concrete object can be exactly or losslessly cast to a second type
     /// - EG: `.nil ` -> `.string("")`, `.int(1)` ->  `.double(1.0)`,
     ///      `.bool(true)` -> `.string("true")` are all one-way lossless conversions
     /// - This does not imply it's not possible to *coerce* data - handle with `coerce(to:)`
     ///   EG: `.string("")` -> `.nil`, `.string("1")` -> ` .bool(true)`
     public func isCastable(to type: LeafDataType) -> Bool { celf.casts(to: type) >= .castable }
-    
+
     /// Returns `true` if concrete object is potentially directly coercible to a second type in some way
     /// - EG: `.array()` -> `.dictionary()` where array indices become keys
     ///       or `.int(1)` -> `.bool(true)`
     /// - This does *not* validate the data itself in coercion
     public func isCoercible(to type: LeafDataType) -> Bool { celf.casts(to: type) >= .coercible }
-    
-    
+
     // MARK: - Swift Type Extraction
-    
+
     /// Attempts to convert to `Bool`: if a nil optional Bool, returns `nil` - returns t/f if bool-evaluated.
     /// Anything that is tangible but not evaluable to bool reports on its optional-ness as truth.
     public var bool: Bool? {
@@ -106,7 +105,7 @@ public struct LeafData: Equatable {
         guard case .array(let a) = coerce(to: .array).container else { return nil }
         return a
     }
-    
+
     /// For convenience, `trueNil` is stored as `.optional(nil, .void)`
     public static let trueNil: LeafData = .nil(.void)
 }
@@ -124,36 +123,36 @@ extension LeafData: ExpressibleByDictionaryLiteral,
 
     // MARK: Static Initializer Conformances
     /// Creates a new `LeafData` from a `Bool`.
-    public static func bool(_ value: Bool?) -> LeafData {
-        value.map { LeafData(.bool($0)) } ?? .nil(.bool)
+    public static func bool(_ value: Bool?) -> Self {
+        value.map { Self(.bool($0)) } ?? .nil(.bool)
     }
     /// Creates a new `LeafData` from a `String`.
-    public static func string(_ value: String?) -> LeafData {
-        value.map { LeafData(.string($0)) } ?? .nil(.string)
+    public static func string(_ value: String?) -> Self {
+        value.map { Self(.string($0)) } ?? .nil(.string)
     }
     /// Creates a new `LeafData` from am `Int`.
-    public static func int(_ value: Int?) -> LeafData {
-        value.map { LeafData(.int($0)) } ?? .nil(.int)
+    public static func int(_ value: Int?) -> Self {
+        value.map { Self(.int($0)) } ?? .nil(.int)
     }
     /// Creates a new `LeafData` from a `Double`.
-    public static func double(_ value: Double?) -> LeafData {
-        value.map { LeafData(.double($0)) } ?? .nil(.double)
+    public static func double(_ value: Double?) -> Self {
+        value.map { Self(.double($0)) } ?? .nil(.double)
     }
     /// Creates a new `LeafData` from `Data`.
-    public static func data(_ value: Data?) -> LeafData {
-        value.map { LeafData(.data($0)) } ?? .nil(.data)
+    public static func data(_ value: Data?) -> Self {
+        value.map { Self(.data($0)) } ?? .nil(.data)
     }
     /// Creates a new `LeafData` from `[String: LeafData]`.
-    public static func dictionary(_ value: [String: LeafData]?) -> LeafData {
-        value.map { LeafData(.dictionary($0)) } ?? .nil(.dictionary)
+    public static func dictionary(_ value: [String: LeafData]?) -> Self {
+        value.map { Self(.dictionary($0)) } ?? .nil(.dictionary)
     }
     /// Creates a new `LeafData` from `[LeafData]`.
-    public static func array(_ value: [LeafData]?) -> LeafData {
-        value.map { LeafData(.array($0)) } ?? .nil(.array)
+    public static func array(_ value: [LeafData]?) -> Self {
+        value.map { Self(.array($0)) } ?? .nil(.array)
     }
     /// Creates a new `LeafData` for `Optional<LeafData>`
-    public static func `nil`(_ type: LeafDataType) -> LeafData {
-        LeafData(.optional(nil, type))
+    public static func `nil`(_ type: LeafDataType) -> Self {
+        Self(.optional(nil, type))
     }
 
     // MARK: Literal Initializer Conformances
@@ -176,15 +175,15 @@ extension LeafData: LKSymbol {
         self.celf = raw.baseType
         self.state = raw.state
     }
-    
+
     /// Creates a new `LeafData` from `() -> LeafData` if possible or `nil` if not possible.
     /// `returns` must specify a `CaseType` that the function will return
-    static func lazy(_ lambda: @escaping () -> LKData,
+    static func lazy(_ lambda: @escaping () -> Self,
                      returns type: LKDType,
-                     variant: Bool) throws -> LKData {
-        variant ? LKData(.lazy(f: lambda, returns: type)) : lambda()
+                     variant: Bool) throws -> Self {
+        variant ? Self(.lazy(f: lambda, returns: type)) : lambda()
     }
-    
+
     /// Note - we don't consider an optional container true for this purpose
     var isTrueNil    : Bool { state == .trueNil }
     var isCollection : Bool { state.contains(.collection) }
@@ -194,13 +193,13 @@ extension LeafData: LKSymbol {
     var isNumeric    : Bool { state.contains(.numeric) }
     var isComparable : Bool { state.contains(.comparable) }
     var isLazy       : Bool { state.contains(.variant) }
-    
+
     /// Returns `true` if the object has a single uniform type
     /// - Always true for invariant non-containers
     /// - True or false for containers if determinable
     /// - Nil if the object is variant lazy data, or invariant lazy producing a container, or a container holding such
     var hasUniformType: Bool? { !isCollection ? true : uniformType.map {_ in true } ?? false }
-    
+
     /// Returns the uniform type of the object, or nil if it can't be determined/is a non-uniform container
     var uniformType: LKDType? {
         // Default case - anything that doesn't return a container, or lazy containers
@@ -220,19 +219,19 @@ extension LeafData: LKSymbol {
             return types.count == 1 ? types.first! : nil
         } else { return nil }
     }
-    
-    func cast(to: LKDType) -> LKData   { convert(to: to, .castable) }
-    func coerce(to: LKDType) -> LKData { convert(to: to, .coercible) }
-    
+
+    func cast(to: LKDType) -> Self   { convert(to: to, .castable) }
+    func coerce(to: LKDType) -> Self { convert(to: to, .coercible) }
+
     /// Try to convert one concrete object to a second type. Special handling for optional converting to bool.
-    func convert(to output: LKDType, _ level: LKDConversion = .castable) -> LKData {
+    func convert(to output: LKDType, _ level: LKDConversion = .castable) -> Self {
         typealias _Map = LKDConverters
         // If celf is identity, return directly if invariant or return lazy evaluation
         if celf == output { return invariant ? self : container.evaluate }
         // If optional, no casting is possible between types
         // - *Except* special case of void -> bool(false)
         if isNil { return output == .bool && celf == .void ? .bool(false) : .trueNil }
-        
+
         let input = !container.isLazy ? !container.isOptional ? container
                                                               : container.unwrap!
                                       : container.evaluate.container
@@ -254,13 +253,13 @@ extension LeafData: LKSymbol {
             default                 : return .trueNil
         }
     }
-    
+
     // MARK: - LKSymbol Conformance
     var short: String { container.short }
     var resolved: Bool { !state.contains(.variant) }
     var invariant: Bool { !state.contains(.variant) }
     var symbols: Set<LKVariable> { [] }
-    
-    func resolve(_ symbols: LKVarTable = [:]) -> Self { self }
-    func evaluate(_ symbols: LKVarTable = [:]) -> LKData { invariant ? self : container.evaluate }
+
+    func resolve(_ symbols: LKVarTablePointer) -> Self { self }
+    func evaluate(_ symbols: LKVarTablePointer) -> Self { invariant ? self : container.evaluate }
 }

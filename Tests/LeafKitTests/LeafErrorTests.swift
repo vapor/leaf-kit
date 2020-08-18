@@ -18,7 +18,7 @@ final class LeafErrorTests: LeafTestClass {
         catch let error as LeafError { XCTAssert(error.localizedDescription.contains(expected)) }
         catch { XCTFail("Should have thrown LeafError.cyclicalReference") }
     }
-    
+
     /// Verify that referecing a non-existent template will throw `LeafError.noTemplateExists`
     func testDependencyError() {
         var test = TestFiles()

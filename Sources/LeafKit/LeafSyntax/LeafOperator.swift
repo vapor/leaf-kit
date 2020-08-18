@@ -1,9 +1,9 @@
-// MARK: Subject to change prior to 1.0.0 release
+// MARK: Stable?!
 
 /// Mathematical and Logical operators
 public enum LeafOperator: String, Hashable, CaseIterable, LKPrintable {
     // MARK: - Cases
-    
+
     // Operator types:              Logic      Exist.       UnPre        Scope
     //                                |   Math    |   Infix   |   UnPost   |
     //   Logical Tests          --------------------------------------------
@@ -23,29 +23,40 @@ public enum LeafOperator: String, Hashable, CaseIterable, LKPrintable {
     case divide          = "/"  //          X           X
     case multiply        = "*"  //          X           X
     case modulo          = "%"  //          X           X
-    //   Assignment/Existential //
+    //   Assignment             // -----------------------------------------
     case assignment      = "="  //                X     X
-    case nilCoalesce     = "??" //                X     X
+    case compoundPlus    = "+=" //
+    case compoundMinus   = "-=" //
+    case compoundDiv     = "/=" //
+    case compoundMult    = "*=" //
+    case compoundMod     = "%=" //
+    //   Existential            // -----------------------------------------
     case evaluate        = "`"  //                X           X
-    //   Scoping
+    //   Scoping                // -----------------------------------------
     case scopeRoot       = "$"  //                            X           X
     case scopeMember     = "."  //                      X                 X
     case subOpen         = "["  //                      X                 X
     case subClose        = "]"  //                                  X     X
     case subScript       = "[]" //   --- Not parseable - only internal
-    //   Ternary
-    case ternaryTrue     = "?"
-    case ternaryFalse    = ":"
-    
+    //   Conditional            // -----------------------------------------
+    case nilCoalesce     = "??" //                X     X
+    case ternaryTrue     = "?"  //                X     X
+    case ternaryFalse    = ":"  //                X     X
+
     /// Raw string value of the operator - eg `&&`
     public var short: String { rawValue }
-    
+
     /// Long form description - eg `Logical And: &&`
     public var description: String {
         let str: String
         switch self {
             case .and            : str = "Logical And"
             case .assignment     : str = "Assignment"
+            case .compoundPlus   : str = "Compound Plus"
+            case .compoundMinus  : str = "Compound Minus"
+            case .compoundDiv    : str = "Compound Division"
+            case .compoundMult   : str = "Compound Multiplication"
+            case .compoundMod    : str = "Compound Modulo"
             case .divide         : str = "Division"
             case .equal          : str = "Equality"
             case .evaluate       : str = "Evaluation"
@@ -81,7 +92,7 @@ internal extension LeafOperator {
         case unaryPrefix
         case unaryPostfix
         case infix
-        
+
         var description: String { short }
         var short: String       {
             switch self {
@@ -91,27 +102,27 @@ internal extension LeafOperator {
             }
         }
     }
-    
+
     // MARK: - State booleans
     var logical: Bool { Self.logical.contains(self) }
     var mathematical: Bool { Self.mathematical.contains(self) }
-    var existential: Bool { Self.existential.contains(self) }
+    var assigning: Bool { Self.assigning.contains(self) }
     var scoping: Bool { Self.scoping.contains(self) }
-    
+
     var unaryPrefix: Bool { Self.unaryPrefix.contains(self) }
     var unaryPostfix: Bool { Self.unaryPostfix.contains(self) }
     var infix: Bool { Self.infix.contains(self) }
-    
+
     var lexable: Bool { !Self.unlexable.contains(self) }
     var parseable: Bool { !Self.unparseable.contains(self) }
-    
+
     static var validCharacters: Set<Character> {
         Set<LeafOperator>(LeafOperator.allCases)
                     .subtracting(Self.unlexable)
                     .map { $0.rawValue }.joined()
                     .reduce(into: .init(), { $0.insert($1) })
     }
-    
+
     /// For calculation operators only - scoping, assignment, ternary not applicable
     static let evalPrecedenceMap: [(check: ((LeafOperator) -> Bool), infixed: Bool)] = [
         // ??
@@ -129,7 +140,7 @@ internal extension LeafOperator {
         // &&, ||, ^^
         (check: { $0 == .and || $0 == .or || $0 == .xor}, infixed: true),
     ]
-    
+
 }
 
 // MARK: - Private Helpers
@@ -138,7 +149,7 @@ private extension LeafOperator {
     enum States: UInt8, Hashable {
         case logical
         case mathematical
-        case existential
+        case assigning
         case scoping
         case unaryPrefix
         case unaryPostfix
@@ -146,31 +157,32 @@ private extension LeafOperator {
         case unlexable
         case unparseable
     }
-    
+
     static var logical      : Set<LeafOperator> { states[.logical]! }
     static var mathematical : Set<LeafOperator> { states[.mathematical]! }
-    static var existential  : Set<LeafOperator> { states[.existential]! }
+    static var assigning    : Set<LeafOperator> { states[.assigning]! }
     static var scoping      : Set<LeafOperator> { states[.scoping]! }
     static var unaryPrefix  : Set<LeafOperator> { states[.unaryPrefix]! }
     static var unaryPostfix : Set<LeafOperator> { states[.unaryPostfix]! }
     static var infix        : Set<LeafOperator> { states[.infix]! }
     static var unlexable    : Set<LeafOperator> { states[.unlexable]! }
     static var unparseable  : Set<LeafOperator> { states[.unparseable]! }
-    
+
     static let states: [States: Set<LeafOperator>] = [
         .logical     : [not, equal, unequal, greater, greaterOrEqual,
                         lesser, lesserOrEqual, and, or],
         .mathematical: [plus, minus, divide, multiply, modulo],
-        .existential : [assignment, nilCoalesce, minus, evaluate],
+        .assigning   : [assignment, compoundPlus, compoundMinus, compoundDiv,
+                        compoundMult, compoundMod],
         .scoping     : [scopeRoot, scopeMember, subOpen, subClose],
         .unaryPrefix : [not, minus, evaluate, scopeRoot],
         .unaryPostfix: [subClose],
         .infix       : [equal, unequal, greater, greaterOrEqual, lesser,
                         lesserOrEqual, and, or, plus, minus, divide,
                         multiply, modulo, assignment, nilCoalesce,
-                        scopeMember, subOpen, subScript],
-        .unlexable   : [assignment, evaluate, subScript],
-        .unparseable : [assignment, evaluate, subOpen, subClose]
-        
+                        scopeMember, subOpen, subScript,
+                        ternaryTrue, ternaryFalse],
+        .unlexable   : [evaluate, subScript],
+        .unparseable : [evaluate]
     ]
 }

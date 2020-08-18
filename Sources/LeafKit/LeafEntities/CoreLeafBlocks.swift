@@ -5,7 +5,7 @@
 
 /// `#for(value in collection):` or `#for((index, value) in collection):`
 internal struct ForLoop: LeafBlock {
-    static let parseSignatures: [String: [ParseParameter]]? = [
+    static let parseSignatures: ParseSignatures? = [
         /// `#for(_ in collection)`
         "discard": [.expression([.keyword([._]),
                                  .keyword([.in]),
@@ -19,13 +19,13 @@ internal struct ForLoop: LeafBlock {
                                .keyword([.in]),
                                .callParameter])]
     ]
-    static let callSignature: [CallParameter] = [.types([.array, .dictionary, .string, .int])]
-    
+    static let callSignature: CallParameters = [.types([.array, .dictionary, .string, .int])]
+
     static let invariant = true
     static let evaluable = false
-    
+
     private(set) var scopeVariables: [String]? = nil
-    
+
     static func instantiate(_ signature: String?, _ params: [String]) throws -> ForLoop {
         switch signature {
             case "tuple"   : return ForLoop(key: params[0], value: params[1])
@@ -36,7 +36,7 @@ internal struct ForLoop: LeafBlock {
             default        : __MajorBug("ForLoop called with no signature")
         }
     }
-    
+
     internal init(key: String? = nil, value: String? = nil) {
         self.set = key != nil || value != nil
         self.setKey = key != nil ? true : false
@@ -55,8 +55,8 @@ internal struct ForLoop: LeafBlock {
             self.scopeVariables?.append(self.value)
         }
     }
-    
-    mutating func evaluateNilScope(_ params: ParameterValues, _ variables: inout [String: LeafData]) -> ScopeCount {
+
+    mutating func evaluateNilScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
         if set {
             switch params[0].container {
                 case .array(let a)      : cache = a.enumerated().map { (o, e) in
@@ -86,8 +86,8 @@ internal struct ForLoop: LeafBlock {
         }
         return reEvaluateScope(&variables)
     }
-    
-    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> ScopeCount {
+
+    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount {
         guard pass < passes else { return .discard }
         guard set else { pass += 1; return .repeating(passes - pass + 1) }
         if set      { variables[first] = .bool(pass == 0)
@@ -97,7 +97,7 @@ internal struct ForLoop: LeafBlock {
         pass += 1
         return .repeating(passes - pass + 1)
     }
-    
+
     var first: String = "#first"
     var last: String = "#last"
     var key: String = "#key"
@@ -105,7 +105,7 @@ internal struct ForLoop: LeafBlock {
     var set: Bool
     var setKey: Bool
     var setValue: Bool
-    
+
     var pass: Int = 0
     var passes: Int = 0
     var cache: [(LeafData, LeafData)] = []
@@ -113,44 +113,44 @@ internal struct ForLoop: LeafBlock {
 
 /// `#while(bool):` - 0...n while
 internal struct WhileLoop: LeafBlock {
-    static let parseSignatures: [String : [ParseParameter]]? = nil
-    static let callSignature: [CallParameter] = [.types([.bool])]
-    
+    static let parseSignatures: ParseSignatures? = nil
+    static let callSignature: CallParameters = [.types([.bool])]
+
     static let invariant: Bool = true
     static let evaluable: Bool = false
-    
+
     let scopeVariables: [String]? = nil
-    
+
     static func instantiate(_ signature: String?, _ params: [String]) throws -> WhileLoop {.init()}
-    
-    mutating func evaluateNilScope(_ params: ParameterValues, _ variables: inout [String: LeafData]) -> ScopeCount {
+
+    mutating func evaluateNilScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
         params[0].bool! ? .once : .discard
     }
-    
-    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> ScopeCount { __MajorBug("While loops never return non-nil") }
+
+    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount { __MajorBug("While loops never return non-nil") }
 }
 
 /// `#repeat(while: bool):` 1...n+1 while
 internal struct RepeatLoop: LeafBlock {
-    static let parseSignatures: [String : [ParseParameter]]? = nil
-    static let callSignature: [CallParameter] = [.init(label: "while", types: [.bool])]
-    
+    static let parseSignatures: ParseSignatures? = nil
+    static let callSignature: CallParameters = [.init(label: "while", types: [.bool])]
+
     static let invariant: Bool = true
     static let evaluable: Bool = false
-    
+
     let scopeVariables: [String]? = nil
-    
+
     var cache: Bool? = nil
-    
+
     static func instantiate(_ signature: String?, _ params: [String]) throws -> RepeatLoop {.init()}
-    
-    mutating func evaluateNilScope(_ params: ParameterValues, _ variables: inout [String: LeafData]) -> ScopeCount {
-        let result: ScopeCount = cache != false ? .indefinite : .discard
+
+    mutating func evaluateNilScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+        let result: EvalCount = cache != false ? .indefinite : .discard
         cache = params[0].bool!
         return result
     }
-    
-    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> ScopeCount { __MajorBug("Repeat loops never return non-nil") }
+
+    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount { __MajorBug("Repeat loops never return non-nil") }
 }
 
 // MARK: - Control Flow: Branching
@@ -159,32 +159,21 @@ internal struct RepeatLoop: LeafBlock {
 struct IfBlock: ChainedBlock {
     static let chainsTo: [ChainedBlock.Type] = []
     static let chainAccepts: [ChainedBlock.Type] = [ElseIfBlock.self, ElseBlock.self]
-    
-    static let parseSignatures: [String : [ParseParameter]]? = nil
-    static let callSignature: [CallParameter] = [.types([.bool])]
-    
+
+    static let parseSignatures: ParseSignatures? = nil
+    static let callSignature: CallParameters = [.types([.bool])]
+
     static let invariant: Bool = true
     static let evaluable: Bool = true
-    
-    static func instantiate(_ signature: String?, _ params: [String]) throws -> IfBlock {.init()}
-    
+
+    static func instantiate(_ signature: String?,
+                            _ params: [String]) throws -> IfBlock {.init()}
+
     let scopeVariables: [String]? = nil
-    
-    mutating func evaluateNilScope(_ params: ParameterValues, _ variables: inout [String: LeafData]) -> ScopeCount {
+
+    mutating func evaluateNilScope(_ params: CallValues,
+                                   _ variables: inout [String: LeafData]) -> EvalCount {
         params[0].bool! ? .once : .discard
-    }
-        
-    /// `#if(bool, valuedParameter #when true#, valuedParameter? = nil #when false#)`
-    struct IfFunction: LeafFunction {
-        static let callSignature: [CallParameter] = [
-            .types([.bool]), .types(.any), .init(types: .any, optional: true, defaultValue: false)
-        ]
-        static let returns: Set<LeafDataType> = .any
-        static let invariant: Bool = true        
-        
-        func evaluate(_ params: ParameterValues) -> LeafData {
-            params[0].bool! ? params[1] : params[2]
-        }
     }
 }
 
@@ -192,17 +181,17 @@ struct IfBlock: ChainedBlock {
 struct ElseIfBlock: ChainedBlock {
     static var chainsTo: [ChainedBlock.Type] = [ElseIfBlock.self, IfBlock.self]
     static var chainAccepts: [ChainedBlock.Type] = [ElseIfBlock.self, ElseBlock.self]
-    
-    static var parseSignatures: [String : [ParseParameter]]? = nil
+
+    static var parseSignatures: ParseSignatures? = nil
     static var evaluable: Bool = false
-    static var callSignature: [CallParameter] = [.types([.bool])]
+    static var callSignature: CallParameters = [.types([.bool])]
     static var invariant: Bool = true
-    
+
     static func instantiate(_ signature: String?, _ params: [String]) throws -> ElseIfBlock {.init()}
-    
+
     let scopeVariables: [String]? = nil
-    
-    mutating func evaluateNilScope(_ params: ParameterValues, _ variables: inout [String: LeafData]) -> ScopeCount {
+
+    mutating func evaluateNilScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
         params[0].bool! ? .once : .discard
     }
 }
@@ -211,15 +200,15 @@ struct ElseIfBlock: ChainedBlock {
 struct ElseBlock: ChainedBlock {
     static var chainsTo: [ChainedBlock.Type] = [ElseIfBlock.self, IfBlock.self]
     static var chainAccepts: [ChainedBlock.Type] = []
-    
-    static var parseSignatures: [String : [ParseParameter]]? = nil
+
+    static var parseSignatures: ParseSignatures? = nil
     static var evaluable: Bool = false
-    static var callSignature: [CallParameter] = []
+    static var callSignature: CallParameters = []
     static var invariant: Bool = true
-    
+
     static func instantiate(_ signature: String?, _ params: [String]) throws -> ElseBlock {.init()}
-    
+
     let scopeVariables: [String]? = nil
-    
-    mutating func evaluateNilScope(_ params: ParameterValues, _ variables: inout [String: LeafData]) -> ScopeCount { .once }
+
+    mutating func evaluateNilScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount { .once }
 }

@@ -1,4 +1,4 @@
-// MARK: Stable?!!
+// MARK: Stable?!!!
 // MARK: -
 
 /// `LeafCache` provides blind storage for compiled `LeafAST` objects.
@@ -18,7 +18,7 @@ public protocol LeafCache {
     var isEnabled : Bool { get set }
     /// Current count of cached documents
     var count: Int { get }
-    
+
     /// - Parameters:
     ///   - document: The `LeafAST` to store
     ///   - loop: `EventLoop` to return futures on
@@ -27,7 +27,7 @@ public protocol LeafCache {
     func insert(_ document: LeafAST,
                 on loop: EventLoop,
                 replace: Bool) -> EventLoopFuture<LeafAST>
-    
+
     /// - Parameters:
     ///   - key: `LeafAST.key`  to try to return
     ///   - loop: `EventLoop` to return futures on
@@ -42,7 +42,7 @@ public protocol LeafCache {
     ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
     func remove(_ key: LeafASTKey,
                 on loop: EventLoop) -> EventLoopFuture<Bool?>
-    
+
     /// Touch a stored AST with an execution time
     func touch(_ key: LeafASTKey,
                _ value: LeafASTTouch)

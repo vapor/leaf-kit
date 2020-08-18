@@ -4,7 +4,7 @@
 public final class LeafEntities {
     // MARK: - Public Only
     public static let leaf4Core: LeafEntities = ._leaf4Core
-    
+
     // MARK: - Internal Only
     private static var _leaf4Core: LeafEntities {
         let entities = LeafEntities()
@@ -15,45 +15,42 @@ public final class LeafEntities {
         entities.use(Evaluate.self  , asMeta: "import")
         entities.use(Inline.self    , asMeta: "inline")
         entities.use(Inline.self    , asMeta: "extend")
-        
+
         entities.use(ForLoop.self     , asBlock: "for")
         entities.use(WhileLoop.self   , asBlock: "while")
         entities.use(RepeatLoop.self  , asBlock: "repeat")
-        
+
         entities.use(IfBlock.self     , asBlock: "if")
         entities.use(ElseIfBlock.self , asBlock: "elseif")
         entities.use(ElseBlock.self   , asBlock: "else")
-        
-        entities.use(IfBlock.IfFunction(), asFunction: "if")
-        
+
         entities.use(StrToStrMap({$0.lowercased()}), asFunctionAndMethod: "lowercased")
         entities.use(StrToStrMap({$0.uppercased()}), asFunctionAndMethod: "uppercased")
         entities.use(StrStrToBoolMap({$0.hasPrefix($1)}), asFunctionAndMethod: "hasPrefix")
         entities.use(StrStrToBoolMap({$0.hasSuffix($1)}), asFunctionAndMethod: "hasSuffix")
-        
+
         entities.use(StrToIntMap({$0.count}), asFunctionAndMethod: "count")
         entities.use(CollectionToIntMap({$0.count}), asFunctionAndMethod: "count")
-        
+
         entities.use(DictionaryCast(), asFunction: "Dictionary")
-        
+
         return entities
     }
-    
-    
+
     /// Factories that produce `.raw` Blocks
     private(set) var rawFactories: [String: RawBlock.Type]
     /// Convenience referent to the default `.raw` Block factory
     var raw: RawBlock.Type { rawFactories[Self.defaultRaw]! }
-    
+
     /// Factories that produce named Blocks
     private(set) var blockFactories: [String: LeafBlock.Type]
-    
+
     /// Function registry
     private(set) var functions: [String: [LeafFunction]]
-    
+
     /// Method registry
     private(set) var methods: [String: [LeafMethod]]
-    
+
     /// Initializer
     /// - Parameter rawHandler: The default factory for `.raw` blocks
     init(rawHandler: RawBlock.Type = ByteBuffer.self) {
@@ -62,7 +59,7 @@ public final class LeafEntities {
         self.functions = [:]
         self.methods = [:]
     }
-    
+
     /// Register a Block factory
     /// - Parameters:
     ///   - block: A `LeafBlock` adherent (which is not a `RawBlock` adherent)
@@ -85,7 +82,7 @@ public final class LeafEntities {
             blockFactories[name] = block
         }
     }
-    
+
     /// Register a RawBlock factory
     /// - Parameters:
     ///   - block: A `RawBlock` adherent
@@ -99,7 +96,7 @@ public final class LeafEntities {
             rawFactories[name] = block
         }
     }
-    
+
     /// Register a LeafFunction
     /// - Parameters:
     ///   - function: An instance of a `LeafFunction` adherant
@@ -117,7 +114,7 @@ public final class LeafEntities {
             } else { functions[name] = [function] }
         }
     }
-    
+
     /// Register a LeafMethod
     /// - Parameters:
     ///   - method: An instance of a `LeafMethod` adherant
@@ -136,7 +133,7 @@ public final class LeafEntities {
             } else { methods[name] = [method] }
         }
     }
-    
+
     /// Register a LeafMethod as both a Function and a Method
     /// - Parameters:
     ///   - method: An instance of a `LeafMethod` adherant
@@ -146,12 +143,12 @@ public final class LeafEntities {
         use(method, asFunction: name)
         use(method, asMethod: name)
     }
-    
+
     func use(_ meta: LKMetaBlock.Type, asMeta name: String) {
         guard blockFactories[name] == nil else { __MajorBug("Metablock already registered") }
         blockFactories[name] = meta
     }
-    
+
     // FIXME - These will pick the *first* of colliding signatures when ambiguous
     // evaluation should re-validate to pick the best possible sig
     func validateFunction(_ name: String,
@@ -164,7 +161,7 @@ public final class LeafEntities {
         }
         return .failure("No matching function; \(functions.count) candidate(s)")
     }
-    
+
     func validateMethod(_ name: String,
                         _ params: LKTuple?) -> Result<(LeafFunction, LKTuple), String> {
         guard let methods = methods[name] else { return .failure("No method \(name)") }
@@ -175,14 +172,14 @@ public final class LeafEntities {
         }
         return .failure("No matching method; \(methods.count) candidate(s)")
     }
-    
+
     func validateBlock(_ name: String,
                        _ params: LKTuple?) -> Result<(LeafFunction, LKTuple), String> {
         guard blockFactories[name] != RawSwitch.self else { return validateRaw(params) }
         guard let factory = blockFactories[name] else { return .failure("\(name) is not a block factory") }
         let block: LeafFunction?
         var call: LKTuple = .init()
-    
+
         validate: if let parseSigs = factory.parseSignatures {
             for (name, sig) in parseSigs {
                 guard let match = sig.splitTuple(params ?? .init()) else { continue }
@@ -197,7 +194,7 @@ public final class LeafEntities {
             call = params
             block = try? factory.instantiate(nil, [])
         } else { return .failure("Factory doesn't take parameters") }
-        
+
         guard let function = block else { return .failure("Parameters don't match parse signature") }
         let validate = validateTupleCall(call, function.sig)
         switch validate {
@@ -205,11 +202,11 @@ public final class LeafEntities {
             case .success(let tuple): return .success((function, tuple))
         }
     }
-    
+
     func validateRaw(_ params: LKTuple?) -> Result<(LeafFunction, LKTuple), String> {
         var name = Self.defaultRaw
         var call: LKTuple
-        
+
         if let params = params {
             if case .variable(let v) = params[0]?.container, v.atomic { name = String(v.member!) }
             else { return .failure("Specify raw handler with unquoted name") }
@@ -217,7 +214,7 @@ public final class LeafEntities {
             call.values.removeFirst()
             call.labels = call.labels.mapValues { $0 - 1 }
         } else { call = .init() }
-        
+
         guard let factory = rawFactories[name] else { return .failure("\(name) is not a raw handler")}
         guard call.values.allSatisfy({ $0.data != nil }) else {
             return .failure("Raw handlers currently require concrete data parameters") }
@@ -227,10 +224,10 @@ public final class LeafEntities {
             case .success(let tuple): return .success((RawSwitch(factory, tuple), .init()))
         }
     }
-    
-    func validateTupleCall(_ tuple: LKTuple?, _ expected: [CallParameter]) -> Result<LKTuple, String> {
+
+    func validateTupleCall(_ tuple: LKTuple?, _ expected: CallParameters) -> Result<LKTuple, String> {
         /// True if actual parameter matches expected parameter value type, or if actual parameter is uncertain type
-        func matches(_ actual: LKParameter, _ expected: CallParameter) -> Bool {
+        func matches(_ actual: LKParameter, _ expected: LeafCallParameter) -> Bool {
             guard let t = actual.baseType else { return true }
             return expected.types.contains(t) ? true
                  : expected.types.first(where: {t.casts(to: $0) != .ambiguous}) != nil
@@ -242,15 +239,15 @@ public final class LeafEntities {
             }
             return .success(tuples.out)
         }
-        
+
         guard expected.count < 256 else { return .failure("Can't have more than 255 params") }
-        
+
         var tuples = (in: tuple ?? LKTuple(), out: LKTuple())
 
         // All input must be valued types
         guard tuples.in.values.allSatisfy({$0.isValued}) else {
             return .failure("Parameters must all be value types") }
-        
+
         let count = (in: tuples.in.count, out: expected.count)
         let defaults = expected.compactMap({ $0.defaultValue }).count
         // Guard that in.count <= out.count && in.count + default >= out.count
@@ -261,18 +258,18 @@ public final class LeafEntities {
         let labels = (in: tuples.in.labels.keys, out: expected.compactMap {$0.label})
         guard labels.out.filter({labels.in.contains($0)}).elementsEqual(labels.in),
               Set(labels.out).isSuperset(of: labels.in) else { return .failure("Label mismatch") }
-    
+
         var temp: [LKParameter?] = .init(repeating: nil, count: expected.count)
-        
+
         // Copy all labels to out and labels and/or default values to temp
         for (i, p) in expected.enumerated() {
             if let label = p.label { tuples.out.labels[label] = i }
             if let data = p.defaultValue { temp[i] = .value(data) }
         }
-        
+
         // If input is empty, all default values are already copied and we can output
         if count.in == 0 { return output() }
-        
+
         // Map labeled input parameters to their correct position in the temp array
         for label in labels.in { temp[Int(tuples.out.labels[label]!)] = tuples.in[label] }
 
@@ -291,10 +288,7 @@ public final class LeafEntities {
         return output()
     }
 
-    internal static let defaultRaw: String = "default"
-    
-    
-    
+    static let defaultRaw: String = "default"
 }
 
 // MARK: - Internal Sanity Checkers
@@ -308,7 +302,7 @@ internal extension String {
 
 internal extension LeafFunction {
     var invariant: Bool { Self.invariant }
-    var sig: [CallParameter] { Self.callSignature }
+    var sig: CallParameters { Self.callSignature }
 }
 
 internal extension LeafMethod {
@@ -326,7 +320,7 @@ internal extension LeafMethod {
     }
 }
 
-internal extension CallParameter {
+internal extension LeafCallParameter {
     /// Verify the `CallParameter` is valid
     func _sanity() {
         precondition(!types.isEmpty,
@@ -343,8 +337,8 @@ internal extension CallParameter {
     }
 }
 
-internal extension Array where Element == CallParameter {
-    /// Veryify the `[CallParameter]` is valid
+internal extension CallParameters {
+    /// Veryify the `CallParameters` is valid
     func _sanity() {
         precondition(self.count < 256,
                      "Functions may not have more than 255 parameters")
@@ -364,7 +358,7 @@ internal extension Array where Element == CallParameter {
                                 .offset ?? endIndex}),
                      "All after first defaulted parameter must also be defaulted")
     }
-    
+
     /// Compare two signatures and return true if they can be confused
     func confusable(with: Self) -> Bool {
         // Exactly equal, always confusable
@@ -377,8 +371,8 @@ internal extension Array where Element == CallParameter {
         if self.count - selfUndef.count != with.count - withUndef.count { return false }
         // Both have equal, non-zero number of non-defaults
         var index: Int = self.indices.first!
-        var a: CallParameter { self[index] }
-        var b: CallParameter { with[index] }
+        var a: LeafCallParameter { self[index] }
+        var b: LeafCallParameter { with[index] }
         while index < selfUndef.count {
             // Not confusable if labels aren't the same
             if a.label != b.label { return false }
@@ -390,7 +384,7 @@ internal extension Array where Element == CallParameter {
     }
 }
 
-internal extension Dictionary where Key == String, Value == [ParseParameter] {
+internal extension ParseSignatures {
     func _sanity() {
         precondition(self.values.enumerated().allSatisfy { sig in
                             self.values.enumerated()
@@ -402,7 +396,7 @@ internal extension Dictionary where Key == String, Value == [ParseParameter] {
     }
 }
 
-internal extension ParseParameter {
+internal extension LeafParseParameter {
     func _sanity(_ depth: Int = 0) {
         switch self {
             case .callParameter, .keyword, .unscopedVariable: return
@@ -422,16 +416,16 @@ internal extension ParseParameter {
     }
 }
 
-internal extension Array where Element == ParseParameter {
+internal extension Array where Element == LeafParseParameter {
     /// Given a specific parseSignature and a parsed tuple, attempt to split into parse parameters & call tuple or nil if not a match
     func splitTuple(_ tuple: LKTuple) -> ([String], LKTuple)? {
         var parse: [String] = []
         var call: LKTuple = .init()
-        
+
         guard self.count == tuple.count else { return nil }
         var index = 0
         var t: (label: String?, value: LKParameter) { tuple.enumerated[index] }
-        var s: ParseParameter { self[index] }
+        var s: LeafParseParameter { self[index] }
         while index < self.count {
             switch (s, t.label, t.value.container) {
                 // Valued parameters where call parameter is expected

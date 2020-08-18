@@ -9,7 +9,7 @@ final class ParserTests: LeafTestClass {
         foo
         #endif
         """
-        
+
         let expectation = """
         0: if([lowercased([$:name.first == string(admin)]) == string(welcome)]):
         1: raw(ByteBuffer: 5B))
@@ -87,7 +87,7 @@ final class ParserTests: LeafTestClass {
         <title>#evaluate(title)</title>
         #inline("header")
         """
-        
+
         let preinline = """
         0: inline(string(header)):
         1: scope(undefined)
@@ -98,7 +98,7 @@ final class ParserTests: LeafTestClass {
         6: inline(string(header)):
         7: scope(undefined)
         """
-        
+
         let expectation = """
         0: inline(string(header)):
         1: raw(ByteBuffer: 12B))
@@ -111,11 +111,11 @@ final class ParserTests: LeafTestClass {
         """
 
         var baseAST = try parse(base, name: "base")
-        
+
         XCTAssertEqual(baseAST.terse, preinline)
         let headerAST = try parse(header, name: "header")
         baseAST.inline(ast: headerAST)
-        
+
         XCTAssertEqual(baseAST.terse, expectation)
     }
 
@@ -137,7 +137,7 @@ final class ParserTests: LeafTestClass {
         #endexport
         #extend("base")
         """
-        
+
         let expectation = """
         0: export($:title, string(Welcome)):
         1: string(Welcome)
@@ -161,14 +161,14 @@ final class ParserTests: LeafTestClass {
            6: import($:body):
            7: scope(undefined)
         """
-        
+
         let headerAST = try parse(header, name: "header")
         var baseAST = try parse(base, name: "base")
         var homeAST = try parse(home, name: "home")
-    
+
         baseAST.inline(ast: headerAST)
         homeAST.inline(ast: baseAST)
-        
+
         XCTAssertEqual(homeAST.terse, expectation)
     }
 
@@ -195,7 +195,7 @@ final class ParserTests: LeafTestClass {
 
         try XCTAssertEqual(parse(input).terse, expectation)
     }
-    
+
     func testScopingAndMethods() throws {
         let input = """
         #(x + $x + $context.x + $server.x)
@@ -282,21 +282,6 @@ final class LexerTests: LeafTestClass {
 
         let output = try lex(input).string
         XCTAssertEqual(output, expectation)
-    }
-
-    func testNoWhitespace() throws {
-        let input1 = "#if(!one||!two)"
-        let input2 = "#if(!one || !two)"
-        let input3 = "#if(! one||! two)"
-        let input4 = "#if(! one || ! two)"
-
-        let output1 = try lex(input1).string
-        let output2 = try lex(input2).string
-        let output3 = try lex(input3).string
-        let output4 = try lex(input4).string
-        XCTAssertEqual(output1, output2)
-        XCTAssertEqual(output2, output3)
-        XCTAssertEqual(output3, output4)
     }
 
     // Base2/8/10/16 lexing for Int constants, Base10/16 for Double
@@ -448,7 +433,7 @@ final class LexerTests: LeafTestClass {
         param(operator(Scoping Accessor: .))
         param(variable(part: first))
         parametersEnd
-        
+
         """
         let output = try lex(input).string
         XCTAssertEqual(output, expectation)
@@ -551,7 +536,7 @@ final class LeafKitTests: LeafTestClass {
     func _testCacheSpeedLinear(templates: Int, iterations: Int) -> (Double, Double) {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
         var test = TestFiles()
-        
+
 //        for name in 1...templates { test.files["/\(name).leaf"] = """
 //        #lowercased(\"Template /\(name).leaf\")"
 //        #uppercased(\"Template /\(name).leaf\")"
@@ -577,14 +562,14 @@ final class LeafKitTests: LeafTestClass {
                 }
             }
         }
-        
+
         // Sleep 1 µs per queued task
         while !renderer.isDone { usleep(UInt32(renderer.queued)) }
         let duration = renderer.lap
         var serialize = (renderer.r.cache as! DefaultLeafCache).cache.values
                         .reduce(into: Double.init(0)) { $0 += $1.info.averages.exec }
         serialize /= Double((renderer.r.cache as! DefaultLeafCache).cache.values.count)
-        
+
 //        (renderer.r.cache as! DefaultLeafCache).cache.values.forEach {
 //            let avg = $0.info.averages
 //            let max = $0.info.maximums
@@ -595,7 +580,7 @@ final class LeafKitTests: LeafTestClass {
 //            """
 //            print(summary)
 //        }
-        
+
         group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, templates) }
         return (duration, serialize)
     }
@@ -663,7 +648,7 @@ final class LeafKitTests: LeafTestClass {
         var serialize = (renderer.r.cache as! DefaultLeafCache).cache.values
                         .reduce(into: Double.init(0)) { $0 += $1.info.averages.exec }
         serialize /= Double((renderer.r.cache as! DefaultLeafCache).cache.values.count)
-        
+
 //        (renderer.r.cache as! DefaultLeafCache).cache.values.forEach {
 //            let avg = $0.info.averages
 //            let max = $0.info.maximums
@@ -674,7 +659,7 @@ final class LeafKitTests: LeafTestClass {
 //            """
 //            print(summary)
 //        }
-        
+
         group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, layer1+layer2+layer3) }
         return (duration, serialize)
     }
@@ -700,7 +685,7 @@ final class LeafKitTests: LeafTestClass {
         """
 
         let renderer = TestRenderer(sources: .singleSource(test))
-        
+
         let normalPage = try renderer.render(path: "base", context: ["admin": false]).wait()
         let adminPage = try renderer.render(path: "base", context: ["admin": true]).wait()
         let delegatePage = try renderer.render(path: "delegate", context: ["bypass": true]).wait()
@@ -708,7 +693,7 @@ final class LeafKitTests: LeafTestClass {
         XCTAssertEqual(adminPage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Hi Admin")
         XCTAssertEqual(delegatePage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Also an admin")
     }
-    
+
     func testDeepResolve() {
         var test = TestFiles()
         test.files["/a.leaf"] = """
@@ -731,13 +716,13 @@ final class LeafKitTests: LeafTestClass {
         let page = try! renderer.render(path: "a", context: ["b":["1","2","3"]]).wait()
             XCTAssertEqual(page.string, expected)
     }
-    
+
     func testFileSandbox() throws {
         let threadPool = NIOThreadPool(numberOfThreads: 1)
         threadPool.start()
         let fileio = NonBlockingFileIO(threadPool: threadPool)
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-    
+
         let renderer = TestRenderer(
             configuration: .init(rootDirectory: templateFolder),
             sources: .singleSource(NIOLeafFiles(fileio: fileio,
@@ -746,7 +731,7 @@ final class LeafKitTests: LeafTestClass {
                                                 viewDirectory: templateFolder + "SubTemplates/")),
             eventLoop: group.next()
         )
-        
+
         renderer.render(path: "test").whenComplete { _ in renderer.finishTask() }
         renderer.render(path: "../test").whenComplete { _ in renderer.finishTask() }
         renderer.render(path: "../../test").whenComplete { result in
@@ -761,12 +746,12 @@ final class LeafKitTests: LeafTestClass {
                 XCTAssert(err.localizedDescription.contains("Attempted to access .test"))
             } else { XCTFail() }
         }
-        
+
         while !renderer.isDone { usleep(10) }
         try group.syncShutdownGracefully()
         try threadPool.syncShutdownGracefully()
     }
-    
+
     func testMultipleSources() throws {
         var sourceOne = TestFiles()
         var sourceTwo = TestFiles()
@@ -774,20 +759,20 @@ final class LeafKitTests: LeafTestClass {
         sourceOne.files["/a.leaf"] = "This file is in sourceOne"
         sourceTwo.files["/b.leaf"] = "This file is in sourceTwo"
         hiddenSource.files["/c.leaf"] = "This file is in hiddenSource"
-        
+
         let multipleSources = LeafSources()
         try! multipleSources.register(using: sourceOne)
         try! multipleSources.register(source: "sourceTwo", using: sourceTwo)
         try! multipleSources.register(source: "hiddenSource", using: hiddenSource, searchable: false)
-        
+
         let unsearchableSources = LeafSources()
         try! unsearchableSources.register(source: "unreachable", using: sourceOne, searchable: false)
-        
+
         let goodRenderer = TestRenderer(sources: multipleSources)
         let emptyRenderer = TestRenderer(sources: unsearchableSources)
-        
+
         XCTAssert(goodRenderer.r.sources.all.contains("sourceTwo"))
-        
+
         XCTAssert(emptyRenderer.r.sources.searchOrder.isEmpty)
 
         let output1 = try goodRenderer.render(path: "a").wait().string
@@ -800,10 +785,10 @@ final class LeafKitTests: LeafTestClass {
             let error = error as! LeafError
             XCTAssert(error.localizedDescription.contains("No template found"))
         }
-        
+
         let output3 = try goodRenderer.render(source: "hiddenSource", path: "c").wait().string
         XCTAssert(output3.contains("hiddenSource"))
-        
+
         do { try XCTFail(emptyRenderer.render(path: "c").wait().string) }
         catch {
             let error = error as! LeafError

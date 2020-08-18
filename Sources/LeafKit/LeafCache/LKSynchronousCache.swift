@@ -1,4 +1,4 @@
-// MARK: Stable?!!
+// MARK: Stable?!!!
 // MARK: -
 
 /// A `LeafCache` that provides certain blocking methods for non-future access to the cache
@@ -11,11 +11,11 @@ internal protocol LKSynchronousCache: LeafCache {
     ///   - replace: If a document with the same name is already cached, whether to replace or not
     /// - Returns: The document provided as an identity return when success, or a failure error
     func insert(_ document: LeafAST, replace: Bool) -> Result<LeafAST, LeafError>
-    
+
     /// - Parameter key: Name of the `LeafAST` to try to return
     /// - Returns: The requested `LeafAST` or nil if not found
     func retrieve(_ key: LeafASTKey) -> LeafAST?
-    
+
     /// - Parameter key: Name of the `LeafAST`  to try to purge from the cache
     /// - Returns: `Bool?` If removed,  returns true. If cache can't remove because of dependencies
     ///      (not yet possible), returns false. Nil if no such cached key exists.

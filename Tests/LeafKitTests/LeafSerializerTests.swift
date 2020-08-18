@@ -3,21 +3,21 @@ import XCTest
 
 final class SerializerTests: LeafTestClass {
     func testComplex() {
-        
+
         let name = LeafData(.string("vapor"))
         let me = LeafData(.string("LOGAN"))
         let skills = Array.init(repeating: ["bool": true.leafData, "string": "a;sldfkj".leafData,"int": 100.leafData], count: 10).leafData
         let context = ["name": name, "skills": skills, "me": me]
-        
+
         let input = """
         hello, #(name)!
         #for(skill in skills):
         #(skill)
         #endfor
         """
-        
+
         var total = 0.0
-        
+
         for _ in 1...10 {
             var lap = Date()
             print("    Parse: " + lap.distance(to: Date()).formatSeconds)
@@ -27,7 +27,7 @@ final class SerializerTests: LeafTestClass {
             print("Serialize: " + duration.formatSeconds)
             total += duration
         }
-        
+
         print("Average serialize duration: \((total / 10.0).formatSeconds)")
     }
 

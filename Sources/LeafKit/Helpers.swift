@@ -1,8 +1,16 @@
 // MARK: - Public Type Shorthands
 
+// MARK: - LeafAST
 public typealias LeafASTKey = LeafAST.Key
 public typealias LeafASTInfo = LeafAST.Info
 public typealias LeafASTTouch = LeafAST.Touch
+
+// MARK: - LeafFunction, *Method, *Block, *Raw
+public typealias CallParameters = [LeafCallParameter]
+public typealias CallValues = LeafCallValues
+
+// MARK: - LeafBook, *Raw
+public typealias ParseSignatures = [String: [LeafParseParameter]]
 
 // MARK: - Internal Type Shorthands
 
@@ -16,6 +24,7 @@ internal typealias LKDType = LeafDataType
 internal typealias LKParams = [LKParameter]
 /// A `LKVarTable` provides a Dictionary of concrete `LeafData` available for a symbolic key
 internal typealias LKVarTable = [LKVariable: LKData]
+internal typealias LKVarTablePointer = UnsafeMutablePointer<LKVarTable>
 
 // MARK: - Internal Helper Extensions
 
@@ -49,8 +58,19 @@ internal extension UnsignedInteger {
 }
 
 internal extension LKVarTable {
-    func match(_ variable: LKVariable) -> LKData {
-        keys.contains(variable) ? self[variable]!
-                                : self[variable.contextualized] ?? .trueNil
+    func match(_ variable: LKVariable) -> LKData? {
+        // Immediate catch if table holds exact identifier
+        guard !keys.contains(variable) else { return self[variable] }
+        // If variable has explicit scope, no way to contextualize - no hit
+        if variable.scope != nil { return nil }
+        // If atomic, immediately check contextualized self.member
+        if variable.atomic { return self[variable.contextualized] }
+        // Ensure no ancestor of the identifier is set before contextualizing
+        var parent = variable.parent
+        repeat {
+            if self[parent!] != nil { return nil }
+            parent = parent!.parent
+        } while parent != nil
+        return self[variable.contextualized]
     }
 }

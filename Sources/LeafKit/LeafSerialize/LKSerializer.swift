@@ -2,38 +2,38 @@
 // MARK: -
 import Foundation
 
-internal final class LKSerializer {
+internal final class LKSerializer {    
     private var stack: ContiguousArray<ScopeState>
     private var stackDepth: Int = 0
-    
+
     private var context: UnsafeMutablePointer<LKVarTable>
-    
+
     private var currentState: ScopeState { stack[stackDepth] }
-    
+
     private var table: Int { currentState.table }
     private var scope: ContiguousArray<LKSyntax> { ast.scopes[table] }
     private var evalCount: Int? { currentState.count }
-    private var currentVariables: UnsafeMutablePointer<LKVarTable> { currentState.variables.0 }
+    private var currentVariables: LKVarTablePointer { currentState.variables.0 }
     private var currentRaw: Int { currentState.bufferStack.count - 1 }
     private var currentCount: Int? { currentState.count }
     private var currentBlock: LeafBlock? { currentState.block }
     private var currentTuple: LKTuple? { currentState.tuple }
-  
+
     private var offset: Int {
         get { stack[stackDepth].offset }
         set { stack[stackDepth].offset = newValue }
     }
-    
+
     private var idCache: [String: LKVariable] = [:]
-    
+
     private var peek: LKSyntax? { scope.count > offset ? scope[offset] : nil }
-    
+
     init(ast: LeafAST, context: [String: LKData]) {
         self.ast = ast
         self.start = Date.distantFuture.timeIntervalSinceReferenceDate
         self.lapTime = Date.distantPast.timeIntervalSinceReferenceDate
         self.threshold = LKConf.timeout
-        self.context = UnsafeMutablePointer<LKVarTable>.allocate(capacity: 1)
+        self.context = LKVarTablePointer.allocate(capacity: 1)
         self.context.initialize(to: .init(minimumCapacity: context.count * 2))
         self.context.pointee[.`self`] = .dictionary(context)
         self.stack = .init(repeating: .init(count: 1,
@@ -41,10 +41,13 @@ internal final class LKSerializer {
                            count: Int(ast.info.stackDepths.overallMax))
         expandDict(.dictionary(context), .`self`, false)
     }
-    
-    deinit { self.context.deallocate() }
-    
-    func expandDict(_ data: LKData, _ base: LKVariable = .`self`, _ toStack: Bool = true) {
+
+    deinit {
+        self.context.deinitialize(count: 1)
+        self.context.deallocate()
+    }
+
+    private func expandDict(_ data: LKData, _ base: LKVariable = .`self`, _ toStack: Bool = true) {
         data.dictionary.map {
             for (identifier, value) in $0 {
                 let key: LKVariable = base.extend(with: identifier)
@@ -54,24 +57,24 @@ internal final class LKSerializer {
             }
         }
     }
-    
+
     func serialize(buffer output: inout RawBlock,
                    timeout threshold: Double? = nil) -> Result<Double, LeafError> {
         guard !ast.scopes[0].isEmpty else { return .success(0) }
         if let threshold = threshold { self.threshold = threshold }
-        
+
         let ptr = UnsafeMutablePointer<RawBlock>.allocate(capacity: 1)
         defer { ptr.deallocate() }
         ptr.initialize(to: type(of: output).instantiate(size: ast.info.averages.size,
                                                         encoding: LKConf.encoding))
         self.stack[0].bufferStack.append(ptr)
-        
+
         start = Date().timeIntervalSinceReferenceDate
-        
+
         serialize:
         while !stack.isEmpty, !cutoff, error == nil {
             tick()
-            
+
             // At start of a scope block, evaluate the scope. Terminate if it
             // can't evaluate, elide if scope is discard and continue to next
             if currentBlock != nil, table > 0, offset == 0 {
@@ -81,7 +84,7 @@ internal final class LKSerializer {
                     guard let eval = evaluateScope() else { break }
                     guard eval else { continue }
                 }
-                
+
             // Special case for atomic scopes - fully evaluate an "atomic" scope
             // Only passthrough and raw are valid atomic scopes
             } else if currentBlock != nil, table < 0 {
@@ -92,7 +95,7 @@ internal final class LKSerializer {
                     switch ast.scopes[(currentState.table * -1) - 1][offset].container {
                         case .raw(var raw): append(&raw)
                         case .passthrough(let param):
-                            append(param.evaluate(currentVariables.pointee))
+                            append(param.evaluate(currentVariables))
                         default: __MajorBug("Non-atomic atomic scope")
                     }
                 }
@@ -102,11 +105,11 @@ internal final class LKSerializer {
                     switch ast.scopes[(currentState.table * -1) - 1][offset].container {
                         case .raw(var raw): append(&raw)
                         case .passthrough(let param):
-                            append(param.evaluate(currentVariables.pointee))
+                            append(param.evaluate(currentVariables))
                         default: __MajorBug("Non-atomic atomic scope")
                     }
                 }
-                
+
                 offset += 1
                 closeScope()
                 continue
@@ -117,7 +120,15 @@ internal final class LKSerializer {
             switch next?.container {
                 // Basic cases. Append evaluated atomics/raws to the current buffer
                 case .raw(var raw)           : append(&raw)
-                case .passthrough(let param) : append(param.evaluate(currentVariables.pointee))
+                case .passthrough(let param) :
+                    if case .expression(let exp) = param,
+                       exp.form.exp == .assignment {
+                        let result = exp.evalAssignment(currentVariables)
+                        switch result {
+                            case .success(let val): assignValue(val.0, val.1)
+                            case .failure(let err): return .failure(err)
+                        }
+                    } else { append(param.evaluate(currentVariables)) }
                 // Blocks
                 case .block(_, let b, let p):
                     // Handle meta first
@@ -162,7 +173,7 @@ internal final class LKSerializer {
                                 break // Until raw Blocks are added, non-op - raw stack will always be ByteBuffer
                         }
                     }
-                    
+
                     // Otherwise actual scopes:
                     // Next check if a chained block and not at end of scope.
                     if let chained = b as? ChainedBlock {
@@ -178,14 +189,14 @@ internal final class LKSerializer {
                                                 continue serialize
                         }
                     }
-                    
+
                     // Cache the current table/offset for ref if an atomic scope
                     // Signal atomic scopes with -(table + 1) value & the atomic syntax
                     let atomic = (-1 * (table + 1), offset + 1)
                     let syntax = scope[offset + 1].container
                     // Jump over scope block regardless
                     offset += 2
-                    
+
                     // Now handle the following syntax... if scope:
                     if case .scope(let t) = syntax {
                         if let t = t { // Actual scope reference
@@ -195,11 +206,11 @@ internal final class LKSerializer {
                     } else { // .... or this is an atomic scope
                         newScope(from: b, params: p ?? .init(), table: atomic.0, offset: atomic.1)
                     }
-                   
+
                     continue serialize
                 // Evaluate scope, handle as necessary
                 case .scope(_): __MajorBug("Evaluation fail - should never hit scope")
-                
+
                 // Not in the top level scope and hit the end of the table but not done - repeat
                 case .none where currentCount != 0 : offset = 0; continue serialize
                 // Done with current scope
@@ -209,15 +220,15 @@ internal final class LKSerializer {
         }
         stack.removeAll()
         output = ptr.pointee
-        
+
         guard !cutoff else { return .failure(LeafError(.unknownError("Execution timed out")))}
         if error == nil { return .success(Date.timeIntervalSinceReferenceDate - start) }
         else { return .failure(error!) }
     }
-    
+
     private let ast: LeafAST
     private var error: LeafError? = nil
-    
+
     private struct ScopeState {
         var count: Int? = nil
         var table: Int = 0
@@ -230,12 +241,12 @@ internal final class LKSerializer {
         var scopeIDs: Set<String> = []
         var defines: [String: Define] = [:]
         var bufferStack: [UnsafeMutablePointer<RawBlock>] = []
-        
+
         init(count: Int? = nil, variables: UnsafeMutablePointer<LKVarTable>) {
             self.count = count
             self.variables = (variables, false)
         }
-        
+
         init(from: Self, block: LeafBlock, tuple: LKTuple) {
             self.block = block
             self.tuple = tuple
@@ -244,8 +255,8 @@ internal final class LKSerializer {
             self.bufferStack = from.bufferStack
         }
     }
-    
-    func newScope(from block: LeafBlock,
+
+    private func newScope(from block: LeafBlock,
                                    params tuple: LKTuple,
                                    table: Int,
                                    offset: Int) {
@@ -262,8 +273,8 @@ internal final class LKSerializer {
             }
         }
     }
-    
-    func closeScope() {
+
+    private func closeScope() {
         precondition(stack.count > 1, "Can't close top scope")
         if currentState.variables.allocated { currentState.variables.0.deallocate() }
         stackDepth -= 1
@@ -273,30 +284,30 @@ internal final class LKSerializer {
             stack[stackDepth].breakChain = nil
         }
     }
-    
+
     private func nextMatchesChain(_ antecedent: ChainedBlock.Type) -> Bool {
         guard stack[stackDepth].breakChain != nil, let next = peek,
               case .block(_, let n as ChainedBlock, _) = next.container,
               type(of: n).chainsTo.contains(where: {$0 == antecedent}) else { return false }
         return true
     }
-    
+
     private var start: Double
     private var lapTime: Double
     private var threshold: Double
     private var tickCount: UInt8 = 0
     private var cutoff: Bool { threshold < (lapTime - start) }
-    
+
     private func tick() { tickCount &+= 1; if tickCount == 0 { lap() } }
     private func lap() { lapTime = Date().timeIntervalSinceReferenceDate }
-    
-    func evaluateScope() -> Bool? {
+
+    private func evaluateScope() -> Bool? {
         if table < 0 || (table > 0 && offset == 0), currentBlock != nil {
             // All metablocks will always run only once
             guard currentBlock as? LKMetaBlock == nil else { stack[stackDepth].count = 0
                                                            return true }
-            
-            guard let params = ParameterValues(currentBlock!.sig, currentTuple!, currentVariables.pointee) else {
+
+            guard let params = CallValues(currentBlock!.sig, currentTuple!, currentVariables) else {
                 error = LeafError(.unknownError("Couldn't evaluate scope parameters"))
                 return nil
             }
@@ -304,10 +315,10 @@ internal final class LKSerializer {
             let scopeValue = stack[stackDepth].block!.evaluateNilScope(params, &scopeVariables)
             // if evaluate to discard, stop immediately and end the current block
             if scopeValue == 0 { closeScope(); return false }
-            
+
             // If this is a chained block, we've hit - set breakChain at the previous stack depth
             if currentBlock as? ChainedBlock != nil { stack[stackDepth - 1].breakChain = true }
-            
+
             if !scopeVariables.isEmpty {
                 let newVars = UnsafeMutablePointer<LKVarTable>.allocate(capacity: 1)
                 newVars.initialize(from: stack[stackDepth].variables.0, count: 1)
@@ -322,8 +333,8 @@ internal final class LKSerializer {
         }
         return true
     }
-    
-    func reEvaluateScope() -> Bool {
+
+    private func reEvaluateScope() -> Bool {
         if currentBlock != nil, currentCount != nil, currentCount! > 0 {
             var scopeVariables: [String: LeafData] = .init(uniqueKeysWithValues: currentState.scopeIDs.map { ($0, .trueNil) })
             let scopeValue = stack[stackDepth].block!.reEvaluateScope(&scopeVariables)
@@ -341,15 +352,26 @@ internal final class LKSerializer {
             return true
         } else { return false }
     }
-    
+
     @inline(__always)
-    func append(_ block: inout RawBlock) {
+    private func append(_ block: inout RawBlock) {
         do { try stack[stackDepth].bufferStack[currentRaw].pointee.append(&block) }
         catch { self.error = LeafError(.unknownError("Serializing error")) }
     }
-  
+
     @inline(__always)
-    func append(_ data: LeafData) {
+    private func append(_ data: LeafData) {
         stack[stackDepth].bufferStack[currentRaw].pointee.append(data)
+    }
+    
+    private func assignValue(_ key: LKVariable, _ value: LKData) {
+        /// If the variable already exists and was a dictionary, decay children
+        if currentVariables.pointee[key]?.celf == .dictionary {
+            currentVariables.pointee.keys.forEach {
+                if $0.isDescendent(of: key) { currentVariables.pointee[$0] = nil }                
+            }
+        }
+        currentVariables.pointee[key] = value
+        expandDict(value, key)
     }
 }
