@@ -21,7 +21,7 @@ internal class LeafTestClass: XCTestCase {
 /// - Parameter str: Raw String holding Leaf template source data
 /// - Returns: A lexed array of LKTokens
 internal func lex(_ str: String, name: String = "default") throws -> [LKToken] {
-    var lexer = LKLexer(name: name, raw: str)
+    var lexer = LKLexer(LKRawTemplate(name, str))
     return try lexer.lex()
 }
 
@@ -29,7 +29,7 @@ internal func lex(_ str: String, name: String = "default") throws -> [LKToken] {
 /// - Parameter str: Raw String holding Leaf template source data
 /// - Returns: A lexed and parsed array of Syntax
 internal func parse(_ str: String, name: String = "default") throws -> LeafAST {
-    var lexer = LKLexer(name: name, raw: str)
+    var lexer = LKLexer(LKRawTemplate(name, str))
     let tokens = try! lexer.lex()
     var parser = LKParser(.searchKey(name), tokens)
     let syntax = try! parser.parse()
@@ -44,7 +44,7 @@ internal func parse(_ str: String, name: String = "default") throws -> LeafAST {
 internal func render(name: String = "test-render",
                      _ template: String,
                      _ context: [String: LKData] = [:]) throws -> String {
-    var lexer = LKLexer(name: name, raw: template)
+    var lexer = LKLexer(LKRawTemplate(name, template))
     let tokens = try lexer.lex()
     var parser = LKParser(.searchKey(name), tokens)
     let ast = try parser.parse()

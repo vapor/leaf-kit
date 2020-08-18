@@ -159,8 +159,8 @@ public struct LexerError: Error, CustomStringConvertible {
     ///   - recoverable: Flag to say whether the error can potentially be recovered during Parse
     internal init(
         _ reason: Reason,
-        src: LKRawTemplate,
-        lexed: [LKToken] = [],
+        _ src: LKRawTemplate,
+        _ lexed: [LKToken] = [],
         recoverable: Bool = false
     ) {
         self.line = src.line

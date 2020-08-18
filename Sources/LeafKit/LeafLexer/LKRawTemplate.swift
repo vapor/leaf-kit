@@ -1,11 +1,16 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
 // FIXME: Should really be initializable directly from `ByteBuffer`
 // TODO: Make `LeafSource` return this instead of `ByteBuffer` via extension
-internal struct LKRawTemplate{
+
+
+/// Convenience wrapper around a `String` raw source to track line & column, pop, peek & scan.
+internal struct LKRawTemplate {
     // MARK: - Internal Only
     let name: String
+    
+    /// Current line at reading point
+    private(set) var line = 1
+    /// Current column at reading point
+    private(set) var column = 1
 
     init(_ name: String, _ source: String) {
         self.name = name
@@ -14,27 +19,22 @@ internal struct LKRawTemplate{
     }
 
     mutating func readWhile(_ check: (Character) -> Bool) -> String {
-        readSliceWhile(pop: true, check)
-    }
+        readSliceWhile(check) }
 
     @discardableResult
     mutating func readWhileNot(_ check: Set<Character>) -> String {
-        readSliceWhile(pop: true, { !check.contains($0) })
-    }
+        readSliceWhile({!check.contains($0)}) }
 
     mutating func peekWhile(_ check: (Character) -> Bool) -> String {
-        peekSliceWhile(check)
-    }
+        peekSliceWhile(check) }
 
     @discardableResult
     mutating func popWhile(_ check: (Character) -> Bool) -> Int {
-        readSliceWhile(pop: true, check).count
-    }
+        readSliceWhile(check).count }
 
     func peek(aheadBy idx: Int = 0) -> Character? {
         let peek = body.index(current, offsetBy: idx)
-        guard peek < body.endIndex else { return nil }
-        return body[peek]
+        return peek < body.endIndex ? body[peek] : nil
     }
 
     @discardableResult
@@ -46,37 +46,22 @@ internal struct LKRawTemplate{
         return body[current]
     }
 
-    mutating func pop(count: Int) -> String {
-        var result = ""
-        for _ in 0..<count { result += pop()?.description ?? "" }
-        return result
-    }
-
     // MARK: - Private Only
-
-    private(set) var line = 1
-    private(set) var column = 1
-
     private let body: String
     private var current: String.Index
 
-    mutating private func readSliceWhile(pop: Bool, _ check: (Character) -> Bool) -> String {
-        var str = [Character]()
-        str.reserveCapacity(max(64,body.count/4)) // Buffer guess -
-        while let next = peek() {
-            guard check(next) else { return String(str) }
-            if pop { self.pop() }
-            str.append(next)
-        }
+    mutating private func readSliceWhile(_ check: (Character) -> Bool) -> String {
+        var str: [Character] = []
+        str.reserveCapacity(64)
+        while let next = peek(), check(next) { str.append(pop()!) }
         return String(str)
     }
 
     mutating private func peekSliceWhile(_ check: (Character) -> Bool) -> String {
-        var str = [Character]()
-        str.reserveCapacity(max(64,body.count/4))
+        var str: [Character] = []
+        str.reserveCapacity(64)
         var index = 0
-        while let next = peek(aheadBy: index) {
-            guard check(next) else { return String(str) }
+        while let next = peek(aheadBy: index), check(next) {
             str.append(next)
             index += 1
         }
