@@ -24,6 +24,7 @@ internal typealias LKDType = LeafDataType
 internal typealias LKParams = [LKParameter]
 /// A `LKVarTable` provides a Dictionary of concrete `LeafData` available for a symbolic key
 internal typealias LKVarTable = [LKVariable: LKData]
+/// UnsafeMutablePointer to `[LKVariable: LKData]`
 internal typealias LKVarTablePointer = UnsafeMutablePointer<LKVarTable>
 
 // MARK: - Internal Helper Extensions

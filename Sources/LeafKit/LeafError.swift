@@ -183,15 +183,15 @@ public struct LexerError: Error, CustomStringConvertible {
 // MARK: - Internal Conveniences
 
 @inline(__always)
-internal func succeed<T>(_ value: T, on eL: EventLoop) -> EventLoopFuture<T> { eL.makeSucceededFuture(value) }
+internal func succeed<T>(_ value: T, on eL: EventLoop) -> ELF<T> { eL.makeSucceededFuture(value) }
 
 @inline(__always)
-internal func fail<T>(_ error: LeafError, on eL: EventLoop) -> EventLoopFuture<T> { eL.makeFailedFuture(error) }
+internal func fail<T>(_ error: LeafError, on eL: EventLoop) -> ELF<T> { eL.makeFailedFuture(error) }
 
 @inline(__always)
 internal func fail<T>(_ error: LeafErrorCause, on eL: EventLoop,
                       _ file: String = #file, _ function: String = #function,
-                      _ line: UInt = #line, _ column: UInt = #column) -> EventLoopFuture<T> {
+                      _ line: UInt = #line, _ column: UInt = #column) -> ELF<T> {
     eL.makeFailedFuture(leafError(error, file, function, line, column)) }
 
 @inline(__always)

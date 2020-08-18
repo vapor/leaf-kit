@@ -1,38 +1,12 @@
-import Foundation
+import Foundation.NSURL
 
 /// Reference and default implementation of `LeafSource` adhering object that provides a non-blocking
 /// file reader for `LeafRenderer`
 ///
 /// Default initializer will
 public struct NIOLeafFiles: LeafSource {
-    // MARK: - Public
-
-    /// Various options for configuring an instance of `NIOLeafFiles`
-    ///
-    /// - `.requireExtensions` - When set, any template *must* have a file extension
-    /// - `.onlyLeafExtensions` - When set, any template *must* use the configured extension
-    /// - `.toSandbox` - When set, attempts to read files outside of the sandbox directory will error
-    /// - `.toVisibleFiles` - When set, attempts to read files starting with `.` will error (or files
-    ///                     inside a directory starting with `.`)
-    ///
-    /// A new `NIOLeafFiles` defaults to [.toSandbox, .toVisibleFiles, .requireExtensions]
-    public struct Limit: OptionSet {
-        public let rawValue: Int
-        public init(rawValue: Int) { self.rawValue = rawValue }
-
-        /// Require any referenced file have an extension
-        public static let requireExtensions = Limit(rawValue: 1 << 0)
-        /// Require any referenced file end in `.leaf`
-        public static let onlyLeafExtensions = Limit(rawValue: 1 << 1)
-        /// Limit access to inside configured sandbox directory
-        public static let toSandbox = Limit(rawValue: 1 << 2)
-        /// Limit access to visible files/directories
-        public static let toVisibleFiles = Limit(rawValue: 1 << 3)
-
-        public static let `default`: Limit = [.toSandbox, .toVisibleFiles, .requireExtensions]
-        public static let dirLimited: Limit = [.toSandbox, .toVisibleFiles]
-    }
-
+    // MARK: - Initializer
+    
     /// Initialize `NIOLeafFiles` with a NIO file IO object, limit options, and sandbox/view dirs
     /// - Parameters:
     ///   - fileio: `NonBlockingFileIO` file object
@@ -57,7 +31,9 @@ public struct NIOLeafFiles: LeafSource {
         self.sandBox = vD.hasPrefix(sD) ? sD : vD
         self.viewDir = String(vD[sD.indices.endIndex ..< vD.indices.endIndex])
     }
-
+    
+    // MARK: - LeafSource
+    
     /// Conformance to `LeafSource` to allow `LeafRenderer` to request a template.
     /// - Parameters:
     ///   - template: Relative template name (eg: `"path/to/template"`)
@@ -83,12 +59,10 @@ public struct NIOLeafFiles: LeafSource {
             /// If sandboxing is enforced and the path contains a potential escaping path, look harder
             if lim.contains(.toVisibleFiles), t.contains("/."),
                let hit = t.split(separator: "/").first(where: { $0.first == "."}) {
-                return fail(.illegalAccess("Attempted to access \(hit)"), on: eventLoop)
-            }
+                return fail(.illegalAccess("Attempted to access \(hit)"), on: eventLoop) }
 
             if lim.contains(.toSandbox), !template.hasPrefix(sandBox + (escape ? viewDir : "")) {
-                return fail(.illegalAccess("Attempted to escape sandbox: \(t)"), on: eventLoop)
-            }
+                return fail(.illegalAccess("Attempted to escape sandbox: \(t)"), on: eventLoop) }
         }
 
         return read(path: template, on: eventLoop)
@@ -112,5 +86,32 @@ public struct NIOLeafFiles: LeafSource {
                               .flatMapThrowing { try h.close()
                                                  return $0 }
                        }
+    }
+    
+    // MARK: - Scoped Type
+    /// Various options for configuring an instance of `NIOLeafFiles`
+    ///
+    /// - `.requireExtensions` - When set, any template *must* have a file extension
+    /// - `.onlyLeafExtensions` - When set, any template *must* use the configured extension
+    /// - `.toSandbox` - When set, attempts to read files outside of the sandbox directory will error
+    /// - `.toVisibleFiles` - When set, attempts to read files starting with `.` will error (or files
+    ///                     inside a directory starting with `.`)
+    ///
+    /// A new `NIOLeafFiles` defaults to [.toSandbox, .toVisibleFiles, .requireExtensions]
+    public struct Limit: OptionSet {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+
+        /// Require any referenced file have an extension
+        public static let requireExtensions = Limit(rawValue: 1 << 0)
+        /// Require any referenced file end in `.leaf`
+        public static let onlyLeafExtensions = Limit(rawValue: 1 << 1)
+        /// Limit access to inside configured sandbox directory
+        public static let toSandbox = Limit(rawValue: 1 << 2)
+        /// Limit access to visible files/directories
+        public static let toVisibleFiles = Limit(rawValue: 1 << 3)
+
+        public static let `default`: Limit = [.toSandbox, .toVisibleFiles, .requireExtensions]
+        public static let dirLimited: Limit = [.toSandbox, .toVisibleFiles]
     }
 }

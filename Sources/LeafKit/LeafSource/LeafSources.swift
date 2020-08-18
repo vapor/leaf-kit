@@ -1,7 +1,4 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
-import NIOConcurrencyHelpers
+import class NIOConcurrencyHelpers.Lock
 
 /// An opaque object holding named `LeafSource` adherants specifying a default search order.
 ///
@@ -65,8 +62,8 @@ public final class LeafSources {
     /// Otherwise, use the specified search order. Key (and thus AST name) are "$:template" when no source
     /// was specified, or "source:template" when specified
     internal func find(_ key: LeafASTKey,
-                       on eL: EventLoop) -> EventLoopFuture<(key: String,
-                                                             buffer: ByteBuffer)> {
+                       on eL: EventLoop) -> ELF<(key: String,
+                                                 buffer: ByteBuffer)> {
         let source = key._src
         let template = key._name
         if source != "$", keys.contains(source) {
@@ -76,31 +73,26 @@ public final class LeafSources {
             return searchSources(template, order, on: eL)
                                 .map { ("\(source):\(template)", $0.buffer) }
         }
-
         let e = source == "$" ? "No searchable sources exist"
                               : "Invalid source \(source) specified"
         return fail(.illegalAccess(e), on: eL)
-
     }
 
     private func searchSources(_ t: String,
                                _ s: [String],
-                               on eL: EventLoop) -> EventLoopFuture<(source: String,
-                                                                     buffer: ByteBuffer)> {
+                               on eL: EventLoop) -> ELF<(source: String,
+                                                         buffer: ByteBuffer)> {
         if s.isEmpty { return fail(.noTemplateExists(t), on: eL) }
-
         var rest = s
         let key = rest.removeFirst()
         lock.lock()
         let source = sources[key]!
         lock.unlock()
-
         return source.file(template: t, escape: true, on: eL)
                      .map { (source: key, buffer: $0) }
                      .flatMapError { if let e = $0 as? LeafError,
                                         case .illegalAccess = e.reason {
                                             return fail(e, on: eL) }
                                      return self.searchSources(t, rest, on: eL) }
-
     }
 }
