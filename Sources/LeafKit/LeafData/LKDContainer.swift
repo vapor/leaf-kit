@@ -1,8 +1,4 @@
-// MARK: Stable?!!
-
 import Foundation
-
-// MARK: - LKDContainer Definition
 
 /// `LKDContainer` provides the tangible storage for concrete Swift values, representations of
 /// collections, optional value wrappers, and lazy data generators.
@@ -124,8 +120,6 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
         return state
     }
 }
-
-// MARK: - LDState Definition
 
 internal struct LKDState: OptionSet {
     let rawValue: UInt16

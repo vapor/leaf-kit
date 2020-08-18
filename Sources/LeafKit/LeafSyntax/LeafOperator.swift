@@ -1,6 +1,4 @@
-// MARK: Stable?!
-
-/// Mathematical and Logical operators
+/// Mathematical, Logical , Assignment Operators
 public enum LeafOperator: String, Hashable, CaseIterable, LKPrintable {
     // MARK: - Cases
 
@@ -140,7 +138,6 @@ internal extension LeafOperator {
         // &&, ||, ^^
         (check: { $0 == .and || $0 == .or || $0 == .xor}, infixed: true),
     ]
-
 }
 
 // MARK: - Private Helpers

@@ -1,5 +1,3 @@
-// MARK: Subject to change prior to 1.0.0 release
-
 /// `Keyword`s are identifiers which take precedence over syntax/variable names - may potentially have
 /// representable state themselves as value when used with operators (eg, `true`, `false` when
 /// used with logical operators, `nil` when used with equality operators, and so forth)

@@ -1,5 +1,26 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
+/// A `LKVarTable` provides a Dictionary of concrete `LeafData` available for a symbolic key
+internal typealias LKVarTable = [LKVariable: LKData]
+/// UnsafeMutablePointer to `[LKVariable: LKData]`
+internal typealias LKVarTablePointer = UnsafeMutablePointer<LKVarTable>
+
+internal extension LKVarTable {
+    /// Locate the `LKVariable` in the table, if possible
+    func match(_ variable: LKVariable) -> LKData? {
+        // Immediate catch if table holds exact identifier
+        guard !keys.contains(variable) else { return self[variable] }
+        // If variable has explicit scope, no way to contextualize - no hit
+        if variable.scope != nil { return nil }
+        // If atomic, immediately check contextualized self.member
+        if variable.atomic { return self[variable.contextualized] }
+        // Ensure no ancestor of the identifier is set before contextualizing
+        var parent = variable.parent
+        repeat {
+            if self[parent!] != nil { return nil }
+            parent = parent!.parent
+        } while parent != nil
+        return self[variable.contextualized]
+    }
+}
 
 internal struct LKVariable: LKSymbol, Hashable {
     let flat: String

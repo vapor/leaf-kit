@@ -146,7 +146,7 @@ public final class LeafRenderer {
             var buf = buf
 
             guard let string = buf.readString(length: buf.readableBytes) else {
-                throw leafError(.unknownError("\(name) exists but was unreadable")) }
+                throw LeafError(.unknownError("\(name) exists but was unreadable")) }
 
             // FIXME: lex/parse should fork to a threadpool?
             var lexer = LKLexer(LKRawTemplate(name, string))

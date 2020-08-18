@@ -1,5 +1,3 @@
-// MARK: Stable?!!
-
 import Foundation
 
 // MARK: - LeafDataRepresentable Public Definition

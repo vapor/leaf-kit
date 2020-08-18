@@ -1,5 +1,3 @@
-// MARK: Stable?!!
-
 import Foundation
 
 // MARK: - LeafData Public Definition

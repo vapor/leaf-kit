@@ -1,6 +1,3 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
 import Foundation
 
 internal struct LKExpression: LKSymbol {
@@ -73,7 +70,9 @@ internal struct LKExpression: LKSymbol {
     let form: CombinedForm
 
     /// Convenience referent name available when form is not .custom
-    var op: LeafOperator?  { form.op == nil ? nil : form.op! == .unaryPrefix ? storage[0].operator : storage[1].operator }
+    var op: LeafOperator?  { form.op == nil ? nil : form.op! == .unaryPrefix
+                                                  ? storage[0].operator
+                                                  : storage[1].operator }
     /// Convenience referent name available when form is not .custom
     var lhs: LKParameter? { [.infix, .unaryPostfix].contains(form.op) ? storage[0] : nil }
     /// Convenience referent name available when form is not .custom
@@ -336,8 +335,7 @@ internal struct LKExpression: LKSymbol {
                 case .modulo   : value = lhsI.remainderReportingOverflow(dividingBy: rhsI)
                 default        : return nil
             }
-            guard value.overflow == false else { return nil }
-            return .int(value.partialValue)
+            return value.overflow ? nil : .int(value.partialValue)
         } else {
             guard let lhsD = lhs.double, let rhsD = rhs.double else { return nil }
             switch op {

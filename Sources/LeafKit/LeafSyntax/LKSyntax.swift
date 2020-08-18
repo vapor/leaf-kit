@@ -1,6 +1,3 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
 internal struct LKSyntax: LKPrintable {
     private(set) var container: Container
 
@@ -84,17 +81,8 @@ extension ContiguousArray where Element == LKSyntax {
 extension Array where Element == [LKSyntax] {
     func contiguous() -> ContiguousArray<ContiguousArray<LKSyntax>> {
         var contig: ContiguousArray<ContiguousArray<LKSyntax>> = .init()
-        self.forEach { contig.append($0.contiguous()) }
-        return contig
-    }
-}
-
-extension Array where Element == LKSyntax {
-
-    func contiguous() -> ContiguousArray<LKSyntax> {
-        var contig: ContiguousArray<LKSyntax> = .init()
-        contig.reserveCapacity(self.count)
-        contig.append(contentsOf: self)
+        contig.reserveCapacity(count)
+        self.forEach { contig.append(.init($0)) }
         return contig
     }
 }

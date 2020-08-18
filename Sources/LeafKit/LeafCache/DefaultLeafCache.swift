@@ -64,7 +64,7 @@ public final class DefaultLeafCache: LKSynchronousCache {
 
     /// Blocking file load behavior
     func insert(_ document: LeafAST, replace: Bool) -> Result<LeafAST, LeafError> {
-        guard _isEnabled else { return .failure(leafError(.cachingDisabled)) }
+        guard _isEnabled else { return .failure(LeafError(.cachingDisabled)) }
         /// Blind failure if caching is disabled
         var e: Bool = false
         locks.cache.withLockVoid {
@@ -76,7 +76,7 @@ public final class DefaultLeafCache: LKSynchronousCache {
             touches[document.key] = .init()
             touches[document.key]?.reserveCapacity(4)
         }
-        guard !e else { return .failure(leafError(.keyExists(document.name))) }
+        guard !e else { return .failure(LeafError(.keyExists(document.name))) }
         return .success(document)
     }
 

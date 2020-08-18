@@ -1,6 +1,3 @@
-// MARK: Stable?!!
-// MARK: -
-
 /// Adhere to `LKSymbol`to provide generic property/method that allow resolution by LeafKit
 internal protocol LKSymbol: LKPrintable {
     /// If the symbol is fully resolved

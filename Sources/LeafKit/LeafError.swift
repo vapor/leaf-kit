@@ -192,15 +192,8 @@ internal func fail<T>(_ error: LeafError, on eL: EventLoop) -> ELF<T> { eL.makeF
 internal func fail<T>(_ error: LeafErrorCause, on eL: EventLoop,
                       _ file: String = #file, _ function: String = #function,
                       _ line: UInt = #line, _ column: UInt = #column) -> ELF<T> {
-    eL.makeFailedFuture(leafError(error, file, function, line, column)) }
+    eL.makeFailedFuture(LeafError(error, file: file, function: function, line: line, column: column)) }
 
-@inline(__always)
-internal func leafError(_ reason: LeafErrorCause, _ file: String = #file,
-                        _ function: String = #function, _ line: UInt = #line,
-                        _ column: UInt = #column) -> LeafError {
-    LeafError(reason, file: file, function: function, line: line, column: column) }
-
-@inline(__always)
 internal func __MajorBug(_ message: String,
               file: String = #file,
               function: String = #function,
