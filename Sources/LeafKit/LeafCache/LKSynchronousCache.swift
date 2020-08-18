@@ -1,10 +1,7 @@
-// MARK: Stable?!!!
-// MARK: -
-
 /// A `LeafCache` that provides certain blocking methods for non-future access to the cache
 ///
 /// Adherents *MUST* be thread-safe and *SHOULD NOT* be blocking simply to avoid futures -
-/// only adhere to this protocol if using futures is needless overhead
+/// only adhere to this protocol if using futures is needless overhead. Currently restricted to LeafKit internally.
 internal protocol LKSynchronousCache: LeafCache {
     /// - Parameters:
     ///   - document: The `LeafAST` to store

@@ -1,6 +1,3 @@
-// MARK: Stable?!!!
-// MARK: -
-
 /// `LeafCache` provides blind storage for compiled `LeafAST` objects.
 ///
 /// The stored `LeafAST`s may or may not be fully renderable templates, and generally speaking no
@@ -10,12 +7,14 @@
 /// return values. For performance, an adherent may optionally provide additional, corresponding interfaces
 /// where returns are direct values and not future-based by adhering to `SynchronousLeafCache` and
 /// providing applicable option flags indicating which methods may be used. This should only used for
-/// adherents where the cache store itself is not a bottleneck.
+/// adherents where the cache store itself is not a bottleneck. *NOTE* `SynchronousLeafCache` is
+/// currently internal-only to LeafKit.
 ///
-/// `LeafAST.name` is to be used in all cases as the key for retrieving cached documents.
+/// `LeafAST.key: LeafASTKey` is to be used in all cases as the key for storing and retrieving cached documents.
 public protocol LeafCache {
-    /// Global setting for enabling or disabling the cache
+    /// Setting for enabling or disabling the cache
     var isEnabled : Bool { get set }
+
     /// Current count of cached documents
     var count: Int { get }
 
@@ -43,7 +42,10 @@ public protocol LeafCache {
     func remove(_ key: LeafASTKey,
                 on loop: EventLoop) -> EventLoopFuture<Bool?>
 
-    /// Touch a stored AST with an execution time
+    /// Touch the stored AST for `key` with the provided `LeafASTTouch` object
+    /// - Parameters:
+    ///   - key: `LeafAST.key` of the stored AST to touch
+    ///   - value: `LeafASTTouch` to provide to the AST via `LeafAST.touch(value)`
     func touch(_ key: LeafASTKey,
                _ value: LeafASTTouch)
 }

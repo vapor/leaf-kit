@@ -1,7 +1,6 @@
-// MARK: Stable?!!
-
 import NIOConcurrencyHelpers
 
+/// The default implementation of `LeafCache`
 public final class DefaultLeafCache: LKSynchronousCache {
     /// Initializer
     public init() {
@@ -10,7 +9,7 @@ public final class DefaultLeafCache: LKSynchronousCache {
         self.touches = [:]
     }
 
-    // MARK: - Public - LeafCache Conformance
+    // MARK: - Public - LeafCache
 
     /// Global setting for enabling or disabling the cache
     public var isEnabled: Bool {
