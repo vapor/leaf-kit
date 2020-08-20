@@ -524,7 +524,7 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testCacheSpeedLinear() {
-        let iterations = 1_000
+        let iterations = 200
         var dur: Double = 0
         var ser: Double = 0
         var stop: Double = 0
@@ -596,7 +596,7 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testCacheSpeedRandom() {
-        let iterations = 1_000
+        let iterations = 200
         var dur: Double = 0
         var ser: Double = 0
         var stop: Double = 0
