@@ -15,10 +15,6 @@ public final class LeafRenderer {
 
     /// An initialized `LeafConfiguration` specificying default directory and tagIndicator
     public let configuration: LeafConfiguration
-    /// A keyed dictionary of custom `LeafTags` to extend Leaf's basic functionality, registered
-    /// with the names which will call them when rendering - eg `tags["tagName"]` can be used
-    /// in a template as `#tagName(parameters)`
- //   public let tags: [String: LeafTag]
     /// A thread-safe implementation of `LeafCache` protocol
     public let cache: LeafCache
     /// A thread-safe implementation of `LeafSource` protocol
@@ -31,14 +27,12 @@ public final class LeafRenderer {
     /// Initial configuration of LeafRenderer.
     public init(
         configuration: LeafConfiguration,
-  //      tags: [String: LeafTag] = defaultTags,
         cache: LeafCache = DefaultLeafCache(),
         sources: LeafSources,
         eventLoop: EventLoop,
         userInfo: [AnyHashable: Any] = [:]
     ) {
         self.configuration = configuration
-     //   self.tags = tags
         self.cache = cache
         self.sources = sources
         self.eL = eventLoop
@@ -169,8 +163,8 @@ public final class LeafRenderer {
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
     private func serialize(_ ast: LeafAST,
                            _ context: [String: LKData]) -> ELF<ByteBuffer> {
-        // FIXME: serialize should fork to a threadpool?
         var contexts: LKVarTable = [.`self`: .dictionary(context)]
+        
         for (key, value) in userInfo where key as? String != nil {
             if let str = key as? String, str.isValidIdentifier,
                str != LKVariable.selfScope, let ctxKey = LKVariable.init(str, ""),

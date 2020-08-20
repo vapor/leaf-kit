@@ -8,20 +8,13 @@ internal struct LKParser: LKErroring {
     var error: LeafError? = nil
 
     init(_ key: LeafASTKey, _ tokens: [LKToken]) {
-        self.entities = LKConf.entities
+        self.entities = LKConf._entities
         self.key = key
         self.tokens = tokens
         self.rawStack = [entities.raw.instantiate(data: nil, encoding: .utf8)]
-        self.emptyVariables = .allocate(capacity: 1)
-        self.emptyVariables.initialize(to: [:])
     }
 
     mutating func parse() throws -> LeafAST {
-        defer {
-            emptyVariables.deinitialize(count: 1)
-            emptyVariables.deallocate()
-        }
-        
         var more = true
         while more { more = advance() }
         if !errored && !openBlocks.isEmpty {
@@ -64,7 +57,6 @@ internal struct LKParser: LKErroring {
 
     private var rawStack: [LKRawBlock]
     
-    private var emptyVariables: LKVarTablePointer
     
     /// Process the next `LKToken` or multiple tokens.
     private mutating func advance() -> Bool {
@@ -92,7 +84,7 @@ internal struct LKParser: LKErroring {
             if tuple.count > 1 { return bool(err("Anonymous tag can't have multiple parameters")) }
             /// Validate tuple is single parameter, append or evaluate & append raw if invariant
             if var v = tuple[0] {
-                if v.resolved && v.invariant { v = .value(v.evaluate(emptyVariables)) }
+                if v.resolved && v.invariant { v = .value(v.evaluate([])) }
                 append(v)
             }
             /// Decay trailing colon to raw :
@@ -562,7 +554,7 @@ internal struct LKParser: LKErroring {
         func express(_ params: [LKParameter]) -> LKParameter? {
             if let expression = LKExpression.express(params) {
                 return expression.invariant && expression.resolved
-                    ? .value(expression.evaluate(emptyVariables))
+                    ? .value(expression.evaluate([]))
                     : .expression(expression)
             } else if let expression = LKExpression.expressTernary(params) {
                 return .expression(expression)

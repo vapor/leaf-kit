@@ -154,7 +154,7 @@ internal var projectTestFolder: String { "/\(#file.split(separator: "/").dropLas
 // MARK: - Internal Tests
 
 /// Test printing descriptions of Syntax objects
-final class PrintTests: XCTestCase {
+final class PrintTests: LeafTestClass {
     func testRaw() throws {
         let template = "hello, raw text"
         let expectation = "0: raw(ByteBuffer: 15B)"

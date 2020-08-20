@@ -139,8 +139,8 @@ final class LKParserTests: LeafTestClass {
         Discard for loop: .discard. .discard.
         Value for loop: .value. .value.
         Key and Value for loop:
-        .key&value. ["name": Mr. MagOO]
         .key&value. ["aDict": ["one": 1, "three": [five, ten], "two": 2.0]]
+        .key&value. ["name": Mr. MagOO]
         
         """
 

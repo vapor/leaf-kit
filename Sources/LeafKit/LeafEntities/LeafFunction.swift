@@ -43,7 +43,7 @@ public struct LeafCallValues {
 
     internal init?(_ sig: CallParameters,
                    _ tuple: LKTuple?,
-                   _ symbols: LKVarTablePointer) {
+                   _ symbols: LKVarStack) {
         guard let tuple = tuple else {
             if sig.isEmpty { values = []; labels = [:]; return }
             return nil

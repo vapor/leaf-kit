@@ -80,9 +80,9 @@ internal struct LKParameter: LKSymbol {
     private(set) var symbols: Set<LKVariable>
     
     /// Will always resolve to a new LKParameter
-    func resolve(_ symbols: LKVarTablePointer) -> Self { .init(container.resolve(symbols)) }
+    func resolve(_ symbols: LKVarStack) -> Self { .init(container.resolve(symbols)) }
     /// Will always evaluate to a .value container, potentially holding trueNil
-    func evaluate(_ symbols: LKVarTablePointer) -> LKData { container.evaluate(symbols) }
+    func evaluate(_ symbols: LKVarStack) -> LKData { container.evaluate(symbols) }
     
     var description: String { container.description }
     var short: String { isTuple ? container.description : container.short }
@@ -267,13 +267,13 @@ internal struct LKParameter: LKSymbol {
             }
         }
 
-        func resolve(_ symbols: LKVarTablePointer) -> Self {
+        func resolve(_ symbols: LKVarStack) -> Self {
             if resolved && invariant { return .value(evaluate(symbols)) }
             switch self {
                 case .value, .keyword,
                      .operator          : return self
                 case .expression(let e) : return .expression(e.resolve(symbols))
-                case .variable(let v)   : if let value = symbols.pointee[v]
+                case .variable(let v)   : if let value = symbols.match(v)
                                                { return .value(value) }
                                           else { return self }
                 case .tuple(let t)
@@ -283,7 +283,7 @@ internal struct LKParameter: LKSymbol {
                                           return .function(n, f, p)
                 case .dynamic(let n, _, .some(var p))
                                         : p.values = p.values.map { $0.resolve(symbols) }
-                                          let result = LKConf.entities.validateFunction(n, p)
+                                          let result = LKConf._entities.validateFunction(n, p)
                                           switch result {
                                               case .failure : return .value(.trueNil)
                                               case .success(let f) where f.count == 1: return .function(n, f[0].0, f[0].1)
@@ -293,17 +293,17 @@ internal struct LKParameter: LKSymbol {
             }
         }
 
-        func evaluate(_ symbols: LKVarTablePointer) -> LeafData {
+        func evaluate(_ symbols: LKVarStack) -> LeafData {
             switch self {
                 case .value(let v)              : return v.evaluate(symbols)
-                case .variable(let v)           : return symbols.pointee.match(v) ?? .trueNil
+                case .variable(let v)           : return symbols.match(v) ?? .trueNil
                 case .expression(let e)         : return e.evaluate(symbols)
                 case .tuple(let t)
                         where t.isEvaluable     : return t.evaluate(symbols)
                 case .function(_, let f as Evaluate, _)
                                                 :
                     /// `Define` parameter was found - evaluate if non-value, and return
-                    if let x = symbols.pointee[.define(f.identifier)]?.container {
+                    if let x = symbols.match(.define(f.identifier))?.container {
                         if case .evaluate(let x) = x { return x.evaluate(symbols) }
                         else { return x.evaluate } }
                     /// Or `Evaluate` had a default - evaluate and return that

@@ -33,18 +33,16 @@ extension ByteBuffer: LKRawBlock {
         writeBuffer(&byteBuffer)
     }
 
-    mutating func append(_ buffer: inout ByteBuffer) throws {
-        writeBuffer(&buffer)
-    }
+    mutating func append(_ buffer: inout ByteBuffer) throws { writeBuffer(&buffer) }
 
     // appends data using configured serializer views
     mutating func append(_ data: LeafData) {
         switch data.celf {
-            case .bool       : writeString(LKConf.boolFormatter(data.bool!))
-            case .data       : writeString(LKConf.dataFormatter(data.data!) ?? "")
-            case .double     : writeString(LKConf.doubleFormatter(data.double!))
-            case .int        : writeString(LKConf.intFormatter(data.int!))
-            case .string     : writeString(LKConf.stringFormatter(data.string!))
+            case .bool       : writeString(LKConf._boolFormatter(data.bool!))
+            case .data       : writeString(LKConf._dataFormatter(data.data!) ?? "")
+            case .double     : writeString(LKConf._doubleFormatter(data.double!))
+            case .int        : writeString(LKConf._intFormatter(data.int!))
+            case .string     : writeString(LKConf._stringFormatter(data.string!))
             case .void       : break
             case .array      : let a = data.array!
                                writeString("[")

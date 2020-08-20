@@ -18,13 +18,13 @@ internal struct LKExpression: LKSymbol {
 
     private(set) var baseType: LKDType?
 
-    func resolve(_ symbols: LKVarTablePointer) -> Self {
+    func resolve(_ symbols: LKVarStack) -> Self {
         return form.exp != .ternary
             ? .init(.init(storage.map { $0.resolve(symbols) }), form)
             : .init(.init([storage[0].resolve(symbols), storage[1], storage[2]]), form)
     }
 
-    func evaluate(_ symbols: LKVarTablePointer) -> LKData {
+    func evaluate(_ symbols: LKVarStack) -> LKData {
         switch form.exp {
             case .calculation : break
             case .ternary     : return evalTernary(symbols)
@@ -239,20 +239,20 @@ internal struct LKExpression: LKSymbol {
     /// Evaluate assignments.
     ///
     /// If variable lookup succeeds, return variable key and value to set to; otherwise error
-    func evalAssignment(_ symbols: LKVarTablePointer) -> Result<(LKVariable, LKData), LeafError> {
+    func evalAssignment(_ symbols: LKVarStack) -> Result<(LKVariable, LKData), LeafError> {
         guard case .variable(let assignor) = first.container,
               let op = op, op.assigning,
               let value = third?.evaluate(symbols) else {
             __MajorBug("Improper assignment expression") }
         
         if assignor.pathed, let parent = assignor.parent,
-           symbols.pointee.match(parent) == nil {
+           symbols.match(parent) == nil {
             return .failure(err("\(parent.short) does not exist; cannot set \(assignor)"))
         }
         /// Straight assignment just requires identifier parent exists if it's pathed.
         if op == .assignment { return .success((assignor, value)) }
         
-        guard let old = symbols.pointee.match(assignor) else {
+        guard let old = symbols.match(assignor) else {
             return .failure(err("\(assignor.member!) does not exist; can't perform compound assignment")) }
         
         let new: LKData
@@ -268,7 +268,7 @@ internal struct LKExpression: LKSymbol {
     }
 
     /// Evaluate a ternary expression
-    private func evalTernary(_ symbols: LKVarTablePointer) -> LKData {
+    private func evalTernary(_ symbols: LKVarStack) -> LKData {
         let condition = first.evaluate(symbols)
         switch condition.bool {
             case .some(true),

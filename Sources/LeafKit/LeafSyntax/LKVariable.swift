@@ -1,5 +1,7 @@
 /// A `LKVarTable` provides a Dictionary of concrete `LeafData` available for a symbolic key
 internal typealias LKVarTable = [LKVariable: LKData]
+
+internal typealias LKVarStack = [(ids: Set<String>, vars: LKVarTablePointer)]
 /// UnsafeMutablePointer to `[LKVariable: LKData]`
 internal typealias LKVarTablePointer = UnsafeMutablePointer<LKVarTable>
 
@@ -21,6 +23,20 @@ internal extension LKVarTable {
         return self[variable.contextualized]
     }
 }
+
+internal extension LKVarStack {
+    /// Locate the `LKVariable` in the stack, if possible
+    func match(_ variable: LKVariable) -> LKData? {
+        var depth = count - 1
+        repeat {
+            if let x = self[depth].vars.pointee[variable] { return x }
+            if depth > 0 { depth -= 1; continue }
+            return self[depth].vars.pointee.match(variable)
+        } while depth >= 0
+        return nil
+    }
+}
+
 
 internal struct LKVariable: LKSymbol, Hashable {
     let flat: String
@@ -49,8 +65,8 @@ internal struct LKVariable: LKSymbol, Hashable {
     let resolved: Bool = false
     var invariant: Bool { memberStart == -1 || memberStart > 2 }
     var symbols: Set<LKVariable> { [self] }
-    func resolve(_ symbols: LKVarTablePointer) -> Self { self }
-    func evaluate(_ symbols: LKVarTablePointer) -> LeafData { symbols.pointee.match(self) ?? .trueNil }
+    func resolve(_ symbols: LKVarStack) -> Self { self }
+    func evaluate(_ symbols: LKVarStack) -> LeafData { symbols.match(self) ?? .trueNil }
 
     // MARK: - LKPrintable
     var description: String { flat }

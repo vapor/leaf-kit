@@ -41,7 +41,7 @@ internal struct LKTuple: LKSymbol {
     private func wrap(_ s: String) -> String { collection ? "[\(s)]" : "(\(s))" }
     
     // MARK: LKSymbol
-    func resolve(_ symbols: LKVarTablePointer) -> Self {
+    func resolve(_ symbols: LKVarStack) -> Self {
         if resolved { return self }
         var updated = self
         for index in values.indices where !values[index].resolved {
@@ -50,7 +50,7 @@ internal struct LKTuple: LKSymbol {
         return updated
     }
     
-    func evaluate(_ symbols: LKVarTablePointer) -> LeafData {
+    func evaluate(_ symbols: LKVarStack) -> LeafData {
         if labels.isEmpty {
             return .array(values.map { $0.evaluate(symbols) })
         } else {

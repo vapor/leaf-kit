@@ -61,7 +61,7 @@ internal struct ForLoop: LeafBlock {
             switch params[0].container {
                 case .array(let a)      : cache = a.enumerated().map { (o, e) in
                     (setKey ? .int(o) : .trueNil, setValue ? e : .trueNil) }
-                case .dictionary(let d) : cache = d.map { (k, v) in
+                case .dictionary(let d) : cache = d.sorted(by: {$0.key < $1.key}).map { (k, v) in
                     (setKey ? .string(k) : .trueNil, setValue ? v : .trueNil) }
                 case .int(let i)        : passes = i > 0 ? UInt32(i) : 0
                     for i in 0..<passes { cache.append(
