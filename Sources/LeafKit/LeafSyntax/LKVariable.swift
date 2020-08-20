@@ -26,6 +26,12 @@ internal struct LKVariable: LKSymbol, Hashable {
     let flat: String
     private let memberStart: Int
     private let memberEnd: Int
+    private let define: Bool
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(flat)
+        hasher.combine(define)
+    }
 
     var atomic: Bool { memberStart == 2 && memberEnd == -1 }
     var pathed: Bool { memberEnd != -1 }
@@ -44,9 +50,7 @@ internal struct LKVariable: LKSymbol, Hashable {
     var invariant: Bool { memberStart == -1 || memberStart > 2 }
     var symbols: Set<LKVariable> { [self] }
     func resolve(_ symbols: LKVarTablePointer) -> Self { self }
-    func evaluate(_ symbols: LKVarTablePointer) -> LeafData {
-        symbols.pointee.match(self) ?? .trueNil
-    }
+    func evaluate(_ symbols: LKVarTablePointer) -> LeafData { symbols.pointee.match(self) ?? .trueNil }
 
     // MARK: - LKPrintable
     var description: String { flat }
@@ -71,30 +75,31 @@ internal struct LKVariable: LKSymbol, Hashable {
         } else if path == nil { memberEnd = -1 } else { return nil }
         self.flat = flat
         self.memberEnd = memberEnd
+        self.define = false
     }
 
     /// Convenience for the `self` scope top-level variable
     static var `self`: Self { .init() }
     /// Convenience for an atomic unscoped variable - DOES NOT validate that string is valid identifier
     static func atomic(_ m: String) -> Self { .init(member: m) }
+    /// Convenience for a `Define` identifier - MUST be atomic
+    static func define(_ m: String) -> Self { .init(member: m, define: true)}
 
     /// Remap a variant symbol onto `self` context
     var contextualized: Self { .init(from: self) }
     /// Return the variable's parent identifier, or nil if a scope level or unscoped member-only
     var parent: Self? { Self.init(child: self) }
     /// Extend a symbol with a new identifier - as member or path as appropriate
-    func extend(with: String) -> Self {
-        if memberStart == -1 { return .init(from: self, member: with)}
-        return .init(from: self, path: with)
-    }
+    func extend(with: String) -> Self { memberStart == -1 ? .init(from: self, member: with) : .init(from: self, path: with) }
     /// Validate if self is descendent of ancestor
     func isDescendent(of ancestor: Self) -> Bool { flat.hasPrefix(ancestor.flat) }
 
     /// Generate an atomic unscoped variable
-    private init(member: String) {
+    private init(member: String, define: Bool = false) {
         self.flat = "$:\(member)"
         self.memberStart = 2
         self.memberEnd = -1
+        self.define = define
     }
 
     /// Generate a scoped top-level variable
@@ -102,6 +107,7 @@ internal struct LKVariable: LKSymbol, Hashable {
         self.flat = "$\(scope)"
         self.memberStart = -1
         self.memberEnd = -1
+        self.define = false
     }
 
     /// Remap a variant unscoped variable onto an invariant scoped variable
@@ -109,8 +115,9 @@ internal struct LKVariable: LKSymbol, Hashable {
         var cropped = from.flat
         cropped.removeFirst(2)
         self.flat = "$\(newScope):\(cropped)"
-        self.memberStart = newScope.count + 1
+        self.memberStart = newScope.count + 2
         self.memberEnd = from.memberEnd != -1 ? from.memberEnd + newScope.count : -1
+        self.define = false
     }
     
     /// Remap a pathed variable up one level
@@ -127,13 +134,15 @@ internal struct LKVariable: LKSymbol, Hashable {
             let end = child.flat.lastIndex(of: .period)!
             self.flat = String(child.flat[child.flat.startIndex...end])
         }
+        self.define = false
     }
 
     /// Remap a scoped variable top level variable with a member
     private init(from: Self, member: String) {
         self.flat = "\(from.flat):\(member)"
-        self.memberStart = from.flat.count
+        self.memberStart = from.flat.count + 1
         self.memberEnd = -1
+        self.define = false
     }
 
     /// Remap a  variable with a new path component
@@ -141,5 +150,6 @@ internal struct LKVariable: LKSymbol, Hashable {
         self.flat = "\(from.flat).\(path)"
         self.memberStart = from.memberStart
         self.memberEnd = from.memberEnd == -1 ? from.flat.count - 1 : from.memberEnd
+        self.define = false
     }
 }

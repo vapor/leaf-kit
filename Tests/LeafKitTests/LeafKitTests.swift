@@ -12,7 +12,7 @@ final class ParserTests: LeafTestClass {
 
         let expectation = """
         0: if([lowercased([$:name.first == string(admin)]) == string(welcome)]):
-        1: raw(ByteBuffer: 5B))
+        1: raw(ByteBuffer: 5B)
         """
 
         try XCTAssertEqual(parse(input).terse, expectation)
@@ -29,9 +29,9 @@ final class ParserTests: LeafTestClass {
 
         let expectation = """
         0: if($:foo):
-        1: raw(ByteBuffer: 5B))
-        2: else():
-        3: raw(ByteBuffer: 5B))
+        1: raw(ByteBuffer: 5B)
+        2: else:
+        3: raw(ByteBuffer: 5B)
         """
 
         try XCTAssertEqual(parse(input).terse, expectation)
@@ -53,15 +53,15 @@ final class ParserTests: LeafTestClass {
         let expectation = """
         0: if($:sayhello):
         1: scope(table: 1)
-           0: raw(ByteBuffer: 13B))
+           0: raw(ByteBuffer: 13B)
            1: for($:names):
            2: scope(table: 2)
-              0: raw(ByteBuffer: 13B))
+              0: raw(ByteBuffer: 13B)
               1: $:name
-              2: raw(ByteBuffer: 5B))
-           3: raw(ByteBuffer: 9B))
-        2: else():
-        3: raw(ByteBuffer: 9B))
+              2: raw(ByteBuffer: 5B)
+           3: raw(ByteBuffer: 9B)
+        2: else:
+        3: raw(ByteBuffer: 9B)
         """
 
         try XCTAssertEqual(parse(input).terse, expectation)
@@ -89,25 +89,25 @@ final class ParserTests: LeafTestClass {
         """
 
         let preinline = """
-        0: inline(string(header)):
+        0: inline("header", leaf):
         1: scope(undefined)
-        2: raw(ByteBuffer: 8B))
-        3: evaluate($:title):
+        2: raw(ByteBuffer: 8B)
+        3: evaluate(title):
         4: scope(undefined)
-        5: raw(ByteBuffer: 9B))
-        6: inline(string(header)):
+        5: raw(ByteBuffer: 9B)
+        6: inline("header", leaf):
         7: scope(undefined)
         """
 
         let expectation = """
-        0: inline(string(header)):
-        1: raw(ByteBuffer: 12B))
-        2: raw(ByteBuffer: 8B))
-        3: evaluate($:title):
+        0: inline("header", leaf):
+        1: raw(ByteBuffer: 12B)
+        2: raw(ByteBuffer: 8B)
+        3: evaluate(title):
         4: scope(undefined)
-        5: raw(ByteBuffer: 9B))
-        6: inline(string(header)):
-        7: raw(ByteBuffer: 12B))
+        5: raw(ByteBuffer: 9B)
+        6: inline("header", leaf):
+        7: raw(ByteBuffer: 12B)
         """
 
         var baseAST = try parse(base, name: "base")
@@ -139,26 +139,26 @@ final class ParserTests: LeafTestClass {
         """
 
         let expectation = """
-        0: export($:title, string(Welcome)):
+        0: export(title):
         1: string(Welcome)
-        3: export($:body):
+        3: export(body):
         4: scope(table: 1)
-           0: raw(ByteBuffer: 12B))
+           0: raw(ByteBuffer: 12B)
            1: $:name
-           2: raw(ByteBuffer: 2B))
-        6: extend(string(base)):
+           2: raw(ByteBuffer: 2B)
+        6: extend("base", leaf):
         7: scope(table: 2)
-           0: extend(string(header)):
+           0: extend("header", leaf):
            1: scope(table: 3)
-              0: raw(ByteBuffer: 4B))
-              1: import($:header):
+              0: raw(ByteBuffer: 4B)
+              1: import(header):
               2: scope(undefined)
-              3: raw(ByteBuffer: 5B))
-           2: raw(ByteBuffer: 8B))
-           3: import($:title):
+              3: raw(ByteBuffer: 5B)
+           2: raw(ByteBuffer: 8B)
+           3: import(title):
            4: scope(undefined)
-           5: raw(ByteBuffer: 9B))
-           6: import($:body):
+           5: raw(ByteBuffer: 9B)
+           6: import(body):
            7: scope(undefined)
         """
 
@@ -182,14 +182,14 @@ final class ParserTests: LeafTestClass {
         """
 
         let expectation = """
-        0: define($:title, string(Welcome)):
+        0: define(title):
         1: string(Welcome)
-        3: define($:body):
+        3: define(body):
         4: scope(table: 1)
-           0: raw(ByteBuffer: 12B))
+           0: raw(ByteBuffer: 12B)
            1: $:name
-           2: raw(ByteBuffer: 2B))
-        6: inline(string(base)):
+           2: raw(ByteBuffer: 2B)
+        6: inline("base", leaf):
         7: scope(undefined)
         """
 
@@ -244,23 +244,23 @@ final class LexerTests: LeafTestClass {
         tagIndicator
         function("if")
         parametersStart
-        param(function(id: "lowercase"))
+        parameter(function(id: "lowercase"))
         parametersStart
-        param(function(id: "first"))
+        parameter(function(id: "first"))
         parametersStart
-        param(variable(part: name))
-        param(operator(Equality: ==))
-        param(literal(String: "admin"))
+        parameter(variable(part: name))
+        parameter(operator(Equality: ==))
+        parameter(literal(String: "admin"))
         parametersEnd
         parametersEnd
-        param(operator(Equality: ==))
-        param(literal(String: "welcome"))
+        parameter(operator(Equality: ==))
+        parameter(literal(String: "welcome"))
         parametersEnd
         blockIndicator
         raw("\\nfoo\\n")
         tagIndicator
         function("endif")
-
+        
         """
 
         let output = try lex(input).string
@@ -274,10 +274,10 @@ final class LexerTests: LeafTestClass {
         tagIndicator
         expression
         parametersStart
-        param(literal(Int: 42))
+        parameter(literal(Int: 42))
         parametersEnd
         raw("</h1>")
-
+        
         """
 
         let output = try lex(input).string
@@ -291,14 +291,14 @@ final class LexerTests: LeafTestClass {
         tagIndicator
         expression
         parametersStart
-        param(literal(Int: 42))
-        param(literal(Int: 42))
-        param(literal(Int: 42))
-        param(literal(Int: 42))
-        param(literal(Int: 42))
-        param(literal(Double: 42.0))
-        param(literal(Double: 42.0))
-        param(literal(Double: 42.0))
+        parameter(literal(Int: 42))
+        parameter(literal(Int: 42))
+        parameter(literal(Int: 42))
+        parameter(literal(Int: 42))
+        parameter(literal(Int: 42))
+        parameter(literal(Double: 42.0))
+        parameter(literal(Double: 42.0))
+        parameter(literal(Double: 42.0))
         parametersEnd
 
         """
@@ -326,14 +326,14 @@ final class LexerTests: LeafTestClass {
         """
 
         let expectation = """
-        0: export($:title, string(Welcome)):
+        0: export(title):
         1: string(Welcome)
-        3: export($:body):
+        3: export(body):
         4: scope(table: 1)
-           0: raw(ByteBuffer: 12B))
+           0: raw(ByteBuffer: 12B)
            1: $:name
-           2: raw(ByteBuffer: 2B))
-        6: extend(string(base)):
+           2: raw(ByteBuffer: 2B)
+        6: extend("base", leaf):
         7: scope(undefined)
         """
 
@@ -347,17 +347,17 @@ final class LexerTests: LeafTestClass {
         tagIndicator
         expression
         parametersStart
-        param(variable(part: foo))
-        param(operator(Equality: ==))
-        param(literal(Int: 40))
+        parameter(variable(part: foo))
+        parameter(operator(Equality: ==))
+        parameter(literal(Int: 40))
         parameterDelimiter
-        param(variable(part: and))
+        parameter(variable(part: and))
         parameterDelimiter
-        param(literal(String: "literal"))
+        parameter(literal(String: "literal"))
         parameterDelimiter
-        param(variable(part: and))
+        parameter(variable(part: and))
         parameterDelimiter
-        param(variable(part: foo_bar))
+        parameter(variable(part: foo_bar))
         parametersEnd
 
         """
@@ -388,12 +388,12 @@ final class LexerTests: LeafTestClass {
         tagIndicator
         function("define")
         parametersStart
-        param(variable(part: foo))
+        parameter(variable(part: foo))
         parametersEnd
         tagIndicator
         function("define")
         parametersStart
-        param(variable(part: foo))
+        parameter(variable(part: foo))
         parametersEnd
         blockIndicator
 
@@ -413,25 +413,25 @@ final class LexerTests: LeafTestClass {
         tagIndicator
         expression
         parametersStart
-        param(variable(part: todo))
+        parameter(variable(part: todo))
         parametersEnd
         tagIndicator
         expression
         parametersStart
-        param(variable(part: todo))
-        param(operator(Scoping Accessor: .))
-        param(variable(part: title))
+        parameter(variable(part: todo))
+        parameter(operator(Scoping Accessor: .))
+        parameter(variable(part: title))
         parametersEnd
         tagIndicator
         expression
         parametersStart
-        param(variable(part: todo))
-        param(operator(Scoping Accessor: .))
-        param(variable(part: user))
-        param(operator(Scoping Accessor: .))
-        param(variable(part: name))
-        param(operator(Scoping Accessor: .))
-        param(variable(part: first))
+        parameter(variable(part: todo))
+        parameter(operator(Scoping Accessor: .))
+        parameter(variable(part: user))
+        parameter(operator(Scoping Accessor: .))
+        parameter(variable(part: name))
+        parameter(operator(Scoping Accessor: .))
+        parameter(variable(part: first))
         parametersEnd
 
         """
@@ -470,24 +470,34 @@ final class LeafKitTests: LeafTestClass {
 
     func testRendererContext() throws {
         var test = TestFiles()
-        test.files["/foo.leaf"] = "Hello #custom(name)"
+        test.files["/foo.leaf"] = "Hello #custom($prefix, name)"
 
-        struct CustomTag: LeafTag {
-            func render(_ ctx: LeafContext) throws -> LeafData {
-                let prefix = ctx.userInfo["prefix"] as? String ?? ""
-                let param = ctx.parameters.first?.string ?? ""
-                return .string(prefix + param)
-            }
+//        struct CustomTag: LeafTag {
+//            func render(_ ctx: LeafContext) throws -> LeafData {
+//                let prefix = ctx.userInfo["prefix"] as? String ?? ""
+//                let param = ctx.parameters.first?.string ?? ""
+//                return .string(prefix + param)
+//            }
+//        }
+        struct CustomTag: LeafFunction {
+            static let callSignature: CallParameters = [
+                .init(types: [.string], defaultValue: ""),
+                .init(types: [.string], defaultValue: "") ]
+            static let returns: Set<LeafDataType> = [.string]
+            static let invariant: Bool = false
+            
+            func evaluate(_ params: CallValues) -> LeafData {
+                .string(params[0].string! + params[1].string!) }
         }
-
+        
+        LeafConfiguration.entities.use(CustomTag(), asFunction: "custom")
+        
         let renderer = TestRenderer(
-            tags: ["custom": CustomTag()],
+//            tags: ["custom": CustomTag()],
             sources: .singleSource(test),
             userInfo: ["prefix": "bar"]
         )
-        let view = try renderer.render(path: "foo", context: [
-            "name": "vapor"
-        ]).wait()
+        let view = try renderer.render(path: "foo", context: ["name": "vapor"]).wait()
 
         XCTAssertEqual(view.string, "Hello barvapor")
     }
@@ -514,7 +524,7 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testCacheSpeedLinear() {
-        let iterations = 100_000
+        let iterations = 1_000
         var dur: Double = 0
         var ser: Double = 0
         var stop: Double = 0
@@ -586,7 +596,7 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testCacheSpeedRandom() {
-        let iterations = 100_000
+        let iterations = 1_000
         var dur: Double = 0
         var ser: Double = 0
         var stop: Double = 0

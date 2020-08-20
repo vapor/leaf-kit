@@ -70,43 +70,31 @@ public struct LeafError: Error, CustomStringConvertible {
     /// - Where errors are caused by toolchain faults, will report the Swift source code location of the call
     /// - Where errors are from Lex or Parse errors, will report the template source location of the error
     var localizedDescription: String {
-        let file = self.file.split(separator: "/").last ?? "?"
-        let src = "\(file).\(function):\(line)"
-
+        var m = "\(file.split(separator: "/").last ?? "?").\(function):\(line) - "
         switch reason {
-            case .illegalAccess(let message):
-                return "\(src) - \(message)"
-            case .unknownError(let message):
-                return "\(src) - \(message)"
-            case .unsupportedFeature(let feature):
-                return "\(src) - \(feature) is not implemented"
-            case .cachingDisabled:
-                return "\(src) - Caching is globally disabled"
-            case .keyExists(let key):
-                return "\(src) - Existing entry \(key); use insert with replace=true to overrride"
-            case .noValueForKey(let key):
-                return "\(src) - No cache entry exists for \(key)"
-            case .unresolvedAST(let key, let dependencies):
-                return "\(src) - Flat AST expected; \(key) has unresolved dependencies: \(dependencies)"
-            case .noTemplateExists(let key):
-                return "\(src) - No template found for \(key)"
-            case .cyclicalReference(let key, let chain):
-                return "\(src) - \(key) cyclically referenced in [\((chain + ["!\(key)"]).joined(separator: " -> "))]"
-            case .lexerError(let e):
-                return "Lexing error - \(e.localizedDescription)"
+            case .illegalAccess(let r)        : m += r
+            case .unknownError(let r)         : m += r
+            case .unsupportedFeature(let f)   : m += "\(f) not implemented"
+            case .cachingDisabled             : m += "Caching is globally disabled"
+            case .keyExists(let k)            : m += "Existing entry \(k)"
+            case .noValueForKey(let k)        : m += "No cache entry exists for \(k)"
+            case .noTemplateExists(let k)     : m += "No template found for \(k)"
+            case .lexerError(let e)           : m = "Lexing error - \(e.description)"
+            case .unresolvedAST(let k, let d) : m += "\(k) has unresolved dependencies: \(d)"
+            case .cyclicalReference(let k, let c)
+                : m += "\(k) cyclically referenced in [\((c + ["!\(k)"]).joined(separator: " -> "))]"
         }
+        return m
     }
 
     public var description: String { localizedDescription }
 
     /// Create a `LeafError` - only `reason` typically used as source locations are auto-grabbed
-    public init(
-        _ reason: Reason,
-        file: String = #file,
-        function: String = #function,
-        line: UInt = #line,
-        column: UInt = #column
-    ) {
+    public init(_ reason: Reason,
+                _ file: String = #file,
+                _ function: String = #function,
+                _ line: UInt = #line,
+                _ column: UInt = #column) {
         self.file = file
         self.function = function
         self.line = line
@@ -157,16 +145,14 @@ public struct LexerError: Error, CustomStringConvertible {
     ///   - src: File being lexed
     ///   - lexed: `LKTokens` already lexed prior to error
     ///   - recoverable: Flag to say whether the error can potentially be recovered during Parse
-    internal init(
-        _ reason: Reason,
-        _ src: LKRawTemplate,
-        _ lexed: [LKToken] = [],
-        recoverable: Bool = false
-    ) {
-        self.line = src.line
-        self.column = src.column
+    internal init(_ reason: Reason,
+                  _ src: LKRawTemplate,
+                  _ lexed: [LKToken] = [],
+                  recoverable: Bool = false) {
         self.reason = reason
         self.lexed = lexed
+        self.line = src.line
+        self.column = src.column
         self.name = src.name
         self.recoverable = recoverable
     }
@@ -182,22 +168,46 @@ public struct LexerError: Error, CustomStringConvertible {
 
 // MARK: - Internal Conveniences
 
-@inline(__always)
-internal func succeed<T>(_ value: T, on eL: EventLoop) -> ELF<T> { eL.makeSucceededFuture(value) }
+/// An object that will halt on a single error; conveniences for setting that state & returning values
+internal protocol LKErroring {
+    var error: LeafError? { get }
+    var errored: Bool { get }
+}
+
+extension LKErroring {
+    var errored: Bool { error != nil }
+}
+
+func err(_ cause: LeafErrorCause,
+         _ file: String = #file,
+         _ function: String = #function,
+         _ line: UInt = #line,
+         _ column: UInt = #column) -> LeafError { .init(cause, String(file.split(separator: "/").last ?? ""), function, line, column) }
+
+func err(_ reason: String,
+         _ file: String = #file,
+         _ function: String = #function,
+         _ line: UInt = #line,
+         _ column: UInt = #column) -> LeafError { err(.unknownError(reason)) }
+
+
 
 @inline(__always)
-internal func fail<T>(_ error: LeafError, on eL: EventLoop) -> ELF<T> { eL.makeFailedFuture(error) }
+func succeed<T>(_ value: T, on eL: EventLoop) -> ELF<T> { eL.makeSucceededFuture(value) }
 
 @inline(__always)
-internal func fail<T>(_ error: LeafErrorCause, on eL: EventLoop,
-                      _ file: String = #file, _ function: String = #function,
-                      _ line: UInt = #line, _ column: UInt = #column) -> ELF<T> {
-    eL.makeFailedFuture(LeafError(error, file: file, function: function, line: line, column: column)) }
+func fail<T>(_ error: LeafError, on eL: EventLoop) -> ELF<T> { eL.makeFailedFuture(error) }
 
-internal func __MajorBug(_ message: String,
-              file: String = #file,
-              function: String = #function,
-              line: UInt = #line) -> Never {
+@inline(__always)
+func fail<T>(_ error: LeafErrorCause, on eL: EventLoop,
+             _ file: String = #file, _ function: String = #function,
+             _ line: UInt = #line, _ column: UInt = #column) -> ELF<T> {
+    fail(LeafError(error, file, function, line, column), on: eL) }
+
+func __MajorBug(_ message: String,
+                         _ file: String = #file,
+                         _ function: String = #function,
+                         _ line: UInt = #line) -> Never {
     fatalError("""
     LeafKit Major Bug: "\(message)"
     Please File Issue Immediately at https://github.com/vapor/leaf-kit/issues

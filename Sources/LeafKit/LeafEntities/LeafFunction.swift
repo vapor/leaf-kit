@@ -17,6 +17,52 @@ public protocol LeafFunction {
     func evaluate(_ params: CallValues) -> LeafData
 }
 
+/// A `LeafFunction` that additionally can be used on a method on concrete `LeafData` types
+///
+/// Example: `#(aStringVariable.hasPrefix("prefix")`
+/// The first parameter of the `.callSignature` provides the types the method can operate on. The method
+/// will still be called using `LeafFunction.evaluate`, with the first parameter being the operand.
+public protocol LeafMethod: LeafFunction {}
+
+/// The concrete object a `LeafFunction` etc. will receive holding its call parameter values
+///
+/// Values for all parameters in function's call signature are guaranteed to be present and accessible via
+/// subscripting using the 0-based index of the parameter position, or the label if one was specified. Data
+/// is guaranteed to match at least one of the data types that was specified, and will only be optional if
+/// the parameter specified that it accepts optionals at that position.
+///
+/// `.trueNil` is a unique case that never is an actual parameter value the function has received - it
+/// signals out-of-bounds indexing of the parameter value object.
+public struct LeafCallValues {
+    subscript(index: String) -> LeafData { labels[index] != nil ? self[labels[index]!] : .trueNil }
+    subscript(index: Int) -> LeafData { (0..<count).contains(index) ? values[index] : .trueNil }
+
+    internal let values: [LeafData]
+    internal let labels: [String: Int]
+    internal var count: Int { values.count }
+
+    internal init?(_ sig: CallParameters,
+                   _ tuple: LKTuple?,
+                   _ symbols: LKVarTablePointer) {
+        guard let tuple = tuple else {
+            if sig.isEmpty { values = []; labels = [:]; return }
+            return nil
+        }
+        self.labels = tuple.labels
+        do {
+            self.values = try tuple.values.enumerated().map {
+                let e = sig[$0.offset].match($0.element.evaluate(symbols))
+                if let e = e { return e } else { throw "" }
+            }
+        } catch { return nil }
+    }
+
+    internal init(_ values: [LeafData], _ labels: [String: Int]) {
+        self.values = values
+        self.labels = labels
+    }
+}
+
 /// A representation of a function parameter defintion - equivalent to a Swift parameter defintion
 public struct LeafCallParameter: LKPrintable, Equatable {
     let label: String?
@@ -70,45 +116,3 @@ public struct LeafCallParameter: LKPrintable, Equatable {
     }
 }
 
-/// The concrete object a `LeafFunction` etc. will receive holding its call parameter values
-///
-/// Values for all parameters in function's call signature are guaranteed to be present and accessible via
-/// subscripting using the 0-based index of the parameter position, or the label if one was specified. Data
-/// is guaranteed to match at least one of the data types that was specified, and will only be optional if
-/// the parameter specified that it accepts optionals at that position.
-///
-/// `.trueNil` is a unique case that never is an actual parameter value the function has received - it
-/// signals out-of-bounds indexing of the parameter value object.
-public struct LeafCallValues {
-    subscript(index: String) -> LeafData { labels[index] != nil ? self[labels[index]!] : .trueNil }
-    subscript(index: Int) -> LeafData { (0..<count).contains(index) ? values[index] : .trueNil }
-
-    internal let values: [LeafData]
-    internal let labels: [String: Int]
-    internal var count: Int { values.count }
-
-    internal init?(_ sig: CallParameters,
-                   _ tuple: LKTuple,
-                   _ symbols: LKVarTablePointer) {
-        if sig.isEmpty && tuple.isEmpty { values = []; labels = [:]; return }
-        self.labels = tuple.labels
-        do {
-            self.values = try tuple.values.enumerated().map {
-                let e = sig[$0.offset].match($0.element.evaluate(symbols))
-                if let e = e { return e } else { throw "" }
-            }
-        } catch { return nil }
-    }
-
-    internal init(_ values: [LeafData], _ labels: [String: Int]) {
-        self.values = values
-        self.labels = labels
-    }
-}
-
-/// A `LeafFunction` that additionally can be used on a method on concrete `LeafData` types
-///
-/// Example: `#(aStringVariable.hasPrefix("prefix")`
-/// The first parameter of the `.callSignature` provides the types the method can operate on. The method
-/// will still be called using `LeafFunction.evaluate`, with the first parameter being the operand.
-public protocol LeafMethod: LeafFunction {}

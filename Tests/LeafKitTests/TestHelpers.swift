@@ -11,7 +11,7 @@ internal typealias LKConf = LeafConfiguration
 internal class LeafTestClass: XCTestCase {
     override func setUp() {
         LKConf.__reset()
-        LKConf.entities = .leaf4Core
+        LKConf.entities = .leaf4Transitional
     }
 }
 
@@ -50,7 +50,7 @@ internal func render(name: String = "test-render",
     let ast = try parser.parse()
     let buffer = ByteBufferAllocator().buffer(capacity: Int(ast.underestimatedSize))
     var block = ByteBuffer.instantiate(data: buffer, encoding: LKConf.encoding)
-    let serializer = LKSerializer(ast: ast, context: context)
+    let serializer = LKSerializer(ast, context, ByteBuffer.self)
     switch serializer.serialize(buffer: &block) {
         case .success(_)     : return block.contents
         case .failure(let e) : throw e
@@ -68,14 +68,14 @@ internal class TestRenderer {
     private var timer: Date = .distantPast
 
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
-            tags: [String : LeafTag] = defaultTags,
-            cache: LeafCache = DefaultLeafCache(),
-            sources: LeafSources = .singleSource(TestFiles()),
-            eventLoop: EventLoop = EmbeddedEventLoop(),
-            userInfo: [AnyHashable : Any] = [:],
-            tasks: Int = 1) {
+   //      tags: [String : LeafTag] = defaultTags,
+         cache: LeafCache = DefaultLeafCache(),
+         sources: LeafSources = .singleSource(TestFiles()),
+         eventLoop: EventLoop = EmbeddedEventLoop(),
+         userInfo: [AnyHashable : Any] = [:],
+         tasks: Int = 1) {
         self.r = .init(configuration: configuration,
-                              tags: tags,
+   //                           tags: tags,
                               cache: cache,
                               sources: sources,
                               eventLoop: eventLoop,
@@ -116,10 +116,8 @@ internal struct TestFiles: LeafSource {
         if let file = self.files[path] {
             var buffer = ByteBufferAllocator().buffer(capacity: file.count)
             buffer.writeString(file)
-            return eventLoop.makeSucceededFuture(buffer)
-        } else {
-            return eventLoop.makeFailedFuture(LeafError(.noTemplateExists(template)))
-        }
+            return succeed(buffer, on: eventLoop)
+        } else { return fail(err(.noTemplateExists(template)), on: eventLoop) }
     }
 }
 
@@ -159,7 +157,7 @@ internal var projectTestFolder: String { "/\(#file.split(separator: "/").dropLas
 final class PrintTests: XCTestCase {
     func testRaw() throws {
         let template = "hello, raw text"
-        let expectation = "0: raw(ByteBuffer: 15B))"
+        let expectation = "0: raw(ByteBuffer: 15B)"
 
         let v = try parse(template)
         XCTAssertEqual(v.terse, expectation)
@@ -182,9 +180,9 @@ final class PrintTests: XCTestCase {
         let expectation = """
         0: for($:names):
         1: scope(table: 1)
-           0: raw(ByteBuffer: 12B))
+           0: raw(ByteBuffer: 12B)
            1: $:name
-           2: raw(ByteBuffer: 2B))
+           2: raw(ByteBuffer: 2B)
         """
 
         let v = try parse(template)
@@ -203,11 +201,11 @@ final class PrintTests: XCTestCase {
         """
         let expectation = """
         0: if($:foo):
-        1: raw(ByteBuffer: 16B))
+        1: raw(ByteBuffer: 16B)
         2: elseif([$:bar == string(bar)]):
-        3: raw(ByteBuffer: 15B))
-        4: else():
-        5: raw(ByteBuffer: 14B))
+        3: raw(ByteBuffer: 15B)
+        4: else:
+        5: raw(ByteBuffer: 14B)
         """
 
         let v = try parse(template)
@@ -217,7 +215,7 @@ final class PrintTests: XCTestCase {
     func testImport() throws {
         let template = "#import(someimport)"
         let expectation = """
-        0: import($:someimport):
+        0: import(someimport):
         1: scope(undefined)
         """
 
@@ -234,11 +232,11 @@ final class PrintTests: XCTestCase {
         #extend("base")
         """
         let expectation = """
-        0: export($:title, string(Welcome)):
+        0: export(title):
         1: string(Welcome)
-        3: export($:body):
-        4: raw(ByteBuffer: 17B))
-        6: extend(string(base)):
+        3: export(body):
+        4: raw(ByteBuffer: 17B)
+        6: extend("base", leaf):
         7: scope(undefined)
         """
 

@@ -56,46 +56,44 @@ internal struct ForLoop: LeafBlock {
         }
     }
 
-    mutating func evaluateNilScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+    mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
         if set {
             switch params[0].container {
                 case .array(let a)      : cache = a.enumerated().map { (o, e) in
                     (setKey ? .int(o) : .trueNil, setValue ? e : .trueNil) }
                 case .dictionary(let d) : cache = d.map { (k, v) in
                     (setKey ? .string(k) : .trueNil, setValue ? v : .trueNil) }
-                case .int(let i)        : passes = i > 0 ? i : 0
+                case .int(let i)        : passes = i > 0 ? UInt32(i) : 0
                     for i in 0..<passes { cache.append(
-                    (setKey ? .int(i) : .trueNil, setValue ? .int(i + 1) : .trueNil) )}
+                    (setKey ? .int(Int(i)) : .trueNil, setValue ? .int(Int(i) + 1) : .trueNil) )}
                 case .string(let s)     : cache = Array(s).enumerated().map { (o, c) in
                     (setKey ? .int(o) : .trueNil, setValue ? .string(String(c)) : .trueNil) }
                 default: __MajorBug("Non-container provided as parameter")
             }
-            if cache.isEmpty { return .discard }
-            passes = cache.count
+            passes = UInt32(cache.count)
             variables[first] = .bool(true)
             variables[last] = .bool(false)
         } else {
             switch params[0].container {
-                case .array(let a)      : passes = a.count
-                case .dictionary(let d) : passes = d.values.count
-                case .int(let i)        : passes = i > 0 ? i : 0
-                case .string(let s)     : passes = s.count
+                case .array(let a)      : passes = UInt32(a.count)
+                case .dictionary(let d) : passes = UInt32(d.values.count)
+                case .int(let i)        : passes = i > 0 ? UInt32(i) : 0
+                case .string(let s)     : passes = UInt32(s.count)
                 default: __MajorBug("Non-container provided as parameter")
             }
-            if cache.isEmpty { return .discard }
         }
-        return reEvaluateScope(&variables)
+        return passes != 0 ? reEvaluateScope(&variables) : .discard
     }
 
     mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount {
         guard pass < passes else { return .discard }
-        guard set else { pass += 1; return .repeating(passes - pass + 1) }
+        guard set else { pass += 1; return .repeating(passes + 1 - UInt32(pass)) }
         if set      { variables[first] = .bool(pass == 0)
                       variables[last] = .bool(pass == passes - 1) }
         if setKey   { variables[key] = cache[pass].0 }
         if setValue { variables[value] = cache[pass].1 }
         pass += 1
-        return .repeating(passes - pass + 1)
+        return .repeating(passes + 1 - UInt32(pass))
     }
 
     var first: String = "#first"
@@ -107,7 +105,7 @@ internal struct ForLoop: LeafBlock {
     var setValue: Bool
 
     var pass: Int = 0
-    var passes: Int = 0
+    var passes: UInt32 = 0
     var cache: [(LeafData, LeafData)] = []
 }
 
@@ -123,8 +121,8 @@ internal struct WhileLoop: LeafBlock {
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> WhileLoop {.init()}
 
-    mutating func evaluateNilScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
-        params[0].bool! ? .once : .discard
+    mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+        params[0].bool! ? .indefinite : .discard
     }
 
     mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount { __MajorBug("While loops never return non-nil") }
@@ -144,7 +142,7 @@ internal struct RepeatLoop: LeafBlock {
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> RepeatLoop {.init()}
 
-    mutating func evaluateNilScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+    mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
         let result: EvalCount = cache != false ? .indefinite : .discard
         cache = params[0].bool!
         return result
@@ -171,7 +169,7 @@ struct IfBlock: ChainedBlock {
 
     let scopeVariables: [String]? = nil
 
-    mutating func evaluateNilScope(_ params: CallValues,
+    mutating func evaluateScope(_ params: CallValues,
                                    _ variables: inout [String: LeafData]) -> EvalCount {
         params[0].bool! ? .once : .discard
     }
@@ -191,7 +189,7 @@ struct ElseIfBlock: ChainedBlock {
 
     let scopeVariables: [String]? = nil
 
-    mutating func evaluateNilScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+    mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
         params[0].bool! ? .once : .discard
     }
 }
@@ -210,5 +208,5 @@ struct ElseBlock: ChainedBlock {
 
     let scopeVariables: [String]? = nil
 
-    mutating func evaluateNilScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount { .once }
+    mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount { .once }
 }

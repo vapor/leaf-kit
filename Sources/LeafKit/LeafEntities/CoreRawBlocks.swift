@@ -3,42 +3,42 @@
 
 // MARK: - Raw Handlers
 
-/// Adherance for `ByteBuffer` to `RawBlock` as a factory for making raw blocks
-extension ByteBuffer: RawBlock {
+/// Adherance for `ByteBuffer` to `LKRawBlock` as a factory for making raw blocks
+extension ByteBuffer: LKRawBlock {
     /// `ByteBuffer` never attempts to signal state and can be directly output
-    public static var stateful: Bool { false }
-    public static var recall: Bool { false }
+    static var stateful: Bool { false }
+    static var recall: Bool { false }
 
     /// `ByteBuffer` is a naive pass-through handler of itself
-    public static func instantiate(data: ByteBuffer?,
-                                   encoding: String.Encoding) -> RawBlock {
+    static func instantiate(data: ByteBuffer?,
+                                   encoding: String.Encoding) -> LKRawBlock {
         data ?? ByteBufferAllocator().buffer(capacity: 0)
 
     }
 
-    public static func instantiate(size: UInt32,
-                                   encoding: String.Encoding) -> RawBlock {
+    static func instantiate(size: UInt32,
+                                   encoding: String.Encoding) -> LKRawBlock {
         ByteBufferAllocator().buffer(capacity: Int(size))
     }
 
     /// Never errors
-    public var error: String? { nil }
+    var error: String? { nil }
 
     /// Always identity return and valid
-    public var serialized: (buffer: ByteBuffer, valid: Bool?) { (self, true) }
+    var serialized: (buffer: ByteBuffer, valid: Bool?) { (self, true) }
 
-    /// Always takes either the serialized view of a `RawBlock` or the direct result if it's a `ByteBuffer`
-    mutating public func append(_ block: inout RawBlock) throws {
+    /// Always takes either the serialized view of a `LKRawBlock` or the direct result if it's a `ByteBuffer`
+    mutating func append(_ block: inout LKRawBlock) throws {
         var byteBuffer = block as? Self ?? block.serialized.buffer
         writeBuffer(&byteBuffer)
     }
 
-    public mutating func append(_ buffer: inout ByteBuffer) throws {
+    mutating func append(_ buffer: inout ByteBuffer) throws {
         writeBuffer(&buffer)
     }
 
     // appends data using configured serializer views
-    public mutating func append(_ data: LeafData) {
+    mutating func append(_ data: LeafData) {
         switch data.celf {
             case .bool       : writeString(LKConf.boolFormatter(data.bool!))
             case .data       : writeString(LKConf.dataFormatter(data.data!) ?? "")
@@ -64,8 +64,8 @@ extension ByteBuffer: RawBlock {
         }
     }
 
-    public var byteCount: UInt32 { UInt32(readableBytes) }
-    public var contents: String { getString(at: readerIndex, length: readableBytes) ?? "" }
+    var byteCount: UInt32 { UInt32(readableBytes) }
+    var contents: String { getString(at: readerIndex, length: readableBytes) ?? "" }
 
-    internal static let newLine = instantiate(data: .init(string: "\n"), encoding: .utf8)
+    static let newLine = instantiate(data: .init(string: "\n"), encoding: .utf8)
 }

@@ -3,11 +3,13 @@ internal struct LKTuple: LKSymbol {
 
     var values: LKParams { didSet { setStates() } }
     var labels: [String: Int] { didSet { setStates() } }
+    var collection: Bool = false
 
     // MARK: LKSymbol
     private(set) var resolved: Bool
     private(set) var invariant: Bool
     private(set) var symbols: Set<LKVariable>
+    
 
     // MARK: - Initializer
     init(_ tuple: [(label: String?, param: LKParameter)] = []) {
@@ -27,18 +29,17 @@ internal struct LKTuple: LKSymbol {
     // MARK: LKPrintable
     /// `(_: value(1), isValid: bool(true), ...)`
     var description: String {
-        let inverted = labels.map { ($0.value, $0.key) }
-        var labeled: [String] = []
-        for (index, value) in values.enumerated() {
-            let label = inverted.first?.0 == index ? inverted.first!.1 : "_"
-            labeled.append("\(label): \(value.description)")
-        }
-        return "(\(labeled.joined(separator: ", ")))"
+        let x = collection ? "\"" : "" // If collection, wrap labels in quotes
+        let inverted = Dictionary(uniqueKeysWithValues: labels.map { ($0.value, $0.key) })
+        let labeled = values.enumerated().map { "\(x)\(inverted[$0] ?? "_ ")\(x): \($1.description)" }
+        return wrap(labeled.joined(separator: ", "))
     }
 
     /// `(value(1), bool(true), ...)`
-    var short: String { "(\(values.map { $0.short }.joined(separator: ", ")))" }
+    var short: String { wrap(values.map { $0.short }.joined(separator: ", ")) }
 
+    private func wrap(_ s: String) -> String { collection ? "[\(s)]" : "(\(s))" }
+    
     // MARK: LKSymbol
     func resolve(_ symbols: LKVarTablePointer) -> Self {
         if resolved { return self }

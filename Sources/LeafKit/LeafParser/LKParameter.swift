@@ -36,8 +36,13 @@ internal struct LKParameter: LKSymbol {
     /// Generate a `LKParameter` hodling a validated `LeafFunction` and its concrete parameters
     static func function(_ name: String,
                          _ function: LeafFunction,
-                         _ params: LKTuple) -> LKParameter {
+                         _ params: LKTuple?) -> LKParameter {
         .init(.function(name, function, params)) }
+    
+    static func dynamic(_ name: String,
+                        _ matches: [(LeafFunction, LKTuple?)],
+                        _ params: LKTuple?) -> LKParameter {
+        .init(.dynamic(name, matches, params)) }
 
     // MARK: - Auto-reducing generators
 
@@ -80,7 +85,7 @@ internal struct LKParameter: LKSymbol {
     func evaluate(_ symbols: LKVarTablePointer) -> LKData { container.evaluate(symbols) }
     
     var description: String { container.description }
-    var short: String { container.short }
+    var short: String { isTuple ? container.description : container.short }
     
     // MARK: - Internal Only
     
@@ -102,7 +107,8 @@ internal struct LKParameter: LKSymbol {
             case .expression(let e)     : return e.baseType
             case .value(let d)          : return d.celf
             case .keyword, .operator,
-                 .tuple, .variable      : return nil
+                 .tuple, .variable,
+                 .dynamic               : return nil
             case .function(_, let f, _) :
                 return type(of: f).returns.count == 1 ? type(of: f).returns.first : nil
         }
@@ -111,12 +117,12 @@ internal struct LKParameter: LKSymbol {
     /// Whether the parameter can return actual `LeafData` when resolved
     var isValued: Bool {
         switch container {
-            case .value, .variable  : return true
-            case .operator          : return false
-            case .tuple(let t)      : return t.isEvaluable
-            case .keyword(let k)    : return k.isEvaluable
-            case .expression(let e) : return e.form.exp != .custom
-            case .function          : return true
+            case .value, .variable,
+                 .function, .dynamic : return true
+            case .operator           : return false
+            case .tuple(let t)       : return t.isEvaluable
+            case .keyword(let k)     : return k.isEvaluable
+            case .expression(let e)  : return e.form.exp != .custom            
         }
     }
 
@@ -155,14 +161,17 @@ internal struct LKParameter: LKSymbol {
                 resolved = t.resolved
                 invariant = t.invariant
             case .function(_, let f, let p):
-                resolved = p.resolved
-                symbols = p.symbols
-                invariant = f.invariant && p.invariant
-                // FIXME: Evaluate if resolved & invariant are true
+                resolved = p?.resolved ?? true
+                symbols = p?.symbols ?? []
+                invariant = f.invariant && p?.invariant ?? true
+            case .dynamic(_, let f, let p):
+                resolved = p?.resolved ?? true
+                symbols = p?.symbols ?? []
+                invariant = f.allSatisfy {$0.0.invariant} && p?.invariant ?? true
         }
     }
 
-    
+    private var isTuple: Bool { if case .tuple = container { return true } else { return false } }
     
     // MARK: - Internal Scoped Type
     
@@ -181,8 +190,10 @@ internal struct LKParameter: LKSymbol {
         /// A 1...n array/dictionary of LeafParameters either all with or without labels
         case tuple(LKTuple)
         // FIXME: Need to store all potentially resolvable functions at parse time
-        /// A `LeafFunction`(s) - tuple is 0...n and may have 0...n labels
-        case function(String, LeafFunction, LKTuple)
+        /// A `LeafFunction`(s) - tuple is 1...n and may have 0...n labels - nil when empty params
+        case function(String, LeafFunction, LKTuple?)
+        /// A dynamic LeafFunction where multiple hits were found at Parse but can't disambiguate then
+        case dynamic(String, [(LeafFunction, LKTuple?)], LKTuple?)
 
         // MARK: LKSymbol
         
@@ -193,8 +204,11 @@ internal struct LKParameter: LKSymbol {
                 case .operator(let o)           : return "operator(\(o.description)"
                 case .variable(let v)           : return "variable(\(v.description))"
                 case .expression(let e)         : return "expression(\(e.description))"
-                case .tuple(let t)              : return "tuple\(t.description)"
-                case .function(let f, _, let p) : return "\(f)\(p.description)"
+                case .tuple(let t) where t.collection
+                                                : return "\(t.labels.isEmpty ? "array" : "dictionary")\(short)"
+                case .tuple                     : return "tuple\(short)"
+                case .dynamic(let f, _, let p),
+                     .function(let f, _, let p) : return "\(f)\(p?.description ?? "()")"
             }
         }
         
@@ -205,8 +219,11 @@ internal struct LKParameter: LKSymbol {
                 case .operator(let o)           : return o.short
                 case .variable(let s)           : return s.short
                 case .expression(let e)         : return e.short
-                case .tuple(let t)              : return t.short
-                case .function(let f, _, let p) : return "\(f)\(p.short)"
+                case .tuple(let t)  where t.collection
+                                                : return "\(t.labels.isEmpty ? t.short : t.description)"
+                case .tuple(let t)              : return "\(t.short)"
+                case .dynamic(let f, _, let p),
+                     .function(let f, _, let p) : return "\(f)\(p?.short ?? "()")"
             }
         }
 
@@ -217,7 +234,10 @@ internal struct LKParameter: LKSymbol {
                 case .expression(let e)     : return e.resolved
                 case .value(let v)          : return v.resolved
                 case .tuple(let t),
-                     .function(_, _, let t) : return t.resolved
+                     .function(_, _,
+                              .some(let t)) : return t.resolved
+                case .function              : return true
+                case .dynamic               : return false
             }
         }
         
@@ -228,7 +248,8 @@ internal struct LKParameter: LKSymbol {
                 case .expression(let e)         : return e.invariant
                 case .tuple(let t)              : return t.invariant
                 case .value(let v)              : return v.invariant
-                case .function(_, let f, let p) : return f.invariant && p.invariant
+                case .function(_, let f, let p) : return f.invariant && p?.invariant ?? true
+                case .dynamic(_, let f, let p)  : return f.allSatisfy({$0.0.invariant}) && p?.invariant ?? true
             }
         }
         
@@ -238,7 +259,11 @@ internal struct LKParameter: LKSymbol {
                 case .variable(let v)            : return [v]
                 case .expression(let e)          : return e.symbols
                 case .tuple(let t),
-                     .function(_, _, let t)      : return t.symbols
+                     .dynamic(_, _,
+                              .some(let t)),
+                     .function(_, _,
+                              .some(let t))      : return t.symbols
+                case .function, .dynamic         : return []
             }
         }
 
@@ -253,9 +278,17 @@ internal struct LKParameter: LKSymbol {
                                           else { return self }
                 case .tuple(let t)
                     where t.isEvaluable : return .tuple(t.resolve(symbols))
-                case .function(let n, let f, var p)
+                case .function(let n, let f, .some(var p))
                                         : p.values = p.values.map { $0.resolve(symbols) }
                                           return .function(n, f, p)
+                case .dynamic(let n, _, .some(var p))
+                                        : p.values = p.values.map { $0.resolve(symbols) }
+                                          let result = LKConf.entities.validateFunction(n, p)
+                                          switch result {
+                                              case .failure : return .value(.trueNil)
+                                              case .success(let f) where f.count == 1: return .function(n, f[0].0, f[0].1)
+                                              case .success(let f): return .dynamic(n, f, p) }
+                case .function, .dynamic: return self
                 case .tuple             : __MajorBug("Unevaluable Tuples should not exist")
             }
         }
@@ -265,15 +298,33 @@ internal struct LKParameter: LKSymbol {
                 case .value(let v)              : return v.evaluate(symbols)
                 case .variable(let v)           : return symbols.pointee.match(v) ?? .trueNil
                 case .expression(let e)         : return e.evaluate(symbols)
-                case .tuple(let t) where t.isEvaluable
-                                                : return t.evaluate(symbols)
+                case .tuple(let t)
+                        where t.isEvaluable     : return t.evaluate(symbols)
+                case .function(_, let f as Evaluate, _)
+                                                :
+                    /// `Define` parameter was found - evaluate if non-value, and return
+                    if let x = symbols.pointee[.define(f.identifier)]?.container {
+                        if case .evaluate(let x) = x { return x.evaluate(symbols) }
+                        else { return x.evaluate } }
+                    /// Or `Evaluate` had a default - evaluate and return that
+                    else if let x = f.defaultValue { return x.evaluate(symbols) }
+                    return .trueNil /// Otherwise, nil
                 case .function(_, let f, let p) :
-                    // FIXME: This won't regress to overloaded functions
-                    // Without an explicit cast, a parameter that was "any" type
-                    // will have caught the first function of the name.
                     if let params = CallValues(f.sig, p, symbols),
                        params.values.first(where: { $0.celf == .void }) == nil
                     { return f.evaluate(params) } else { return .trueNil }
+                case .dynamic(_, let F, _):
+                    var x: LKTuple = .init()
+                    var matches: [(LeafFunction, CallValues)] = []
+                    for f in F {
+                        x = f.1 ?? .init()
+                        x.values = x.values.map { .value($0.evaluate(symbols)) }
+                        if let params = CallValues(f.0.sig, f.1, symbols),
+                           params.values.first(where: {$0.celf == .void}) == nil {
+                            matches.append((f.0, params))}
+                    }
+                    if matches.count != 1 { return .trueNil }
+                    return matches[0].0.evaluate(matches[0].1)
                 case .keyword(let k)
                         where k.isEvaluable     : let x = LKParameter.keyword(k, reduce: true)
                                                   return x.container.evaluate(symbols)

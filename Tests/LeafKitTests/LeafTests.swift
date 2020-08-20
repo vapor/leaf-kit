@@ -382,7 +382,7 @@ final class LeafTests: LeafTestClass {
         #(-10)
         """
 
-        let syntax = "raw(ByteBuffer: \"10\\n-10\")"
+        let syntax = "int(10)"
 
         let expectation = """
         10
@@ -406,7 +406,7 @@ final class LeafTests: LeafTestClass {
         0: [$:index - int(5)]
         2: [int(10) - int(5)]
         4: [int(10) - int(5)]
-        5: raw(ByteBuffer: 3B))
+        6: int(-5)
         """
 
         let expectation = """
@@ -438,7 +438,7 @@ final class LeafTests: LeafTestClass {
          4: [true && [ ! false]]
          6: [[ ! true] || false]
          8: [[ ! true] || [ ! false]]
-        10: true
+        10: bool(true)
         12: [[int(-5) + [int(10) - [[int(20) / int(2)] + [int(9) * int(-3)]]]] == [[int(90) / int(3)] + [int(2) * int(-10)]]]
         """
 

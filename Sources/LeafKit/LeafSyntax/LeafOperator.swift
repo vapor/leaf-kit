@@ -23,11 +23,11 @@ public enum LeafOperator: String, Hashable, CaseIterable, LKPrintable {
     case modulo          = "%"  //          X           X
     //   Assignment             // -----------------------------------------
     case assignment      = "="  //                X     X
-    case compoundPlus    = "+=" //
-    case compoundMinus   = "-=" //
-    case compoundDiv     = "/=" //
-    case compoundMult    = "*=" //
-    case compoundMod     = "%=" //
+    case compoundPlus    = "+=" //                X     X
+    case compoundMinus   = "-=" //                X     X
+    case compoundDiv     = "/=" //                X     X
+    case compoundMult    = "*=" //                X     X
+    case compoundMod     = "%=" //                X     X
     //   Existential            // -----------------------------------------
     case evaluate        = "`"  //                X           X
     //   Scoping                // -----------------------------------------
@@ -115,10 +115,9 @@ internal extension LeafOperator {
     var parseable: Bool { !Self.unparseable.contains(self) }
 
     static var validCharacters: Set<Character> {
-        Set<LeafOperator>(LeafOperator.allCases)
-                    .subtracting(Self.unlexable)
-                    .map { $0.rawValue }.joined()
-                    .reduce(into: .init(), { $0.insert($1) })
+        Set(LeafOperator.allCases).subtracting(unlexable)
+                                  .map { $0.rawValue }.joined()
+                                  .reduce(into: [], { $0.insert($1) })
     }
 
     /// For calculation operators only - scoping, assignment, ternary not applicable
@@ -150,20 +149,20 @@ private extension LeafOperator {
         case scoping
         case unaryPrefix
         case unaryPostfix
-        case infix
+        case notInfix
         case unlexable
         case unparseable
     }
 
-    static var logical      : Set<LeafOperator> { states[.logical]! }
-    static var mathematical : Set<LeafOperator> { states[.mathematical]! }
-    static var assigning    : Set<LeafOperator> { states[.assigning]! }
-    static var scoping      : Set<LeafOperator> { states[.scoping]! }
-    static var unaryPrefix  : Set<LeafOperator> { states[.unaryPrefix]! }
-    static var unaryPostfix : Set<LeafOperator> { states[.unaryPostfix]! }
-    static var infix        : Set<LeafOperator> { states[.infix]! }
-    static var unlexable    : Set<LeafOperator> { states[.unlexable]! }
-    static var unparseable  : Set<LeafOperator> { states[.unparseable]! }
+    static let logical      = states[.logical]!
+    static let mathematical = states[.mathematical]!
+    static let assigning    = states[.assigning]!
+    static let scoping      = states[.scoping]!
+    static let unaryPrefix  = states[.unaryPrefix]!
+    static let unaryPostfix = states[.unaryPostfix]!
+    static let infix        = Set(LeafOperator.allCases).subtracting(states[.notInfix]!)
+    static let unlexable    = states[.unlexable]!
+    static let unparseable  = states[.unparseable]!
 
     static let states: [States: Set<LeafOperator>] = [
         .logical     : [not, equal, unequal, greater, greaterOrEqual,
@@ -174,11 +173,7 @@ private extension LeafOperator {
         .scoping     : [scopeRoot, scopeMember, subOpen, subClose],
         .unaryPrefix : [not, minus, evaluate, scopeRoot],
         .unaryPostfix: [subClose],
-        .infix       : [equal, unequal, greater, greaterOrEqual, lesser,
-                        lesserOrEqual, and, or, plus, minus, divide,
-                        multiply, modulo, assignment, nilCoalesce,
-                        scopeMember, subOpen, subScript,
-                        ternaryTrue, ternaryFalse],
+        .notInfix    : [not, evaluate, scopeRoot, subClose],
         .unlexable   : [evaluate, subScript],
         .unparseable : [evaluate]
     ]

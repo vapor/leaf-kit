@@ -18,7 +18,7 @@ public final class LeafRenderer {
     /// A keyed dictionary of custom `LeafTags` to extend Leaf's basic functionality, registered
     /// with the names which will call them when rendering - eg `tags["tagName"]` can be used
     /// in a template as `#tagName(parameters)`
-    public let tags: [String: LeafTag]
+ //   public let tags: [String: LeafTag]
     /// A thread-safe implementation of `LeafCache` protocol
     public let cache: LeafCache
     /// A thread-safe implementation of `LeafSource` protocol
@@ -31,14 +31,14 @@ public final class LeafRenderer {
     /// Initial configuration of LeafRenderer.
     public init(
         configuration: LeafConfiguration,
-        tags: [String: LeafTag] = defaultTags,
+  //      tags: [String: LeafTag] = defaultTags,
         cache: LeafCache = DefaultLeafCache(),
         sources: LeafSources,
         eventLoop: EventLoop,
         userInfo: [AnyHashable: Any] = [:]
     ) {
         self.configuration = configuration
-        self.tags = tags
+     //   self.tags = tags
         self.cache = cache
         self.sources = sources
         self.eL = eventLoop
@@ -146,7 +146,7 @@ public final class LeafRenderer {
             var buf = buf
 
             guard let string = buf.readString(length: buf.readableBytes) else {
-                throw LeafError(.unknownError("\(name) exists but was unreadable")) }
+                throw err(.unknownError("\(name) exists but was unreadable")) }
 
             // FIXME: lex/parse should fork to a threadpool?
             var lexer = LKLexer(LKRawTemplate(name, string))
@@ -170,9 +170,16 @@ public final class LeafRenderer {
     private func serialize(_ ast: LeafAST,
                            _ context: [String: LKData]) -> ELF<ByteBuffer> {
         // FIXME: serialize should fork to a threadpool?
+        var contexts: LKVarTable = [.`self`: .dictionary(context)]
+        for (key, value) in userInfo where key as? String != nil {
+            if let str = key as? String, str.isValidIdentifier,
+               str != LKVariable.selfScope, let ctxKey = LKVariable.init(str, ""),
+               let data = value as? LeafDataRepresentable {
+                contexts[ctxKey] = data.leafData }
+        }
+        
         var block = ByteBuffer.instantiate(size: 0, encoding: LeafConfiguration.encoding)
-        let serializer = LKSerializer(ast: ast, context: context)
-        switch serializer.serialize(buffer: &block) {
+        switch LKSerializer(ast, contexts: contexts, ByteBuffer.self).serialize(buffer: &block) {
             case .success(let t) : let buffer = block as! ByteBuffer
                                    cache.touch(ast.key,
                                                .init(exec: t,

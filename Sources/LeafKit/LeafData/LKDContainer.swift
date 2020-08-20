@@ -21,6 +21,9 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     /// Lazy resolvable `() -> LeafData` where return is of `LeafDataType`
     case lazy(f: () -> (LKData), returns: LKDType)
 
+    /// A lazy evaluation of the param - Must be generated *only* during `LKSerialize` to defer evaluation
+    case evaluate(param: LKParameter.Container)
+
     // MARK: - Properties
 
     /// The LeafDataType the container will evaluate to
@@ -37,6 +40,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             // Internal Wrapped Types
             case .lazy(_, let t),
                  .optional(_, let t) : return t
+            case .evaluate           : return .void
         }
     }
 
@@ -78,15 +82,16 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     var description: String { short }
     var short: String {
         switch self {
-            case .array(let a)       : return "array(\(a.count))"
+            case .array(let a)       : return "array(count: \(a.count))"
             case .bool(let b)        : return "bool(\(b))"
-            case .data(let d)        : return "data(\(d.count))"
-            case .dictionary(let d)  : return "dictionary(\(d.count))"
+            case .data(let d)        : return "data(\(d.count.formatBytes))"
+            case .dictionary(let d)  : return "dictionary(count: \(d.count))"
             case .double(let d)      : return "double(\(d))"
             case .int(let i)         : return "int(\(i))"
             case .lazy(_, let r)     : return "lazy(() -> \(r)?)"
             case .optional(_, let t) : return "\(t)()?"
             case .string(let s)      : return "string(\(s))"
+            case .evaluate           : return "evaluate(deferred)"
         }
     }
 

@@ -3,7 +3,7 @@ import NIOConcurrencyHelpers
 @testable import LeafKit
 
 final class LKParserTests: LeafTestClass {
-    func testParser() throws {
+    func testParseAndInline() throws {
         let sampleTemplate = """
         #define(aBlock):
             Hello #(name)!
@@ -19,7 +19,6 @@ final class LKParserTests: LeafTestClass {
 
         #evaluate(aBlock)
         #import(aBlock)
-        #extend("template3")
 
         #(name.hasPrefix("Mr"))
 
@@ -53,55 +52,137 @@ final class LKParserTests: LeafTestClass {
         tokens = try lex(template2)
         parser = LKParser(.searchKey("template2"), tokens)
         let secondAST = try parser.parse()
-        print(secondAST.summary)
+        print(secondAST.formatted)
 
         let file1 = ByteBufferAllocator().buffer(string: "An inlined raw file")
 
         firstAST.inline(ast: secondAST)
         firstAST.inline(raws: ["template2" : file1])
         print(firstAST.formatted)
-
+    }
+    
+    func testLooping() throws {
         let sample = """
-        #count(self)
-        #count(name)
-        #(name)
-        #(name.lowercased())
-        #lowercased(name)
-        #(self.name.uppercased())
-        #hasPrefix(self.name, "Mr")
-        #if(aDict["one"] == 2.0):Ooop!#else:Wrong number#endif
-        #(aDict.three[0])
-        #(aDict ? "Dictionary Exists" : "No it doesn't")
-        #(aDict.count() == 2 ? "Two elements!" : "Wrong count")
-        #for(_ in self):.discard. #endfor
-        #for(value in self):.value. #endfor
-        #for((key, value) in self):.key&value. [#(key) : #(value)]
+        #(x = 10)
+        #while(x > 0):
+        #for(i in x):.#endfor#(x -= 2)#endwhile
+        #repeat(while: x < 10):
+        #for(i in x):.#endfor#(x += 2)#endrepeat
+        """
+        
+        let expected = """
+
+
+        ..........
+        ........
+        ......
+        ....
+        ..
+
+
+        ..
+        ....
+        ......
+        ........
+        ..........
+        """
+
+        var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
+        let sampleAST = try! sampleParse.parse()
+
+        print(sampleAST.formatted)
+        let serializer = LKSerializer(sampleAST, [:], ByteBuffer.self)
+        let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
+        var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
+        switch serializer.serialize(buffer: &block) {
+            case .success       : XCTAssertEqual(block.contents, expected)
+            case .failure(let e): print(e.localizedDescription)
+        }
+    }
+    
+    func testSerialize() throws {
+        let sample = """
+        Count self: #count(self)
+        Count "name": #count(name)
+        Print "name": #(name)
+        Lowercase "name" as method: #(name.lowercased())
+        Lowercase "name" as function: #lowercased(name)
+        Uppercase explicit "name": #(self.name.uppercased())
+        Validate prefix: #hasPrefix(self.name, "Mr")
+        Does aDict["one"] == 2.0: #if(aDict["one"] == 2.0):Yup#else:Nope#endif
+        What's in aDict.three[0]: #(aDict.three[0])
+        What's in aDict.three[3]: #(aDict.three[3] ? "Something" : "Nonexistant")
+        Does aDict contain 1: #(aDict.contains(1))
+        Does aDict exist: #(aDict ? "Dictionary Exists" : "No it doesn't")
+        Ternary print when aDict.count == 3: #(aDict.count() == 3 ? "Three elements!" : "Wrong count")
+        Discard for loop:#for(_ in self): .discard.#endfor
+        Value for loop:#for(value in self): .value.#endfor
+        Key and Value for loop:
+        #for((key, value) in self):.key&value. ["#(key)": #(value)]
         #endfor
+        """
+        
+        let expected = """
+        Count self: 2
+        Count "name": 9
+        Print "name": Mr. MagOO
+        Lowercase "name" as method: mr. magoo
+        Lowercase "name" as function: mr. magoo
+        Uppercase explicit "name": MR. MAGOO
+        Validate prefix: true
+        Does aDict["one"] == 2.0: Nope
+        What's in aDict.three[0]: five
+        What's in aDict.three[3]: Nonexistant
+        Does aDict contain 1: true
+        Does aDict exist: Dictionary Exists
+        Ternary print when aDict.count == 3: Three elements!
+        Discard for loop: .discard. .discard.
+        Value for loop: .value. .value.
+        Key and Value for loop:
+        .key&value. ["name": Mr. MagOO]
+        .key&value. ["aDict": ["one": 1, "three": [five, ten], "two": 2.0]]
+        
         """
 
         let context: [String: LeafData] = [
             "name"  : "Mr. MagOO",
             "aDict" : ["one": 1, "two": 2.0, "three": ["five", "ten"]]
         ]
+        
         let start = Date()
         var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
         let sampleAST = try! sampleParse.parse()
         let parsedTime = start.distance(to: Date())
 
         print(sampleAST.formatted)
-        let serializer = LKSerializer(ast: sampleAST, context: context)
+        let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
 
         let result = serializer.serialize(buffer: &block)
         switch result {
             case .success(let duration):
-                print(block.contents)
+                XCTAssertEqual(block.contents, expected)
                 print("    Parse: " + parsedTime.formatSeconds)
                 print("Serialize: " + duration.formatSeconds)
             case .failure(let error):
                 print(error.localizedDescription)
         }
+    }
+    
+    func testEscaping() throws {
+        let sample = """
+        #(payload.escapeHTML())
+        """
+        let expected = """
+        &lt;script&gt;&quot;Don&apos;t let me get out &amp; do some serious damage&quot;&lt;/script&gt;
+        """
+        let context: [String: LeafData] = [
+            "payload"  : """
+            <script>"Don't let me get out & do some serious damage"</script>
+            """
+        ]
+        try XCTAssertEqual(render(name: "test", sample, context) , expected)
     }
 
     func testVsComplex() throws {
@@ -127,7 +208,7 @@ final class LKParserTests: LeafTestClass {
             let sampleAST = try! sampleParse.parse()
             print("    Parse: " + lap.distance(to: Date()).formatSeconds)
             lap = Date()
-            let serializer = LKSerializer(ast: sampleAST, context: context)
+            let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
             let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
             var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
             print("    Setup: " + lap.distance(to: Date()).formatSeconds)
@@ -161,12 +242,14 @@ final class LKParserTests: LeafTestClass {
         print("Output size: \(leafBuffer.readableBytes.formatBytes)")
     }
 
-    func testEval() throws {
+    func testEvalAndComments() throws {
         let sample = """
         #define(block):
         Is #(self["me"] + " " + name)?: #($context.me == name)
         #enddefine
-
+        #define(parameterEvaluable, ["tdotclare", "Teague"])
+        
+        #evaluate(parameterEvaluable)
         #evaluate(block)
         #(# here's a comment #)
         #("And a comment" # On...
@@ -188,7 +271,7 @@ final class LKParserTests: LeafTestClass {
         } catch let e as LeafError { throw e.localizedDescription }
         let sampleAST = try! sampleParse.parse()
         print(sampleAST.formatted)
-        let serializer = LKSerializer(ast: sampleAST, context: context)
+        let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
 
@@ -199,17 +282,17 @@ final class LKParserTests: LeafTestClass {
         }
     }
 
-    func testForAndIf() throws {
+    func testNestedForAndTernary() throws {
         let sample = """
         #for(index in 10):
-        #(index): #for((pos, char) in "Hey Teague"):#if(pos != index):#(char)#else:_#endif#endfor#endfor
+        #(index): #for((pos, char) in "Hey Teague"):#(pos != index ? char : "_")#endfor#endfor
         """
 
         let context: [String: LeafData] = [:]
         var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
         let sampleAST = try! sampleParse.parse()
         print(sampleAST.formatted)
-        let serializer = LKSerializer(ast: sampleAST, context: context)
+        let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
 
@@ -234,13 +317,13 @@ final class LKParserTests: LeafTestClass {
         """
 
         let parseExpected = """
-         0: [$:x = array(0)]
+         0: [$:x = array(count: 0)]
          2: $:x
-         4: [$:x = dictionary(0)]
+         4: [$:x = dictionary(count: 0)]
          6: $:x
-         8: [$:x = ($:x, int(5))]
+         8: [$:x = array[$:x, int(5)]]
         10: $:x
-        12: [$:x = ($:x, int(10))]
+        12: [$:x = dictionary["x": variable($:x), "y": int(10)]]
         14: $:x
         16: [$:x.x [] int(0)]
         """
@@ -261,7 +344,7 @@ final class LKParserTests: LeafTestClass {
         """
         
         
-        let serializer = LKSerializer(ast: parsedAST, context: [:])
+        let serializer = LKSerializer(parsedAST, [:], ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(parsedAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
         let result = serializer.serialize(buffer: &block)

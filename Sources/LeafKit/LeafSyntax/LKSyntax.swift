@@ -4,7 +4,7 @@ internal struct LKSyntax: LKPrintable {
     enum Container {
         /// Passthrough and raw are atomic syntaxes.
         case passthrough(LKParameter.Container) // where LP.isValued
-        case raw(RawBlock)
+        case raw(LKRawBlock)
 
         /// Blocks exist as the first of a pair, followed by scope, or passthrough || raw when atomic
         case block(String, LeafBlock, LKTuple?)
@@ -14,7 +14,7 @@ internal struct LKSyntax: LKPrintable {
 
     private init(_ container: Container) { self.container = container }
 
-    static func raw(_ store: RawBlock) -> Self { .init(.raw(store)) }
+    static func raw(_ store: LKRawBlock) -> Self { .init(.raw(store)) }
     static func passthrough(_ store: LKParameter) -> Self {.init(.passthrough(store.container)) }
     static func block(_ name: String,
                       _ block: LeafBlock,
@@ -23,7 +23,10 @@ internal struct LKSyntax: LKPrintable {
 
     var description: String {
         switch container {
-            case .block(let f, _, let t): return "\(f)\(t?.description ?? "()"):"
+            case .block(let f, let b as Inline, _): return "\(f)(\(b.file.debugDescription), process: \(b.process ? "leaf" : "raw")):"
+            case .block(let f, let b as Define, _): return "\(f)(\(b.identifier)):"
+            case .block(let f, let b as Evaluate, _): return "\(f)(\(b.identifier)):"
+            case .block(let f, _, let t): return "\(f)\(t?.description ?? ""):"
             case .passthrough(let p): return p.description
             case .raw(let r): return "raw(\(type(of: r)): \"\(r.contents.replacingOccurrences(of: "\n", with: "\\n"))\")"
             case .scope(let table) where table != nil: return "scope(table: \(table!))"
@@ -33,9 +36,12 @@ internal struct LKSyntax: LKPrintable {
 
     var short: String {
         switch container {
-            case .block(let f, _, let t): return "\(f)\(t?.short ?? "()"):"
+            case .block(let f, let b as Inline, _): return "\(f)(\(b.file.debugDescription), \(b.process ? "leaf" : "raw")):"
+            case .block(let f, let b as Define, _): return "\(f)(\(b.identifier)):"
+            case .block(let f, let b as Evaluate, _): return "\(f)(\(b.identifier)):"
+            case .block(let f, _, let t): return "\(f)\(t?.short ?? ""):"
             case .passthrough(let p): return p.short
-            case .raw(let r): return "raw(\(type(of: r)): \(r.byteCount.formatBytes)))"
+            case .raw(let r): return "raw(\(type(of: r)): \(r.byteCount.formatBytes))"
             case .scope(let table) where table != nil: return "scope(table: \(table!))"
             case .scope: return "scope(undefined)"
         }
@@ -48,6 +54,9 @@ internal struct LKSyntax: LKPrintable {
             default           : return 0
         }
     }
+    
+    /// Return t if scope(some), 0 if scope(nil), -1 if not scope
+    var table: Int { if case .scope(let t) = container { return t ?? 0 } else { return -1} }
 }
 
 extension ContiguousArray where Element == ContiguousArray<LKSyntax> {

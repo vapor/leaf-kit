@@ -313,14 +313,14 @@ internal struct LKLexer {
 
     /// Convenience for making nested `LeafError->LexerError.unknownError`
     private func unknownError(_ reason: String) -> LeafError {
-        .init(.lexerError(.init(.unknownError(reason), src, lexed))) }
+        err(.lexerError(.init(.unknownError(reason), src, lexed))) }
     /// Convenience for making nested `LeafError->LexerError.invalidParameterToken`
     private func badToken(_ character: Character) -> LeafError {
-        .init(.lexerError(.init(.invalidParameterToken(character), src, lexed))) }
+        err(.lexerError(.init(.invalidParameterToken(character), src, lexed))) }
     /// Convenience for making nested `LeafError->LexerError.badOperator`
     private func badOperator(_ op: LeafOperator) -> LeafError {
-        .init(.lexerError(.init(.invalidOperator(op), src, lexed))) }
+        err(.lexerError(.init(.invalidOperator(op), src, lexed))) }
     /// Convenience for making nested `LeafError->LexerError.untermindatedStringLiteral`
     private var unterminatedString: LeafError {
-        .init(.lexerError(.init(.unterminatedStringLiteral, src, lexed))) }
+        err(.lexerError(.init(.unterminatedStringLiteral, src, lexed))) }
 }

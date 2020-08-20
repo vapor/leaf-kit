@@ -24,6 +24,7 @@ internal struct Define: LKMetaBlock {
     static let invariant: Bool = true
 
     var identifier: String
+    var param: LKParameter?
     var table: Int
     var row: Int
 
@@ -39,7 +40,8 @@ internal struct Evaluate: LKMetaBlock {
     static let returns: Set<LKDType> = .any
     static let invariant: Bool = true
 
-    var identifier: String
+    let identifier: String
+    let defaultValue: LKParameter?
 
     static let warning = "call signature is (identifier) or (identifier ?? evaluableParameter)"
 }
@@ -74,12 +76,12 @@ internal struct RawSwitch: LKMetaBlock {
     static let returns: Set<LKDType> = .any
     static let invariant: Bool = true
 
-    init(_ factory: RawBlock.Type, _ tuple: LKTuple) {
+    init(_ factory: LKRawBlock.Type, _ tuple: LKTuple) {
         self.factory = factory
         self.params = .init(tuple.values.map {$0.data!} , tuple.labels)
     }
 
-    var factory: RawBlock.Type
+    var factory: LKRawBlock.Type
     var params: CallValues
 }
 
@@ -87,14 +89,14 @@ internal struct RawSwitch: LKMetaBlock {
 
 extension LKMetaBlock {
     static var parseSignatures: ParseSignatures? { __MajorBug("LKMetaBlock") }
-    static var evaluable: Bool  { false }
+    static var evaluable: Bool { false }
     static func instantiate(_ signature: String?, _ params: [String]) throws -> Self  {
         __MajorBug("LKMetaBlock") }
 
     var form: LKMetaForm { Self.form }
 
     var scopeVariables: [String]? { nil }
-    mutating func evaluateNilScope(_ params: CallValues,
+    mutating func evaluateScope(_ params: CallValues,
                                    _ variables: inout [String: LeafData]) -> EvalCount  { .once }
     mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount {
         __MajorBug("Metablocks only called once") }

@@ -32,26 +32,31 @@ public protocol LeafBlock: LeafFunction {
     ///   - variables: Dictionary of variable values the block is setting.
     /// - Returns:
     ///    - `ScopeValue` signals whether the block should be re-evaluated; 0 if discard,
-    ///       >0 if a known amount, nil if unknown how many times it will need to be re-evaluated
-    ///    - `.discard` or `once` are the predominant returns for most blocks
+    ///       1...n if a known amount, nil if unknown how many times it will need to be re-evaluated
+    ///    - `.discard` or `.once` are the predominant returns for most blocks
     ///    - `.indefinite` or `.repeating(x)` for looping blocks.
     ///    - If returning anything but `.indefinite`, further calls will go to `reEvaluateScope`
     ///
     /// If the block is setting any scope variable values, assign them to the corresponding key previously
     /// reported in `scopeVariables` - any variable keys not previously reported in that property will
     /// be ignored and not available inside the block's scope.
-    mutating func evaluateNilScope(_ params: CallValues,
-                                   _ variables: inout [String: LeafData]) -> EvalCount
+    mutating func evaluateScope(_ params: CallValues,
+                                _ variables: inout [String: LeafData]) -> EvalCount
 
-    /// Re-entrant point for `LeafBlock`s that previously reported a finite scope count
+    /// Re-entrant point for `LeafBlock`s that previously reported a finite scope count.
+    ///
+    /// If a block has previously reported a fixed number, it must continue to report a fixed number and may
+    /// not return to reporting `.indefinite`. While it is not prohibited to *increase* the number of times
+    /// upon re-evaluation, doing so should be done carefully. Count does not need to change in single
+    /// increments.
     mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount
 }
 
 /// An object that can be chained to other `ChainedBlock` objects
 ///
 /// - Ex: `#if(): #elseif(): #else: #endif`
-/// When evaluating, the first block to return a concrete `variables` dictionary (even empty) will have its
-/// block evaluated and further blocks in the chain will be immediately discarded.
+/// When evaluating, the first block to return a non-discard state will have its scope evaluated and further
+/// blocks in the chain will be immediately discarded.
 public protocol ChainedBlock: LeafBlock {
     static var chainsTo: [ChainedBlock.Type] { get }
     static var chainAccepts: [ChainedBlock.Type] { get }
@@ -63,12 +68,12 @@ public protocol ChainedBlock: LeafBlock {
 /// - `.once` if only called once
 /// - `.repeating(x)` if called a finite number of times
 /// - `.indefinite` if number of calls is indeterminable
-public typealias EvalCount = Int?
+public typealias EvalCount = UInt32?
 public extension EvalCount {
     static let discard: Self = 0
     static let once: Self = 1
     static let indefinite: Self = nil
-    static func repeating(_ times: Int) -> Self { times }
+    static func repeating(_ times: UInt32) -> Self { times }
 }
 
 // MARK: - Default Implementations

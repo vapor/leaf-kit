@@ -4,17 +4,15 @@
 public final class LeafEntities {
     // MARK: - Public Only
     public static let leaf4Core: LeafEntities = ._leaf4Core
+    public static let leaf4Transitional: LeafEntities = ._leaf4Transitional
 
     // MARK: - Internal Only
     private static var _leaf4Core: LeafEntities {
         let entities = LeafEntities()
         entities.use(RawSwitch.self , asMeta: "raw")
         entities.use(Define.self    , asMeta: "define")
-        entities.use(Define.self    , asMeta: "export")
         entities.use(Evaluate.self  , asMeta: "evaluate")
-        entities.use(Evaluate.self  , asMeta: "import")
         entities.use(Inline.self    , asMeta: "inline")
-        entities.use(Inline.self    , asMeta: "extend")
 
         entities.use(ForLoop.self     , asBlock: "for")
         entities.use(WhileLoop.self   , asBlock: "while")
@@ -24,23 +22,33 @@ public final class LeafEntities {
         entities.use(ElseIfBlock.self , asBlock: "elseif")
         entities.use(ElseBlock.self   , asBlock: "else")
 
-        entities.use(StrToStrMap({$0.lowercased()}), asFunctionAndMethod: "lowercased")
-        entities.use(StrToStrMap({$0.uppercased()}), asFunctionAndMethod: "uppercased")
-        entities.use(StrStrToBoolMap({$0.hasPrefix($1)}), asFunctionAndMethod: "hasPrefix")
-        entities.use(StrStrToBoolMap({$0.hasSuffix($1)}), asFunctionAndMethod: "hasSuffix")
+        entities.use(StrToStrMap.escapeHTML, asFunctionAndMethod: "escapeHTML")
+        
+        entities.use(StrToStrMap.lowercased, asFunctionAndMethod: "lowercased")
+        entities.use(StrToStrMap.uppercased, asFunctionAndMethod: "uppercased")
+        entities.use(StrStrToBoolMap.hasPrefix, asFunctionAndMethod: "hasPrefix")
+        entities.use(StrStrToBoolMap.hasSuffix, asFunctionAndMethod: "hasSuffix")
 
-        entities.use(StrToIntMap({$0.count}), asFunctionAndMethod: "count")
-        entities.use(CollectionToIntMap({$0.count}), asFunctionAndMethod: "count")
-
-        entities.use(DictionaryCast(), asFunction: "Dictionary")
-
+        entities.use(StrToIntMap.count, asFunctionAndMethod: "count")
+        entities.use(CollectionToIntMap.count, asFunctionAndMethod: "count")
+        
+        entities.use(CollectionElementToBoolMap.contains, asFunctionAndMethod: "contains")
+        return entities
+    }
+    
+    private static var _leaf4Transitional: LeafEntities {
+        let entities = _leaf4Core
+        entities.use(Define.self    , asMeta: "export")
+        entities.use(Evaluate.self  , asMeta: "import")
+        entities.use(Inline.self    , asMeta: "extend")
         return entities
     }
 
+
     /// Factories that produce `.raw` Blocks
-    private(set) var rawFactories: [String: RawBlock.Type]
+    private(set) var rawFactories: [String: LKRawBlock.Type]
     /// Convenience referent to the default `.raw` Block factory
-    var raw: RawBlock.Type { rawFactories[Self.defaultRaw]! }
+    var raw: LKRawBlock.Type { rawFactories[Self.defaultRaw]! }
 
     /// Factories that produce named Blocks
     private(set) var blockFactories: [String: LeafBlock.Type]
@@ -53,7 +61,7 @@ public final class LeafEntities {
 
     /// Initializer
     /// - Parameter rawHandler: The default factory for `.raw` blocks
-    init(rawHandler: RawBlock.Type = ByteBuffer.self) {
+    init(rawHandler: LKRawBlock.Type = ByteBuffer.self) {
         self.rawFactories = [Self.defaultRaw: rawHandler]
         self.blockFactories = [:]
         self.functions = [:]
@@ -62,7 +70,7 @@ public final class LeafEntities {
 
     /// Register a Block factory
     /// - Parameters:
-    ///   - block: A `LeafBlock` adherent (which is not a `RawBlock` adherent)
+    ///   - block: A `LeafBlock` adherent (which is not a `LKRawBlock` adherent)
     ///   - name: The name used to choose this factory - "name: `for`" == `#for():`
     public func use(_ block: LeafBlock.Type, asBlock name: String) {
         if !LKConf.running(fault: "Cannot register new Block factories") {
@@ -70,8 +78,8 @@ public final class LeafEntities {
             block.callSignature._sanity()
             if let parseSigs = block.parseSignatures { parseSigs._sanity() }
             precondition(block == RawSwitch.self ||
-                         block as? RawBlock.Type == nil,
-                         "Register RawBlock factories using `registerRaw(...)`")
+                         block as? LKRawBlock.Type == nil,
+                         "Register LKRawBlock factories using `registerRaw(...)`")
             precondition(!blockFactories.keys.contains(name),
                          "A factory named \(name) already exists")
             if let chained = block as? ChainedBlock.Type {
@@ -83,11 +91,11 @@ public final class LeafEntities {
         }
     }
 
-    /// Register a RawBlock factory
+    /// Register a LKRawBlock factory
     /// - Parameters:
-    ///   - block: A `RawBlock` adherent
+    ///   - block: A `LKRawBlock` adherent
     ///   - name: The name used to choose this factory - "name: `html`" == `#raw(html, ....):`
-    public func use(_ block: RawBlock.Type, asRaw name: String) {
+    internal func use(_ block: LKRawBlock.Type, asRaw name: String) {
         if !LKConf.running(fault: "Cannot register new Raw factories") {
             name._sanity()
             block.callSignature._sanity()
@@ -149,32 +157,33 @@ public final class LeafEntities {
         blockFactories[name] = meta
     }
 
-    // FIXME - These will pick the *first* of colliding signatures when ambiguous
-    // evaluation should re-validate to pick the best possible sig
+    /// Return all valid matches.
     func validateFunction(_ name: String,
-                          _ params: LKTuple?) -> Result<(LeafFunction, LKTuple), String> {
+                          _ params: LKTuple?) -> Result<[(LeafFunction, LKTuple?)], String> {
         guard let functions = functions[name] else { return .failure("No function \(name)") }
+        var valid: [(LeafFunction, LKTuple?)] = []
         for function in functions {
-            if let tuple = try? validateTupleCall(params, function.sig).get() {
-                return .success((function, tuple))
-            } else { continue }
+            if let tuple = try? validateTupleCall(params, function.sig).get()
+            { valid.append((function, tuple.isEmpty ? nil : tuple)) } else { continue }
         }
-        return .failure("No matching function; \(functions.count) candidate(s)")
+        if valid.isEmpty { return .failure("No matching function for \(name); \(functions.count) candidate(s)") }
+        return .success(valid)
     }
 
     func validateMethod(_ name: String,
-                        _ params: LKTuple?) -> Result<(LeafFunction, LKTuple), String> {
+                        _ params: LKTuple?) -> Result<[(LeafFunction, LKTuple?)], String> {
         guard let methods = methods[name] else { return .failure("No method \(name)") }
+        var valid: [(LeafFunction, LKTuple?)] = []
         for method in methods {
-            if let tuple = try? validateTupleCall(params, method.sig).get() {
-                return .success((method, tuple))
-            } else { continue }
+            if let tuple = try? validateTupleCall(params, method.sig).get()
+            { valid.append((method, tuple.isEmpty ? nil : tuple)) } else { continue }
         }
-        return .failure("No matching method; \(methods.count) candidate(s)")
+        if valid.isEmpty { return .failure("No matching method for \(name); \(methods.count) candidate(s)") }
+        return .success(valid)
     }
 
     func validateBlock(_ name: String,
-                       _ params: LKTuple?) -> Result<(LeafFunction, LKTuple), String> {
+                       _ params: LKTuple?) -> Result<(LeafFunction, LKTuple?), String> {
         guard blockFactories[name] != RawSwitch.self else { return validateRaw(params) }
         guard let factory = blockFactories[name] else { return .failure("\(name) is not a block factory") }
         let block: LeafFunction?
@@ -199,11 +208,11 @@ public final class LeafEntities {
         let validate = validateTupleCall(call, function.sig)
         switch validate {
             case .failure(let message): return .failure("\(name) couldn't be parsed: \(message)")
-            case .success(let tuple): return .success((function, tuple))
+            case .success(let tuple): return .success((function, !tuple.isEmpty ? tuple : nil))
         }
     }
 
-    func validateRaw(_ params: LKTuple?) -> Result<(LeafFunction, LKTuple), String> {
+    func validateRaw(_ params: LKTuple?) -> Result<(LeafFunction, LKTuple?), String> {
         var name = Self.defaultRaw
         var call: LKTuple
 
@@ -221,7 +230,7 @@ public final class LeafEntities {
         let validate = validateTupleCall(call, factory.callSignature)
         switch validate {
             case .failure(let message): return .failure("\(name) couldn't be parsed: \(message)")
-            case .success(let tuple): return .success((RawSwitch(factory, tuple), .init()))
+            case .success(let tuple): return .success((RawSwitch(factory, tuple), nil))
         }
     }
 

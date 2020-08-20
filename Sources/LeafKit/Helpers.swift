@@ -1,5 +1,5 @@
 
-// MARK: - Internal Type Shorthands
+// MARK: Internal Type Shorthands
 
 internal typealias LKConf = LeafConfiguration
 internal typealias ELF = EventLoopFuture

@@ -247,13 +247,13 @@ internal struct LKExpression: LKSymbol {
         
         if assignor.pathed, let parent = assignor.parent,
            symbols.pointee.match(parent) == nil {
-            return .failure(.init(.unknownError("\(parent.short) does not exist; cannot set \(assignor)")))
+            return .failure(err("\(parent.short) does not exist; cannot set \(assignor)"))
         }
         /// Straight assignment just requires identifier parent exists if it's pathed.
         if op == .assignment { return .success((assignor, value)) }
         
         guard let old = symbols.pointee.match(assignor) else {
-            return .failure(.init(.unknownError("\(assignor.member!) does not exist; can't perform compound assignment"))) }
+            return .failure(err("\(assignor.member!) does not exist; can't perform compound assignment")) }
         
         let new: LKData
         switch op {
