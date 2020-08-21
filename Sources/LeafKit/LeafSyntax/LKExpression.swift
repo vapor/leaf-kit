@@ -29,7 +29,9 @@ internal struct LKExpression: LKSymbol {
             case .calculation : break
             case .ternary     : return evalTernary(symbols)
             case .assignment  : __MajorBug("Assignment should have redirected")
-            case .custom      : __MajorBug("Custom expression produced in AST")
+            case .custom      :
+                if case .keyword(.var) = first.container { return createVariable(symbols) }
+                __MajorBug("Custom expression produced in AST")
         }
 
         let lhsData = lhs?.evaluate(symbols) ?? .trueNil
@@ -131,7 +133,7 @@ internal struct LKExpression: LKSymbol {
 
     private mutating func setStates() {
         resolved = storage.allSatisfy { $0.resolved }
-        invariant = storage.first(where: {!$0.invariant}) != nil
+        invariant = storage.first(where: {$0.invariant}) != nil
         storage.forEach { symbols.formUnion($0.symbols) }
     }
 
@@ -236,6 +238,14 @@ internal struct LKExpression: LKSymbol {
         }
     }
     
+    func createVariable(_ symbols: LKVarStack) -> LKData {
+        if case .variable(let x) = second.container,
+           let value = third?.container.evaluate(symbols) {
+            symbols.create(x, value)
+        }
+        return .trueNil
+    }
+    
     /// Evaluate assignments.
     ///
     /// If variable lookup succeeds, return variable key and value to set to; otherwise error
@@ -248,6 +258,8 @@ internal struct LKExpression: LKSymbol {
         if assignor.pathed, let parent = assignor.parent,
            symbols.match(parent) == nil {
             return .failure(err("\(parent.short) does not exist; cannot set \(assignor)"))
+        } else if !assignor.pathed, symbols.match(assignor) == nil {
+            return .failure(err("\(assignor.short) must be defined first with `var \(assignor.member ?? "")`"))
         }
         /// Straight assignment just requires identifier parent exists if it's pathed.
         if op == .assignment { return .success((assignor, value)) }

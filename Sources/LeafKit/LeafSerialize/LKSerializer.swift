@@ -94,16 +94,18 @@ internal final class LKSerializer: LKErroring {
     }
 
     private func expandDict(_ data: LKData,
-                            _ base: LKVariable = .`self`) {
+                            _ base: LKVariable = .`self`,
+                            at level: Int? = nil) {
         var recurse: [(LKVariable, LKData)] = []
+        let level = level ?? varStackDepth
         data.dictionary.map {
             for (identifier, value) in $0 {
                 let key: LKVariable = base.extend(with: identifier)
-                vars.pointee[key] = value
+                varStack[level].vars.pointee[key] = value
                 if value.celf == .dictionary { recurse.append((key, value)) }
             }
         }
-        while let x = recurse.popLast() { expandDict(x.1, x.0) }
+        while let x = recurse.popLast() { expandDict(x.1, x.0, at: level) }
     }
 
     func serialize(buffer output: inout LKRawBlock,
@@ -401,14 +403,33 @@ internal final class LKSerializer: LKErroring {
     private func append(_ data: LeafData) { stack[stackDepth].buffer.pointee.append(data) }
     
     private func assignValue(_ key: LKVariable, _ value: LKData) {
-        /// If the variable already exists and was a dictionary, decay children
-        if vars.pointee[key]?.celf == .dictionary {
-            vars.pointee.keys.forEach {
-                if $0.isDescendent(of: key) { vars.pointee[$0] = nil }                
-            }
+        var depth = varStack.count - 1
+        while depth >= 0 {
+            /// Defined at this level - cache the original
+            if let original = varStack[depth].vars.pointee.match(key, contextualize: false) {
+                /// Cache the level we're defined at
+                let level = depth
+                /// If the original value  was a dictionary, decay children at this and higher levels
+                if original.celf == .dictionary {
+                    while depth < varStack.count {
+                        for k in varStack[depth].vars.pointee.keys where k.isDescendent(of: key) {
+                            vars.pointee[k] = nil }
+                        depth += 1
+                    }
+                }
+                /// Set the new value
+                varStack[level].vars.pointee[key] = value
+                /// If new value is a dictionary, expand it
+                if value.celf == .dictionary { expandDict(value, key, at: level) }
+                break
+            } else { depth -= 1 }
         }
-        vars.pointee[key] = value
-        expandDict(value, key)
+        /// If we didn't get a hit on uncontextualized but we're assigning value, it means we need to overload self
+        varStack[0].vars.pointee[key] = value
+        let parent = key.contextualized
+        for k in varStack[0].vars.pointee.keys where k.isDescendent(of: parent) {
+            varStack[0].vars.pointee[k.uncontextualized] = .trueNil
+        }
     }
     
     func bool(_ error: LeafError) -> Bool { self.error = error; return false }

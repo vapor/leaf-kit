@@ -305,27 +305,73 @@ final class LKParserTests: LeafTestClass {
   
     func testAssignmentAndCollections() throws {
         let input = """
-        #(x = [])
-        #(x)
-        #(x = [:])
-        #(x)
-        #(x = [x, 5])
-        #(x)
-        #(x = ["x": x, "y": 10])
-        #(x)
+        #(var x)
+        #(var y = 5 + 10)
+        #(x = [])#(x)
+        #(x = [:])#(x)
+        #(x = [x, 5])#(x)
+        #(x = ["x": x, "y": y])#(x)
         #(x.x[0])
+        #(self.x)
         """
 
         let parseExpected = """
-         0: [$:x = array(count: 0)]
-         2: $:x
-         4: [$:x = dictionary(count: 0)]
-         6: $:x
-         8: [$:x = array[$:x, int(5)]]
-        10: $:x
-        12: [$:x = dictionary["x": variable($:x), "y": int(10)]]
+         0: [var $:x void()?]
+         2: [var $:y int(15)]
+         4: [$:x = array(count: 0)]
+         5: $:x
+         7: [$:x = dictionary(count: 0)]
+         8: $:x
+        10: [$:x = array[$:x, int(5)]]
+        11: $:x
+        13: [$:x = dictionary["x": variable($:x), "y": variable($:y)]]
         14: $:x
         16: [$:x.x [] int(0)]
+        18: $context:x
+        """
+
+        let parsedAST = try! parse(input)
+        XCTAssertEqual(parsedAST.terse, parseExpected)
+        
+        let serializeExpected = """
+        
+
+        []
+        [:]
+        [[:], 5]
+        ["x": [[:], 5], "y": 15]
+        [:]
+        Hi tdotclare
+        """
+        
+        
+        let serializer = LKSerializer(parsedAST, ["x": "Hi tdotclare"], ByteBuffer.self)
+        let buffer = ByteBufferAllocator().buffer(capacity: Int(parsedAST.underestimatedSize))
+        var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
+        let result = serializer.serialize(buffer: &block)
+        switch result {
+            case .success        : XCTAssertEqual(block.contents, serializeExpected)
+            case .failure(let e) : XCTFail(e.localizedDescription)
+        }
+    }
+    
+    func testMutatingMethods() throws {
+        let input = """
+        #(var x = "t")
+        #(x.append("dotclare"))
+        #(var y = x)#(x)
+        #while(y.popLast()):
+        #(y)#endwhile
+        """
+
+        let parseExpected = """
+        0: [var $:x string(t)]
+        2: append($:x, string(dotclare))
+        4: [var $:y $:x]
+        5: $:x
+        7: while(popLast($:y)):
+        8: scope(table: 1)
+           1: $:y
         """
 
         let parsedAST = try! parse(input)
@@ -333,14 +379,18 @@ final class LKParserTests: LeafTestClass {
         
         let serializeExpected = """
 
-        []
 
-        [:]
+        tdotclare
 
-        [[:], 5]
+        tdotclar
+        tdotcla
+        tdotcl
+        tdotc
+        tdot
+        tdo
+        td
+        t
 
-        ["x": [[:], 5], "y": 10]
-        [:]
         """
         
         
@@ -350,9 +400,8 @@ final class LKParserTests: LeafTestClass {
         let result = serializer.serialize(buffer: &block)
         switch result {
             case .success        : XCTAssertEqual(block.contents, serializeExpected)
-            case .failure(let e) : print(e.localizedDescription)
+            case .failure(let e) : XCTFail(e.localizedDescription)
         }
-
     }
 }
 

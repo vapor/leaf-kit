@@ -70,7 +70,7 @@ public struct LeafError: Error, CustomStringConvertible {
     /// - Where errors are caused by toolchain faults, will report the Swift source code location of the call
     /// - Where errors are from Lex or Parse errors, will report the template source location of the error
     var localizedDescription: String {
-        var m = "\(file.split(separator: "/").last ?? "?").\(function):\(line) - "
+        var m = "\(file.split(separator: "/").last ?? "?").\(function):\(line)\n"
         switch reason {
             case .illegalAccess(let r)        : m += r
             case .unknownError(let r)         : m += r
@@ -188,7 +188,7 @@ func err(_ reason: String,
          _ file: String = #file,
          _ function: String = #function,
          _ line: UInt = #line,
-         _ column: UInt = #column) -> LeafError { err(.unknownError(reason)) }
+         _ column: UInt = #column) -> LeafError { err(.unknownError(reason), file, function, line, column) }
 
 
 
@@ -205,9 +205,9 @@ func fail<T>(_ error: LeafErrorCause, on eL: EventLoop,
     fail(LeafError(error, file, function, line, column), on: eL) }
 
 func __MajorBug(_ message: String,
-                         _ file: String = #file,
-                         _ function: String = #function,
-                         _ line: UInt = #line) -> Never {
+                _ file: String = #file,
+                _ function: String = #function,
+                _ line: UInt = #line) -> Never {
     fatalError("""
     LeafKit Major Bug: "\(message)"
     Please File Issue Immediately at https://github.com/vapor/leaf-kit/issues

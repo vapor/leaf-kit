@@ -404,8 +404,8 @@ final class LeafTests: LeafTestClass {
 
         let syntax = """
         0: [$:index - int(5)]
-        2: [int(10) - int(5)]
-        4: [int(10) - int(5)]
+        2: int(5)
+        4: int(5)
         6: int(-5)
         """
 
@@ -433,13 +433,13 @@ final class LeafTests: LeafTestClass {
         """
 
         let syntax = """
-         0: [[ ! true] && [ ! false]]
-         2: [[ ! true] || [ ! false]]
-         4: [true && [ ! false]]
-         6: [[ ! true] || false]
-         8: [[ ! true] || [ ! false]]
+         0: bool(false)
+         2: bool(true)
+         4: bool(true)
+         6: bool(false)
+         8: bool(true)
         10: bool(true)
-        12: [[int(-5) + [int(10) - [[int(20) / int(2)] + [int(9) * int(-3)]]]] == [[int(90) / int(3)] + [int(2) * int(-10)]]]
+        12: bool(false)
         """
 
         let expectation = """

@@ -38,7 +38,7 @@ internal struct Evaluate: LKMetaBlock {
     static let form: LKMetaForm = .evaluate
     static let callSignature: CallParameters = []
     static let returns: Set<LKDType> = .any
-    static let invariant: Bool = true
+    static let invariant: Bool = false
 
     let identifier: String
     let defaultValue: LKParameter?

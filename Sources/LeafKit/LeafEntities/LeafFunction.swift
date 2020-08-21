@@ -22,7 +22,13 @@ public protocol LeafFunction {
 /// Example: `#(aStringVariable.hasPrefix("prefix")`
 /// The first parameter of the `.callSignature` provides the types the method can operate on. The method
 /// will still be called using `LeafFunction.evaluate`, with the first parameter being the operand.
-public protocol LeafMethod: LeafFunction {}
+public protocol LeafMethod: LeafFunction {
+    static var mutating: Bool { get }
+    
+    /// If the method is marked `mutating`, return non-nil for `mutate` to the value the operand should
+    /// now hold, or nil if it has not changed. Always return `result`
+    func mutatingEvaluate(_ params: CallValues) -> (mutate: LeafData?, result: LeafData)
+}
 
 /// The concrete object a `LeafFunction` etc. will receive holding its call parameter values
 ///

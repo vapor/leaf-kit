@@ -29,6 +29,9 @@ public final class LeafEntities {
         entities.use(StrStrToBoolMap.hasPrefix, asFunctionAndMethod: "hasPrefix")
         entities.use(StrStrToBoolMap.hasSuffix, asFunctionAndMethod: "hasSuffix")
 
+        entities.use(MutatingStrStrMap.append, asMethod: "append")
+        entities.use(MutatingStrToStrMap.popLast, asMethod: "popLast")
+        
         entities.use(StrToIntMap.count, asFunctionAndMethod: "count")
         entities.use(CollectionToIntMap.count, asFunctionAndMethod: "count")
         
@@ -113,6 +116,8 @@ public final class LeafEntities {
         if !LKConf.running(fault: "Cannot register new Functions") {
             name._sanity()
             function.sig._sanity()
+            precondition(!((function as? LeafMethod)?.mutating ?? false),
+                         "Mutating methods may not be used as direct functions")
             if functions.keys.contains(name) {
                 functions[name]!.forEach {
                     precondition(!function.sig.confusable(with: $0.sig),
@@ -174,11 +179,21 @@ public final class LeafEntities {
                         _ params: LKTuple?) -> Result<[(LeafFunction, LKTuple?)], String> {
         guard let methods = methods[name] else { return .failure("No method \(name)") }
         var valid: [(LeafFunction, LKTuple?)] = []
+        var mutatingMismatch = false
         for method in methods {
+            let unscopedFirst: Bool
+            if case .variable(let x) = params?[0]?.container
+            { unscopedFirst = x.scope == nil; if unscopedFirst == false { mutatingMismatch = true } }
+            else { unscopedFirst = false }
+            /// If method is marked mutating, first param must be an unscoped variable
+            if method.mutating && !unscopedFirst { continue }
             if let tuple = try? validateTupleCall(params, method.sig).get()
             { valid.append((method, tuple.isEmpty ? nil : tuple)) } else { continue }
         }
-        if valid.isEmpty { return .failure("No matching method for \(name); \(methods.count) candidate(s)") }
+        if valid.isEmpty {
+            let additional = mutatingMismatch ? "\nPotential mutating matches but first parameter is scoped variable" : ""
+            return .failure("No matching method for \(name); \(methods.count) candidate(s)\(additional)")
+        }
         return .success(valid)
     }
 
@@ -312,6 +327,10 @@ internal extension String {
 internal extension LeafFunction {
     var invariant: Bool { Self.invariant }
     var sig: CallParameters { Self.callSignature }
+}
+
+internal extension LeafMethod {
+    var mutating: Bool { Self.mutating }
 }
 
 internal extension LeafMethod {

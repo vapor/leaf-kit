@@ -360,6 +360,8 @@ internal struct LKParser: LKErroring {
         var states: [VarState] = []
         var complexes: [[LKParameter]] = []
         
+        var variableCreation: Bool = false
+        
         // Conveniences to current stacks
         var currentFunction: String? {
             get { functions.last! }
@@ -427,6 +429,14 @@ internal struct LKParser: LKErroring {
 
         @discardableResult
         func complexAppend(_ a: LKParameter) -> Bool {
+            /// `#(var x), #(var x = value)` - var flags "creation", checked on close complex
+            if case .keyword(.var) = a.container {
+                guard !forFunction, tuples.count == 1, currentTuple.isEmpty,
+                      complexes.allSatisfy({$0.isEmpty}) else {
+                    return bool(err("Variable definition may only occur at start of top level expression")) }
+                variableCreation = true
+                return true
+            }
             guard makeVariableIfOpen() else { return false }
             if let op = a.operator {
                 /// Adding an infix or postfix operator - requires valued antecedent
@@ -688,12 +698,14 @@ internal struct LKParser: LKErroring {
             
             // Custom expressions can still be at most 3-part, anything more is invalid
             guard exp.count <= 3 else { return false }
-            guard exp.count > 1 else { complexes.append(exp); return true }
+            if exp.isEmpty { complexes.append([]); return true }
+            guard exp.count > 1 else { exp[0] = exp[0].resolve([]); complexes.append(exp); return true }
             
             // Handle assignment
             if exp[1].operator?.assigning == true {
                 if exp.count == 2 { return bool(err("No value to assign")) }
                 if !exp[2].isValued { return bool(err("Non-valued type can't be assigned")) }
+                exp[2] = exp[2].resolve([])
                 complexes.append([.expression(LKExpression.express(exp)!)])
                 return true
             }
@@ -737,9 +749,13 @@ internal struct LKParser: LKErroring {
                     let result = entities.validateMethod(m, tuple)
                     switch result {
                         case .failure(let r) : return void(err(r))
-                        case .success(let M)
-                          where M.count == 1 : complexAppend(.function(m, M[0].0, M[0].1))
-                        case .success(let M) : complexAppend(.dynamic(m, M, tuple))
+                        case .success(let M) :
+                            let mutating = (try? result.get().first(where: {($0.0 as! LeafMethod).mutating}) != nil) ?? false
+                            var original: LKVariable? = nil
+                            if mutating, case .variable(let x) = operand.container,
+                               x.scope == nil { original = x }
+                            complexAppend(M.count == 1 ? .function(m, M[0].0, M[0].1, original)
+                                                       : .dynamic(m, M, tuple, original))
                     }
                     currentState = .start
                 /// Atomic function
@@ -797,8 +813,25 @@ internal struct LKParser: LKErroring {
             if error != nil, retry, retrying == false { error = nil; offset -= 1; retrying = true }
         }
         
-        // Error state from grammatically correct but unclosed parameters at EOF
-        if !errored && tuples.count > 1 { error = err("Template ended with open parameters") }
+        /// Error state from grammatically correct but unclosed parameters at EOF
+        if !errored && tuples.count > 1 { return `nil`(err("Template ended with open parameters")) }
+        if !errored && variableCreation {
+            if tuples[0].count != 1 { return `nil`(err("Define variables with #(var x), #(var x = value)")) }
+            var theVar: LKVariable? = nil
+            var value = tuples[0].values.first!
+            switch value.container {
+                case .variable(let x) where x.atomic: theVar = x; value = .value(.trueNil); break
+                case .expression(let e) where e.op == .assignment:
+                    guard case .variable(let x) = e.lhs?.container, x.atomic else { fallthrough }
+                    theVar = x; value = e.rhs!; break
+                case .variable: return `nil`(err("Variable definitions may not be pathed"))
+                case .expression(let e) where e.form.exp == .assignment:
+                    return `nil`(err("Variable assignment at definition may not be compound expression"))
+                default : return `nil`(err("Define variables with #(var x), #(var x = value)"))
+            }
+            /// Return a custom expression
+            return .init([(nil, .expression(.expressAny([.keyword(.var), .variable(theVar!), value])!))])
+        }
         return !errored ? tuples.popLast() : nil
     }
     

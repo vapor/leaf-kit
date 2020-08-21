@@ -8,6 +8,7 @@ internal struct CollectionToIntMap: LeafMethod {
     static let callSignature: CallParameters = [.types(.collections)]
     static let returns: Set<LeafDataType> = [.int]
     static let invariant: Bool = true
+    static let mutating: Bool = false
 
     init(_ map: @escaping (AnyCollection<LeafData>) -> Int) { f = map }
 
@@ -28,6 +29,7 @@ internal struct CollectionToBoolMap: LeafMethod {
     static let callSignature: CallParameters = [.types(.collections)]
     static let returns: Set<LeafDataType> = [.bool]
     static let invariant: Bool = true
+    static let mutating: Bool = false
 
     init(_ map: @escaping (AnyCollection<LeafData>) -> Bool) { f = map }
 
@@ -48,6 +50,7 @@ internal struct CollectionElementToBoolMap: LeafMethod {
     static let callSignature: CallParameters = [.types(.collections), .types(.any)]
     static let returns: Set<LeafDataType> = [.bool]
     static let invariant: Bool = true
+    static let mutating: Bool = false
 
     init(_ map: @escaping (AnyCollection<LeafData>, LeafData) -> Bool) { f = map }
 
@@ -65,9 +68,10 @@ internal struct CollectionElementToBoolMap: LeafMethod {
 
 /// (String) -> String
 internal struct StrToStrMap: LeafMethod {
-    static let callSignature: CallParameters = [ .types([.string]) ]
+    static let callSignature: CallParameters = [.types([.string])]
     static let returns: Set<LeafDataType> = [.string]
     static let invariant: Bool = true
+    static let mutating: Bool = false
 
     func evaluate(_ params: CallValues) -> LeafData { .string(f(params[0].string!)) }
     
@@ -78,9 +82,63 @@ internal struct StrToStrMap: LeafMethod {
     static let lowercased: Self = .init({ $0.lowercased() })
     static let escapeHTML: Self = .init({ $0.reduce(into: "", {$0.append(basicHTML[$1] ?? $1.description)}) })
     
-    
     private static let basicHTML: [Character: String] = [
         .lessThan: "&lt;", .greaterThan: "&gt;", .ampersand: "&amp;", .quote: "&quot;", .apostrophe: "&apos;"]
+}
+
+/// (String, String) -> String
+internal struct StrStrToStrMap: LeafMethod {
+    static let callSignature: CallParameters = [.types([.string]), .types([.string])]
+    static let returns: Set<LeafDataType> = [.string]
+    static let invariant: Bool = true
+    static let mutating: Bool = false
+
+    func evaluate(_ params: CallValues) -> LeafData { .string(f(params[0].string!, params[1].string!)) }
+    
+    private init(_ map: @escaping (String, String) -> String) { f = map }
+    private let f: (String, String) -> String
+}
+
+/// Mutating (String, String)
+internal struct MutatingStrStrMap: LeafMethod {
+    static let callSignature: CallParameters = [.types([.string]), .types([.string])]
+    static let returns: Set<LeafDataType> = [.void]
+    static let invariant: Bool = true
+    static let mutating: Bool = true
+
+    func evaluate(_ params: CallValues) -> LeafData { __MajorBug("Mutating method") }
+    func mutatingEvaluate(_ params: CallValues) -> (mutate: LeafData?, result: LeafData) {
+        let cache = params[0].string!
+        var operand = cache
+        f(&operand, params[1].string!)
+        return (operand != cache ? operand.leafData : nil, .trueNil)
+    }
+    
+    private init(_ map: @escaping (inout String, String) -> ()) { f = map }
+    private let f: (inout String, String) -> ()
+    
+    static let append: Self = .init({$0.append($1)})
+}
+
+/// Mutating (String, Int) -> String
+internal struct MutatingStrToStrMap: LeafMethod {
+    static let callSignature: CallParameters = [.types([.string])]
+    static let returns: Set<LeafDataType> = [.string]
+    static let invariant: Bool = true
+    static let mutating: Bool = true
+
+    func evaluate(_ params: CallValues) -> LeafData { __MajorBug("Mutating method") }
+    func mutatingEvaluate(_ params: CallValues) -> (mutate: LeafData?, result: LeafData) {
+        let cache = params[0].string!
+        var operand = cache
+        let result = f(&operand)
+        return (operand != cache ? operand.leafData : nil, .string(result))
+    }
+    
+    private init(_ map: @escaping (inout String) -> String?) { f = map }
+    private let f: (inout String) -> String?
+    
+    static let popLast: Self = .init({ $0.popLast().map{String($0)} })
 }
 
 /// (String, String) -> Bool
@@ -88,7 +146,7 @@ internal struct StrStrToBoolMap: LeafMethod {
     static let callSignature: CallParameters = [.types([.string]), .types([.string])]
     static let returns: Set<LeafDataType> = [.bool]
     static let invariant: Bool = true
-
+    static let mutating: Bool = false
 
     func evaluate(_ params: CallValues) -> LeafData { .bool(f(params[0].string!, params[1].string!)) }
     
@@ -104,6 +162,7 @@ internal struct StrToIntMap: LeafMethod {
     static let callSignature: CallParameters = [.types([.string])]
     static let returns: Set<LeafDataType> = [.int]
     static let invariant: Bool = true
+    static let mutating: Bool = false
     
     init(_ map: @escaping (String) -> Int) { f = map }
 
@@ -117,6 +176,15 @@ internal struct DictionaryCast: LeafFunction {
     static let callSignature: CallParameters = [.types([.dictionary])]
     static let returns: Set<LeafDataType> = [.dictionary]
     static let invariant: Bool = true
+    static let mutating: Bool = false
 
     func evaluate(_ params: CallValues) -> LeafData { params[0].celf == .dictionary ? params[0] : .trueNil }
+}
+
+
+internal extension LeafMethod {
+    func mutatingEvaluate(_ params: CallValues) -> (mutate: LeafData?, result: LeafData) {
+        if !Self.mutating { __MajorBug("Mutating evaluation called on non-mutating method") }
+        return (nil, .trueNil)
+    }
 }

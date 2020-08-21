@@ -7,11 +7,11 @@ internal typealias LKVarTablePointer = UnsafeMutablePointer<LKVarTable>
 
 internal extension LKVarTable {
     /// Locate the `LKVariable` in the table, if possible
-    func match(_ variable: LKVariable) -> LKData? {
+    func match(_ variable: LKVariable, contextualize: Bool = true) -> LKData? {
         // Immediate catch if table holds exact identifier
         guard !keys.contains(variable) else { return self[variable] }
         // If variable has explicit scope, no way to contextualize - no hit
-        if variable.scope != nil { return nil }
+        if variable.scope != nil || !contextualize { return nil }
         // If atomic, immediately check contextualized self.member
         if variable.atomic { return self[variable.contextualized] }
         // Ensure no ancestor of the identifier is set before contextualizing
@@ -26,14 +26,35 @@ internal extension LKVarTable {
 
 internal extension LKVarStack {
     /// Locate the `LKVariable` in the stack, if possible
-    func match(_ variable: LKVariable) -> LKData? {
+    func match(_ variable: LKVariable, contextualize: Bool = true) -> LKData? {
         var depth = count - 1
-        repeat {
+        while depth >= 0 {
             if let x = self[depth].vars.pointee[variable] { return x }
             if depth > 0 { depth -= 1; continue }
-            return self[depth].vars.pointee.match(variable)
-        } while depth >= 0
+            return self[depth].vars.pointee.match(variable, contextualize: contextualize)
+        }
         return nil
+    }
+    
+    /// Update a non-scoped variable that explicitly exists, or if contextualized root exists, create & update at base
+    func update(_ variable: LKVariable, _ value: LKData) {
+        var depth = count - 1
+        repeat {
+            if self[depth].vars.pointee[variable] != nil {
+                self[depth].vars.pointee[variable] = value
+                return
+            }
+            depth -= depth > 0 ? 1 : 0
+        } while depth >= 0
+        if self[0].vars.pointee[variable.contextualized] != nil {
+            self[0].vars.pointee[variable] = value
+        }
+    }
+    
+    /// Explicitly create a non-contextualized variable at the current stack depth
+    func create(_ variable: LKVariable, _ value: LKData?) {
+        let value = value != nil ? value : .trueNil
+        self[count - 1].vars.pointee[variable] = value
     }
 }
 
@@ -48,7 +69,7 @@ internal struct LKVariable: LKSymbol, Hashable {
         hasher.combine(flat)
         hasher.combine(define)
     }
-
+    
     var atomic: Bool { memberStart == 2 && memberEnd == -1 }
     var pathed: Bool { memberEnd != -1 }
 
@@ -101,14 +122,17 @@ internal struct LKVariable: LKSymbol, Hashable {
     /// Convenience for a `Define` identifier - MUST be atomic
     static func define(_ m: String) -> Self { .init(member: m, define: true)}
 
+
     /// Remap a variant symbol onto `self` context
     var contextualized: Self { .init(from: self) }
+    /// Convenience for unscoped version of self
+    var uncontextualized: Self { .init(from: self, newScope: "") }
     /// Return the variable's parent identifier, or nil if a scope level or unscoped member-only
     var parent: Self? { Self.init(child: self) }
     /// Extend a symbol with a new identifier - as member or path as appropriate
     func extend(with: String) -> Self { memberStart == -1 ? .init(from: self, member: with) : .init(from: self, path: with) }
     /// Validate if self is descendent of ancestor
-    func isDescendent(of ancestor: Self) -> Bool { flat.hasPrefix(ancestor.flat) }
+    func isDescendent(of ancestor: Self) -> Bool { flat.hasPrefix(ancestor.flat) && flat.count > ancestor.flat.count }
 
     /// Generate an atomic unscoped variable
     private init(member: String, define: Bool = false) {

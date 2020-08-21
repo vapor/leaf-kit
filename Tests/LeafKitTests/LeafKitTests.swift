@@ -206,7 +206,7 @@ final class ParserTests: LeafTestClass {
 
         let expectation = """
         0: [$:x + [$x + [$context:x + $server:x]]]
-        2: [hasPrefix($server:baseURL, string(www)) == true]
+        2: [hasPrefix($server:baseURL, string(www)) == bool(true)]
         4: [[$:array [] int(0)] + [$:dictionary [] string(key)]]
         6: [$server:domain [] $request:cname]
         """
