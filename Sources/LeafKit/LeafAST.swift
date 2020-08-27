@@ -29,6 +29,8 @@ public struct LeafAST: Hashable {
     let underestimatedSize: UInt32
     /// The final indices that are the template's own (uninlined scope)
     let own: (scopes: Int, inlines: Int)
+    /// Any variables needed that aren't internally defined
+    let requiredVars: Set<LKVariable>
     /// List of any external templates needed to fully resolve the document.
     let requiredASTs: Set<String>
     /// List of any external unprocessed raw inlines needed to fully resolve the document
@@ -39,17 +41,11 @@ public struct LeafAST: Hashable {
 
     public func hash(into hasher: inout Hasher) { hasher.combine(key) }
     public static func ==(lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key }
-
+    
+    
     mutating public func touch(values: Touch) {
         info.touched = Date()
-        info.touches = info.touches == Int.max ? 2 : info.touches + 1
-        if values.exec > info.maximums.exec { info.maximums.exec = values.exec }
-        if values.size > info.maximums.size { info.maximums.size = values.size }
-        guard info.touches != 1 else { info.averages = values; return }
-        info.averages.exec = info.averages.exec +
-                            ((values.exec - info.averages.exec) / Double(info.touches))
-        info.averages.size = info.averages.size +
-                            ((values.size - info.averages.size) / UInt32(info.touches))
+        info.touch.aggregate(values: values)
     }
 
     // MARK: - Helper Objects
@@ -67,8 +63,11 @@ public struct LeafAST: Hashable {
 
     /// An opaque object passed to a stored `LeafAST` via `LeafCache`
     public struct Touch {
-        var exec: Double
-        var size: UInt32
+        var count: UInt32
+        var sizeAvg: UInt32
+        var sizeMax: UInt32
+        var execAvg: Double
+        var execMax: Double
     }
 
     /// A semi-opaque object providing information about the current state of the AST
@@ -92,21 +91,20 @@ public struct LeafAST: Hashable {
         var underestimatedSize: UInt32 = 0
         var stackDepths: (overallMax: UInt16, inlineMax: UInt16) = (1,0)
         var includedASTs: Set<String> = []
-        var touches: Int = 0
-        var averages: Touch = .init(exec: 0, size: 0)
-        var maximums: Touch = .init(exec: 0, size: 0)
+        var _requiredVars: Set<LKVariable> = []
+        var touch: Touch = .empty
 
         // MARK: Computed Properties
         /// Whether the AST is fully resolved
         public var resolved: Bool { requiredASTs.union(requiredRaws).isEmpty }
+        /// Any variables required in the AST that aren't internally defined
+        public var requiredVars: Set<String> { .init(_requiredVars.map {$0.terse}) }
         /// Average and maximum duration of serialization for the AST
         public var serializeTimes: (average: Double, maximum: Double) {
-            (averages.exec, maximums.exec)
-        }
+            (touch.execAvg, touch.execMax) }
         /// Average and maximum size of serialized output for the AST
         public var serializeSizes: (average: Int, maximum: Int) {
-            (Int(averages.size), Int(maximums.size))
-        }
+            (Int(touch.sizeAvg), Int(touch.sizeMax)) }
     }
 
     /// Internal only -
@@ -129,6 +127,7 @@ internal extension LeafAST {
          _ scopes: [[LKSyntax]],
          _ defines: Set<String>,
          _ inlines: [(inline: Jump, process: Bool, at: Date)],
+         _ variables: Set<LKVariable>,
          _ underestimatedSize: UInt32,
          _ stackDepths: (overallMax: UInt16, inlineMax: UInt16)) {
         // Core properties for actual AST
@@ -142,6 +141,7 @@ internal extension LeafAST {
         self.underestimatedSize = underestimatedSize
         self.own = (scopes: scopes.indices.last!,
                     inlines: inlines.indices.last ?? -1)
+        self.requiredVars = variables
         self.requiredASTs = inlines.filter { $0.at == .distantFuture && $0.process }
                                    .reduce(into: .init(), { $0.insert($1.inline.identifier) })
         self.requiredRaws = inlines.filter { $0.at == .distantFuture && !$0.process }
@@ -154,7 +154,8 @@ internal extension LeafAST {
                           requiredASTs: requiredASTs,
                           requiredRaws: requiredRaws,
                           underestimatedSize: underestimatedSize,
-                          stackDepths: stackDepths)
+                          stackDepths: stackDepths,
+                          _requiredVars: requiredVars)
     }
 
     /// Any required files, whether template or raw, required to fully resolve
@@ -171,14 +172,16 @@ internal extension LeafAST {
         let inName = toInline.name
         let offset = scopes.count
 
-        // Atomic incoming AST; 1 scope, 1 element - inherently passthrough or raw
+        /// Atomic incoming AST; 1 scope, 1 element - inherently passthrough or raw
         let nonAtomic = inAST.scopes[0].count != 1
         if nonAtomic {
-            // Remap incoming AST's elements to their new table offset
+            /// Remap incoming AST's elements to their new table offset
             for (s, inScope) in inAST.scopes.enumerated() {
                 for (r, inRow) in inScope.enumerated() {
-                    if case .scope(let t) = inRow.container, let table = t {
-                        inAST.scopes[s][r] = .scope(table + offset) }
+                    /// Non-nil scopes remap by offset
+                    if case .scope(.some(let t)) = inRow.container {
+                        inAST.scopes[s][r] = .scope(t + offset) }
+                    /// Define blocks remap their scope reference by offset
                     if case .block(let n, var b as Define, let p) = inRow.container {
                         b.remap(offset: offset)
                         inAST.scopes[s][r] = .block(n, b, p) }
@@ -188,7 +191,7 @@ internal extension LeafAST {
             scopes.append(contentsOf: inAST.scopes)
         }
 
-        // Replace own AST's scope placeholders with correct offset references
+        /// Replace own AST's scope placeholders with correct offset references
         for (index, p) in inlines.enumerated() where p.process && p.at == .distantFuture {
             let t = p.inline.table
             let r = p.inline.row
@@ -199,11 +202,13 @@ internal extension LeafAST {
                                              : inAST.scopes[0][0]
                 info.underestimatedSize += nonAtomic ? inAST.underestimatedSize
                                                      : inAST.scopes[0][0].underestimatedSize
+                /// Update required vars with any new needed ones that aren't explicitly available at this inline point
+                info._requiredVars.formUnion(inAST.requiredVars.subtracting(meta.availableVars ?? []))
             }
         }
 
         if nonAtomic {
-            // Append remapped incoming AST define/inlines
+            /// Append remapped incoming AST define/inlines
             for i in inAST.inlines { inlines.append((inline: i.inline.remap(by: offset),
                                                      process: i.process,
                                                      at: i.at)) }
@@ -262,9 +267,39 @@ internal extension LeafAST {
         Template is \(info.resolved == false ? "un" : "")resolved
         Defines: [\(info.defines.joined(separator: ", "))]
         Inlines: [\(info.defines.joined(separator: ", "))]
-        Needed - ASTS: [\(info.requiredASTs.joined(separator: ", "))]
+        Needed - Vars: [\(Array(info._requiredVars).sorted(by: variablePrecedence).map { $0.terse }.joined(separator: ", "))]
+               - ASTS: [\(info.requiredASTs.joined(separator: ", "))]
                - Raws: [\(info.requiredRaws.joined(separator: ", "))]
         
         """
     }
+}
+
+/// true if print lhs before rhs - only used for atomic levels, ignores paths
+private func variablePrecedence(lhs: LKVariable, rhs: LKVariable) -> Bool {
+    switch (lhs.scope, rhs.scope) {
+        case (.none, .none): return lhs.member! < rhs.member!
+        case (.some(let l), .some(let r)) where l == r: return lhs.member ?? "" < rhs.member ?? ""
+        case (.some(let l), .some(let r)): return l < r
+        case (.some, .none): return true
+        case (.none, .some): return false
+    }
+}
+
+
+internal extension LeafASTTouch {
+    mutating func aggregate(values: Self) {
+        sizeMax.maxAssign(values.sizeMax)
+        execMax.maxAssign(values.execMax)
+        let c = UInt64(count) + UInt64(values.count)
+        let weight = (l: Double(count)/Double(c), r: Double(values.count)/Double(c))
+        execAvg = (weight.l * execAvg) + (weight.r * values.execAvg)
+        sizeAvg = UInt32((weight.l * Double(sizeAvg)) + (weight.r * Double(values.sizeAvg)))
+        count = c > UInt32.max ? UInt32(UInt16.max) : UInt32(c)
+    }
+    
+    static func atomic(time: Double, size: UInt32) -> Self {
+        .init(count: 1, sizeAvg: size, sizeMax: size, execAvg: time, execMax: time) }
+    
+    static let empty: Self = .init(count: 0, sizeAvg: 0, sizeMax: 0, execAvg: 0, execMax: 0)
 }

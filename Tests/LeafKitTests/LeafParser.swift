@@ -94,7 +94,7 @@ final class LKParserTests: LeafTestClass {
         let serializer = LKSerializer(sampleAST, [:], ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
-        switch serializer.serialize(buffer: &block) {
+        switch serializer.serialize(&block) {
             case .success       : XCTAssertEqual(block.contents, expected)
             case .failure(let e): print(e.localizedDescription)
         }
@@ -159,7 +159,7 @@ final class LKParserTests: LeafTestClass {
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
 
-        let result = serializer.serialize(buffer: &block)
+        let result = serializer.serialize(&block)
         switch result {
             case .success(let duration):
                 XCTAssertEqual(block.contents, expected)
@@ -186,7 +186,7 @@ final class LKParserTests: LeafTestClass {
     }
 
     func testVsComplex() throws {
-        let loopCount = 300
+        let loopCount = 1000
         let context: [String: LeafData] = [
             "name"  : "vapor",
             "skills" : Array.init(repeating: ["bool": true.leafData, "string": "a;sldfkj".leafData,"int": 100.leafData], count: loopCount).leafData,
@@ -212,7 +212,7 @@ final class LKParserTests: LeafTestClass {
             let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
             var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
             print("    Setup: " + lap.distance(to: Date()).formatSeconds)
-            let result = serializer.serialize(buffer: &block)
+            let result = serializer.serialize(&block)
             switch result {
                 case .success(let duration) : print("Serialize: " + duration.formatSeconds)
                                               total += duration
@@ -275,7 +275,7 @@ final class LKParserTests: LeafTestClass {
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
 
-        let result = serializer.serialize(buffer: &block)
+        let result = serializer.serialize(&block)
         switch result {
             case .success        : print(block.contents)
             case .failure(let e) : print(e.localizedDescription)
@@ -296,7 +296,7 @@ final class LKParserTests: LeafTestClass {
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
 
-        let result = serializer.serialize(buffer: &block)
+        let result = serializer.serialize(&block)
         switch result {
             case .success        : print(block.contents)
             case .failure(let e) : print(e.localizedDescription)
@@ -348,7 +348,7 @@ final class LKParserTests: LeafTestClass {
         let serializer = LKSerializer(parsedAST, ["x": "Hi tdotclare"], ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(parsedAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
-        let result = serializer.serialize(buffer: &block)
+        let result = serializer.serialize(&block)
         switch result {
             case .success        : XCTAssertEqual(block.contents, serializeExpected)
             case .failure(let e) : XCTFail(e.localizedDescription)
@@ -397,11 +397,44 @@ final class LKParserTests: LeafTestClass {
         let serializer = LKSerializer(parsedAST, [:], ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(parsedAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
-        let result = serializer.serialize(buffer: &block)
+        let result = serializer.serialize(&block)
         switch result {
             case .success        : XCTAssertEqual(block.contents, serializeExpected)
             case .failure(let e) : XCTFail(e.localizedDescription)
         }
+    }
+    
+    func testResumingSerialize() throws {
+        var testFiles = TestFiles()
+        testFiles.files["/sample.leaf"] = """
+            hello, #(name)!
+            #for(index in skills):
+            #(skills[index])
+            #endfor
+            """
+
+        let renderer = TestRenderer(sources: .singleSource(testFiles))
+        
+        let loopCount = 10_000
+        let context: [String: LeafData] = [
+            "name"  : "vapor",
+            "skills" : Array.init(repeating: ["bool": true.leafData, "string": "a;sldfkj".leafData,"int": 100.leafData], count: loopCount).leafData,
+            "me": "LOGAN"
+        ]
+        
+//        renderer.render(path: "sample", context: context).whenComplete {
+//            switch $0 {
+//                case .failure(let e): XCTFail((e as! LeafError).localizedDescription)
+//                case .success(let b): XCTAssertTrue(b.readableBytes == 0, "\(b.readableBytes.formatBytes)")
+//            }
+//        }
+        _ = try renderer.render(path: "sample", context: context).always {
+            switch $0 {
+                case .failure(let e): XCTFail((e as! LeafError).localizedDescription)
+                case .success(let b): XCTAssertTrue(b.readableBytes == 0, "\(b.readableBytes.formatBytes)")
+            }
+            
+        }.wait()
     }
 }
 

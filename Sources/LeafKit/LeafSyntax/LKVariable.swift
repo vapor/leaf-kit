@@ -22,6 +22,16 @@ internal extension LKVarTable {
         } while parent != nil
         return self[variable.contextualized]
     }
+    
+    /// Assumes table is prefiltered for valid identifiers
+    init(_ table: [String: LeafDataRepresentable], _ base: LKVariable? = nil) {
+        self.init(uniqueKeysWithValues: table.map {(base != nil ? base!.extend(with: $0.key): .atomic($0.key), $0.value.leafData)})
+    }
+    
+    /// Assumes table is prefiltered for valid identifiers
+    init(_ table: [String: LKData], _ base: LKVariable? = nil) {
+        self.init(uniqueKeysWithValues: table.map {(base != nil ? base!.extend(with: $0.key) : .atomic($0.key), $0.value)})
+    }
 }
 
 internal extension LKVarStack {
@@ -61,30 +71,28 @@ internal extension LKVarStack {
 
 internal struct LKVariable: LKSymbol, Hashable {
     let flat: String
-    private let memberStart: Int
-    private let memberEnd: Int
-    private let define: Bool
+    private let memberStart: UInt8
+    private let memberEnd: UInt8
+    /// Branching behavior - Variable does not refer to a concrete LeafData but a jump point to a `Define`
+    let define: Bool
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(flat)
         hasher.combine(define)
     }
     
-    var atomic: Bool { memberStart == 2 && memberEnd == -1 }
-    var pathed: Bool { memberEnd != -1 }
+    var atomic: Bool { memberStart == 2 && memberEnd == 0 }
+    var pathed: Bool { memberEnd != 0 }
 
     var scope: String? {
-        memberStart == 2 ? nil : String(flat.dropLast(flat.count - memberStart - 1).dropFirst())
-    }
+        memberStart == 2 ? nil : String(flat.dropLast(flat.count - (memberStart != 0 ? Int(memberStart) - 1 : flat.count)).dropFirst()) }
     var member: String? {
-        if memberStart == -1 { return nil }
-        if memberEnd == -1 { return String(flat.dropFirst(memberStart)) }
-        return String(flat.dropLast(flat.count - memberEnd - 1).dropFirst(memberStart))
-    }
+        memberStart == 0 ? nil : memberEnd == 0 ? String(flat.dropFirst(Int(memberStart)))
+                                                : String(flat.dropLast(flat.count - Int(memberEnd)).dropFirst(Int(memberStart))) }
 
     // MARK: - LKSymbol
     let resolved: Bool = false
-    var invariant: Bool { memberStart == -1 || memberStart > 2 }
+    var invariant: Bool { memberStart == 0 || memberStart > 2 }
     var symbols: Set<LKVariable> { [self] }
     func resolve(_ symbols: LKVarStack) -> Self { self }
     func evaluate(_ symbols: LKVarStack) -> LeafData { symbols.match(self) ?? .trueNil }
@@ -92,26 +100,29 @@ internal struct LKVariable: LKSymbol, Hashable {
     // MARK: - LKPrintable
     var description: String { flat }
     var short: String { flat }
-
+    var terse: String {
+        memberStart == 2 ? String(flat.dropFirst(2))
+                         : scope == Self.selfScope ? "self\(member != nil ? ".\(member!)" : "")"
+                                                   : flat
+    }
+    
     static let selfScope = "context"
 
     init?(_ scope: String? = nil,
           _ member: String,
           _ path: [String]? = nil) {
+        /// Member, scope, path parts must all be valid identifiers. If scope is nil, member must not be empty.
         guard member.isValidIdentifier || member.isEmpty,
               scope?.isValidIdentifier ?? true else { return nil }
         if scope == nil && member.isEmpty { return nil }
+        if path?.isEmpty == false, !path!.allSatisfy({$0.isValidIdentifier}) { return nil }
+        
         var flat = "$\(scope ?? "")"
-        self.memberStart = member.isEmpty ? -1 : flat.count + 1
-        let memberEnd: Int
+        self.memberStart = member.isEmpty ? 0 : UInt8(flat.count + 1)
         if !member.isEmpty { flat += ":\(member)" }
-        if let path = path, path.allSatisfy({$0.isValidIdentifier}),
-           !path.isEmpty {
-            memberEnd = flat.count - 1
-            flat += path.map { "." + $0 }.joined()
-        } else if path == nil { memberEnd = -1 } else { return nil }
+        self.memberEnd = path == nil ? 0 : UInt8(flat.count - 1)
+        if let path = path { flat += path.map { "." + $0 }.joined() }
         self.flat = flat
-        self.memberEnd = memberEnd
         self.define = false
     }
 
@@ -129,67 +140,50 @@ internal struct LKVariable: LKSymbol, Hashable {
     var uncontextualized: Self { .init(from: self, newScope: "") }
     /// Return the variable's parent identifier, or nil if a scope level or unscoped member-only
     var parent: Self? { Self.init(child: self) }
+    /// Return the scoped, atomic ancestor
+    var ancestor: Self { !pathed ? self : .init(String(flat.dropLast(flat.count - Int(memberEnd) - 1)), memberStart, 0) }
     /// Extend a symbol with a new identifier - as member or path as appropriate
-    func extend(with: String) -> Self { memberStart == -1 ? .init(from: self, member: with) : .init(from: self, path: with) }
+    func extend(with: String) -> Self { memberStart == 0 ? .init(from: self, member: with) : .init(from: self, path: with) }
     /// Validate if self is descendent of ancestor
     func isDescendent(of ancestor: Self) -> Bool { flat.hasPrefix(ancestor.flat) && flat.count > ancestor.flat.count }
-
+    
     /// Generate an atomic unscoped variable
-    private init(member: String, define: Bool = false) {
-        self.flat = "$:\(member)"
-        self.memberStart = 2
-        self.memberEnd = -1
-        self.define = define
-    }
-
+    private init(member: String, define: Bool = false) { self.init("$:\(member)", 2, 0, define) }
     /// Generate a scoped top-level variable
-    private init(scope: String = Self.selfScope) {
-        self.flat = "$\(scope)"
-        self.memberStart = -1
-        self.memberEnd = -1
-        self.define = false
-    }
+    private init(scope: String = Self.selfScope) { self.init("$\(scope)", 0, 0) }
 
     /// Remap a variant unscoped variable onto an invariant scoped variable
     private init(from: Self, newScope: String = Self.selfScope) {
         var cropped = from.flat
         cropped.removeFirst(2)
-        self.flat = "$\(newScope):\(cropped)"
-        self.memberStart = newScope.count + 2
-        self.memberEnd = from.memberEnd != -1 ? from.memberEnd + newScope.count : -1
-        self.define = false
+        self.init("$\(newScope):\(cropped)", UInt8(newScope.count) + 2,
+                  from.memberEnd != 0 ? from.memberEnd + UInt8(newScope.count) : 0)
     }
     
     /// Remap a pathed variable up one level
     private init?(child: Self) {
-        if child.atomic || (child.memberStart == -1) { return nil }
+        if child.atomic || (child.memberStart == 0) { return nil }
         if !child.pathed {
-            self.flat = child.scope!
-            self.memberStart = -1
-            self.memberEnd = -1
-        } else {
+            self.init(child.scope!, 0, 0) }
+        else {
             let unpathed = child.flat.filter({$0 == .period}).count == 1
-            self.memberStart = child.memberStart
-            self.memberEnd = unpathed ? -1 : child.memberEnd
             let end = child.flat.lastIndex(of: .period)!
-            self.flat = String(child.flat[child.flat.startIndex...end])
-        }
-        self.define = false
+            let f = String(child.flat[child.flat.startIndex...end])
+            self.init(f, child.memberStart, unpathed ? 0 : child.memberEnd) }
     }
 
     /// Remap a scoped variable top level variable with a member
     private init(from: Self, member: String) {
-        self.flat = "\(from.flat):\(member)"
-        self.memberStart = from.flat.count + 1
-        self.memberEnd = -1
-        self.define = false
-    }
+        self.init("\(from.flat):\(member)", UInt8(from.flat.count + 1), 0) }
 
     /// Remap a  variable with a new path component
     private init(from: Self, path: String) {
-        self.flat = "\(from.flat).\(path)"
-        self.memberStart = from.memberStart
-        self.memberEnd = from.memberEnd == -1 ? from.flat.count - 1 : from.memberEnd
-        self.define = false
+        self.init("\(from.flat).\(path)", from.memberStart, from.memberEnd == 0 ? UInt8(from.flat.count - 1) : from.memberEnd) }
+    
+    private init(_ flat: String, _ memberStart: UInt8, _ memberEnd: UInt8, _ define: Bool = false) {
+        self.flat = flat
+        self.memberStart = memberStart
+        self.memberEnd = memberEnd
+        self.define = define
     }
 }

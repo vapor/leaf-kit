@@ -25,6 +25,7 @@ internal struct LKParser: LKErroring {
                        scopes,
                        defines,
                        inlines,
+                       requiredVars,
                        underestimatedSize,
                        scopeDepths)
     }
@@ -44,19 +45,23 @@ internal struct LKParser: LKErroring {
     private var underestimatedSize: UInt32 = 0
 
     private var scopeStack = [0]
-    private var currentScope: Int { scopeStack.last! }
+    private var depth: Int { scopeStack.count - 1 }
+    private var currentScope: Int { scopeStack[depth] }
+    
     private var scopeDepths: (overallMax: UInt16,
                               inlineMax: UInt16) = (1,0)
 
     private var openBlocks: [(name: String, block: LeafFunction.Type)] = []
     private var lastBlock: Int? { openBlocks.indices.last }
-
+    
     private var offset: Int = 0
 
     private var peek: LKToken? { offset < tokens.count ? tokens[offset] : nil }
 
     private var rawStack: [LKRawBlock]
     
+    private var requiredVars: Set<LKVariable> = []
+    private var createdVars: [Set<LKVariable>] = [[]]
     
     /// Process the next `LKToken` or multiple tokens.
     private mutating func advance() -> Bool {
@@ -192,6 +197,13 @@ internal struct LKParser: LKErroring {
             case .keyword(let k)   : estimate = k.isBooleanValued ? 4 : 0
         }
         underestimatedSize += estimate
+        /// If passthrough object is variable creation, append to current scope's set of created vars
+        if case .expression(let e) = syntax.container,
+           case .keyword(.var) = e.first.container,
+           case .variable(let v) = e.second.container {
+            createdVars[depth].insert(v)
+            if let set = e.third { updateVars(set.symbols) }
+        } else { updateVars(syntax.symbols) }
         return true
     }
 
@@ -219,6 +231,7 @@ internal struct LKParser: LKErroring {
     private mutating func appendFunction(_ t: String, _ p: LKTuple?) -> Bool {
         let result = entities.validateFunction(t, p)
         underestimatedSize += 16
+        updateVars(p?.symbols)
         switch result {
             case .failure(let r) : return bool(err("\(t) couldn't be parsed: \(r)"))
             case .success(let f)
@@ -238,6 +251,8 @@ internal struct LKParser: LKErroring {
         scopeStack.append(scopes.count - 1) // Push new scope reference
         scopeDepths.overallMax.maxAssign(UInt16(scopes.count))
         if type(of: b) == Inline.self { scopeDepths.inlineMax.maxAssign(UInt16(scopes.count)) }
+        updateVars(p?.symbols)
+        createdVars.append(.init(b.scopeVariables?.map {.atomic($0)} ?? []))
         return true
     }
 
@@ -253,7 +268,22 @@ internal struct LKParser: LKErroring {
             scopes[currentScope].append(decayed.isEmpty ? .scope(nil) : decayed[0] )
         } else { scopeStack.removeLast() }
         if rawBlock { rawStack.removeLast() }
+        createdVars.removeLast()
         return true
+    }
+    
+    private mutating func updateVars(_ vars: Set<LKVariable>?) {
+        guard var vars = vars else { return }
+        vars = vars.reduce(into: [], { $0.insert($1.ancestor)} )
+        let scoped = vars.filter { $0.scope != nil && !$0.define }
+        requiredVars.formUnion(scoped)
+        vars.subtract(scoped)
+        vars.subtract(requiredVars)
+        vars = vars.filter { !requiredVars.contains($0.contextualized) }
+        guard !vars.isEmpty else { return }
+        for created in createdVars.reversed() { vars.subtract(created) }
+        vars = .init(vars.map {$0.contextualized})
+        requiredVars.formUnion(vars)
     }
     
     private mutating func handleEvaluateFunction(_ f: String, _ tuple: LKTuple) -> Evaluate? {
@@ -291,10 +321,11 @@ internal struct LKParser: LKErroring {
                                         param: !isBlock ? tuple[1]! : nil,
                                         table: currentScope,
                                         row: scopes[currentScope].count + 1)
-                if isBlock { openBlock(name, definition, tuple) }
+                if isBlock { openBlock(name, definition, nil) }
                 else {
                     scopes[currentScope].append(.block(name, definition, nil))
                     scopes[currentScope].append(.passthrough(definition.param!))
+                    requiredVars.formUnion(definition.param!.symbols)
                 }
                 defines.insert(v.member!)
             case .evaluate:
@@ -320,7 +351,10 @@ internal struct LKParser: LKErroring {
                         raw = handler != "raw" ? handler : nil
                     } else { return bool(err("#\(name)(\"file\", as: type) where type is `leaf`, `raw`, or a named raw handler")) }
                 } else { process = true }
-                let inline = Inline(file, process: process, rawIdentifier: process ? nil : raw )
+                let inline = Inline(file: file,
+                                    process: process,
+                                    rawIdentifier: process ? nil : raw,
+                                    availableVars: createdVars.flat)
                 inlines.append((inline: .init(identifier: file,
                                               table: currentScope,
                                               row: scopes[currentScope].count),
@@ -845,4 +879,9 @@ private extension String {
     static let malformedExpression = "Couldn't close expression"
 }
 
-
+private extension Array where Element == Set<LKVariable> {
+    var flat: Element? {
+        let x = reduce(into: Element.init(), { $0.formUnion($1) })
+        return x.isEmpty ? nil : x
+    }
+}

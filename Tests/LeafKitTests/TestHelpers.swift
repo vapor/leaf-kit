@@ -51,7 +51,7 @@ internal func render(name: String = "test-render",
     let buffer = ByteBufferAllocator().buffer(capacity: Int(ast.underestimatedSize))
     var block = ByteBuffer.instantiate(data: buffer, encoding: LKConf.encoding)
     let serializer = LKSerializer(ast, context, ByteBuffer.self)
-    switch serializer.serialize(buffer: &block) {
+    switch serializer.serialize(&block) {
         case .success(_)     : return block.contents
         case .failure(let e) : throw e
     }

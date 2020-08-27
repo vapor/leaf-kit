@@ -17,8 +17,11 @@ public final class DefaultLeafCache: LKSynchronousCache {
         set { locks.cache.withLock { _isEnabled = newValue } }
     }
 
-    /// Current count of cached documents
-    public var count: Int { locks.touch.withLock { touches.count } }
+    public var count: Int { locks.cache.withLock { cache.count } }
+    
+    public var isEmpty: Bool { locks.cache.withLock { cache.isEmpty } }
+    
+    public var keys: Set<LeafASTKey> { .init(locks.cache.withLock { cache.keys }) }
 
     /// - Parameters:
     ///   - document: The `LeafAST` to store
@@ -57,7 +60,11 @@ public final class DefaultLeafCache: LKSynchronousCache {
     }
 
     public func touch(_ key: LeafASTKey, _ values: LeafASTTouch) {
-        if _isEnabled { locks.touch.withLockVoid { touches[key]!.append(values) } }
+        if _isEnabled { locks.touch.withLockVoid { touches[key]!.aggregate(values: values) } }
+    }
+    
+    public func info(for key: LeafASTKey, on loop: EventLoop) -> EventLoopFuture<LeafASTInfo?> {
+        succeed(info(for: key), on: loop)
     }
 
     // MARK: - Internal - LKSynchronousCache
@@ -70,11 +77,8 @@ public final class DefaultLeafCache: LKSynchronousCache {
         locks.cache.withLockVoid {
             if replace || !cache.keys.contains(document.key) {
                 cache[document.key] = document
+                locks.touch.withLockVoid { touches[document.key] = .empty }
             } else { e = true }
-        }
-        locks.touch.withLockVoid {
-            touches[document.key] = .init()
-            touches[document.key]?.reserveCapacity(4)
         }
         guard !e else { return .failure(err(.keyExists(document.name))) }
         return .success(document)
@@ -83,13 +87,15 @@ public final class DefaultLeafCache: LKSynchronousCache {
     /// Blocking file load behavior
     func retrieve(_ key: LeafASTKey) -> LeafAST? {
         guard _isEnabled else { return nil }
-        locks.cache.lock()
-        defer { locks.cache.unlock() }
-        guard cache.keys.contains(key) else { return nil }
-        locks.touch.lock()
-        defer { locks.touch.unlock() }
-        while let touch = touches[key]!.popLast() { cache[key]!.touch(values: touch) }
-        return cache[key]
+        return locks.cache.withLock {
+            guard cache.keys.contains(key) else { return nil }
+            locks.touch.withLockVoid {
+                if touches[key]!.count >= 128,
+                   let touch = touches.updateValue(.empty, forKey: key) {
+                    cache[key]!.touch(values: touch) }
+            }
+            return cache[key]
+        }
     }
 
     /// Blocking file load behavior
@@ -98,11 +104,15 @@ public final class DefaultLeafCache: LKSynchronousCache {
         locks.cache.withLockVoid { cache.removeValue(forKey: key) }
         return true
     }
+    
+    func info(for key: LeafASTKey) -> LeafASTInfo? {
+        locks.cache.withLock{ cache[key]?.info }
+    }
 
     // MARK: - Stored Properties - Private Only
     private var _isEnabled: Bool = true
     private let locks: (cache: Lock, touch: Lock)
     /// NOTE: internal read-only purely for test access validation - not assured
     private(set) var cache: [LeafASTKey: LeafAST]
-    private var touches: [LeafASTKey: ContiguousArray<LeafASTTouch>]
+    private var touches: [LeafASTKey: LeafASTTouch]
 }

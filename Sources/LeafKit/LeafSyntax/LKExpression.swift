@@ -19,7 +19,7 @@ internal struct LKExpression: LKSymbol {
     private(set) var baseType: LKDType?
 
     func resolve(_ symbols: LKVarStack) -> Self {
-        return form.exp != .ternary
+        form.exp != .ternary
             ? .init(.init(storage.map { $0.resolve(symbols) }), form)
             : .init(.init([storage[0].resolve(symbols), storage[1], storage[2]]), form)
     }

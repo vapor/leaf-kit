@@ -53,12 +53,6 @@ internal struct Evaluate: LKMetaBlock {
 /// If inlined file is not being processed, rawBlock will be replaced with one of the same type with the inlined
 /// raw document's contents.
 internal struct Inline: LKMetaBlock {
-    init(_ file: String, process: Bool, rawIdentifier: String?) {
-        self.file = file
-        self.process = process
-        self.rawIdentifier = rawIdentifier
-    }
-
     static let form: LKMetaForm = .inline
     static let callSignature: CallParameters = []
     static let returns: Set<LKDType> = [.void]
@@ -67,6 +61,7 @@ internal struct Inline: LKMetaBlock {
     var file: String
     var process: Bool
     var rawIdentifier: String?
+    var availableVars: Set<LKVariable>?
 }
 
 /// `RawSwitch` either alters the current raw handler when by itself, or produces an isolated raw handling block with an attached scope

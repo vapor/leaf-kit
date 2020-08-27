@@ -47,6 +47,9 @@ public struct LeafError: Error, CustomStringConvertible {
         // FIXME: Implement a specific ParserError type
         // case parserError(ParserError)
 
+        /// Error due to timeout (may or may not be permanent)
+        case timeout(Double)
+        
         // MARK: Errors lacking specificity
         /// Errors from protocol adherents that do not support newer features
         case unsupportedFeature(String)
@@ -81,6 +84,7 @@ public struct LeafError: Error, CustomStringConvertible {
             case .noTemplateExists(let k)     : m += "No template found for \(k)"
             case .lexerError(let e)           : m = "Lexing error - \(e.description)"
             case .unresolvedAST(let k, let d) : m += "\(k) has unresolved dependencies: \(d)"
+            case .timeout(let d)              : m += "Exceeded timeout at \(d.formatSeconds)"
             case .cyclicalReference(let k, let c)
                 : m += "\(k) cyclically referenced in [\((c + ["!\(k)"]).joined(separator: " -> "))]"
         }

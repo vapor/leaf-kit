@@ -10,6 +10,8 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     case double(Double)
     case data(Data)
 
+    // FIXME: Dictionary & Array should store a bool to signal homogenous/heterogenous
+    
     /// `[String: LeafData]`
     case dictionary([String: LKData])
     /// `[LeafData]`

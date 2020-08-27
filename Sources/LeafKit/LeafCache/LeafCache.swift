@@ -17,6 +17,10 @@ public protocol LeafCache {
 
     /// Current count of cached documents
     var count: Int { get }
+    /// If cache is empty
+    var isEmpty: Bool { get }
+    /// Keys for all currently cached ASTs
+    var keys: Set<LeafASTKey> { get }
 
     /// - Parameters:
     ///   - document: The `LeafAST` to store
@@ -41,11 +45,21 @@ public protocol LeafCache {
     ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
     func remove(_ key: LeafASTKey,
                 on loop: EventLoop) -> EventLoopFuture<Bool?>
-
-    /// Touch the stored AST for `key` with the provided `LeafASTTouch` object
+    
+    /// Retrieve info for AST requested, if it's cached
+    func info(for key: LeafASTKey,
+              on loop: EventLoop) -> EventLoopFuture<LeafASTInfo?>
+    
+    /// Touch the stored AST for `key` with the provided `LeafASTTouch` object via
+    /// `LeafAST.touch(values: LeafASTTouch)`, if document exists
+    ///
     /// - Parameters:
     ///   - key: `LeafAST.key` of the stored AST to touch
     ///   - value: `LeafASTTouch` to provide to the AST via `LeafAST.touch(value)`
+    ///
+    /// If document doesn't exist, can be ignored; adherent may queue touches and aggregate them via
+    /// `a.aggregate(b)`, and only touch when document or info is requested. As such, no event loop
+    /// is provided - method should still not block.
     func touch(_ key: LeafASTKey,
                _ value: LeafASTTouch)
 }

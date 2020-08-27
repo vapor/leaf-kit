@@ -3,16 +3,18 @@
 import Foundation
 
 internal final class LKSerializer: LKErroring {
-    var error: LeafError? = nil
     
     // MARK: Stored Properties
-    private let ast: LeafAST
+    let ast: LeafAST
+    internal private(set) var error: LeafError? = nil
+    
     /// The original incoming context data
     private var output: UnsafeMutablePointer<LKRawBlock>
     
+    private var threshold: Double
     private var start: Double
     private var lapTime: Double
-    private var threshold: Double
+    private var duration: Double = 0
     private var tickCount: UInt8 = 0
     
     private var idCache: [String: LKVariable] = [:]
@@ -44,7 +46,10 @@ internal final class LKSerializer: LKErroring {
     private var cutoff: Bool {
         tickCount &+= 1
         if tickCount == 0 { lap() }
-        if threshold < (lapTime - start) { error = err("Execution timed out") }
+        if threshold < (lapTime - start) {
+            duration += lapTime - start
+            error = err(.timeout(duration))
+        }
         return errored
     }
     
@@ -58,7 +63,7 @@ internal final class LKSerializer: LKErroring {
         self.varStack.reserveCapacity(Int(ast.info.stackDepths.overallMax))
         self.varStack.append(([], LKVarTablePointer.allocate(capacity: 1)))
         self.output = UnsafeMutablePointer<LKRawBlock>.allocate(capacity: 1)
-        self.output.initialize(to: output.instantiate(size: ast.info.averages.size,
+        self.output.initialize(to: output.instantiate(size: ast.info.touch.sizeAvg,
                                                       encoding: LKConf.encoding))
         self.stack = .init(repeating: .init(self.output),
                            count: Int(ast.info.stackDepths.overallMax))
@@ -68,7 +73,7 @@ internal final class LKSerializer: LKErroring {
         expandDict(.dictionary(context), .`self`)
     }
     
-    init(_ ast: LeafAST, contexts: [LKVariable: LKData], _ output: LKRawBlock.Type) {
+    init(_ ast: LeafAST, varTable: LKVarTable, _ output: LKRawBlock.Type) {
         self.ast = ast
         self.start = Date.distantFuture.timeIntervalSinceReferenceDate
         self.lapTime = Date.distantPast.timeIntervalSinceReferenceDate
@@ -76,19 +81,22 @@ internal final class LKSerializer: LKErroring {
         self.varStack.reserveCapacity(Int(ast.info.stackDepths.overallMax))
         self.varStack.append(([], LKVarTablePointer.allocate(capacity: 1)))
         self.output = UnsafeMutablePointer<LKRawBlock>.allocate(capacity: 1)
-        self.output.initialize(to: output.instantiate(size: ast.info.averages.size,
+        self.output.initialize(to: output.instantiate(size: ast.info.touch.sizeAvg,
                                                       encoding: LKConf.encoding))
         self.stack = .init(repeating: .init(self.output),
                            count: Int(ast.info.stackDepths.overallMax))
-        vars.initialize(to: .init(minimumCapacity: contexts.count * 2))
-        vars.pointee = contexts
+        vars.initialize(to: .init(minimumCapacity: varTable.count * 2))
+        vars.pointee = varTable
         for (key, value) in vars.pointee where value.celf == .dictionary {
             expandDict(value, key) }
     }
 
     deinit {
-        vars.deinitialize(count: 1)
-        vars.deallocate()
+        while varStack.count > 0 {
+            vars.deinitialize(count: 1)
+            vars.deallocate()
+            varStack.removeLast()
+        }
         output.deinitialize(count: 1)
         output.deallocate()
     }
@@ -108,12 +116,14 @@ internal final class LKSerializer: LKErroring {
         while let x = recurse.popLast() { expandDict(x.1, x.0, at: level) }
     }
 
-    func serialize(buffer output: inout LKRawBlock,
-                   timeout: Double? = nil) -> Result<Double, LeafError> {
+    func serialize(_ output: inout LKRawBlock,
+                   _ timeout: Double? = nil,
+                   _ resume: Bool = false) -> Result<Double, LeafError> {
+        if resume { error = nil }
         guard !ast.scopes[0].isEmpty else { return .success(0) }
         if let timeout = timeout { threshold = timeout }
-
-        start = Date().timeIntervalSinceReferenceDate
+        start = Date.timeIntervalSinceReferenceDate
+        lapTime = Date.distantPast.timeIntervalSinceReferenceDate
         serialize:
         while !cutoff, !errored, !stack.isEmpty {
             /// At start of a scope block, evaluate the scope. Terminate if it
@@ -239,11 +249,12 @@ internal final class LKSerializer: LKErroring {
             }
             offset += 1
         }
+        
+        if errored { return .failure(error!) }
+        
         stack.removeAll()
         output = self.output.pointee
-
-        return errored ? .failure(error!)
-                       : .success(Date.timeIntervalSinceReferenceDate - start)
+        return .success(Date.timeIntervalSinceReferenceDate - start + duration)
     }
 
     

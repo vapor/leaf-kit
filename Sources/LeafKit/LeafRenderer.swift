@@ -1,5 +1,7 @@
 // MARK: Subject to change prior to 1.0.0 release
 
+import Dispatch
+
 // MARK: - `LeafRenderer` Summary
 
 /// `LeafRenderer` implements the full Leaf language pipeline.
@@ -39,11 +41,16 @@ public final class LeafRenderer {
         self.userInfo = userInfo
         self.blockingCache = cache as? LKSynchronousCache
         self.cacheIsSync = blockingCache != nil
+        self.worker = .init(label: "codes.vapor.leaf.renderer",
+//                            attributes: .concurrent,
+                            autoreleaseFrequency: .never)
     }
 
     private let eL: EventLoop
     private let cacheIsSync: Bool
     private let blockingCache: LKSynchronousCache?
+    
+    private let worker: DispatchQueue
 
     // 50 ms limit for execution to act in a blocking fashion
     private static let blockLimit = 0.050
@@ -80,12 +87,12 @@ public final class LeafRenderer {
     func _render(_ key: LeafASTKey, _ ctx: [String: LKData]) -> ELF<ByteBuffer> {
         /// Short circuit for resolved blocking cache hits
         if cacheIsSync, let hit = blockingCache!.retrieve(key),
-           hit.info.requiredASTs.isEmpty, hit.info.averages.exec < Self.blockLimit {
-            return serialize(hit, ctx)
+           hit.info.requiredASTs.isEmpty, hit.info.touch.execAvg < Self.blockLimit {
+            return preflight(hit, ctx)
         }
 
         return fetch(key).flatMap { self.arbitrate($0) }
-                         .flatMap { self.serialize($0, ctx) }
+                         .flatMap { self.preflight($0, ctx) }
     }
 
     // MARK: - Private Only
@@ -134,8 +141,8 @@ public final class LeafRenderer {
     /// If the configured `LeafSource` can't read a file, future will fail
     /// Otherwise, a complete (but not necessarily flat) `LeafAST` will be returned.
     private func read(_ key: LeafASTKey, _ escape: Bool = false) -> ELF<LeafAST> {
-        let found = sources.find(key, on: eL)
-        return found.flatMapThrowing { (src, buf) in
+        sources.find(key, on: eL)
+               .flatMapThrowing { (src, buf) in
             let name = src
             var buf = buf
 
@@ -153,33 +160,71 @@ public final class LeafRenderer {
     /// Attempt to resolve a `LeafAST` - call only when ast has unresolved inlines
     private func resolve(_ ast: LeafAST, _ chain: [String] = []) -> ELF<LeafAST> {
         // FIXME: A configuration flag should dictate handling of unresolved ASTS
-        let fetches = ast.info.requiredASTs.map { self.fetch(.searchKey($0))
-                                           .flatMap { self.arbitrate($0, via: chain) } }
+        let fetches = ast.info.requiredASTs.map {
+            self.fetch(.searchKey($0)).flatMap { self.arbitrate($0, via: chain) } }
 
         return ELF.reduce(into: ast, fetches, on: eL) { $0.inline(ast: $1) }
                   .flatMap { self.arbitrate($0) }
     }
 
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
-    private func serialize(_ ast: LeafAST,
-                           _ context: [String: LKData]) -> ELF<ByteBuffer> {
-        var contexts: LKVarTable = [.`self`: .dictionary(context)]
-        
-        for (key, value) in userInfo where key as? String != nil {
-            if let str = key as? String, str.isValidIdentifier,
-               str != LKVariable.selfScope, let ctxKey = LKVariable.init(str, ""),
-               let data = value as? LeafDataRepresentable {
-                contexts[ctxKey] = data.leafData }
-        }
-        
-        var block = ByteBuffer.instantiate(size: 0, encoding: LeafConfiguration.encoding)
-        switch LKSerializer(ast, contexts: contexts, ByteBuffer.self).serialize(buffer: &block) {
-            case .success(let t) : let buffer = block as! ByteBuffer
-                                   cache.touch(ast.key,
-                                               .init(exec: t,
-                                                     size: UInt32(buffer.readableBytes)))
+    private func preflight(_ ast: LeafAST,
+                           _ context: [String: LeafData]) -> ELF<ByteBuffer> {
+        // FIXME: Configure behavior for rendering where "needed" is non empty
+//        let promise = eL.makePromise(of: ByteBuffer.self)
+//        worker.async { [unowned self] in
+            var needed = Set<LKVariable>(ast.info._requiredVars.map { $0.scope == nil ? $0.contextualized : $0 })
+            /// Reduce incoming data to only symbols required by the AST
+            var contexts: LKVarTable = needed.contains(.`self`) ? [.`self`: .dictionary(context)] : [:]
+            let context = context.filter {$0.key.isValidIdentifier}
+                                 .map { (LKVariable.atomic($0.key).contextualized, $0.value) }
+                                 .filter { needed.contains($0.0) }
+            contexts.merge(context, uniquingKeysWith: {a, b in a})
+            needed.subtract(contexts.keys)
+            
+            for (key, value) in self.userInfo where key is String {
+                guard let scope = key as? String, let key = LKVariable(scope, ""), key != .`self` else { continue }
+                if needed.contains(key), let v = value as? LeafDataRepresentable {
+                    contexts[key] = v.leafData; needed.remove(key)
+                }
+                let scoped = needed.filter({$0.scope == scope})
+                guard !scoped.isEmpty, let dict = value as? [String: LeafDataRepresentable] else { continue }
+                scoped.forEach { if let v = dict[$0.member!] { contexts[$0] = v.leafData }; needed.remove($0) }
+            }
+            
+            
+            var block = ByteBuffer.instantiate(size: ast.info.underestimatedSize,
+                                               encoding: LKConf._encoding)
+            let serializer = LKSerializer(ast, varTable: contexts, ByteBuffer.self)
+            switch serializer.serialize(&block) {
+                case .success(let t) : let buffer = block as! ByteBuffer
+                                       cache.touch(serializer.ast.key,
+                                                   .atomic(time: t, size: buffer.byteCount))
+//                                       promise.succeed(buffer)
+                    return succeed(buffer, on: eL)
+                case .failure(let e) :
+                    return fail(e, on: eL)
+//                    promise.fail(e)
+            }
+//        }
+//        return promise.futureResult
+    }
+    
+    private func serialize(_ serializer: LKSerializer,
+                           _ buffer: LKRawBlock,
+                           _ duration: Double = 0,
+                           _ resume: Bool = false) -> EventLoopFuture<ByteBuffer> {
+        let timeout = max(Self.blockLimit, LKConf._timeout - duration)
+        var buffer = buffer
+        switch serializer.serialize(&buffer, timeout, resume) {
+            case .success(let t) : let buffer = buffer as! ByteBuffer
+                                   cache.touch(serializer.ast.key,
+                                               .atomic(time: t, size: buffer.byteCount))
                                    return succeed(buffer, on: eL)
-            case .failure(let e) : return fail(e, on: eL)
+            case .failure(let e) : guard case .timeout(let d) = e.reason,
+                                         LKConf._timeout > duration + d else {
+                                        return fail(e, on: eL) }
+                                   return serialize(serializer, buffer, duration + d, true)
         }
     }
 }

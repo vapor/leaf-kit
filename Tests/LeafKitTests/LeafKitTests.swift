@@ -524,13 +524,13 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testCacheSpeedLinear() {
-        let iterations = 1_000
+        let iterations = 500_000
         var dur: Double = 0
         var ser: Double = 0
         var stop: Double = 0
         self.measure {
             let start = Date()
-            let result = self._testCacheSpeedLinear(templates: 10, iterations: iterations)
+            let result = self._testCacheSpeedLinear(templates: 250, iterations: iterations)
             dur += result.0
             ser += result.1
             stop += start.distance(to: Date())
@@ -544,7 +544,8 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func _testCacheSpeedLinear(templates: Int, iterations: Int) -> (Double, Double) {
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        let threads = max(System.coreCount, 1)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: threads)
         var test = TestFiles()
 
 //        for name in 1...templates { test.files["/\(name).leaf"] = """
@@ -553,32 +554,38 @@ final class LeafKitTests: LeafTestClass {
 //        #(true == 5 + variable)
 //        #(uppercased(variable))
 //        """ }
-        for name in 1...templates { test.files["/\(name).leaf"] = "#lowercased(\"Template /\(name).leaf\")" }
+        for name in 1...templates { test.files["/\(name).leaf"] = "#(iteration):#lowercased(\"Template /\(name).leaf\" + \"Function\")" }
 //        for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf\"" }
-        let renderer = TestRenderer(
-            sources: .singleSource(test),
-            eventLoop: group.next(),
-            tasks: iterations
-        )
+        let per = iterations / threads
+        var left = iterations
+        let renderers = (1...threads).map { x -> TestRenderer in
+            left -= x != threads ? per : 0
+            return TestRenderer(sources: .singleSource(test),
+                                eventLoop: group.next(),
+                                tasks: x != threads ? per : left)
+        }
 
         for iteration in 1...iterations {
+            let which = iteration.remainderReportingOverflow(dividingBy: threads).partialValue
             let template = String((iteration % templates) + 1)
-            renderer.r.eventLoop.makeSucceededFuture(template).flatMap {
-                renderer.render(path: $0, context: [:])
+            renderers[which].r.eventLoop.makeSucceededFuture(template).flatMap {
+                renderers[which].render(path: $0, context: ["iteration": iteration.leafData])
             }.whenComplete {
                 switch $0 {
                     case .failure(let e): XCTFail(e.localizedDescription)
-                    case .success: renderer.finishTask()
+                    case .success: renderers[which].finishTask()
                 }
             }
         }
 
         // Sleep 1 µs per queued task
-        while !renderer.isDone { usleep(UInt32(renderer.queued)) }
-        let duration = renderer.lap
-        var serialize = (renderer.r.cache as! DefaultLeafCache).cache.values
-                        .reduce(into: Double.init(0)) { $0 += $1.info.averages.exec }
-        serialize /= Double((renderer.r.cache as! DefaultLeafCache).cache.values.count)
+        while let x = renderers.first(where: {!$0.isDone}) { usleep(UInt32(x.queued)) }
+        let duration = renderers.reduce(into: Double.init(0), {$0 += $1.lap}) / Double(threads)
+        var serialize = renderers.map {
+            ($0.r.cache as! DefaultLeafCache).cache.values
+                .reduce(into: Double.init(0)) { $0 += $1.info.touch.execAvg }
+        }.reduce(into: 0, { $0 += $1 })
+        serialize /= Double(templates * threads)
 
 //        (renderer.r.cache as! DefaultLeafCache).cache.values.forEach {
 //            let avg = $0.info.averages
@@ -591,12 +598,12 @@ final class LeafKitTests: LeafTestClass {
 //            print(summary)
 //        }
 
-        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, templates) }
+        try! group.syncShutdownGracefully()
         return (duration, serialize)
     }
 
     func testCacheSpeedRandom() {
-        let iterations = 1_000
+        let iterations = 1_000_000
         var dur: Double = 0
         var ser: Double = 0
         var stop: Double = 0
@@ -656,7 +663,7 @@ final class LeafKitTests: LeafTestClass {
         while !renderer.isDone { usleep(UInt32(renderer.queued)) }
         let duration = renderer.lap
         var serialize = (renderer.r.cache as! DefaultLeafCache).cache.values
-                        .reduce(into: Double.init(0)) { $0 += $1.info.averages.exec }
+            .reduce(into: Double.init(0)) { $0 += $1.info.touch.execAvg }
         serialize /= Double((renderer.r.cache as! DefaultLeafCache).cache.values.count)
 
 //        (renderer.r.cache as! DefaultLeafCache).cache.values.forEach {
