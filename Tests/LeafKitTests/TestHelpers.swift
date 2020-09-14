@@ -3,8 +3,6 @@ import NIOConcurrencyHelpers
 import Foundation
 @testable import LeafKit
 
-internal typealias LKConf = LeafConfiguration
-
 /// Assorted multi-purpose helper pieces for LeafKit tests
 
 /// Inherit from `LeafTestClass` rather than XCTestCase to avoid "Already running" assertions from other tests

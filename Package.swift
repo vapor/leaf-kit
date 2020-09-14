@@ -15,6 +15,7 @@ let package = Package(
     targets: [
         .target(name: "LeafKit", dependencies: [
             .product(name: "NIO", package: "swift-nio"),
+            .product(name: "NIOFoundationCompat", package: "swift-nio")
         ]),
         .testTarget(name: "LeafKitTests", dependencies: [
             .target(name: "LeafKit"),

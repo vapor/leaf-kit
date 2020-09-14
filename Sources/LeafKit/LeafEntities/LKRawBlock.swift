@@ -37,15 +37,15 @@ internal protocol LKRawBlock: LeafFunction {
 
     /// Optional error information if the handler is stateful which LeafKit may choose to report/log.
     var error: String? { get }
+    
+    var encoding: String.Encoding { get }
 
     /// Append a second block to this one.
     ///
     /// If the second block is the same type, adherent should take care of maintaining state as necessary.
     /// If it isn't of the same type, adherent may assume it's a completed LKRawBlock and access
     /// `block.serialized` to obtain a `ByteBuffer` to append
-    mutating func append(_ block: inout LKRawBlock) throws
-
-    mutating func append(_ buffer: inout ByteBuffer) throws
+    mutating func append(_ block: inout LKRawBlock)
 
     mutating func append(_ data: LeafData)
 
@@ -59,14 +59,10 @@ extension LKRawBlock {
     /// Most `RawBlocks` won't have a parse signature
 //    static var parseSignatures: [String: [ParseParameter]]? { nil }
     /// Most blocks are not evaluable
-    public static var returns: Set<LeafDataType> { [.void] }
+    public static var returns: Set<LeafDataType> { .void }
 
     public static var invariant: Bool { true }
     public static var callSignature: CallParameters {[]}
-//
-//    var scopeVariables: [String]? { nil }
-//
-//    func evaluateScope(_ params: CallValues) -> ScopeValue { .once() }
 
     /// RawBlocks will never be called with evaluate
     public func evaluate(_ params: CallValues) -> LeafData { .trueNil }

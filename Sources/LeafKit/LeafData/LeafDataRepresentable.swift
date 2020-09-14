@@ -51,7 +51,9 @@ extension UUID: LeafDataRepresentable {
 }
 
 extension Date: LeafDataRepresentable {
-    public var leafData: LeafData { .double(timeIntervalSince1970) }
+    /// `Date` conversion is reliant on the configured `LeafTimeInterval.referenceBase`
+    public var leafData: LeafData {
+        .double(timeIntervalSince(Date(timeIntervalSinceReferenceDate: LeafTimeInterval.referenceBase.interval))) }
 }
 
 extension Array where Element == LeafData {
@@ -62,14 +64,14 @@ extension Dictionary where Key == String, Value == LeafData {
     public var leafData: LeafData { .dictionary(mapValues { $0 }) }
 }
 
-extension Set where Element: LeafDataRepresentable {
+extension Set: LeafDataRepresentable where Element: LeafDataRepresentable {
     public var leafData: LeafData { .array(map { $0.leafData }) }
 }
 
-extension Array where Element: LeafDataRepresentable {
+extension Array: LeafDataRepresentable where Element: LeafDataRepresentable {
     public var leafData: LeafData { .array(map { $0.leafData }) }
 }
 
-extension Dictionary where Key == String, Value: LeafDataRepresentable {
+extension Dictionary: LeafDataRepresentable where Key == String, Value: LeafDataRepresentable {
     public var leafData: LeafData { .dictionary(mapValues { $0.leafData }) }
 }

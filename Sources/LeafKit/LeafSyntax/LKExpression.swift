@@ -30,7 +30,8 @@ internal struct LKExpression: LKSymbol {
             case .ternary     : return evalTernary(symbols)
             case .assignment  : __MajorBug("Assignment should have redirected")
             case .custom      :
-                if case .keyword(.var) = first.container { return createVariable(symbols) }
+                if case .keyword(let k) = first.container,
+                   k.isVariableDeclaration { return createVariable(symbols) }
                 __MajorBug("Custom expression produced in AST")
         }
 
@@ -85,6 +86,18 @@ internal struct LKExpression: LKSymbol {
     var second: LKParameter  { storage[1] }
     /// Convenience referent name by position within expression
     var third: LKParameter?  { storage[2].operator != .subOpen ? storage[2] : nil }
+    
+    
+    /// If expression declares a variable, variable so declared, and value if set
+    var declaresVariable: (variable: LKVariable, set: LKParameter?)? {
+        if case .keyword(let k) = first.container, k.isVariableDeclaration,
+           case .variable(let v) = second.container {
+            let x: LKParameter?
+            if case .value(.trueNil) = third?.container { x = nil } else { x = third! }
+            return (v, x)
+        }
+        return nil
+    }
 
     // MARK: - Private Only
     /// Actual storage of 2 or 3 Parameters
@@ -93,9 +106,8 @@ internal struct LKExpression: LKSymbol {
     /// Generate a `LKExpression` if possible. Guards for expressibility unless "custom" is true
     private init?(_ params: LKParams) {
         // .assignment/.calculation is failable, .custom does not check
-        guard (2...3).contains(params.count),
-              let form = Self.expressible(params) else { return nil }
-        let storage = params.count == 3 ? params : params + [.invalid]
+        guard let form = Self.expressible(params) else { return nil }
+        let storage = params
         // Rewrite prefix minus special case into rhs * -1
         if let unary = form.op, unary == .unaryPrefix,
            let op = params[0].operator, op == .minus {
@@ -134,14 +146,19 @@ internal struct LKExpression: LKSymbol {
     private mutating func setStates() {
         resolved = storage.allSatisfy { $0.resolved }
         invariant = storage.first(where: {$0.invariant}) != nil
-        storage.forEach { symbols.formUnion($0.symbols) }
+        // Restate variable as coalesced if operator is ??
+        if storage[1].operator == .nilCoalesce {
+            symbols.formUnion(rhs?.symbols ?? [])
+            symbols.formUnion(lhs?.symbols.map { x in var x = x; x.state.formUnion(.coalesced); return x } ?? [])
+        } else { storage.forEach { symbols.formUnion($0.symbols) } }
+        
     }
 
     /// Return the Expression and Operator Forms if the array of Parameters forms a syntactically correct Expression
     private static func expressible(_ p: LKParams) -> CombinedForm? {
         let op: LeafOperator
         let opForm: LeafOperator.Form
-        guard p.count == 2 || p.count == 3 else { return nil }
+        guard (2...3).contains(p.count) else { return nil }
 
         if p.count == 3 {
             if let o = infixExp(p[0], p[1], p[2]), o.parseable { op = o; opForm = .infix }
@@ -180,28 +197,27 @@ internal struct LKExpression: LKSymbol {
     private func evalInfix(_ lhs: LKData, _ op: LeafOperator, _ rhs: LKData) -> LKData {
         switch op {
             case .nilCoalesce    : return lhs.isNil ? rhs : lhs
-            // Equatable conformance passthrough
+            /// Equatable conformance passthrough
             case .equal          : return .bool(lhs == rhs)
             case .unequal        : return .bool(lhs != rhs)
-            // If data is bool-representable, that value; other wise true if non-nil
+            /// If data is bool-representable, that value; other wise true if non-nil
             case .and, .or, .xor :
                 let lhsB = lhs.bool ?? !lhs.isNil
                 let rhsB = rhs.bool ?? !rhs.isNil
                 if op == .and { return .bool(lhsB && rhsB) }
                 if op == .xor { return .bool(lhsB != rhsB) }
                 return .bool(lhsB || rhsB)
-            // Int compare when both int, Double compare when both numeric & >0 Double
-            // String compare when neither a numeric type
+            /// Int compare when both int, Double compare when both numeric & >0 Double
+            /// String compare when neither a numeric type
             case .greater, .lesserOrEqual, .lesser, .greaterOrEqual  :
                 return .bool(comparisonOp(op, lhs, rhs))
-            // If both sides are numeric, use lhs to indicate return type and sum
-            // If left side is string, concatanate string
-            // If left side is data, concatanate data
-            // If both sides are collections of same type -
-            //      If array, concatenate
-            //      If dictionary and no keys overlap, concatenate
-            // If left side is array, append rhs as single value
-            // Anything else fails
+            /// If both sides are numeric, use lhs to indicate return type and sum
+            /// If left side is string, concatanate string
+            /// If left side is data, concatanate data
+            /// If both sides are collections of same type -
+            ///      If array, concatenate
+            ///      If dictionary and no keys overlap, concatenate
+            /// Anything else fails
             case .plus           :
                 if lhs.state.intersection(rhs.state).contains(.numeric) {
                     guard let numeric = numericOp(op, lhs, rhs) else { fallthrough }
@@ -217,8 +233,6 @@ internal struct LKExpression: LKSymbol {
                     guard let lhs = lhs.dictionary, let rhs = rhs.dictionary,
                           Set(lhs.keys).intersection(Set(rhs.keys)).isEmpty else { fallthrough }
                     return .dictionary(lhs.merging(rhs) {old, _ in old })
-                } else if lhs.celf == .array {
-                    return .array(lhs.array! + [rhs])
                 } else if rhs.celf == .string {
                     return .string((lhs.string ?? "") + rhs.string!)
                 } else { return .trueNil }
@@ -240,9 +254,7 @@ internal struct LKExpression: LKSymbol {
     
     func createVariable(_ symbols: LKVarStack) -> LKData {
         if case .variable(let x) = second.container,
-           let value = third?.container.evaluate(symbols) {
-            symbols.create(x, value)
-        }
+           let value = third?.container.evaluate(symbols) { symbols.create(x, value) }
         return .trueNil
     }
     
@@ -255,10 +267,10 @@ internal struct LKExpression: LKSymbol {
               let value = third?.evaluate(symbols) else {
             __MajorBug("Improper assignment expression") }
         
-        if assignor.pathed, let parent = assignor.parent,
+        if assignor.isPathed, let parent = assignor.parent,
            symbols.match(parent) == nil {
             return .failure(err("\(parent.short) does not exist; cannot set \(assignor)"))
-        } else if !assignor.pathed, symbols.match(assignor) == nil {
+        } else if !assignor.isPathed, symbols.match(assignor) == nil {
             return .failure(err("\(assignor.short) must be defined first with `var \(assignor.member ?? "")`"))
         }
         /// Straight assignment just requires identifier parent exists if it's pathed.
@@ -361,3 +373,4 @@ internal struct LKExpression: LKSymbol {
         }
     }
 }
+

@@ -1,15 +1,6 @@
 
 @available(*, deprecated, message: "Access to Syntax is removed")
-public indirect enum Syntax {
-//    case raw(ByteBuffer)
-//    case expression([ParameterDeclaration])
-//    case custom(CustomTagDeclaration)
-//    case conditional(Conditional)
-//    case loop(Loop)
-//    case `import`(Import)
-//    case extend(Extend)
-//    case export(Export)
-}
+public indirect enum Syntax {}
 
 /// `LeafTag` is entirely deprecated.
 ///
@@ -65,22 +56,13 @@ public struct LeafContext {
     }
 
     /// Throws an error if the parameter count does not equal the supplied number `n`.
-    public func requireParameterCount(_ n: Int) throws {
-        guard parameters.count == n else {
-            throw "Invalid parameter count: \(parameters.count)/\(n)"
-        }
-    }
+    public func requireParameterCount(_ n: Int) throws { __MajorBug("LeafContext deprecated") }
 
     /// Throws an error if this tag does not include a body.
-    public func requireBody() throws -> [Syntax] {
-        guard let body = body else { throw "Missing body" }
-        return body
-    }
+    public func requireBody() throws -> [Syntax] { __MajorBug("LeafContext deprecated") }
 
     /// Throws an error if this tag includes a body.
-    public func requireNoBody() throws {
-        if body != nil { throw "Extraneous body" }
-    }
+    public func requireNoBody() throws { __MajorBug("LeafContext deprecated") }
 }
 
 @available(*, deprecated, message: "Register with LeafConfiguration.entities before running")

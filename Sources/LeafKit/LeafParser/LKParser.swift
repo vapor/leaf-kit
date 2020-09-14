@@ -8,7 +8,7 @@ internal struct LKParser: LKErroring {
     var error: LeafError? = nil
 
     init(_ key: LeafASTKey, _ tokens: [LKToken]) {
-        self.entities = LKConf._entities
+        self.entities = LKConf.entities
         self.key = key
         self.tokens = tokens
         self.rawStack = [entities.raw.instantiate(data: nil, encoding: .utf8)]
@@ -61,7 +61,8 @@ internal struct LKParser: LKErroring {
     private var rawStack: [LKRawBlock]
     
     private var requiredVars: Set<LKVariable> = []
-    private var createdVars: [Set<LKVariable>] = [[]]
+    /// Stack of explicitly created variables and whether they've been set yet
+    private var createdVars: [[LKVariable: Bool]] = [[:]]
     
     /// Process the next `LKToken` or multiple tokens.
     private mutating func advance() -> Bool {
@@ -90,7 +91,7 @@ internal struct LKParser: LKErroring {
             /// Validate tuple is single parameter, append or evaluate & append raw if invariant
             if var v = tuple[0] {
                 if v.resolved && v.invariant { v = .value(v.evaluate([])) }
-                append(v)
+                guard append(v) else { return false }
             }
             /// Decay trailing colon to raw :
             if peek == .blockMark { appendRaw(":"); offset += 1 }
@@ -188,23 +189,19 @@ internal struct LKParser: LKErroring {
     @discardableResult
     private mutating func append(_ syntax: LKParameter) -> Bool {
         scopes[currentScope].append(.passthrough(syntax))
-        let estimate: UInt32
-        switch syntax.container {
-            case .expression, .value,
-                 .variable, .function,
-                 .dynamic          : estimate = 16
-            case .operator, .tuple : estimate = 0
-            case .keyword(let k)   : estimate = k.isBooleanValued ? 4 : 0
-        }
-        underestimatedSize += estimate
+        underestimatedSize += syntax.underestimatedSize
+        
         /// If passthrough object is variable creation, append to current scope's set of created vars
         if case .expression(let e) = syntax.container,
-           case .keyword(.var) = e.first.container,
-           case .variable(let v) = e.second.container {
-            createdVars[depth].insert(v)
-            if let set = e.third { updateVars(set.symbols) }
-        } else { updateVars(syntax.symbols) }
-        return true
+           let declared = e.declaresVariable {
+            let v = declared.variable
+            /// Check rhs symbols first to avoid checking the declared variable since lower scope may define
+            guard updateVars(declared.set?.symbols) else { return false }
+            /// Ensure set variable wasn't already declared at this level
+            guard checkExplicitVariableState(v, declared.set != nil) else { return false }
+            return true
+        }
+        return updateVars(syntax.symbols)
     }
 
     /// Append a new raw block from a String.
@@ -221,7 +218,8 @@ internal struct LKParser: LKErroring {
         // If previous is raw and it's not a scope atomic, concat or append new
         if case .raw(var previous) = scopes[currentScope].last?.container,
            !blockCheck {
-            try! previous.append(&newRaw)
+            previous.append(&newRaw)
+            if let e = previous.error { return bool(err("Serialize Error: \(e)")) }
             scopes[currentScope][checkAt + 1] = .raw(previous)
         } else { scopes[currentScope].append(.raw(buffer)) }
         return true
@@ -231,7 +229,7 @@ internal struct LKParser: LKErroring {
     private mutating func appendFunction(_ t: String, _ p: LKTuple?) -> Bool {
         let result = entities.validateFunction(t, p)
         underestimatedSize += 16
-        updateVars(p?.symbols)
+        guard updateVars(p?.symbols) else { return false }
         switch result {
             case .failure(let r) : return bool(err("\(t) couldn't be parsed: \(r)"))
             case .success(let f)
@@ -251,8 +249,8 @@ internal struct LKParser: LKErroring {
         scopeStack.append(scopes.count - 1) // Push new scope reference
         scopeDepths.overallMax.maxAssign(UInt16(scopes.count))
         if type(of: b) == Inline.self { scopeDepths.inlineMax.maxAssign(UInt16(scopes.count)) }
-        updateVars(p?.symbols)
-        createdVars.append(.init(b.scopeVariables?.map {.atomic($0)} ?? []))
+        guard updateVars(p?.symbols) else { return false }
+        createdVars.append(.init(uniqueKeysWithValues: b.scopeVariables?.map { (.atomic($0), true) } ?? []))
         return true
     }
 
@@ -272,18 +270,31 @@ internal struct LKParser: LKErroring {
         return true
     }
     
-    private mutating func updateVars(_ vars: Set<LKVariable>?) {
-        guard var vars = vars else { return }
-        vars = vars.reduce(into: [], { $0.insert($1.ancestor)} )
-        let scoped = vars.filter { $0.scope != nil && !$0.define }
+    private mutating func updateVars(_ vars: Set<LKVariable>?) -> Bool {
+        guard var x = vars else { return true }
+        x = x.reduce(into: [], { $0.insert($1.ancestor)} )
+        let scoped = x.filter { $0.isScoped }
         requiredVars.formUnion(scoped)
-        vars.subtract(scoped)
-        vars.subtract(requiredVars)
-        vars = vars.filter { !requiredVars.contains($0.contextualized) }
-        guard !vars.isEmpty else { return }
-        for created in createdVars.reversed() { vars.subtract(created) }
-        vars = .init(vars.map {$0.contextualized})
-        requiredVars.formUnion(vars)
+        x.subtract(scoped)
+        
+        /// Check that explicit variables referenced are set (or fail)
+        for created in createdVars.reversed() {
+            let unset = created.filter {$0.value == false}
+            let matched = x.intersection(unset.keys)
+            if !matched.isEmpty { return bool(err("\(matched.first!) used before assignment")) }
+            x.subtract(created.keys)
+        }
+        
+        x.subtract(requiredVars)
+        x = x.filter { !requiredVars.contains($0.contextualized) }
+        requiredVars.formUnion(x.map {$0.contextualized})
+        return true
+    }
+    
+    private mutating func checkExplicitVariableState(_ v: LKVariable, _ set: Bool) -> Bool {
+        guard createdVars[depth][v] == nil else { return bool(err("\(v.terse) is already declared in this scope")) }
+        createdVars[depth][v] = set
+        return true
     }
     
     private mutating func handleEvaluateFunction(_ f: String, _ tuple: LKTuple) -> Evaluate? {
@@ -293,11 +304,11 @@ internal struct LKParser: LKErroring {
         switch param.container {
             case .expression(let e) where e.op == .nilCoalesce:
                 guard case .variable(let v) = e.lhs?.container,
-                      v.atomic, let coalesce = e.rhs, coalesce.isValued
+                      v.isAtomic, let coalesce = e.rhs, coalesce.isValued
                 else { return `nil`(err("#\(f) \(Evaluate.warning)")) }
                 identifier = v.member!
                 defaultValue = coalesce
-            case .variable(let v) where v.atomic:
+            case .variable(let v) where v.isAtomic:
                 identifier = String(v.member!)
                 defaultValue = nil
             default: return `nil`(err("#\(f) \(Evaluate.warning)"))
@@ -314,7 +325,7 @@ internal struct LKParser: LKErroring {
         switch meta.form {
             case .define:
                 guard let tuple = tuple, tuple.count == 2 - (isBlock ? 1 : 0),
-                      case .variable(let v) = tuple[0]?.container, v.atomic,
+                      case .variable(let v) = tuple[0]?.container, v.isAtomic,
                       tuple.count == 2 ? (tuple[1]!.isValued) : true
                 else { return bool(err("#\(name) \(Define.warning)")) }
                 let definition = Define(identifier: v.member!,
@@ -345,7 +356,7 @@ internal struct LKParser: LKErroring {
                     guard tuple.labels["as"] == 1, let behavior = tuple[1]?.container
                     else { return bool(err("#\(name)(\"file\", as: type) where type is `leaf` or a raw handler")) }
                     if case .keyword(.leaf) = behavior { process = true }
-                    else if case .variable(let v) = behavior, v.atomic,
+                    else if case .variable(let v) = behavior, v.isAtomic,
                             let handler = String(v.member!) as String?,
                             handler == "raw" || entities.rawFactories[handler] != nil {
                         raw = handler != "raw" ? handler : nil
@@ -394,7 +405,7 @@ internal struct LKParser: LKErroring {
         var states: [VarState] = []
         var complexes: [[LKParameter]] = []
         
-        var variableCreation: Bool = false
+        var variableCreation: (Bool, constant: Bool) = (false, false)
         
         // Conveniences to current stacks
         var currentFunction: String? {
@@ -422,7 +433,7 @@ internal struct LKParser: LKErroring {
         // Atomic variable states - doesn't need a stack
         var needIdentifier = false
         var openScope: String? = nil
-        var openMember: String = ""
+        var openMember: String? = nil
         var openPath: [String] = []
 
         /// Current state is for anything but an anonymous (0,1) count expression tuple
@@ -464,11 +475,11 @@ internal struct LKParser: LKErroring {
         @discardableResult
         func complexAppend(_ a: LKParameter) -> Bool {
             /// `#(var x), #(var x = value)` - var flags "creation", checked on close complex
-            if case .keyword(.var) = a.container {
+            if case .keyword(let k) = a.container, k.isVariableDeclaration {
                 guard !forFunction, tuples.count == 1, currentTuple.isEmpty,
                       complexes.allSatisfy({$0.isEmpty}) else {
-                    return bool(err("Variable definition may only occur at start of top level expression")) }
-                variableCreation = true
+                    return bool(err("Variable declaration may only occur at start of top level expression")) }
+                variableCreation = (true, constant: k == .let)
                 return true
             }
             guard makeVariableIfOpen() else { return false }
@@ -509,7 +520,7 @@ internal struct LKParser: LKErroring {
         func clearVariableState() {
             currentState = .start
             openScope = nil
-            openMember = ""
+            openMember = nil
             openPath = []
             needIdentifier = false
         }
@@ -522,7 +533,7 @@ internal struct LKParser: LKErroring {
             clearVariableState()
             return true
         }
-
+        
         func keyValueEntry() -> Bool {
             if currentFunction == "#collection" { currentFunction = "#dictionary" }
             else if currentFunction == "#array" { return bool(err("Can't label elements of an array")) }
@@ -619,8 +630,12 @@ internal struct LKParser: LKErroring {
                 guard case .variable(let assignor) = currentComplex.first?.container,
                       currentComplex.count == 1 else {
                     return void(err("Assignment only allowed as first operation")) }
-                guard assignor.scope == nil else {
-                    return void(err("Can't assign; \(assignor.flat) is constant")) }
+                if let match = createdVars.match(assignor) {
+                    guard !match.0.isConstant || createdVars.last![assignor] == false else {
+                        return void(err("Can't assign; \(assignor.flat) is constant")) }
+                }
+                if op == .assignment && createdVars.last![assignor] == false {
+                    createdVars[depth][assignor] = true }
             }
 
             /// Variable scoping / Method accessor special cases - mutate the open variable state and return
@@ -667,7 +682,7 @@ internal struct LKParser: LKErroring {
             switch currentState {
                 case .start : openMember = part
                               currentState = .open
-                case .open where openMember == ""
+                case .open where openMember == nil
                             : openMember = part
                 case .open  : openPath.append(part)
                 case .chain : resolveSubscript(with: .value(.string(part)))
@@ -780,14 +795,19 @@ internal struct LKParser: LKErroring {
                           operand.isValued else { return void(err("Can't call method on non-valued parameter")) }
                     tuple.labels = tuple.labels.mapValues { $0 + 1 }
                     tuple.values.insert(operand, at: 0)
-                    let result = entities.validateMethod(m, tuple)
+                    var mutable = false
+                    if case .variable(let v) = operand.container, !v.isConstant { mutable = true }
+                    let result = entities.validateMethod(m, tuple, mutable)
                     switch result {
                         case .failure(let r) : return void(err(r))
                         case .success(let M) :
                             let mutating = (try? result.get().first(where: {($0.0 as! LeafMethod).mutating}) != nil) ?? false
                             var original: LKVariable? = nil
-                            if mutating, case .variable(let x) = operand.container,
-                               x.scope == nil { original = x }
+                            if mutating, case .variable(let v) = operand.container {
+                                if let match = createdVars.match(v), !match.1 {
+                                    return void(err("\(v.terse) used before assignment")) }
+                                original = v
+                            }
                             complexAppend(M.count == 1 ? .function(m, M[0].0, M[0].1, original)
                                                        : .dynamic(m, M, tuple, original))
                     }
@@ -849,22 +869,24 @@ internal struct LKParser: LKErroring {
         
         /// Error state from grammatically correct but unclosed parameters at EOF
         if !errored && tuples.count > 1 { return `nil`(err("Template ended with open parameters")) }
-        if !errored && variableCreation {
-            if tuples[0].count != 1 { return `nil`(err("Define variables with #(var x), #(var x = value)")) }
+        if !errored && variableCreation.0 {
+            let style = variableCreation.constant ? "let" : "var"
+            if tuples[0].count != 1 { return `nil`(err("Declare variables with #(\(style) x) or #(\(style) x = value)")) }
             var theVar: LKVariable? = nil
             var value = tuples[0].values.first!
             switch value.container {
-                case .variable(let x) where x.atomic: theVar = x; value = .value(.trueNil); break
+                case .variable(let x) where x.isAtomic: theVar = x; value = .value(.trueNil); break
                 case .expression(let e) where e.op == .assignment:
-                    guard case .variable(let x) = e.lhs?.container, x.atomic else { fallthrough }
+                    guard case .variable(let x) = e.lhs?.container, x.isAtomic else { fallthrough }
                     theVar = x; value = e.rhs!; break
-                case .variable: return `nil`(err("Variable definitions may not be pathed"))
+                case .variable: return `nil`(err("Variable declarations may not be pathed"))
                 case .expression(let e) where e.form.exp == .assignment:
-                    return `nil`(err("Variable assignment at definition may not be compound expression"))
-                default : return `nil`(err("Define variables with #(var x), #(var x = value)"))
+                    return `nil`(err("Variable assignment at declarations may not be compound expression"))
+                default : return `nil`(err("Declare variables with #(\(style) x) or #(\(style) x = value)"))
             }
+            if variableCreation.constant { theVar!.state.formUnion(.constant) }
             /// Return a custom expression
-            return .init([(nil, .expression(.expressAny([.keyword(.var), .variable(theVar!), value])!))])
+            return .init([(nil, .expression(.expressAny([.keyword(variableCreation.constant ? .let : .var), .variable(theVar!), value])!))])
         }
         return !errored ? tuples.popLast() : nil
     }
@@ -879,9 +901,14 @@ private extension String {
     static let malformedExpression = "Couldn't close expression"
 }
 
-private extension Array where Element == Set<LKVariable> {
-    var flat: Element? {
-        let x = reduce(into: Element.init(), { $0.formUnion($1) })
+private extension Array where Element == Dictionary<LKVariable, Bool> {
+    var flat: Set<LKVariable>? {
+        let x = reduce(into: Set<LKVariable>.init(), { $0.formUnion($1.keys) })
         return x.isEmpty ? nil : x
+    }
+    
+    func match(_ v: LKVariable) -> (LKVariable, Bool)? {
+        for level in reversed() { if let index = level.index(forKey: v) { return level[index] } }
+        return nil
     }
 }

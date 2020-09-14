@@ -24,7 +24,7 @@ public final class LeafRenderer {
     /// The NIO `EventLoop` on which this instance of `LeafRenderer` will operate
     public var eventLoop: EventLoop { eL }
     /// Any custom instance data to use (eg, in Vapor, the `Application` and/or `Request` data)
-    public let userInfo: [AnyHashable: Any]
+    public let userInfo: ExternalObjects?
 
     /// Initial configuration of LeafRenderer.
     public init(
@@ -32,7 +32,7 @@ public final class LeafRenderer {
         cache: LeafCache = DefaultLeafCache(),
         sources: LeafSources,
         eventLoop: EventLoop,
-        userInfo: [AnyHashable: Any] = [:]
+        userInfo: ExternalObjects? = nil
     ) {
         self.configuration = configuration
         self.cache = cache
@@ -173,7 +173,7 @@ public final class LeafRenderer {
         // FIXME: Configure behavior for rendering where "needed" is non empty
 //        let promise = eL.makePromise(of: ByteBuffer.self)
 //        worker.async { [unowned self] in
-            var needed = Set<LKVariable>(ast.info._requiredVars.map { $0.scope == nil ? $0.contextualized : $0 })
+            var needed = Set<LKVariable>(ast.info._requiredVars.map { !$0.isScoped ? $0.contextualized : $0 })
             /// Reduce incoming data to only symbols required by the AST
             var contexts: LKVarTable = needed.contains(.`self`) ? [.`self`: .dictionary(context)] : [:]
             let context = context.filter {$0.key.isValidIdentifier}
@@ -182,8 +182,8 @@ public final class LeafRenderer {
             contexts.merge(context, uniquingKeysWith: {a, b in a})
             needed.subtract(contexts.keys)
             
-            for (key, value) in self.userInfo where key is String {
-                guard let scope = key as? String, let key = LKVariable(scope, ""), key != .`self` else { continue }
+            for (key, value) in self.userInfo ?? [:] {
+                guard let scope = key as? String, let key = LKVariable(scope), key != .`self` else { continue }
                 if needed.contains(key), let v = value as? LeafDataRepresentable {
                     contexts[key] = v.leafData; needed.remove(key)
                 }
@@ -192,16 +192,14 @@ public final class LeafRenderer {
                 scoped.forEach { if let v = dict[$0.member!] { contexts[$0] = v.leafData }; needed.remove($0) }
             }
             
-            
-            var block = ByteBuffer.instantiate(size: ast.info.underestimatedSize,
-                                               encoding: LKConf._encoding)
-            let serializer = LKSerializer(ast, varTable: contexts, ByteBuffer.self)
+            var block = LKConf.entities.raw.instantiate(size: ast.info.underestimatedSize,
+                                                        encoding: LKConf.encoding)
+            let serializer = LKSerializer(ast, varTable: contexts, type(of: block), userInfo)
             switch serializer.serialize(&block) {
-                case .success(let t) : let buffer = block as! ByteBuffer
-                                       cache.touch(serializer.ast.key,
-                                                   .atomic(time: t, size: buffer.byteCount))
+                case .success(let t) : cache.touch(serializer.ast.key,
+                                                   .atomic(time: t, size: block.byteCount))
 //                                       promise.succeed(buffer)
-                    return succeed(buffer, on: eL)
+                    return succeed(block.serialized.buffer, on: eL)
                 case .failure(let e) :
                     return fail(e, on: eL)
 //                    promise.fail(e)
@@ -214,7 +212,7 @@ public final class LeafRenderer {
                            _ buffer: LKRawBlock,
                            _ duration: Double = 0,
                            _ resume: Bool = false) -> EventLoopFuture<ByteBuffer> {
-        let timeout = max(Self.blockLimit, LKConf._timeout - duration)
+        let timeout = max(Self.blockLimit, LKConf.timeout - duration)
         var buffer = buffer
         switch serializer.serialize(&buffer, timeout, resume) {
             case .success(let t) : let buffer = buffer as! ByteBuffer
@@ -222,7 +220,7 @@ public final class LeafRenderer {
                                                .atomic(time: t, size: buffer.byteCount))
                                    return succeed(buffer, on: eL)
             case .failure(let e) : guard case .timeout(let d) = e.reason,
-                                         LKConf._timeout > duration + d else {
+                                         LKConf.timeout > duration + d else {
                                         return fail(e, on: eL) }
                                    return serialize(serializer, buffer, duration + d, true)
         }

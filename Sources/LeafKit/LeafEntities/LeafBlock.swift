@@ -18,7 +18,7 @@ public protocol LeafBlock: LeafFunction {
 
     /// If the object can be called with function syntax via `evaluate`
     static var evaluable: Bool { get }
-
+    
     /// The variable names an instantiated `LeafBlock` will provide to its block, if any.
     ///
     /// These must be consistent throughout calls to the block. If the block type will *never* provide
@@ -76,25 +76,6 @@ public extension EvalCount {
     static func repeating(_ times: UInt32) -> Self { times }
 }
 
-// MARK: - Default Implementations
-
-/// Default implementations for typical `LeafBlock`s
-public extension LeafBlock {
-    /// Most blocks are not evaluable
-    static var returns: Set<LeafDataType> { [.void] }
-
-    /// Default implementation of LeafFunction.evaluate()
-    func evaluate(_ parameters: CallValues) -> LeafData {
-        if Self.evaluable { __MajorBug("LeafBlock called as a function: implement `evaluate`") }
-        else { __MajorBug("Catachall default implementation for non-evaluable block") }
-    }
-}
-
-public extension ChainedBlock {
-    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount {
-        __MajorBug("ChainedBlocks are only called once") }
-}
-
 /// A representation of a block's parsing parameters
 public indirect enum LeafParseParameter: Hashable {
     /// A mapping of this position to a raw string `instantiate` will receive
@@ -111,3 +92,24 @@ public indirect enum LeafParseParameter: Hashable {
     /// An expression - `(x in y)` where contents are *not* `.expression`
     case expression([Self])
 }
+
+// MARK: - Default Implementations
+
+/// Default implementations for typical `LeafBlock`s
+public extension LeafBlock {
+    /// Most blocks are not evaluable
+    static var returns: Set<LeafDataType> { .void }
+
+    /// Default implementation of LeafFunction.evaluate()
+    func evaluate(_ parameters: CallValues) -> LeafData {
+        if Self.evaluable { __MajorBug("LeafBlock called as a function: implement `evaluate`") }
+        else { __MajorBug("Catachall default implementation for non-evaluable block") }
+    }
+}
+
+public extension ChainedBlock {
+    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount {
+        __MajorBug("ChainedBlocks are only called once") }
+}
+
+

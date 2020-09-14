@@ -33,9 +33,9 @@ public final class LeafSources {
     public func register(source key: String = "default",
                          using source: LeafSource,
                          searchable: Bool = true) throws {
-        if key.first == "$" { throw "Source name may not start with `$`" }
-        if key.contains(":") { throw "Source name may not contain `:`" }
-        if keys.contains(key) { throw "Can't replace source at \(key)" }
+        precondition(key.first != "$", "Source name may not start with `$`")
+        precondition(!key.contains(":"), "Source name may not contain `:`")
+        precondition(!keys.contains(key), "Can't replace source at \(key)")
         lock.withLock {
             keys.insert(key)
             sources[key] = source

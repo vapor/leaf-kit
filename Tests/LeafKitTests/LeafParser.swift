@@ -44,14 +44,10 @@ final class LKParserTests: LeafTestClass {
         #evaluate(aBlock ?? "aBlock is not defined")
         """
 
-        var tokens = try lex(sampleTemplate)
-        var parser = LKParser(.searchKey("sampleTemplate"), tokens)
-        var firstAST = try parser.parse()
+        var firstAST = try parse(sampleTemplate, name: "sampleTemplate")
         print(firstAST.formatted)
 
-        tokens = try lex(template2)
-        parser = LKParser(.searchKey("template2"), tokens)
-        let secondAST = try parser.parse()
+        let secondAST = try parse(template2, name: "template2")
         print(secondAST.formatted)
 
         let file1 = ByteBufferAllocator().buffer(string: "An inlined raw file")
@@ -87,8 +83,7 @@ final class LKParserTests: LeafTestClass {
         ..........
         """
 
-        var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
-        let sampleAST = try! sampleParse.parse()
+        let sampleAST = try parse(sample)
 
         print(sampleAST.formatted)
         let serializer = LKSerializer(sampleAST, [:], ByteBuffer.self)
@@ -150,8 +145,7 @@ final class LKParserTests: LeafTestClass {
         ]
         
         let start = Date()
-        var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
-        let sampleAST = try! sampleParse.parse()
+        let sampleAST = try parse(sample)
         let parsedTime = start.distance(to: Date())
 
         print(sampleAST.formatted)
@@ -218,28 +212,29 @@ final class LKParserTests: LeafTestClass {
                                               total += duration
                 case .failure(let error)    : print(error.localizedDescription)
             }
-            if x == 10 { try! leafBuffer.append(&block) }
+            if x == 10 { leafBuffer.append(&block) }
         }
 
-        let lap = Date()
-        var buffered = ByteBufferAllocator().buffer(capacity: 0)
-        buffered.append("hello, \(context["name"]!.string!)!\n".leafData)
-        for index in context["skills"]!.array!.indices {
-            buffered.append(context["skills"]!.array![index])
-            buffered.append("\n\n".leafData)
-        }
-        let rawSwift = lap.distance(to: Date())
+//        let lap = Date()
+//        var buffered = ByteBufferAllocator().buffer(capacity: 0)
+//        buffered.append("hello, \(context["name"]!.string!)!\n".leafData)
+//        for index in context["skills"]!.array!.indices {
+//            buffered.append(context["skills"]!.array![index])
+//            buffered.append("\n\n".leafData)
+//        }
+//        let rawSwift = lap.distance(to: Date())
+//
+//        XCTAssert(buffered.writerIndex == leafBuffer.writerIndex, "Raw Swift & Leaf Output Don't Match")
 
-        XCTAssert(buffered.writerIndex == leafBuffer.writerIndex, "Raw Swift & Leaf Output Don't Match")
+//        print("Indices - Leaf: \(leafBuffer.writerIndex) / Raw: \(buffered.writerIndex)")
 
-        print("Indices - Leaf: \(leafBuffer.writerIndex) / Raw: \(buffered.writerIndex)")
-
-        print("Raw Swift unwrap and concat: \(rawSwift.formatSeconds)")
+//        print("Raw Swift unwrap and concat: \(rawSwift.formatSeconds)")
 
         print("Average serialize duration: \((total / 10.0).formatSeconds)")
-        print(String(format: "Overhead: %.2f%%", 1000.0 * rawSwift / total))
-        print(String("Difference per loop: " + (((total/10.0) - rawSwift)/Double(loopCount)).formatSeconds))
+//        print(String(format: "Overhead: %.2f%%", 1000.0 * rawSwift / total))
+//        print(String("Difference per loop: " + (((total/10.0) - rawSwift)/Double(loopCount)).formatSeconds))
         print("Output size: \(leafBuffer.readableBytes.formatBytes)")
+        print(leafBuffer.string)
     }
 
     func testEvalAndComments() throws {
@@ -261,15 +256,9 @@ final class LKParserTests: LeafTestClass {
         No default: #evaluate(block)
         """
 
-        let context: [String: LeafData] = [
-            "name": "Teague",
-            "me": "Teague"
-        ]
-        var sampleParse: LKParser
-        do {
-            sampleParse = try LKParser(.searchKey("s"), lex(sample))
-        } catch let e as LeafError { throw e.localizedDescription }
-        let sampleAST = try! sampleParse.parse()
+        let context: [String: LeafData] = ["name": "Teague", "me": "Teague"]
+        
+        let sampleAST = try parse(sample)
         print(sampleAST.formatted)
         let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
@@ -288,11 +277,10 @@ final class LKParserTests: LeafTestClass {
         #(index): #for((pos, char) in "Hey Teague"):#(pos != index ? char : "_")#endfor#endfor
         """
 
-        let context: [String: LeafData] = [:]
-        var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
-        let sampleAST = try! sampleParse.parse()
+        let sampleAST = try parse(sample)
         print(sampleAST.formatted)
-        let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
+        
+        let serializer = LKSerializer(sampleAST, [:], ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
 
@@ -344,7 +332,6 @@ final class LKParserTests: LeafTestClass {
         Hi tdotclare
         """
         
-        
         let serializer = LKSerializer(parsedAST, ["x": "Hi tdotclare"], ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(parsedAST.underestimatedSize))
         var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
@@ -374,7 +361,7 @@ final class LKParserTests: LeafTestClass {
            1: $:y
         """
 
-        let parsedAST = try! parse(input)
+        let parsedAST = try parse(input)
         XCTAssertEqual(parsedAST.terse, parseExpected)
         
         let serializeExpected = """
@@ -392,7 +379,6 @@ final class LKParserTests: LeafTestClass {
         t
 
         """
-        
         
         let serializer = LKSerializer(parsedAST, [:], ByteBuffer.self)
         let buffer = ByteBufferAllocator().buffer(capacity: Int(parsedAST.underestimatedSize))
@@ -422,12 +408,6 @@ final class LKParserTests: LeafTestClass {
             "me": "LOGAN"
         ]
         
-//        renderer.render(path: "sample", context: context).whenComplete {
-//            switch $0 {
-//                case .failure(let e): XCTFail((e as! LeafError).localizedDescription)
-//                case .success(let b): XCTAssertTrue(b.readableBytes == 0, "\(b.readableBytes.formatBytes)")
-//            }
-//        }
         _ = try renderer.render(path: "sample", context: context).always {
             switch $0 {
                 case .failure(let e): XCTFail((e as! LeafError).localizedDescription)
@@ -435,6 +415,48 @@ final class LKParserTests: LeafTestClass {
             }
             
         }.wait()
+    }
+    
+    func testVarStyle() throws {
+        let scoped = """
+        #(var x = 5)
+        #(x)
+        #if(x == 5):
+            #(var x = "A String")
+            #(x.append(" and more string"))
+            #(x)
+        #endif
+        #(x -= 5)
+        #(x)
+        """
+        
+        let validConstant = """
+        #(let x)
+        #(x = "A String")
+        #(x)
+        """
+        
+        let invalidConstant = """
+        #(let x = "A String")
+        #(x.append(" and more string"))
+        #(x)
+        """
+        
+        let overloadScopeVariable = """
+        #for(index in 10):
+        #(var index1 = index + 1)#(index1)
+        #endfor
+        """
+        
+        let x = try render(scoped)
+        XCTAssert(x.contains("String and more"))
+        XCTAssert(x.contains("5"))
+        let y = try render(validConstant)
+        XCTAssert(y.contains("A String"))
+        do { try _ = render(invalidConstant); XCTFail("Should have thrown") }
+        catch { XCTAssert((error as! LeafError).description.contains("x is constant; can't call mutating method `append()`")) }
+        let z = try render(overloadScopeVariable)
+        XCTAssert(z.contains("10"))        
     }
 }
 

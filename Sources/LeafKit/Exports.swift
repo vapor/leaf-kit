@@ -15,19 +15,11 @@ public typealias LeafASTTouch = LeafAST.Touch
 public typealias CallParameters = [LeafCallParameter]
 public typealias CallValues = LeafCallValues
 
-// MARK: - LeafBook, *Raw
+// MARK: - LeafBlock, *Raw
 public typealias ParseSignatures = [String: [LeafParseParameter]]
 
 // MARK: - Static Conveniences
 
-public extension Set where Element == LeafDataType {
-    /// Any `LeafDataType` but `.void`
-    static var any: Self { Set(LeafDataType.allCases.filter {$0 != .void}) }
-    /// `LeafDataType` == `Collection`
-    static var collections: Self { [.array, .dictionary] }
-    /// `LeafDataType` == `SignedNumeric`
-    static var numerics: Self { [.int, .double] }
-}
 
 /// Public helper identities
 public extension Character {
@@ -43,5 +35,7 @@ public extension String {
     }
 }
 
-extension String: Error {}
-
+extension CallParameters: LKPrintable {
+    var description: String { short }
+    var short: String  { "(\(map {$0.short}.joined(separator: ", ")))" }
+}

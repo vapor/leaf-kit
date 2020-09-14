@@ -25,13 +25,15 @@ internal final class LKSerializer: LKErroring {
     private var varStack: LKVarStack = []
     private var varStackDepth: Int = 0
     
+    
     // MARK: Computed Properties
     private var table: Int { stack[stackDepth].table }
     private var scope: ContiguousArray<LKSyntax> { ast.scopes[table] }
     private var defines: [String: Define] { stack[stackDepth].defines }
     private var breakChain: Bool? { get { stack[stackDepth].breakChain } set { stack[stackDepth].breakChain = newValue } }
     private var scopeIDs: Set<String> { varStack[varStackDepth].ids }
-    private var vars: LKVarTablePointer { varStack[varStackDepth].vars }
+    private var vars: LKVarTablePtr { varStack[varStackDepth].vars }
+    private var unsafe: ExternalObjects? { varStack[0].unsafe }
     private var allocated: Bool { get { stack[stackDepth].allocated } set { stack[stackDepth].allocated = newValue} }
     private var count: UInt32? { get {stack[stackDepth].count} set { stack[stackDepth].count = newValue } }
     private var block: LeafBlock? { stack[stackDepth].block }
@@ -61,7 +63,7 @@ internal final class LKSerializer: LKErroring {
         self.lapTime = Date.distantPast.timeIntervalSinceReferenceDate
         self.threshold = LKConf.timeout
         self.varStack.reserveCapacity(Int(ast.info.stackDepths.overallMax))
-        self.varStack.append(([], LKVarTablePointer.allocate(capacity: 1)))
+        self.varStack.append(([], LKVarTablePtr.allocate(capacity: 1), nil))
         self.output = UnsafeMutablePointer<LKRawBlock>.allocate(capacity: 1)
         self.output.initialize(to: output.instantiate(size: ast.info.touch.sizeAvg,
                                                       encoding: LKConf.encoding))
@@ -73,13 +75,13 @@ internal final class LKSerializer: LKErroring {
         expandDict(.dictionary(context), .`self`)
     }
     
-    init(_ ast: LeafAST, varTable: LKVarTable, _ output: LKRawBlock.Type) {
+    init(_ ast: LeafAST, varTable: LKVarTable, _ output: LKRawBlock.Type, _ userInfo: ExternalObjects? = nil) {
         self.ast = ast
         self.start = Date.distantFuture.timeIntervalSinceReferenceDate
         self.lapTime = Date.distantPast.timeIntervalSinceReferenceDate
         self.threshold = LKConf.timeout
         self.varStack.reserveCapacity(Int(ast.info.stackDepths.overallMax))
-        self.varStack.append(([], LKVarTablePointer.allocate(capacity: 1)))
+        self.varStack.append(([], LKVarTablePtr.allocate(capacity: 1), nil))
         self.output = UnsafeMutablePointer<LKRawBlock>.allocate(capacity: 1)
         self.output.initialize(to: output.instantiate(size: ast.info.touch.sizeAvg,
                                                       encoding: LKConf.encoding))
@@ -92,7 +94,7 @@ internal final class LKSerializer: LKErroring {
     }
 
     deinit {
-        while varStack.count > 0 {
+        while !varStack.isEmpty {
             vars.deinitialize(count: 1)
             vars.deallocate()
             varStack.removeLast()
@@ -169,14 +171,27 @@ internal final class LKSerializer: LKErroring {
                 // Basic cases. Append evaluated atomics/raws to the current buffer
                 case .raw(var raw)           : append(&raw)
                 case .passthrough(let param) :
-                    if case .expression(let exp) = param,
-                       exp.form.exp == .assignment {
-                        let result = exp.evalAssignment(varStack)
-                        switch result {
-                            case .success(let val): assignValue(val.0, val.1)
-                            case .failure(let err): return .failure(err)
+                    if case .expression(let exp) = param {
+                        if exp.form.exp == .assignment {
+                            let result = exp.evalAssignment(varStack)
+                            switch result {
+                                case .success(let val): assignValue(val.0, val.1)
+                                case .failure(let err): return .failure(err)
+                            }
+                        } else if let x = exp.declaresVariable {
+                            if !allocated {
+                                allocated = true
+                                varStackDepth += 1
+                                varStack.append(([], .allocate(capacity: 1), nil))
+                                vars.initialize(to: .init())
+                                vars.pointee[x.variable] = .trueNil
+                            }
+                            assignValue(x.variable, x.set?.evaluate(varStack) ?? .trueNil)
                         }
-                    } else { append(param.evaluate(varStack)) }
+                        break
+                    }
+                    
+                    append(param.evaluate(varStack))
                 // Blocks
                 case .block(_, let b, let p):
                     /// Handle meta first
@@ -198,7 +213,7 @@ internal final class LKSerializer: LKErroring {
                                     if !allocated {
                                         allocated = true
                                         varStackDepth += 1
-                                        varStack.append(([], .allocate(capacity: 1)))
+                                        varStack.append(([], .allocate(capacity: 1), nil))
                                         vars.initialize(to: .init())
                                     }
                                     vars.pointee[.define(id)] = set ? .init(.evaluate(param: param.container)) : nil
@@ -315,22 +330,27 @@ internal final class LKSerializer: LKErroring {
                           p params: LKTuple?,
                           t table: Int,
                           o offset: Int) {
+        var b: LeafBlock
+        if var unsafeBlock = block as? LeafUnsafeEntity {
+            unsafeBlock.userInfo = unsafe
+            b = unsafeBlock as! LeafBlock
+        } else { b = block}
         stackDepth += 1
         if stack.count == stackDepth {
-            stack.append(.init(from: stack[stackDepth - 1], block, params)) }
+            stack.append(.init(from: stack[stackDepth - 1], b, params)) }
         else {
-            stack[stackDepth].set(from: stack[stackDepth - 1], block, params) }
+            stack[stackDepth].set(from: stack[stackDepth - 1], b, params) }
         stack[stackDepth].table = table
         stack[stackDepth].offset = offset
-        if block.scopeVariables?.isEmpty == false {
-            let ids = block.scopeVariables!.compactMap { x -> String? in
+        if b.scopeVariables?.isEmpty == false {
+            let ids = b.scopeVariables!.compactMap { x -> String? in
                 if x.isValidIdentifier { idCache[x] = .atomic(x) }
                 return x.isValidIdentifier ? x : nil
             }
             if !ids.isEmpty {
                 allocated = true
                 varStackDepth += 1
-                varStack.append((.init(ids), .allocate(capacity: 1)))
+                varStack.append((.init(ids), .allocate(capacity: 1), nil))
                 vars.initialize(to: .init(minimumCapacity: ids.count))
             }
         }
@@ -406,12 +426,13 @@ internal final class LKSerializer: LKErroring {
     
     @inline(__always)
     private func append(_ block: inout LKRawBlock) {
-        do { try stack[stackDepth].buffer.pointee.append(&block) }
-        catch { void(err("Serializing Error")) }
+        stack[stackDepth].buffer.pointee.append(&block)
+        if let e = stack[stackDepth].buffer.pointee.error { void(err("Serialize Error: \(e)")) }
     }
 
     @inline(__always)
-    private func append(_ data: LeafData) { stack[stackDepth].buffer.pointee.append(data) }
+    private func append(_ data: LeafData) {
+        if !data.isNil || data.isTrueNil { stack[stackDepth].buffer.pointee.append(data) } }
     
     private func assignValue(_ key: LKVariable, _ value: LKData) {
         var depth = varStack.count - 1
@@ -432,7 +453,7 @@ internal final class LKSerializer: LKErroring {
                 varStack[level].vars.pointee[key] = value
                 /// If new value is a dictionary, expand it
                 if value.celf == .dictionary { expandDict(value, key, at: level) }
-                break
+                return
             } else { depth -= 1 }
         }
         /// If we didn't get a hit on uncontextualized but we're assigning value, it means we need to overload self

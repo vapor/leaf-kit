@@ -232,10 +232,10 @@ internal extension LeafAST {
             let p = pointer.inline
             guard let buffer = raws[p.identifier],
                   case .raw(let r) = scopes[p.table][p.row + 1].container else { continue }
-            let insert = type(of: r).instantiate(data: buffer, encoding: .utf8)
+            let insert = type(of: r).instantiate(data: buffer, encoding: LKConf.encoding)
             scopes[p.table][p.row + 1] = .raw(insert)
             inlines[index].at = stamp
-            info.underestimatedSize += UInt32(buffer.byteCount) - r.byteCount
+            info.underestimatedSize += buffer.byteCount - r.byteCount
         }
         raws.keys.forEach { info.requiredRaws.remove($0) }
         cached = false

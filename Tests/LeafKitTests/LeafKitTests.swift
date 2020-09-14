@@ -548,13 +548,7 @@ final class LeafKitTests: LeafTestClass {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: threads)
         var test = TestFiles()
 
-//        for name in 1...templates { test.files["/\(name).leaf"] = """
-//        #lowercased(\"Template /\(name).leaf\")"
-//        #uppercased(\"Template /\(name).leaf\")"
-//        #(true == 5 + variable)
-//        #(uppercased(variable))
-//        """ }
-        for name in 1...templates { test.files["/\(name).leaf"] = "#(iteration):#lowercased(\"Template /\(name).leaf\" + \"Function\")" }
+        for name in 1...templates { test.files["/\(name).leaf"] = "#lowercased(\"Template /\(name).leaf\")" }
 //        for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf\"" }
         let per = iterations / threads
         var left = iterations
@@ -603,7 +597,7 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testCacheSpeedRandom() {
-        let iterations = 1_000_000
+        let iterations = 1_000
         var dur: Double = 0
         var ser: Double = 0
         var stop: Double = 0

@@ -3,9 +3,16 @@
 
 // MARK: - LKMetaBlock
 
-internal protocol LKMetaBlock: LeafBlock {
-    static var form: LKMetaForm { get }
+internal extension LeafEntities {
+    func registerMetaBlocks() {
+        use(RawSwitch.self , asMeta: "raw")
+        use(Define.self    , asMeta: "define")
+        use(Evaluate.self  , asMeta: "evaluate")
+        use(Inline.self    , asMeta: "inline")
+    }
 }
+
+internal protocol LKMetaBlock: LeafBlock { static var form: LKMetaForm { get } }
 
 internal enum LKMetaForm: Int, Hashable {
     case rawSwitch
@@ -96,3 +103,4 @@ extension LKMetaBlock {
     mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount {
         __MajorBug("Metablocks only called once") }
 }
+

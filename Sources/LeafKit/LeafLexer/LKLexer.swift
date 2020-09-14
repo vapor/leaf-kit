@@ -10,7 +10,7 @@ internal struct LKLexer {
         self.src = template
         self.state = .raw
 
-        self.entities = LKConf._entities
+        self.entities = LKConf.entities
         self.openers = .init(entities.blockFactories.keys)
         self.openers.formUnion(entities.functions.keys)
         self.closers = .init()

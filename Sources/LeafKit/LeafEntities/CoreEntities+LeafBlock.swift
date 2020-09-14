@@ -3,8 +3,32 @@
 
 // MARK: - Control Flow: Looping
 
+internal extension LeafEntities {
+    func registerControlFlow() {
+        use(ForLoop.self     , asBlock: "for")
+        use(WhileLoop.self   , asBlock: "while")
+
+        use(IfBlock.self     , asBlock: "if")
+        use(ElseIfBlock.self , asBlock: "elseif")
+        use(ElseBlock.self   , asBlock: "else")
+    }
+}
+
+internal protocol CoreBlock: LeafBlock {}
+internal extension CoreBlock {
+    static var invariant: Bool { true }
+    static var evaluable: Bool { false }
+}
+
+internal protocol Nonscoping {}
+internal extension Nonscoping {
+    static var parseSignatures: ParseSignatures? { nil }
+    var scopeVariables: [String]? { nil }
+}
+
+
 /// `#for(value in collection):` or `#for((index, value) in collection):`
-internal struct ForLoop: LeafBlock {
+struct ForLoop: CoreBlock {
     static let parseSignatures: ParseSignatures? = [
         /// `#for(_ in collection)`
         "discard": [.expression([.keyword([._]),
@@ -21,9 +45,6 @@ internal struct ForLoop: LeafBlock {
     ]
     static let callSignature: CallParameters = [.types([.array, .dictionary, .string, .int])]
 
-    static let invariant = true
-    static let evaluable = false
-
     private(set) var scopeVariables: [String]? = nil
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> ForLoop {
@@ -37,7 +58,7 @@ internal struct ForLoop: LeafBlock {
         }
     }
 
-    internal init(key: String? = nil, value: String? = nil) {
+    init(key: String? = nil, value: String? = nil) {
         self.set = key != nil || value != nil
         self.setKey = key != nil ? true : false
         self.setValue = value != nil ? true : false
@@ -110,14 +131,8 @@ internal struct ForLoop: LeafBlock {
 }
 
 /// `#while(bool):` - 0...n while
-internal struct WhileLoop: LeafBlock {
-    static let parseSignatures: ParseSignatures? = nil
-    static let callSignature: CallParameters = [.types([.bool])]
-
-    static let invariant: Bool = true
-    static let evaluable: Bool = false
-
-    let scopeVariables: [String]? = nil
+internal struct WhileLoop: CoreBlock, Nonscoping {
+    static let callSignature: CallParameters = [.bool]
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> WhileLoop {.init()}
 
@@ -129,14 +144,10 @@ internal struct WhileLoop: LeafBlock {
 }
 
 /// `#repeat(while: bool):` 1...n+1 while
-internal struct RepeatLoop: LeafBlock {
-    static let parseSignatures: ParseSignatures? = nil
-    static let callSignature: CallParameters = [.init(label: "while", types: [.bool])]
-
-    static let invariant: Bool = true
-    static let evaluable: Bool = false
-
-    let scopeVariables: [String]? = nil
+/// Note - can't safely be used if the while condition is mutating - a flag would be needed to defer evaluation
+internal struct RepeatLoop: CoreBlock, Nonscoping {
+    // FIXME: Can't be used yet
+    static let callSignature: CallParameters = [.bool(labeled: "while")]
 
     var cache: Bool? = nil
 
@@ -154,59 +165,41 @@ internal struct RepeatLoop: LeafBlock {
 // MARK: - Control Flow: Branching
 
 /// `#if(bool)` - accepts `elseif, else`
-struct IfBlock: ChainedBlock {
+struct IfBlock: ChainedBlock, CoreBlock, Nonscoping {
     static let chainsTo: [ChainedBlock.Type] = []
     static let chainAccepts: [ChainedBlock.Type] = [ElseIfBlock.self, ElseBlock.self]
 
-    static let parseSignatures: ParseSignatures? = nil
-    static let callSignature: CallParameters = [.types([.bool])]
-
-    static let invariant: Bool = true
-    static let evaluable: Bool = true
+    static let callSignature: CallParameters = [.bool]
 
     static func instantiate(_ signature: String?,
                             _ params: [String]) throws -> IfBlock {.init()}
 
-    let scopeVariables: [String]? = nil
-
     mutating func evaluateScope(_ params: CallValues,
                                    _ variables: inout [String: LeafData]) -> EvalCount {
-        params[0].bool! ? .once : .discard
-    }
+        params[0].bool! ? .once : .discard }
 }
 
 /// `#elseif(bool)` - chains to `if, elseif`, accepts `elseif, else`
-struct ElseIfBlock: ChainedBlock {
+struct ElseIfBlock: ChainedBlock, CoreBlock, Nonscoping {
     static var chainsTo: [ChainedBlock.Type] = [ElseIfBlock.self, IfBlock.self]
     static var chainAccepts: [ChainedBlock.Type] = [ElseIfBlock.self, ElseBlock.self]
 
-    static var parseSignatures: ParseSignatures? = nil
-    static var evaluable: Bool = false
-    static var callSignature: CallParameters = [.types([.bool])]
-    static var invariant: Bool = true
+    static var callSignature: CallParameters = [.bool]
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> ElseIfBlock {.init()}
 
-    let scopeVariables: [String]? = nil
-
     mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
-        params[0].bool! ? .once : .discard
-    }
+        params[0].bool! ? .once : .discard }
 }
 
 /// `#elseif(bool)` - chains to `if, elseif` - end of chain
-struct ElseBlock: ChainedBlock {
+struct ElseBlock: ChainedBlock, CoreBlock, Nonscoping {
     static var chainsTo: [ChainedBlock.Type] = [ElseIfBlock.self, IfBlock.self]
     static var chainAccepts: [ChainedBlock.Type] = []
 
-    static var parseSignatures: ParseSignatures? = nil
-    static var evaluable: Bool = false
     static var callSignature: CallParameters = []
-    static var invariant: Bool = true
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> ElseBlock {.init()}
-
-    let scopeVariables: [String]? = nil
 
     mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount { .once }
 }

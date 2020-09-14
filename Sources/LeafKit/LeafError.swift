@@ -5,6 +5,7 @@
 
 public typealias LeafErrorCause = LeafError.Reason
 public typealias LexErrorCause = LexerError.Reason
+public typealias ParseErrorCause = ParserError.Reason
 
 /// `LeafError` reports errors during the template rendering process, wrapping more specific
 /// errors if necessary during Lexing and Parsing stages.
@@ -17,7 +18,7 @@ public struct LeafError: Error, CustomStringConvertible {
         // MARK: Errors related to loading raw templates
         /// Attempted to access a template blocked for security reasons
         case illegalAccess(String)
-
+                
         // MARK: Errors related to LeafCache access
         /// Attempt to modify cache entries when caching is globally disabled
         case cachingDisabled
@@ -45,12 +46,14 @@ public struct LeafError: Error, CustomStringConvertible {
         case lexerError(LexerError)
         /// Errors due to malformed template syntax or grammar
         // FIXME: Implement a specific ParserError type
-        // case parserError(ParserError)
+         case parserError(ParserError)
 
         /// Error due to timeout (may or may not be permanent)
         case timeout(Double)
         
         // MARK: Errors lacking specificity
+        /// General errors occuring prior to running LeafKit
+        case configurationError(String)
         /// Errors from protocol adherents that do not support newer features
         case unsupportedFeature(String)
         /// Errors only when no existing error reason is adequately clear
@@ -82,11 +85,14 @@ public struct LeafError: Error, CustomStringConvertible {
             case .keyExists(let k)            : m += "Existing entry \(k)"
             case .noValueForKey(let k)        : m += "No cache entry exists for \(k)"
             case .noTemplateExists(let k)     : m += "No template found for \(k)"
-            case .lexerError(let e)           : m = "Lexing error - \(e.description)"
             case .unresolvedAST(let k, let d) : m += "\(k) has unresolved dependencies: \(d)"
             case .timeout(let d)              : m += "Exceeded timeout at \(d.formatSeconds)"
+            case .configurationError(let d)   : m += "Configuration error: \(d)"
             case .cyclicalReference(let k, let c)
                 : m += "\(k) cyclically referenced in [\((c + ["!\(k)"]).joined(separator: " -> "))]"
+                
+            case .lexerError(let e)           : m = "Lexing error - \(e.description)"
+            case .parserError(let e)          : m = "Parse error - \(e.description)"
         }
         return m
     }
@@ -125,14 +131,14 @@ public struct LexerError: Error, CustomStringConvertible {
         case unknownError(String)
     }
 
+    /// Stated reason for error
+    public let reason: Reason
     /// Template source file line where error occured
     public let line: Int
     /// Template source column where error occured
     public let column: Int
     /// Name of template error occured in
     public let name: String
-    /// Stated reason for error
-    public let reason: Reason
 
     // MARK: - Internal Only
 
@@ -170,6 +176,36 @@ public struct LexerError: Error, CustomStringConvertible {
 // FIXME: Implement a specific ParserError type
 /// `ParserError` reports errors during the stage.
 
+public struct ParserError: Error, CustomStringConvertible {
+    public enum Reason: CustomStringConvertible {
+        case noEntity(String, String)
+        case sameName(String, String, [String])
+        
+        public var description: String {
+            var message = ""
+            switch self {
+                case .noEntity(let t, let name): message += "No \(t) named `\(name)` exists"
+                case .sameName(let t, let name, let matches):
+                    message += "No exact match for \(t) \(name); \(matches.count) possible matches:"
+                    message += matches.map { "\(name)\($0)" }.joined(separator: "\n")
+            }
+            return message
+        }
+    }
+    
+    public let reason: Reason
+    public internal(set) var line: Int = 0
+    public internal(set) var column: Int = 0
+    public internal(set) var name: String = ""
+    
+    internal init(_ reason: Reason) { self.reason = reason }
+    
+    /// Convenience description of source file name, error reason, and location in file of error source
+    var localizedDescription: String { "\"\(name)\": \(reason.description) - \(line):\(column)" }
+    public var description: String { localizedDescription }
+}
+
+
 // MARK: - Internal Conveniences
 
 /// An object that will halt on a single error; conveniences for setting that state & returning values
@@ -194,7 +230,7 @@ func err(_ reason: String,
          _ line: UInt = #line,
          _ column: UInt = #column) -> LeafError { err(.unknownError(reason), file, function, line, column) }
 
-
+func parseErr(_ cause: ParseErrorCause) -> LeafError { .init(.parserError(.init(cause))) }
 
 @inline(__always)
 func succeed<T>(_ value: T, on eL: EventLoop) -> ELF<T> { eL.makeSucceededFuture(value) }
@@ -208,7 +244,7 @@ func fail<T>(_ error: LeafErrorCause, on eL: EventLoop,
              _ line: UInt = #line, _ column: UInt = #column) -> ELF<T> {
     fail(LeafError(error, file, function, line, column), on: eL) }
 
-func __MajorBug(_ message: String,
+func __MajorBug(_ message: String = "Unspecified",
                 _ file: String = #file,
                 _ function: String = #function,
                 _ line: UInt = #line) -> Never {
@@ -218,3 +254,8 @@ func __MajorBug(_ message: String,
       - Reference "fatalError in `\(file.split(separator: "/").last ?? "").\(function) line \(line)`"
     """)
 }
+
+func __Unreachable(_ file: String = #file,
+                   _ function: String = #function,
+                   _ line: UInt = #line) -> Never {
+    __MajorBug("Unreachable Switch Case", file, function, line) }

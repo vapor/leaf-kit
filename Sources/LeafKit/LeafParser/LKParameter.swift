@@ -12,8 +12,10 @@
 /// case expression(LKExpression) // A constrained 2-3 value Expression
 /// // Tuple
 /// case tuple([LKParameter])     // A 0...n array of LeafParameters
-/// // Function
-/// case function(String, LeafFunction, [LKParameter])
+/// // Function - Single exact match function
+/// case function(String, LeafFunction, [LKParameter], LKParameter?)
+/// // Dynamic - Multiple potential matching overloaded functions (filtered)
+/// case dynamic(String, [(LeafFunction, LKTuple?)], [LKParameter], LKParameter?)
 ///
 internal struct LKParameter: LKSymbol {
     // MARK: - Passthrough generators
@@ -125,6 +127,17 @@ internal struct LKParameter: LKSymbol {
             case .tuple(let t)       : return t.isEvaluable
             case .keyword(let k)     : return k.isEvaluable
             case .expression(let e)  : return e.form.exp != .custom            
+        }
+    }
+    
+    /// Rough estimate estimate of output size
+    var underestimatedSize: UInt32 {
+        switch container {
+            case .expression, .value,
+                 .variable, .function,
+                 .dynamic          : return 16
+            case .operator, .tuple : return 0
+            case .keyword(let k)   : return k.isBooleanValued ? 4 : 0
         }
     }
 
@@ -282,7 +295,7 @@ internal struct LKParameter: LKSymbol {
                                           return .function(n, f, p, m)
                 case .dynamic(let n, _, .some(var p), let m)
                                         : p.values = p.values.map { $0.resolve(symbols) }
-                                          let result = LKConf._entities.validateFunction(n, p)
+                                          let result = LKConf.entities.validateFunction(n, p)
                                           switch result {
                                               case .failure : return .value(.trueNil)
                                               case .success(let f) where f.count == 1: return .function(n, f[0].0, f[0].1, m)
@@ -308,10 +321,11 @@ internal struct LKParameter: LKSymbol {
                     /// Or `Evaluate` had a default - evaluate and return that
                     else if let x = f.defaultValue { return x.evaluate(symbols) }
                     return .trueNil /// Otherwise, nil
-                case .function(_, let f, let p, let v) :
+                case .function(_, var f, let p, let v) :
                     guard let params = CallValues(f.sig, p, symbols),
                        params.values.first(where: { $0.celf == .void }) == nil
                     else { return .trueNil }
+                    if var unsafeF = f as? LeafUnsafeEntity { unsafeF.userInfo = symbols[0].unsafe; f = unsafeF as! LeafFunction }
                     if let op = v, let f = f as? LeafMethod {
                         let x = f.mutatingEvaluate(params)
                         if let updated = x.0 { symbols.update(op, updated) }

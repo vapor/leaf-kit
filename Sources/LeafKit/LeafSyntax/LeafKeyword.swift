@@ -14,7 +14,8 @@ public enum LeafKeyword: String, Hashable, CaseIterable, LKPrintable {
          `no`,    //   X       F
          `_`,     //
          leaf,    //
-         `var`    //
+         `var`,   //
+         `let`    //
 
     // MARK: - LKPrintable
     public var description: String { rawValue }
@@ -22,9 +23,11 @@ public enum LeafKeyword: String, Hashable, CaseIterable, LKPrintable {
 
     // MARK: Internal Only
     /// Whether the keyword has an evaluable representation
-    internal var isEvaluable: Bool { ![.in, ._, .leaf, .var].contains(self) }
+    internal var isEvaluable: Bool { [.true, .false, .yes, .no, .`self`, .nil].contains(self) }
     /// Whether the keyword can represent a logical value
     internal var isBooleanValued: Bool { [.true, .false, .yes, .no].contains(self) }
     /// Evaluate to a logical state, if possible
     internal var bool: Bool? { isBooleanValued ? [.true, .yes].contains(self) : nil }
+    /// Variable declaration (var, let)
+    internal var isVariableDeclaration: Bool{ [.`var`, .`let`].contains(self) }
 }

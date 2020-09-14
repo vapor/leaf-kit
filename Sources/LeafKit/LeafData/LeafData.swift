@@ -8,7 +8,7 @@ import Foundation
 ///     supported, all of which may also be representable as `Optional` values.
 /// - `CaseType` presents these cases plus `Void` as a case for functional `LeafSymbols`
 /// - `nil` is creatable, but only within context of a root base type - eg, `.nil(.bool)` == `Bool?`
-public struct LeafData: Equatable {
+public struct LeafData: LeafDataRepresentable, Equatable {
 
     // MARK: - Stored Properties
 
@@ -52,6 +52,9 @@ public struct LeafData: Equatable {
     /// - This does *not* validate the data itself in coercion
     public func isCoercible(to type: LeafDataType) -> Bool { celf.casts(to: type) >= .coercible }
 
+    // MARK: - LeafDataRepresentable
+    public var leafData: LeafData { self }
+    
     // MARK: - Swift Type Extraction
 
     /// Attempts to convert to `Bool`: if a nil optional Bool, returns `nil` - returns t/f if bool-evaluated.
@@ -122,36 +125,28 @@ extension LeafData: ExpressibleByDictionaryLiteral,
     // MARK: Static Initializer Conformances
     /// Creates a new `LeafData` from a `Bool`.
     public static func bool(_ value: Bool?) -> Self {
-        value.map { Self(.bool($0)) } ?? .nil(.bool)
-    }
+        value.map { Self(.bool($0)) } ?? .nil(.bool) }
     /// Creates a new `LeafData` from a `String`.
     public static func string(_ value: String?) -> Self {
-        value.map { Self(.string($0)) } ?? .nil(.string)
-    }
+        value.map { Self(.string($0)) } ?? .nil(.string) }
     /// Creates a new `LeafData` from am `Int`.
     public static func int(_ value: Int?) -> Self {
-        value.map { Self(.int($0)) } ?? .nil(.int)
-    }
+        value.map { Self(.int($0)) } ?? .nil(.int) }
     /// Creates a new `LeafData` from a `Double`.
     public static func double(_ value: Double?) -> Self {
-        value.map { Self(.double($0)) } ?? .nil(.double)
-    }
+        value.map { Self(.double($0)) } ?? .nil(.double) }
     /// Creates a new `LeafData` from `Data`.
     public static func data(_ value: Data?) -> Self {
-        value.map { Self(.data($0)) } ?? .nil(.data)
-    }
+        value.map { Self(.data($0)) } ?? .nil(.data) }
     /// Creates a new `LeafData` from `[String: LeafData]`.
     public static func dictionary(_ value: [String: LeafData]?) -> Self {
-        value.map { Self(.dictionary($0)) } ?? .nil(.dictionary)
-    }
+        value.map { Self(.dictionary($0)) } ?? .nil(.dictionary) }
     /// Creates a new `LeafData` from `[LeafData]`.
     public static func array(_ value: [LeafData]?) -> Self {
-        value.map { Self(.array($0)) } ?? .nil(.array)
-    }
+        value.map { Self(.array($0)) } ?? .nil(.array) }
     /// Creates a new `LeafData` for `Optional<LeafData>`
     public static func `nil`(_ type: LeafDataType) -> Self {
-        Self(.optional(nil, type))
-    }
+        Self(.optional(nil, type)) }
 
     // MARK: Literal Initializer Conformances
     public init(nilLiteral: ()) { self = .trueNil }
@@ -161,8 +156,7 @@ extension LeafData: ExpressibleByDictionaryLiteral,
     public init(booleanLiteral value: BooleanLiteralType) { self = value.leafData }
     public init(arrayLiteral elements: LeafData...) { self = .array(elements) }
     public init(dictionaryLiteral elements: (String, LeafData)...) {
-        self = .dictionary(.init(uniqueKeysWithValues: elements))
-    }
+        self = .dictionary(.init(uniqueKeysWithValues: elements)) }
 }
 
 // MARK: - Internal Only
@@ -259,5 +253,5 @@ extension LeafData: LKSymbol {
     var symbols: Set<LKVariable> { [] }
 
     func resolve(_ symbols: LKVarStack) -> Self { self }
-    func evaluate(_ symbols: LKVarStack) -> Self { invariant ? self : container.evaluate }
+    func evaluate(_ symbols: LKVarStack) -> Self { state.contains(.variant) ? container.evaluate : self }
 }
