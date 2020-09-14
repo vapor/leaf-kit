@@ -5,12 +5,13 @@
 /// `LeafAST` represents a "compiled," grammatically valid Leaf template (which may or may not be fully resolvable or erroring)
 public struct LeafAST: Hashable {
     // MARK: - Public
-    
+
+    public let name: String
+
     public func hash(into hasher: inout Hasher) { hasher.combine(name) }
     public static func == (lhs: LeafAST, rhs: LeafAST) -> Bool { lhs.name == rhs.name }
 
     // MARK: - Internal/Private Only
-    let name: String
 
     init(name: String, ast: [Syntax]) {
         self.name = name
