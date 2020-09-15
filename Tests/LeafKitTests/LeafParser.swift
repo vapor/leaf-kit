@@ -22,7 +22,7 @@ final class LKParserTests: LeafTestClass {
 
         #(name.hasPrefix("Mr"))
 
-        #if(lowercased(((name == "admin"))) == "welcome"):
+        #if((name == "admin").lowercased() == "welcome"):
             #(0b0101010 + 0o052 + 42 - 0_042 * 0x02A / self.meaning - 0_042.0 + 0x02A.0)
             #if(variable[0] ?? true): subscripting & coalescing #endif
         #elseif(false):
@@ -97,13 +97,12 @@ final class LKParserTests: LeafTestClass {
     
     func testSerialize() throws {
         let sample = """
-        Count self: #count(self)
-        Count "name": #count(name)
+        Count self: #(self.count())
+        Count "name": #(name.count())
         Print "name": #(name)
         Lowercase "name" as method: #(name.lowercased())
-        Lowercase "name" as function: #lowercased(name)
         Uppercase explicit "name": #(self.name.uppercased())
-        Validate prefix: #hasPrefix(self.name, "Mr")
+        Validate prefix: #(self.name.hasPrefix("Mr"))
         Does aDict["one"] == 2.0: #if(aDict["one"] == 2.0):Yup#else:Nope#endif
         What's in aDict.three[0]: #(aDict.three[0])
         What's in aDict.three[3]: #(aDict.three[3] ? "Something" : "Nonexistant")
@@ -122,7 +121,6 @@ final class LKParserTests: LeafTestClass {
         Count "name": 9
         Print "name": Mr. MagOO
         Lowercase "name" as method: mr. magoo
-        Lowercase "name" as function: mr. magoo
         Uppercase explicit "name": MR. MAGOO
         Validate prefix: true
         Does aDict["one"] == 2.0: Nope
@@ -390,7 +388,7 @@ final class LKParserTests: LeafTestClass {
         }
     }
     
-    func testResumingSerialize() throws {
+    func _testResumingSerialize() throws {
         var testFiles = TestFiles()
         testFiles.files["/sample.leaf"] = """
             hello, #(name)!
@@ -413,7 +411,6 @@ final class LKParserTests: LeafTestClass {
                 case .failure(let e): XCTFail((e as! LeafError).localizedDescription)
                 case .success(let b): XCTAssertTrue(b.readableBytes == 0, "\(b.readableBytes.formatBytes)")
             }
-            
         }.wait()
     }
     
@@ -444,7 +441,7 @@ final class LKParserTests: LeafTestClass {
         
         let overloadScopeVariable = """
         #for(index in 10):
-        #(var index1 = index + 1)#(index1)
+        #(var i = index + 1)#(i)
         #endfor
         """
         

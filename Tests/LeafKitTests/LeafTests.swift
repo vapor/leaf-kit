@@ -5,32 +5,30 @@ final class LeafTests: LeafTestClass {
     // currently not supported.. discussion ongoing
     func _testInterpolated() throws {
         let template = """
-        <p>#("foo: #(foo)")</p>
+        <p>#("foo: \\(foo)")</p>
         """
         try XCTAssertEqual(render(template, ["foo": "bar"]), "<p>foo: bar</p>")
     }
 
-    // conversation ongoing
-    func _testCommentSugar() throws {
+    func testComment() throws {
         let template = """
         #("foo")
-        #// this is a comment!
+        #(# this is a comment #)
         bar
         """
 
         let multilineTemplate = """
         #("foo")
-        #/*
+        #(#
             this is a comment!
-        */
+        #)
         bar
         """
-        try XCTAssertEqual(render(template), "foo\nbar")
+        try XCTAssertEqual(render(template), "foo\n\nbar")
         try XCTAssertEqual(render(multilineTemplate), "foo\n\nbar")
     }
 
-    // conversation ongoing
-    func _testHashtag() throws {
+    func testHashtag() throws {
         let template = """
         #("hi") #thisIsNotATag...
         """
@@ -68,7 +66,7 @@ final class LeafTests: LeafTestClass {
 
     func testNested() throws {
         let template = """
-        <p>#(lowercased(foo))</p>
+        <p>#(foo.lowercased())</p>
         """
         try XCTAssertEqual(render(template, ["foo": "BAR"]), "<p>bar</p>")
     }
@@ -204,26 +202,15 @@ final class LeafTests: LeafTestClass {
         try XCTAssertEqual(render(template, [:]), expected)
     }
 
-    // TODO: Reimplement #count
-    func _testCount() throws {
+    func testCount() throws {
         let template = """
-        count: #count(array)
+        count: #(array.count())
         """
         let expected = """
         count: 4
         """
+        try print(lex(template))
         try XCTAssertEqual(render(template, ["array": ["","","",""]]), expected)
-    }
-
-    // TODO: Are set/get totally deprecated?
-    func _testNestedSet() throws {
-        let template = """
-        #if(a){#set("title"){A}}title: #get(title)
-        """
-        let expected = """
-        title: A
-        """
-        try XCTAssertEqual(render(template, ["a": true]), expected)
     }
 
     // TODO: Reimplement #date
@@ -278,37 +265,6 @@ final class LeafTests: LeafTestClass {
 //        let data = try TemplateDataEncoder().testEncode(context)
 //        try XCTAssertEqual(render(template, data), expected)
 //    }
-
-    // TODO: WHY is space not allowed here?!?
-    func _testInvalidForSyntax() throws {
-        let data: [String: LeafData] = ["names": LeafData(arrayLiteral: "foo")]
-        do {
-            _ = try render("#for( name in names):Hi#endfor", data)
-            XCTFail("Whitespace not allowed here")
-        } catch {
-            XCTAssert("\(error)".contains("space not allowed"))
-        }
-
-        do {
-            _ = try render("#for(name in names ):Hi#endfor", data)
-            XCTFail("Whitespace not allowed here")
-        } catch {
-            XCTAssert("\(error)".contains("space not allowed"))
-        }
-
-        do {
-            _ = try render("#for( name in names ):Hi#endfor", data)
-            XCTFail("Whitespace not allowed here")
-        } catch {
-            XCTAssert("\(error)".contains("space not allowed"))
-        }
-
-        do {
-            _ = try render("#for(name in names):Hi#endfor", data)
-        } catch {
-            XCTFail("\(error)")
-        }
-    }
 
     func testLoopIndices() throws {
         let template = """
@@ -454,5 +410,43 @@ final class LeafTests: LeafTestClass {
 
         try XCTAssertEqual(parse(input).terse, syntax)
         try XCTAssertEqual(render(input), expectation)
+    }
+    
+    func testEscapedStringParam() throws {
+        let input = #"""
+        #("A string \"with quoted\" portions")"
+        """#
+        let lexed = try! lex(input)
+        print(lexed)
+        if case .param(.literal(.string(let result))) = lexed[3] {
+            XCTAssertEqual(result, "A string \"with quoted\" portions")
+        } else { XCTFail() }
+    }
+    
+    func testASTInfo() throws {
+        let input = """
+        #inline("template")
+        #inline("template", as: leaf)
+        #inline("template", as: raw)
+        #define(aBlock, variable)
+        #define(anotherBlock):
+            #(let aDeclaredVariable = variable * 2)
+            #(aDeclaredVariable)
+        #enddefine
+        #evaluate(aBlock)
+        #evaluate(anotherBlock)
+        #(aThirdVariable)
+        #($scope.scoped)
+        """
+        
+        let ast = try! parse(input)
+        let info = ast.info
+        print(ast.summary)
+        
+        XCTAssertTrue(info.requiredASTs == ["template"])
+        XCTAssertTrue(info.requiredRaws == ["template"])
+        XCTAssertTrue(info.requiredVars == ["self.variable", "self.aThirdVariable", "$scope:scoped"])
+        XCTAssertTrue(!info.requiredVars.contains("aDeclaredVariable"))
+        XCTAssertTrue(info.stackDepths.overallMax == 2)
     }
 }

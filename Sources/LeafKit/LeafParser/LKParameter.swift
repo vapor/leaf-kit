@@ -258,12 +258,14 @@ internal struct LKParameter: LKSymbol {
         var invariant: Bool {
             switch self {
                 case .keyword, .operator,
-                     .variable                  : return true
-                case .expression(let e)         : return e.invariant
-                case .tuple(let t)              : return t.invariant
-                case .value(let v)              : return v.invariant
-                case .function(_, let f, let p, _) : return f.invariant && p?.invariant ?? true
-                case .dynamic(_, let f, let p, _)  : return f.allSatisfy({$0.0.invariant}) && p?.invariant ?? true
+                     .variable          : return true
+                case .expression(let e) : return e.invariant
+                case .tuple(let t)      : return t.invariant
+                case .value(let v)      : return v.invariant
+                case .function(_, let f, let p, _)
+                    : return f.invariant && p?.invariant ?? true
+                case .dynamic(_, let f, let p, let m)
+                    : return m == nil && p?.invariant ?? true && f.allSatisfy({$0.0.invariant})
             }
         }
         
@@ -290,17 +292,17 @@ internal struct LKParameter: LKSymbol {
                                           else { return self }
                 case .tuple(let t)
                     where t.isEvaluable : return .tuple(t.resolve(symbols))
-                case .function(let n, let f, .some(var p), let m)
-                                        : p.values = p.values.map { $0.resolve(symbols) }
+                case .function(let n, let f, var p, let m)
+                                        : if p != nil { p!.values = p!.values.map { $0.resolve(symbols) } }
                                           return .function(n, f, p, m)
-                case .dynamic(let n, _, .some(var p), let m)
-                                        : p.values = p.values.map { $0.resolve(symbols) }
-                                          let result = LKConf.entities.validateFunction(n, p)
-                                          switch result {
-                                              case .failure : return .value(.trueNil)
-                                              case .success(let f) where f.count == 1: return .function(n, f[0].0, f[0].1, m)
-                                              case .success(let f): return .dynamic(n, f, p, m) }
-                case .function, .dynamic: return self
+                case .dynamic(let n, var Fs, let p, let m)
+                                        : Fs = Fs.map { ($0.0, $0.1.map { $0.resolve(symbols) } ?? nil) }
+                                          Fs = Fs.filter { (try? LKConf.entities.validateTupleCall($0.1, $0.0.sig).get()) != nil }
+                                          switch Fs.count {
+                                              case 0  : return .value(.trueNil)
+                                              case 1  : return .function(n, Fs[0].0, Fs[0].1, m)
+                                              default : return .dynamic(n, Fs, p, m)
+                                          }
                 case .tuple             : __MajorBug("Unevaluable Tuples should not exist")
             }
         }

@@ -171,8 +171,6 @@ public final class LeafRenderer {
     private func preflight(_ ast: LeafAST,
                            _ context: [String: LeafData]) -> ELF<ByteBuffer> {
         // FIXME: Configure behavior for rendering where "needed" is non empty
-//        let promise = eL.makePromise(of: ByteBuffer.self)
-//        worker.async { [unowned self] in
             var needed = Set<LKVariable>(ast.info._requiredVars.map { !$0.isScoped ? $0.contextualized : $0 })
             /// Reduce incoming data to only symbols required by the AST
             var contexts: LKVarTable = needed.contains(.`self`) ? [.`self`: .dictionary(context)] : [:]
@@ -198,20 +196,17 @@ public final class LeafRenderer {
             switch serializer.serialize(&block) {
                 case .success(let t) : cache.touch(serializer.ast.key,
                                                    .atomic(time: t, size: block.byteCount))
-//                                       promise.succeed(buffer)
-                    return succeed(block.serialized.buffer, on: eL)
-                case .failure(let e) :
-                    return fail(e, on: eL)
-//                    promise.fail(e)
+                                       return succeed(block.serialized.buffer, on: eL)
+                case .failure(let e) : return fail(e, on: eL)
+
             }
-//        }
-//        return promise.futureResult
+
     }
     
     private func serialize(_ serializer: LKSerializer,
                            _ buffer: LKRawBlock,
                            _ duration: Double = 0,
-                           _ resume: Bool = false) -> EventLoopFuture<ByteBuffer> {
+                           _ resume: Bool = false) -> ELF<ByteBuffer> {
         let timeout = max(Self.blockLimit, LKConf.timeout - duration)
         var buffer = buffer
         switch serializer.serialize(&buffer, timeout, resume) {

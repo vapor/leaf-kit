@@ -5,7 +5,7 @@ import NIOConcurrencyHelpers
 final class ParserTests: LeafTestClass {
     func testParsingNesting() throws {
         let input = """
-        #if(lowercased(((name.first == "admin"))) == "welcome"):
+        #if((name.first == "admin").lowercased() == "welcome"):
         foo
         #endif
         """
@@ -524,7 +524,7 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testCacheSpeedLinear() {
-        let iterations = 500_000
+        let iterations = 1_000
         var dur: Double = 0
         var ser: Double = 0
         var stop: Double = 0

@@ -198,9 +198,14 @@ internal struct LKLexer {
             case .underscore where current?.isWhitespace ?? false
                                      : return .param(.keyword(._))
             case .quote              :
-                let read = src.readWhileNot([.quote, .newLine])
+                var accumulate = src.readWhileNot([.quote, .newLine])
+                while accumulate.last == .backSlash && current == .quote {
+                    accumulate.removeLast()
+                    accumulate += pop()!.description
+                    accumulate += src.readWhileNot([.quote, .newLine])
+                }
                 if pop() != .quote { throw unterminatedString }
-                return .param(.literal(.string(read)))
+                return .param(.literal(.string(accumulate)))
             case .tagIndicator       : /// A comment - silently discard
                 src.readWhileNot([.tagIndicator])
                 if pop() != .tagIndicator {

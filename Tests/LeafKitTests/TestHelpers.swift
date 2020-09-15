@@ -66,14 +66,12 @@ internal class TestRenderer {
     private var timer: Date = .distantPast
 
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
-   //      tags: [String : LeafTag] = defaultTags,
          cache: LeafCache = DefaultLeafCache(),
          sources: LeafSources = .singleSource(TestFiles()),
          eventLoop: EventLoop = EmbeddedEventLoop(),
          userInfo: [AnyHashable : Any] = [:],
          tasks: Int = 1) {
         self.r = .init(configuration: configuration,
-   //                           tags: tags,
                               cache: cache,
                               sources: sources,
                               eventLoop: eventLoop,

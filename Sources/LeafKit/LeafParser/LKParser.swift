@@ -336,7 +336,7 @@ internal struct LKParser: LKErroring {
                 else {
                     scopes[currentScope].append(.block(name, definition, nil))
                     scopes[currentScope].append(.passthrough(definition.param!))
-                    requiredVars.formUnion(definition.param!.symbols)
+                    guard updateVars(definition.param!.symbols) else { return false }
                 }
                 defines.insert(v.member!)
             case .evaluate:
@@ -804,8 +804,10 @@ internal struct LKParser: LKErroring {
                             let mutating = (try? result.get().first(where: {($0.0 as! LeafMethod).mutating}) != nil) ?? false
                             var original: LKVariable? = nil
                             if mutating, case .variable(let v) = operand.container {
-                                if let match = createdVars.match(v), !match.1 {
-                                    return void(err("\(v.terse) used before assignment")) }
+                                if let match = createdVars.match(v) {
+                                    if !match.1 { return void(err("\(v.terse) used before assignment")) }
+                                    if match.0.isConstant { return void(err("\(v.terse) is constant; can't call mutating method `\(m)()`")) }
+                                }
                                 original = v
                             }
                             complexAppend(M.count == 1 ? .function(m, M[0].0, M[0].1, original)

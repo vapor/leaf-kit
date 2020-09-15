@@ -7,10 +7,7 @@ internal final class LKSerializer: LKErroring {
     // MARK: Stored Properties
     let ast: LeafAST
     internal private(set) var error: LeafError? = nil
-    
-    /// The original incoming context data
-    private var output: UnsafeMutablePointer<LKRawBlock>
-    
+        
     private var threshold: Double
     private var start: Double
     private var lapTime: Double
@@ -25,8 +22,12 @@ internal final class LKSerializer: LKErroring {
     private var varStack: LKVarStack = []
     private var varStackDepth: Int = 0
     
+    private var bufferStack: [UnsafeMutablePointer<LKRawBlock>] = []
+    private var bufferStackDepth: Int = 0
+    
     
     // MARK: Computed Properties
+    /// Note - these are conveniences - most explicitly do not have setters to avoid overhead of get/set copying
     private var table: Int { stack[stackDepth].table }
     private var scope: ContiguousArray<LKSyntax> { ast.scopes[table] }
     private var defines: [String: Define] { stack[stackDepth].defines }
@@ -38,11 +39,10 @@ internal final class LKSerializer: LKErroring {
     private var count: UInt32? { get {stack[stackDepth].count} set { stack[stackDepth].count = newValue } }
     private var block: LeafBlock? { stack[stackDepth].block }
     private var tuple: LKTuple? { stack[stackDepth].tuple }
+    private var buffer: UnsafeMutablePointer<LKRawBlock> { bufferStack[bufferStackDepth] }
 
-    private var offset: Int {
-        get { stack[stackDepth].offset }
-        set { stack[stackDepth].offset = newValue }
-    }
+    private var offset: Int { stack[stackDepth].offset }
+    private func advance(by offset: Int = 1) { stack[stackDepth].offset += offset }
     
     @inline(__always)
     private var cutoff: Bool {
@@ -64,10 +64,10 @@ internal final class LKSerializer: LKErroring {
         self.threshold = LKConf.timeout
         self.varStack.reserveCapacity(Int(ast.info.stackDepths.overallMax))
         self.varStack.append(([], LKVarTablePtr.allocate(capacity: 1), nil))
-        self.output = UnsafeMutablePointer<LKRawBlock>.allocate(capacity: 1)
-        self.output.initialize(to: output.instantiate(size: ast.info.touch.sizeAvg,
-                                                      encoding: LKConf.encoding))
-        self.stack = .init(repeating: .init(self.output),
+        self.bufferStack.append(UnsafeMutablePointer<LKRawBlock>.allocate(capacity: 1))
+        self.bufferStack[0].initialize(to: output.instantiate(size: ast.info.touch.sizeAvg,
+                                                              encoding: LKConf.encoding))
+        self.stack = .init(repeating: .init(bufferStack[0]),
                            count: Int(ast.info.stackDepths.overallMax))
         
         vars.initialize(to: .init(minimumCapacity: context.count * 2))
@@ -82,10 +82,10 @@ internal final class LKSerializer: LKErroring {
         self.threshold = LKConf.timeout
         self.varStack.reserveCapacity(Int(ast.info.stackDepths.overallMax))
         self.varStack.append(([], LKVarTablePtr.allocate(capacity: 1), nil))
-        self.output = UnsafeMutablePointer<LKRawBlock>.allocate(capacity: 1)
-        self.output.initialize(to: output.instantiate(size: ast.info.touch.sizeAvg,
-                                                      encoding: LKConf.encoding))
-        self.stack = .init(repeating: .init(self.output),
+        self.bufferStack.append(UnsafeMutablePointer<LKRawBlock>.allocate(capacity: 1))
+        self.bufferStack[0].initialize(to: output.instantiate(size: ast.info.touch.sizeAvg,
+                                                              encoding: LKConf.encoding))
+        self.stack = .init(repeating: .init(bufferStack[0]),
                            count: Int(ast.info.stackDepths.overallMax))
         vars.initialize(to: .init(minimumCapacity: varTable.count * 2))
         vars.pointee = varTable
@@ -99,8 +99,8 @@ internal final class LKSerializer: LKErroring {
             vars.deallocate()
             varStack.removeLast()
         }
-        output.deinitialize(count: 1)
-        output.deallocate()
+        bufferStack[0].deinitialize(count: 1)
+        bufferStack[0].deallocate()
     }
 
     private func expandDict(_ data: LKData,
@@ -160,7 +160,7 @@ internal final class LKSerializer: LKErroring {
                     }
                 }
 
-                offset += 1
+                advance()
                 closeScope()
                 continue
             }
@@ -187,7 +187,7 @@ internal final class LKSerializer: LKErroring {
                                 vars.pointee[x.variable] = .trueNil
                             }
                             assignValue(x.variable, x.set?.evaluate(varStack) ?? .trueNil)
-                        }
+                        } else { append(param.evaluate(varStack)) }
                         break
                     }
                     
@@ -218,11 +218,11 @@ internal final class LKSerializer: LKErroring {
                                     }
                                     vars.pointee[.define(id)] = set ? .init(.evaluate(param: param.container)) : nil
                                 }
-                                offset += 2
+                                advance(by: 2)
                                 continue serialize
                             case .evaluate :
                                 let evaluate = meta as! Evaluate
-                                offset += 2
+                                advance(by: 2)
                                 /// If the definition exists, open a new stack and point it at the ref scope or atomic defintion
                                 if let jump = defines[evaluate.identifier] {
                                     let land = ast.scopes[jump.table][jump.row]
@@ -230,14 +230,14 @@ internal final class LKSerializer: LKErroring {
                                     let o = t > 0 ? 0 : jump.row
                                     if t != 0 { newScope(from: evaluate, p: nil, t: t, o: o) }
                                 /// or if no definition but evaluate has a default value roll back one and serialize that
-                                } else if evaluate.defaultValue != nil { offset -= 1 }
+                                } else if evaluate.defaultValue != nil { advance(by: -1) }
                                 continue serialize
                         }
                     }
                     /// Otherwise actual scopes: Next check if a chained block and not at end of scope.
                     if let chained = b as? ChainedBlock {
                         if breakChain == true {
-                            offset += 2
+                            advance(by: 2)
                             if !nextMatchesChain(type(of: chained)) { breakChain = nil }
                             continue serialize
                         } else if breakChain == nil { breakChain = false }
@@ -249,26 +249,26 @@ internal final class LKSerializer: LKErroring {
                     /// t positive table ref if actual scope table and negative offset by one to atomic scope
                     /// o is 0 if actual scope table and pointer to `syntax` if atomic scope
                     /// t == 0 is a nil scope - elide.
-                    offset += 1
+                    advance()
                     let t = scope[offset].table * (scope[offset].table > 0 ? 1 : table + 1)
                     let o = t > 0 ? 0 : offset
-                    offset += 1
+                    advance()
                     if t != 0 { newScope(from: b, p: p, t: t, o: o) }
                     continue serialize
                 /// Evaluate scope, handle as necessary
                 case .scope: __MajorBug("Evaluation fail - should never hit scope")
                 /// Not in the top level scope and hit the end of the table but not done - repeat
-                case .none where count != 0 : offset = 0; continue serialize
+                case .none where count != 0 : stack[stackDepth].offset = 0; continue serialize
                 ///Done with current scope
                 case .none: closeScope(); continue serialize
             }
-            offset += 1
+            advance()
         }
         
         if errored { return .failure(error!) }
         
         stack.removeAll()
-        output = self.output.pointee
+        output = self.bufferStack[0].pointee
         return .success(Date.timeIntervalSinceReferenceDate - start + duration)
     }
 
@@ -357,6 +357,7 @@ internal final class LKSerializer: LKErroring {
     }
 
     private func closeScope() {
+//        if stack[stackDepth].buffer != stack[stackDepth - 1]
         if allocated, let x = varStack.popLast()?.vars {
             x.deinitialize(count: 1); x.deallocate(); varStackDepth -= 1 }
         stackDepth -= 1
@@ -426,8 +427,8 @@ internal final class LKSerializer: LKErroring {
     
     @inline(__always)
     private func append(_ block: inout LKRawBlock) {
-        stack[stackDepth].buffer.pointee.append(&block)
-        if let e = stack[stackDepth].buffer.pointee.error { void(err("Serialize Error: \(e)")) }
+        buffer.pointee.append(&block)
+        if let e = buffer.pointee.error { void(err("Serialize Error: \(e)")) }
     }
 
     @inline(__always)

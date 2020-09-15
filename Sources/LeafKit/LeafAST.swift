@@ -266,7 +266,7 @@ internal extension LeafAST {
         LeafAST `\(name)`: \(scopes.count) tables (\(scopes.count) inlined), \(scopes.count - own.scopes - 1) minimum output bytes
         Template is \(info.resolved == false ? "un" : "")resolved
         Defines: [\(info.defines.joined(separator: ", "))]
-        Inlines: [\(info.defines.joined(separator: ", "))]
+        Inlines: [\(info.inlines.map {"\"\($0)\""}.joined(separator: ", "))]
         Needed - Vars: [\(Array(info._requiredVars).sorted(by: variablePrecedence).map { $0.terse }.joined(separator: ", "))]
                - ASTS: [\(info.requiredASTs.joined(separator: ", "))]
                - Raws: [\(info.requiredRaws.joined(separator: ", "))]
