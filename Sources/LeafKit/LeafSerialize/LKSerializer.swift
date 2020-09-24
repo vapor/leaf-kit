@@ -197,7 +197,21 @@ internal final class LKSerializer: LKErroring {
                     /// Handle meta first
                     if let meta = b as? LKMetaBlock {
                         switch meta.form {
-                            case .inline    : break /// Elide - scope block dictates action
+                            case .inline    :
+                                let inline = meta as! Inline
+                                /// If inline type is `leaf`, elide - scope block dictates action
+                                guard !inline.process else { break }
+                                guard let b = ast.raws[inline.file] else {
+                                    return .failure(err(.missingRaw(inline.file))) }
+                                guard let rawBlockType = LKConf.entities.rawFactories[inline.rawIdentifier!] else {
+                                    return .failure(err(.unknownError("No such raw block type for `\(inline.rawIdentifier!)`"))) }
+                                var inlineRaw = b as LKRawBlock
+                                var rawBlock = rawBlockType.instantiate(size: inlineRaw.byteCount, encoding: LKConf.encoding)
+                                rawBlock.append(&inlineRaw)
+                                if let e = rawBlock.error { return .failure(err(.unknownError(e))) }
+                                buffer.pointee.append(&rawBlock)
+                                advance(by: 2)
+                                continue serialize
                             case .rawSwitch : break /// Until raw Blocks are added, non-op - raw stack will always be ByteBuffer
                             case .define    :
                                 /// Push the scope pointer into the current stack's defines and skip next syntax
@@ -384,8 +398,18 @@ internal final class LKSerializer: LKErroring {
         if table * offset < 1 {
             /// All metablocks will always run only once and do not produce variables; can be elided
             if block as? LKMetaBlock != nil { count = 0; return true }
-
-            guard let params = CallValues(block!.sig, tuple, varStack) else {
+            var t = tuple
+            if let indices = t?.values.indices {
+                for i in indices {
+                    if !t!.values[i].isLiteral {
+                        let evaluated = t!.values[i].evaluate(varStack)
+                        if let e = evaluated.error { void(err(e)); return nil }
+                        t!.values[i] = .value(evaluated)
+                    }
+                }
+            }
+            
+            guard let params = LeafCallValues(block!.sig, t, varStack) else {
                 void(err("Couldn't evaluate scope parameters")); return nil }
             
             var scopeVariables: [String: LeafData] = [:]
@@ -433,6 +457,7 @@ internal final class LKSerializer: LKErroring {
 
     @inline(__always)
     private func append(_ data: LeafData) {
+        if data.errored { error = err(.unknownError(data.error!)); return }
         if !data.isNil || data.isTrueNil { stack[stackDepth].buffer.pointee.append(data) } }
     
     private func assignValue(_ key: LKVariable, _ value: LKData) {

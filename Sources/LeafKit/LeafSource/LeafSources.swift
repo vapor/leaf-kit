@@ -1,4 +1,4 @@
-import class NIOConcurrencyHelpers.Lock
+import NIOConcurrencyHelpers
 
 /// An opaque object holding named `LeafSource` adherants specifying a default search order.
 ///

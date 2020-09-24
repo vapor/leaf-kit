@@ -6,13 +6,12 @@ internal extension LeafEntities {
     }
 }
 
-
 internal struct ArrayToArrayMap: LKMapMethod, ArrayReturn {
-    static let callSignature: CallParameters = [.array]
+    static var callSignature: [LeafCallParameter] { [.array] }
     
     init(_ map: @escaping ([LKData]) -> [LKData]) { f = map }
     
-    func evaluate(_ params: CallValues) -> LKData { .array(f(params[0].array!)) }
+    func evaluate(_ params: LeafCallValues) -> LKData { .array(f(params[0].array!)) }
     
     private let f: ([LKData]) -> [LKData]
     
@@ -20,11 +19,11 @@ internal struct ArrayToArrayMap: LKMapMethod, ArrayReturn {
 }
 
 internal struct DictionaryToArrayMap: LKMapMethod, ArrayReturn {
-    static let callSignature: CallParameters = [.dictionary]
+    static var callSignature: [LeafCallParameter] { [.dictionary] }
     
     init(_ map: @escaping ([String: LKData]) -> [LKData]) { f = map }
     
-    func evaluate(_ params: CallValues) -> LKData { .array(f(params[0].dictionary!)) }
+    func evaluate(_ params: LeafCallValues) -> LKData { .array(f(params[0].dictionary!)) }
     
     private let f: ([String: LKData]) -> [LKData]
     

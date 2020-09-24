@@ -40,7 +40,7 @@ public protocol LeafBlock: LeafFunction {
     /// If the block is setting any scope variable values, assign them to the corresponding key previously
     /// reported in `scopeVariables` - any variable keys not previously reported in that property will
     /// be ignored and not available inside the block's scope.
-    mutating func evaluateScope(_ params: CallValues,
+    mutating func evaluateScope(_ params: LeafCallValues,
                                 _ variables: inout [String: LeafData]) -> EvalCount
 
     /// Re-entrant point for `LeafBlock`s that previously reported a finite scope count.
@@ -101,7 +101,7 @@ public extension LeafBlock {
     static var returns: Set<LeafDataType> { .void }
 
     /// Default implementation of LeafFunction.evaluate()
-    func evaluate(_ parameters: CallValues) -> LeafData {
+    func evaluate(_ parameters: LeafCallValues) -> LeafData {
         if Self.evaluable { __MajorBug("LeafBlock called as a function: implement `evaluate`") }
         else { __MajorBug("Catachall default implementation for non-evaluable block") }
     }

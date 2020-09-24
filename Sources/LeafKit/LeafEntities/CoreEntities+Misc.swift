@@ -1,28 +1,40 @@
 import Foundation
+import NIOConcurrencyHelpers
+
+internal extension LeafEntities {
+    func registerMisc() {
+        use(LKDSelfMethod(), asMethod: "type")
+        use(LKDSelfFunction(), asFunction: "type")
+        use(LeafTimestamp(), asFunction: "Timestamp")
+        use(LeafDateFormatters.ISO8601(), asFunction: "Date")
+        use(LeafDateFormatters.Fixed(), asFunction: "Date")
+        use(LeafDateFormatters.Localized(), asFunction: "Date")
+    }
+}
 
 /// A time interval relative to the specificed base date
 ///
 /// Default value for the reference date is the Swift Date `referenceDate` (2001-01-01 00:00:00 +0000)
-public struct LeafTimeInterval: LeafFunction, DoubleReturn {
-    public static var callSignature: CallParameters {[
+public struct LeafTimestamp: LeafFunction, DoubleReturn, Invariant {
+    public static var callSignature:[LeafCallParameter] {[
         .init(types: [.int, .double, .string], defaultValue: "now"),
         .string(labeled: "since", defaultValue: referenceBase.leafData),
     ]}
-    public static let invariant: Bool = false
     
-    public func evaluate(_ params: CallValues) -> LeafData {
-        guard let base = ReferenceBase(rawValue: params[1].string!) else { return .trueNil }
+    public func evaluate(_ params: LeafCallValues) -> LeafData {
+        guard let base = ReferenceBase(rawValue: params[1].string!) else {
+            return .error("\(params[1].string!) is not a valid reference base; must be one of \(ReferenceBase.allCases.description)") }
         let offset = base.interval
         if LKDTypeSet.numerics.contains(params[0].celf) {
             return .double(Date(timeIntervalSinceReferenceDate: offset + params[0].double!)
                             .timeIntervalSinceReferenceDate) }
-        guard let x = ReferenceBase(rawValue: params[0].string!) else { return .trueNil }
+        guard let x = ReferenceBase(rawValue: params[0].string!) else { return ReferenceBase.fault(params[0].string!) }
         return .double(base == x ? 0 : x.interval - offset)
     }
     
     @LeafRuntimeGuard public static var referenceBase: ReferenceBase = .referenceDate
             
-    public enum ReferenceBase: String, RawRepresentable, LeafDataRepresentable {
+    public enum ReferenceBase: String, RawRepresentable, CaseIterable, LeafDataRepresentable {
         case now
         case unixEpoch
         case referenceDate
@@ -30,7 +42,7 @@ public struct LeafTimeInterval: LeafFunction, DoubleReturn {
         case distantFuture
         
         public var leafData: LeafData { .string(rawValue) }
-        
+       
         internal var interval: Double {
             switch self {
                 case .now: return Date().timeIntervalSinceReferenceDate
@@ -40,26 +52,147 @@ public struct LeafTimeInterval: LeafFunction, DoubleReturn {
                 case .distantPast: return Date.distantPast.timeIntervalSinceReferenceDate
             }
         }
+        
+        internal static func fault(_ str: String) -> LeafData {
+            .error("\(str) is not a valid reference base; must be one of \(Self.terse)]")
+        }
     }
 }
 
-public struct LeafDateFormatter: LeafMethod, StringReturn {
-    public static var mutating: Bool { false }
-    public static var invariant: Bool { true }
+public struct LeafDateFormatters {
+    /// Used by `ISO8601`, `Fixed`, & `.Custom`
+    @LeafRuntimeGuard(condition: {TimeZone(identifier: $0) != nil})
+    public static var defaultTZIdentifier: String = "UTC"
     
-    public static var callSignature: CallParameters {[
-        .double,
-        .string(labeled: "format", defaultValue: defaultFormat.leafData),
-        .double(labeled: "offset", defaultValue: defaultTZOffset.leafData)
-    ]}
+    /// Used by `ISO8601`
+    @LeafRuntimeGuard public static var defaultFractionalSeconds: Bool = false
     
-    public func evaluate(_ params: CallValues) -> LeafData {
-        .trueNil
+    /// Used by `Custom`
+    @LeafRuntimeGuard(condition: {Locale.availableIdentifiers.contains($0)})
+    public static var defaultLocale: String = "en_US_POSIX"
+    
+    /// ISO8601 Date strings
+    public struct ISO8601: LeafFunction, StringReturn, Invariant {
+        public static var callSignature: [LeafCallParameter] {[
+            .init(types: [.int, .double, .string], defaultValue: .lazy(now, returns: .double)),
+            .string(labeled: "timeZone", defaultValue: defaultTZIdentifier.leafData)
+        ]}
+        
+        public func evaluate(_ params: LeafCallValues) -> LeafData {
+            let timestamp = params[0]
+            let zone = params[1].string!
+            var interval: Double
+            if timestamp.celf == .string {
+                guard let t = LeafTimestamp.ReferenceBase(rawValue: timestamp.string!) else {
+                    return LeafTimestamp.ReferenceBase.fault(timestamp.string!) }
+                interval = t.interval
+            } else { interval = timestamp.double! }
+            
+            var formatter = LeafDateFormatters[zone]
+            if formatter == nil {
+                guard let tZ = TimeZone(identifier: zone) else {
+                    return .error("\(zone) is not a valid time zone identifier") }
+                formatter = ISO8601DateFormatter()
+                formatter!.timeZone = tZ
+                if defaultFractionalSeconds { formatter!.formatOptions.update(with: .withFractionalSeconds) }
+                LeafDateFormatters[zone] = formatter
+            }
+            return .string(formatter!.string(from: base.addingTimeInterval(interval)))
+        }
     }
-    public func mutatingEvaluate(_ params: CallValues) -> (mutate: LeafData?, result: LeafData) {
-        __MajorBug("Non-mutating") }
     
-    @LeafRuntimeGuard public static var defaultFormat: String = "YYYY-MM-dd"
-    @LeafRuntimeGuard public static var defaultTZOffset: Double = 0.0
-    @LeafRuntimeGuard public static var formatters: [String: DateFormatter] = [:]
+    public struct Fixed: LeafFunction, StringReturn, Invariant {
+        public static var callSignature: [LeafCallParameter] {[
+            .init(label: "timeStamp", types: [.int, .double, .string]),
+            .string(labeled: "fixedFormat"),
+            .string(labeled: "timeZone", defaultValue: defaultTZIdentifier.leafData),
+        ]}
+        
+        public func evaluate(_ params: LeafCallValues) -> LeafData {
+            LeafDateFormatters.evaluate(params, fixed: true) }
+    }
+    
+    public struct Localized: LeafFunction, StringReturn, Invariant {
+        public static var callSignature: [LeafCallParameter] {[
+            .init(label: "timeStamp", types: [.int, .double, .string]),
+            .string(labeled: "localizedFormat"),
+            .string(labeled: "timeZone", defaultValue: defaultTZIdentifier.leafData),
+            .string(labeled: "locale", defaultValue: defaultLocale.leafData)
+        ]}
+        
+        public func evaluate(_ params: LeafCallValues) -> LeafData {
+            LeafDateFormatters.evaluate(params, fixed: false) }
+    }
+    
+    
+    internal struct Key: Hashable {
+        let format: String
+        let tZ: String
+        let locale: String?
+        
+        init(_ format: String, _ tZ: String, _ locale: String? = nil) {
+            self.format = format
+            self.tZ = tZ
+            self.locale = locale
+        }
+    }
+    
+    internal static subscript(timezone: String) -> ISO8601DateFormatter? {
+        get { lock.readWithLock { iso8601[timezone] } }
+        set { lock.writeWithLock { iso8601[timezone] = newValue } }
+    }
+    
+    internal static subscript(key: Key) -> DateFormatter? {
+        get { lock.readWithLock { locale[key] } }
+        set { lock.writeWithLock { locale[key] = newValue } }
+    }
+    
+    internal static var iso8601: [String: ISO8601DateFormatter] = [:]
+    internal static var locale: [Key: DateFormatter] = [:]
+    
+    internal static func timeZone(_ from: String) -> TimeZone? {
+        if let tz = TimeZone(abbreviation: from) {
+            return tz }
+        else if let tz = TimeZone(identifier: from) {
+            return tz
+        }
+        return nil
+    }
+    
+    internal static func evaluate(_ params: LeafCallValues, fixed: Bool) -> LeafData {
+        let f = params[1].string!
+        let z = params[2].string!
+        let l = params[3].string
+        let key = Key(f, z, l)
+        var formatter = Self[key]
+        
+        var timestamp = params[0]
+        if timestamp.celf == .string {
+            guard let t = LeafTimestamp.ReferenceBase(rawValue: timestamp.string!) else {
+                return LeafTimestamp.ReferenceBase.fault(timestamp.string!) }
+            timestamp = .double(t.interval)
+        }
+        
+        if formatter == nil {
+            guard let zone = TimeZone(identifier: z) else {
+                return .error("\(z) is not a valid time zone identifier") }
+            if l != nil, !Locale.availableIdentifiers.contains(l!) {
+                return .error("\(l!) is not a known locale identifier") }
+            formatter = DateFormatter()
+            formatter!.dateFormat = fixed ? f : DateFormatter.dateFormat(fromTemplate: f, options: 0, locale: Locale(identifier: l!))
+            formatter!.timeZone = zone
+            if !fixed { formatter!.locale = Locale(identifier: l!) }
+            Self[key] = formatter
+        }
+        
+        return .string(formatter!.string(from: base.addingTimeInterval(timestamp.double!)))
+    }
+    
+    internal static var base: Date {
+        Date(timeIntervalSinceReferenceDate: LeafTimestamp.referenceBase.interval) }
+    private static var now: () -> LeafData = {
+        LeafTimestamp().evaluate(.init(["now", LeafTimestamp.referenceBase.leafData], ["since": 1]))
+    }
+    
+    private static let lock: RWLock = .init()
 }

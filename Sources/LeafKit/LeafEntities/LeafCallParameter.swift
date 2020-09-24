@@ -44,13 +44,13 @@ public struct LeafCallParameter: LKPrintable, Equatable {
     static var bool: Self { .type(.bool) }
     static var data: Self { .type(.data) }
     
-    static func string(labeled: String, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+    static func string(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
         .init(label: labeled, types: .string, optional: optional, defaultValue: defaultValue) }
-    static func double(labeled: String, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+    static func double(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
         .init(label: labeled, types: .double, optional: optional, defaultValue: defaultValue) }
-    static func int(labeled: String, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+    static func int(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
         .init(label: labeled, types: .int, optional: optional, defaultValue: defaultValue) }
-    static func bool(labeled: String, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+    static func bool(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
         .init(label: labeled, types: .bool, optional: optional, defaultValue: defaultValue) }
     
     static var array: Self { .type(.array) }

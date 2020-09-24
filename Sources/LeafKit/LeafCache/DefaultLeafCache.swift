@@ -13,15 +13,15 @@ public final class DefaultLeafCache: LKSynchronousCache {
 
     /// Global setting for enabling or disabling the cache
     public var isEnabled: Bool {
-        get { locks.cache.withLock { _isEnabled } }
-        set { locks.cache.withLock { _isEnabled = newValue } }
+        get { locks.cache.readWithLock { _isEnabled } }
+        set { locks.cache.writeWithLock { _isEnabled = newValue } }
     }
 
-    public var count: Int { locks.cache.withLock { cache.count } }
+    public var count: Int { locks.cache.readWithLock { cache.count } }
     
-    public var isEmpty: Bool { locks.cache.withLock { cache.isEmpty } }
+    public var isEmpty: Bool { locks.cache.readWithLock { cache.isEmpty } }
     
-    public var keys: Set<LeafASTKey> { .init(locks.cache.withLock { cache.keys }) }
+    public var keys: Set<LeafASTKey> { .init(locks.cache.readWithLock { cache.keys }) }
 
     /// - Parameters:
     ///   - document: The `LeafAST` to store
@@ -60,7 +60,7 @@ public final class DefaultLeafCache: LKSynchronousCache {
     }
 
     public func touch(_ key: LeafASTKey, _ values: LeafASTTouch) {
-        if _isEnabled { locks.touch.withLockVoid { touches[key]!.aggregate(values: values) } }
+        if _isEnabled { locks.touch.writeWithLock { touches[key]!.aggregate(values: values) } }
     }
     
     public func info(for key: LeafASTKey, on loop: EventLoop) -> EventLoopFuture<LeafASTInfo?> {
@@ -74,10 +74,10 @@ public final class DefaultLeafCache: LKSynchronousCache {
         guard _isEnabled else { return .failure(err(.cachingDisabled)) }
         /// Blind failure if caching is disabled
         var e: Bool = false
-        locks.cache.withLockVoid {
+        locks.cache.writeWithLock {
             if replace || !cache.keys.contains(document.key) {
                 cache[document.key] = document
-                locks.touch.withLockVoid { touches[document.key] = .empty }
+                locks.touch.writeWithLock { touches[document.key] = .empty }
             } else { e = true }
         }
         guard !e else { return .failure(err(.keyExists(document.name))) }
@@ -87,9 +87,9 @@ public final class DefaultLeafCache: LKSynchronousCache {
     /// Blocking file load behavior
     func retrieve(_ key: LeafASTKey) -> LeafAST? {
         guard _isEnabled else { return nil }
-        return locks.cache.withLock {
+        return locks.cache.readWithLock {
             guard cache.keys.contains(key) else { return nil }
-            locks.touch.withLockVoid {
+            locks.touch.writeWithLock {
                 if touches[key]!.count >= 128,
                    let touch = touches.updateValue(.empty, forKey: key) {
                     cache[key]!.touch(values: touch) }
@@ -100,18 +100,25 @@ public final class DefaultLeafCache: LKSynchronousCache {
 
     /// Blocking file load behavior
     func remove(_ key: LeafASTKey) -> Bool? {
-        if locks.touch.withLock({ touches.removeValue(forKey: key) == nil }) { return nil }
-        locks.cache.withLockVoid { cache.removeValue(forKey: key) }
+        if locks.touch.writeWithLock({ touches.removeValue(forKey: key) == nil }) { return nil }
+        locks.cache.writeWithLock { _ = cache.removeValue(forKey: key) }
         return true
     }
     
     func info(for key: LeafASTKey) -> LeafASTInfo? {
-        locks.cache.withLock{ cache[key]?.info }
+        locks.cache.readWithLock {
+            guard cache.keys.contains(key) else { return nil }
+            locks.touch.writeWithLock {
+                if let touch = touches.updateValue(.empty, forKey: key) {
+                    cache[key]!.touch(values: touch) }
+            }
+            return cache[key]!.info
+        }
     }
 
     // MARK: - Stored Properties - Private Only
     private var _isEnabled: Bool = true
-    private let locks: (cache: Lock, touch: Lock)
+    private let locks: (cache: RWLock, touch: RWLock)
     /// NOTE: internal read-only purely for test access validation - not assured
     private(set) var cache: [LeafASTKey: LeafAST]
     private var touches: [LeafASTKey: LeafASTTouch]

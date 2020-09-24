@@ -53,7 +53,7 @@ extension UUID: LeafDataRepresentable {
 extension Date: LeafDataRepresentable {
     /// `Date` conversion is reliant on the configured `LeafTimeInterval.referenceBase`
     public var leafData: LeafData {
-        .double(timeIntervalSince(Date(timeIntervalSinceReferenceDate: LeafTimeInterval.referenceBase.interval))) }
+        .double(timeIntervalSince(Date(timeIntervalSinceReferenceDate: LeafTimestamp.referenceBase.interval))) }
 }
 
 extension Array where Element == LeafData {

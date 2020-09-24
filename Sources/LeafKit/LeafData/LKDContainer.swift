@@ -26,6 +26,8 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     /// A lazy evaluation of the param - Must be generated *only* during `LKSerialize` to defer evaluation
     case evaluate(param: LKParameter.Container)
 
+    case error(reason: String, function: String)
+    
     // MARK: - Properties
 
     /// The LeafDataType the container will evaluate to
@@ -43,6 +45,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case .lazy(_, let t),
                  .optional(_, let t) : return t
             case .evaluate           : return .void
+            case .error              : return .void
         }
     }
 
@@ -86,7 +89,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
         switch self {
             case .array(let a)       : return "array(count: \(a.count))"
             case .bool(let b)        : return "bool(\(b))"
-            case .data(let d)        : return "data(\(d.count.formatBytes))"
+            case .data(let d)        : return "data(\(d.count.formatBytes())"
             case .dictionary(let d)  : return "dictionary(count: \(d.count))"
             case .double(let d)      : return "double(\(d))"
             case .int(let i)         : return "int(\(i))"
@@ -94,6 +97,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case .optional(_, let t) : return "\(t)()?"
             case .string(let s)      : return "string(\(s))"
             case .evaluate           : return "evaluate(deferred)"
+            case .error              : return "error(\(self.error!)"
         }
     }
 
@@ -105,9 +109,14 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     /// Flat mapping behavior - will never re-wrap .optional
     var wrap: Self { isOptional ? self : .optional(self, baseType) }
     var unwrap: Self? { if case .optional(let o, _) = self { return o } else { return self } }
-
+    
+    /// Nil if not errored, or errored function/reason
+    var error: String? { if case .error(let r, let f) = self { return "\(f): \(r)" } else { return nil } }
+    
     var state: LKDState {
         var state: LKDState
+        if case .error = self { return .error }
+        
         switch baseType {
             case .array      : state = .array
             case .bool       : state = .bool
@@ -128,20 +137,23 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     }
 }
 
+/// Various conveniences for bit ops on LKDContainers
+///
+/// Note: rawValue of 0 is implicit `Error` type
 internal struct LKDState: OptionSet {
     let rawValue: UInt16
     init(rawValue: UInt16) { self.rawValue = rawValue }
 
     /// Top 4 bits for container case
     static let celfMask = Self(rawValue: 0xF000)
-    static let _void = Self(rawValue: 0 << 12)
-    static let _bool = Self(rawValue: 1 << 12)
-    static let _int = Self(rawValue: 2 << 12)
-    static let _double = Self(rawValue: 3 << 12)
-    static let _string = Self(rawValue: 4 << 12)
-    static let _array = Self(rawValue: 5 << 12)
-    static let _dictionary = Self(rawValue: 6 << 12)
-    static let _data = Self(rawValue: 7 << 12)
+    static let _void = Self(rawValue: 1 << 12)
+    static let _bool = Self(rawValue: 2 << 12)
+    static let _int = Self(rawValue: 3 << 12)
+    static let _double = Self(rawValue: 4 << 12)
+    static let _string = Self(rawValue: 5 << 12)
+    static let _array = Self(rawValue: 6 << 12)
+    static let _dictionary = Self(rawValue: 7 << 12)
+    static let _data = Self(rawValue: 8 << 12)
 
     static let numeric = Self(rawValue: 1 << 0)
     static let comparable = Self(rawValue: 1 << 1)
@@ -150,6 +162,8 @@ internal struct LKDState: OptionSet {
     static let optional = Self(rawValue: 1 << 4)
     static let `nil` = Self(rawValue: 1 << 5)
 
+    static let error: Self = Self(rawValue: 0)
+    
     static let void: Self = [_void]
     static let bool: Self = [_bool, comparable]
     static let int: Self = [_int, comparable, numeric]

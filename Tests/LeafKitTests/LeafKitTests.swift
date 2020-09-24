@@ -12,7 +12,7 @@ final class ParserTests: LeafTestClass {
 
         let expectation = """
         0: if([lowercased([$:name.first == string(admin)]) == string(welcome)]):
-        1: raw(ByteBuffer: 5B)
+        1: raw(LeafBuffer: 5B)
         """
 
         try XCTAssertEqual(parse(input).terse, expectation)
@@ -29,9 +29,9 @@ final class ParserTests: LeafTestClass {
 
         let expectation = """
         0: if($:foo):
-        1: raw(ByteBuffer: 5B)
+        1: raw(LeafBuffer: 5B)
         2: else:
-        3: raw(ByteBuffer: 5B)
+        3: raw(LeafBuffer: 5B)
         """
 
         try XCTAssertEqual(parse(input).terse, expectation)
@@ -53,15 +53,15 @@ final class ParserTests: LeafTestClass {
         let expectation = """
         0: if($:sayhello):
         1: scope(table: 1)
-           0: raw(ByteBuffer: 13B)
+           0: raw(LeafBuffer: 13B)
            1: for($:names):
            2: scope(table: 2)
-              0: raw(ByteBuffer: 13B)
+              0: raw(LeafBuffer: 13B)
               1: $:name
-              2: raw(ByteBuffer: 5B)
-           3: raw(ByteBuffer: 9B)
+              2: raw(LeafBuffer: 5B)
+           3: raw(LeafBuffer: 9B)
         2: else:
-        3: raw(ByteBuffer: 9B)
+        3: raw(LeafBuffer: 9B)
         """
 
         try XCTAssertEqual(parse(input).terse, expectation)
@@ -91,23 +91,23 @@ final class ParserTests: LeafTestClass {
         let preinline = """
         0: inline("header", leaf):
         1: scope(undefined)
-        2: raw(ByteBuffer: 8B)
+        2: raw(LeafBuffer: 8B)
         3: evaluate(title):
         4: scope(undefined)
-        5: raw(ByteBuffer: 9B)
+        5: raw(LeafBuffer: 9B)
         6: inline("header", leaf):
         7: scope(undefined)
         """
 
         let expectation = """
         0: inline("header", leaf):
-        1: raw(ByteBuffer: 12B)
-        2: raw(ByteBuffer: 8B)
+        1: raw(LeafBuffer: 12B)
+        2: raw(LeafBuffer: 8B)
         3: evaluate(title):
         4: scope(undefined)
-        5: raw(ByteBuffer: 9B)
+        5: raw(LeafBuffer: 9B)
         6: inline("header", leaf):
-        7: raw(ByteBuffer: 12B)
+        7: raw(LeafBuffer: 12B)
         """
 
         var baseAST = try parse(base, name: "base")
@@ -143,21 +143,21 @@ final class ParserTests: LeafTestClass {
         1: string(Welcome)
         3: export(body):
         4: scope(table: 1)
-           0: raw(ByteBuffer: 12B)
+           0: raw(LeafBuffer: 12B)
            1: $:name
-           2: raw(ByteBuffer: 2B)
+           2: raw(LeafBuffer: 2B)
         6: extend("base", leaf):
         7: scope(table: 2)
            0: extend("header", leaf):
            1: scope(table: 3)
-              0: raw(ByteBuffer: 4B)
+              0: raw(LeafBuffer: 4B)
               1: import(header):
               2: scope(undefined)
-              3: raw(ByteBuffer: 5B)
-           2: raw(ByteBuffer: 8B)
+              3: raw(LeafBuffer: 5B)
+           2: raw(LeafBuffer: 8B)
            3: import(title):
            4: scope(undefined)
-           5: raw(ByteBuffer: 9B)
+           5: raw(LeafBuffer: 9B)
            6: import(body):
            7: scope(undefined)
         """
@@ -186,9 +186,9 @@ final class ParserTests: LeafTestClass {
         1: string(Welcome)
         3: define(body):
         4: scope(table: 1)
-           0: raw(ByteBuffer: 12B)
+           0: raw(LeafBuffer: 12B)
            1: $:name
-           2: raw(ByteBuffer: 2B)
+           2: raw(LeafBuffer: 2B)
         6: inline("base", leaf):
         7: scope(undefined)
         """
@@ -330,9 +330,9 @@ final class LexerTests: LeafTestClass {
         1: string(Welcome)
         3: export(body):
         4: scope(table: 1)
-           0: raw(ByteBuffer: 12B)
+           0: raw(LeafBuffer: 12B)
            1: $:name
-           2: raw(ByteBuffer: 2B)
+           2: raw(LeafBuffer: 2B)
         6: extend("base", leaf):
         7: scope(undefined)
         """
@@ -480,13 +480,13 @@ final class LeafKitTests: LeafTestClass {
 //            }
 //        }
         struct CustomTag: LeafFunction {
-            static let callSignature: CallParameters = [
+            static let callSignature:[LeafCallParameter] = [
                 .init(types: [.string], defaultValue: ""),
                 .init(types: [.string], defaultValue: "") ]
             static let returns: Set<LeafDataType> = [.string]
             static let invariant: Bool = false
             
-            func evaluate(_ params: CallValues) -> LeafData {
+            func evaluate(_ params: LeafCallValues) -> LeafData {
                 .string(params[0].string! + params[1].string!) }
         }
         
@@ -530,7 +530,7 @@ final class LeafKitTests: LeafTestClass {
         var stop: Double = 0
         self.measure {
             let start = Date()
-            let result = self._testCacheSpeedLinear(templates: 250, iterations: iterations)
+            let result = self._testCacheSpeedLinear(templates: 50, iterations: iterations)
             dur += result.0
             ser += result.1
             stop += start.distance(to: Date())
@@ -540,15 +540,15 @@ final class LeafKitTests: LeafTestClass {
         stop /= 10
         print("Linear Cache Speed: \(iterations) render")
         print("\(String(format:"%.2f%%", 100.0*(stop-dur)/stop)) test overhead")
-        print("\(dur.formatSeconds) avg/test: \((dur/Double(iterations)).formatSeconds)/\(ser.formatSeconds) pipe:serialize/iteration")
+        print("\(dur.formatSeconds()) avg/test: \((dur/Double(iterations)).formatSeconds()):\(ser.formatSeconds()) pipe:serialize/iteration")
     }
 
     func _testCacheSpeedLinear(templates: Int, iterations: Int) -> (Double, Double) {
-        let threads = max(System.coreCount, 1)
+        let threads = min(System.coreCount, 4)
         let group = MultiThreadedEventLoopGroup(numberOfThreads: threads)
         var test = TestFiles()
 
-        for name in 1...templates { test.files["/\(name).leaf"] = "#lowercased(\"Template /\(name).leaf\")" }
+        for name in 1...templates { test.files["/\(name).leaf"] = "#Date(Timestamp() + \((-1000000...1000000).randomElement()!).0)" }
 //        for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf\"" }
         let per = iterations / threads
         var left = iterations
@@ -565,10 +565,8 @@ final class LeafKitTests: LeafTestClass {
             renderers[which].r.eventLoop.makeSucceededFuture(template).flatMap {
                 renderers[which].render(path: $0, context: ["iteration": iteration.leafData])
             }.whenComplete {
-                switch $0 {
-                    case .failure(let e): XCTFail(e.localizedDescription)
-                    case .success: renderers[which].finishTask()
-                }
+                renderers[which].finishTask()
+                if case .failure(let e) = $0 { XCTFail(e.localizedDescription) }
             }
         }
 
@@ -581,23 +579,12 @@ final class LeafKitTests: LeafTestClass {
         }.reduce(into: 0, { $0 += $1 })
         serialize /= Double(templates * threads)
 
-//        (renderer.r.cache as! DefaultLeafCache).cache.values.forEach {
-//            let avg = $0.info.averages
-//            let max = $0.info.maximums
-//            let summary = """
-//            \($0.key): \($0.info.touches) cache hits
-//                Execution Time: \(avg.exec.formatSeconds) average, \(max.exec.formatSeconds) maximum
-//               Serialized Size: \(avg.size.formatBytes) average, \(max.size.formatBytes) maximum
-//            """
-//            print(summary)
-//        }
-
         try! group.syncShutdownGracefully()
         return (duration, serialize)
     }
 
     func testCacheSpeedRandom() {
-        let iterations = 1_000
+        let iterations = 130
         var dur: Double = 0
         var ser: Double = 0
         var stop: Double = 0
@@ -614,7 +601,7 @@ final class LeafKitTests: LeafTestClass {
         stop /= 10
         print("Random Cache Speed: \(iterations) render")
         print("\(String(format:"%.2f%%", 100.0*(stop-dur)/stop)) test overhead")
-        print("\(dur.formatSeconds) avg/test: \((dur/Double(iterations)).formatSeconds)/\(ser.formatSeconds) pipe:serialize/iteration")
+        print("\(dur.formatSeconds()) avg/test: \((dur/Double(iterations)).formatSeconds())/\(ser.formatSeconds()) pipe:serialize/iteration")
     }
 
     func _testCacheSpeedRandom(layer1: Int,
@@ -686,9 +673,9 @@ final class LeafKitTests: LeafTestClass {
         #inline("parameter")
         """
         test.files["/parameter.leaf"] = """
-        #if(evaluate(adminValue)):
+        #if(evaluate(adminValue ?? false)):
             Hi Admin
-        #elseif(evaluate(delegated)):
+        #elseif(evaluate(delegated ?? false)):
             Also an admin
         #else:
             No Access
@@ -805,5 +792,137 @@ final class LeafKitTests: LeafTestClass {
             let error = error as! LeafError
             XCTAssert(error.localizedDescription.contains("No searchable sources exist"))
         }
+    }
+    
+    func testInline() throws {
+        let template = """
+        #(var variable = 10)
+        #inline("external", as: raw)
+        #inline("external", as: leaf)
+        #inline("external")
+        """
+        
+        var testFiles = TestFiles()
+        testFiles.files = ["/template.leaf": template,
+                           "/external.leaf": "#(variable)",
+                           "/uncachedraw.leaf": "#inline(\"excessiveraw.txt\", as: raw)",
+                           "/excessiveraw.txt": .init(repeating: ".",
+                                                      count: Int(LKConf.rawCachingLimit) + 1)]
+        
+        let expected = """
+
+        #(variable)
+        10
+        10
+        """
+        
+        
+        let renderer = TestRenderer(sources: .singleSource(testFiles))
+        let output = try renderer.render(path: "template").wait().string
+        let info = try renderer.r.info(for: "template").wait()!
+        XCTAssertEqual(output, expected)
+        XCTAssertTrue(info.resolved)
+        
+        let excessive = try renderer.render(path: "uncachedraw").wait().string
+        let ast = (renderer.r.cache as! DefaultLeafCache).retrieve(.searchKey("uncachedraw"))!
+        XCTAssertTrue(excessive.count == Int(LKConf.rawCachingLimit) + 1)
+        XCTAssertTrue(ast.info.requiredRaws.contains("excessiveraw.txt"))
+    }
+    
+    func testDatesAndFormatters() throws {
+        IntFormatterMap.defaultPlaces = 2
+        DoubleFormatterMap.defaultPlaces = 3
+        
+        let template = """
+        Set start time#(let start = Timestamp())
+        Bytes: #((500).formatBytes())
+        Kilobytes: #((5_000).formatBytes())
+        Megabytes: #((5_000_000).formatBytes())
+        Gigabytes: #((5_000_000_000).formatBytes())
+        unixEpoch: #Timestamp("unixEpoch")
+        unixEpoch rebased: #Timestamp("unixEpoch", since: "unixEpoch")
+        Formatted "referenceDate": #Date("referenceDate")
+        Formatted "referenceDate": #Date("referenceDate", timeZone: "Europe/Athens")
+        Fixed "unixEpoch": #Date(timeStamp: "unixEpoch",
+                                 fixedFormat: "MM.dd.yyyy HH:mm",
+                                 timeZone: "GMT-4") EST
+        Localized "unixEpoch": #Date(timeStamp: "unixEpoch",
+                                     localizedFormat: "MMddyyyy",
+                                     locale: "en_GR")
+        """
+        
+        let expected = """
+        Set start time
+        Bytes: 500B
+        Kilobytes: 4.88KB
+        Megabytes: 4.77MB
+        Gigabytes: 4.66GB
+        unixEpoch: -978307200.0
+        unixEpoch rebased: 0.0
+        Formatted "referenceDate": 2001-01-01T00:00:00Z
+        Formatted "referenceDate": 2001-01-01T02:00:00+02:00
+        Fixed "unixEpoch": 12.31.1969 20:00 EST
+        Localized "unixEpoch": 01/01/1970
+        """
+        
+        let output = try render(template)
+        print(output)
+        XCTAssertEqual(output, expected)
+    }
+    
+    func testType() throws {
+        let template = """
+        #type(of: 0)
+        #type(of: 0.0)
+        #type(of: "0")
+        #type(of: [0])
+        #type(of: ["zero": 0])
+        #(x.type())
+        #if(x.type() == "String?"):x is an optional String#endif
+        """
+        
+        let expected = """
+        Int
+        Double
+        String
+        Array
+        Dictionary
+        String?
+        x is an optional String
+        """
+        
+        let output = try render(template, ["x": .string(nil)])
+        XCTAssertEqual(output, expected)
+    }
+    
+    // FIXME: Catching assertion?!
+    func _testRuntimeGuard() throws {
+        _ = try render("Blahblahblah")
+        LeafBuffer.intFormatter = {"\($0.description)"}
+    }
+    
+    func testRawBlock() throws {
+        let template = """
+        #raw():
+        Body
+            #raw():
+            More Body #("and a" + variable)
+            #endraw
+        #endraw
+        """
+        
+        let expected = """
+        0: raw:
+        1: scope(table: 1)
+           0: raw(LeafBuffer: 10B)
+           1: raw:
+           2: scope(table: 2)
+              0: raw(LeafBuffer: 15B)
+              1: [string(and a) + $:variable]
+              2: raw(LeafBuffer: 5B)
+        """
+        
+        let parsed = try parse(template)
+        XCTAssertEqual(parsed.terse, expected)
     }
 }

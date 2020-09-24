@@ -18,8 +18,11 @@ public final class LeafEntities {
         entities.registerArrayReturns()
         entities.registerBoolReturns()
         entities.registerIntReturns()
+        entities.registerDoubleReturns()
         entities.registerStringReturns()
         entities.registerMutatingMethods()
+        
+        entities.registerMisc()
         
         return entities
     }
@@ -53,7 +56,7 @@ public final class LeafEntities {
 
     /// Initializer
     /// - Parameter rawHandler: The default factory for `.raw` blocks
-    init(rawHandler: LKRawBlock.Type = LKBuffer.self) {
+    init(rawHandler: LKRawBlock.Type = LeafBuffer.self) {
         self.rawFactories = [Self.defaultRaw: rawHandler]
         self.blockFactories = [:]
         self.functions = [:]
@@ -61,7 +64,9 @@ public final class LeafEntities {
         self.types = [:]
     }
     
-    internal func use<T>(_ swiftType: T.Type, asType name: String, storeAs: LeafDataType) where T: LeafDataRepresentable {
+    internal func use<T>(_ swiftType: T.Type,
+                         asType name: String,
+                         storeAs: LeafDataType) where T: LeafDataRepresentable {
         if !LKConf.running(fault: "Cannot register new types") {
             precondition(storeAs != .void, "Void is not a valid storable type")
             precondition(!types.keys.contains(name),
@@ -145,6 +150,7 @@ public final class LeafEntities {
         if !LKConf.running(fault: "Cannot register new method \(name)") {
             name._sanity()
             method.sig._sanity()
+            type(of: method)._sanity()
             if methods.keys.contains(name) {
                 methods[name]!.forEach {
                     precondition(!method.sig.confusable(with: $0.sig),
@@ -208,7 +214,8 @@ public final class LeafEntities {
         let block: LeafFunction?
         var call: LKTuple = .init()
 
-        validate: if let parseSigs = factory.parseSignatures {
+        validate:
+        if let parseSigs = factory.parseSignatures {
             for (name, sig) in parseSigs {
                 guard let match = sig.splitTuple(params ?? .init()) else { continue }
                 guard let created = try? factory.instantiate(name, match.0) else {
@@ -218,8 +225,8 @@ public final class LeafEntities {
                 break validate
             }
             block = nil
-        } else if let params = params ?? call, params.count == factory.callSignature.count {
-            call = params
+        } else if (params?.count ?? 0) == factory.callSignature.count {
+            if let params = params { call = params }
             block = try? factory.instantiate(nil, [])
         } else { return .failure("Factory doesn't take parameters") }
 
@@ -253,7 +260,7 @@ public final class LeafEntities {
         }
     }
 
-    func validateTupleCall(_ tuple: LKTuple?, _ expected: CallParameters) -> Result<LKTuple, String> {
+    func validateTupleCall(_ tuple: LKTuple?, _ expected: [LeafCallParameter]) -> Result<LKTuple, String> {
         /// True if actual parameter matches expected parameter value type, or if actual parameter is uncertain type
         func matches(_ actual: LKParameter, _ expected: LeafCallParameter) -> Bool {
             guard let t = actual.baseType else { return true }
@@ -284,7 +291,7 @@ public final class LeafEntities {
         if Int(count.in) + defaults < count.out { return .failure("Not enough parameters") }
 
         /// guard that if the signature has labels, input is fully contained and in order
-        let labels = (in: tuples.in.labels.keys, out: expected.compactMap {$0.label})
+        let labels = (in: tuples.in.enumerated.compactMap {$0.label}, out: expected.compactMap {$0.label})
         guard labels.out.filter({labels.in.contains($0)}).elementsEqual(labels.in),
               Set(labels.out).isSuperset(of: labels.in) else { return .failure("Label mismatch") }
 
@@ -317,7 +324,7 @@ public final class LeafEntities {
         return output()
     }
 
-    static let defaultRaw: String = "default"
+    static let defaultRaw: String = "raw"
 }
 
 // MARK: - Internal Sanity Checkers
@@ -329,11 +336,7 @@ internal extension String {
     }
 }
 
-
-
-
-
-internal extension CallParameters {
+internal extension Array where Element == LeafCallParameter {
     /// Veryify the `CallParameters` is valid
     func _sanity() {
         precondition(self.count < 256,

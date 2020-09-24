@@ -23,6 +23,8 @@ public struct LeafAST: Hashable {
     ///
     /// If the block has *not* been inlined, `Date` will be .distantFuture
     var inlines: ContiguousArray<(inline: Jump, process: Bool, at: Date)>
+    /// Cached copies of raw inlines (where small enough to store in the AST directly)
+    var raws: [String: ByteBuffer]
     /// Whether this AST was obtained from `LeafCache`
     var cached: Bool
     /// Absolute minimum size of a rendered document from this AST
@@ -137,6 +139,7 @@ internal extension LeafAST {
         self.scopes = scopes.contiguous()
         self.defines = defines
         self.inlines = .init(inlines)
+        self.raws = [:]
         self.stackDepths = stackDepths
         self.underestimatedSize = underestimatedSize
         self.own = (scopes: scopes.indices.last!,
@@ -227,18 +230,22 @@ internal extension LeafAST {
 
     /// Inline raw ByteBuffers
     mutating func inline(raws: [String: ByteBuffer]) {
-        let stamp = Date()
-        for (index, pointer) in inlines.enumerated() where pointer.process == false {
-            let p = pointer.inline
-            guard let buffer = raws[p.identifier],
-                  case .raw(let r) = scopes[p.table][p.row + 1].container else { continue }
-            let insert = type(of: r).instantiate(data: buffer, encoding: LKConf.encoding)
-            scopes[p.table][p.row + 1] = .raw(insert)
-            inlines[index].at = stamp
-            info.underestimatedSize += buffer.byteCount - r.byteCount
+        raws.forEach { inline(name: $0, raw: $1) }
+    }
+    
+    mutating func inline(name: String, raw: ByteBuffer) {
+        info.requiredRaws.remove(name)
+        if raw.readableBytes <= LKConf.rawCachingLimit { cached = false }
+        raws[name] = raw
+    }
+    
+    mutating func stripOversizeRaws() {
+        raws.keys.forEach {
+            if raws[$0]!.readableBytes > LKConf.rawCachingLimit {
+                raws[$0] = nil
+                info.requiredRaws.insert($0)
+            }
         }
-        raws.keys.forEach { info.requiredRaws.remove($0) }
-        cached = false
     }
 
     /// Return to an unresolved state

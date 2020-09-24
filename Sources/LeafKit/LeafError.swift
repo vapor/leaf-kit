@@ -34,6 +34,9 @@ public struct LeafError: Error, CustomStringConvertible {
         /// Attempt to render a non-flat AST
         /// - Provide template name & array of unresolved references
         case unresolvedAST(String, [String])
+        /// Attempt to render a non-flat AST
+        /// - Provide raw file name needed
+        case missingRaw(String)
         /// Attempt to render a non-existant template
         /// Provide template name
         case noTemplateExists(String)
@@ -86,8 +89,9 @@ public struct LeafError: Error, CustomStringConvertible {
             case .noValueForKey(let k)        : m += "No cache entry exists for \(k)"
             case .noTemplateExists(let k)     : m += "No template found for \(k)"
             case .unresolvedAST(let k, let d) : m += "\(k) has unresolved dependencies: \(d)"
-            case .timeout(let d)              : m += "Exceeded timeout at \(d.formatSeconds)"
+            case .timeout(let d)              : m += "Exceeded timeout at \(d.formatSeconds())"
             case .configurationError(let d)   : m += "Configuration error: \(d)"
+            case .missingRaw(let f)           : m += "Missing raw inline file \"\(f)\""
             case .cyclicalReference(let k, let c)
                 : m += "\(k) cyclically referenced in [\((c + ["!\(k)"]).joined(separator: " -> "))]"
                 

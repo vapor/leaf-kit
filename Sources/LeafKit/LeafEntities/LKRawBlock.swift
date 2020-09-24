@@ -4,20 +4,8 @@
 ///
 /// It may optionally process in another language and maintain its own state.
 internal protocol LKRawBlock: LeafFunction {
-    /// If this raw handler is stateful
-    /// - False if this handler makes no attempts to manage the state of its contents.
-    /// - True if it should be signaled when the next raw block is the same type
-    static var stateful: Bool { get }
-
     /// If the raw handler should be recalled after it has been provided its block's serialized contents
     static var recall: Bool { get }
-
-    /// Generate a `.raw` block
-    /// - Parameters:
-    ///   - data: Raw ByteBuffer input, if any exists yet
-    ///   - encoding: Encoding of the incoming string.
-    static func instantiate(data: ByteBuffer?,
-                            encoding: String.Encoding) -> LKRawBlock
 
     /// Generate a `.raw` block
     /// - Parameters:
@@ -26,7 +14,7 @@ internal protocol LKRawBlock: LeafFunction {
     static func instantiate(size: UInt32,
                             encoding: String.Encoding) -> LKRawBlock
 
-    /// Adherent must be able to provide a serialized view of itself in entirety
+    /// Adherent must be able to provide a serialized view of itself in entirety while open or closed
     ///
     /// `valid` shall be semantic for the block type. An HTML raw block might report as follows
     /// ```
@@ -48,6 +36,9 @@ internal protocol LKRawBlock: LeafFunction {
     mutating func append(_ block: inout LKRawBlock)
 
     mutating func append(_ data: LeafData)
+    
+    /// If type is `recall == true`, will be called when the block's scope is closed to allow cleanup/additions/validation
+    mutating func close()
 
     /// Bytes in the raw buffer
     var byteCount: UInt32 { get }
@@ -56,15 +47,14 @@ internal protocol LKRawBlock: LeafFunction {
 
 /// Default implementations for typical `LKRawBlock`s
 extension LKRawBlock {
-    /// Most `RawBlocks` won't have a parse signature
-//    static var parseSignatures: [String: [ParseParameter]]? { nil }
     /// Most blocks are not evaluable
     public static var returns: Set<LeafDataType> { .void }
 
     public static var invariant: Bool { true }
-    public static var callSignature: CallParameters {[]}
+    public static var callSignature:[LeafCallParameter] { [] }
 
     /// RawBlocks will never be called with evaluate
-    public func evaluate(_ params: CallValues) -> LeafData { .trueNil }
+    public func evaluate(_ params: LeafCallValues) -> LeafData { .error(internal: "LKRawBlock called as function") }
+    var recall: Bool { Self.recall }
 }
 

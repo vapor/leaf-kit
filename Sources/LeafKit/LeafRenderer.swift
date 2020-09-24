@@ -83,6 +83,10 @@ public final class LeafRenderer {
         }
         return _render(.init(source, path), context)
     }
+    
+    public func info(for path: String) -> EventLoopFuture<LeafASTInfo?> {
+        cache.info(for: .searchKey(path), on: eL)
+    }
 
     func _render(_ key: LeafASTKey, _ ctx: [String: LKData]) -> ELF<ByteBuffer> {
         /// Short circuit for resolved blocking cache hits
@@ -100,21 +104,27 @@ public final class LeafRenderer {
     /// Call with any state of ASTBox - will fork to various behaviors as required until finally returning a
     /// cached and serializable AST, if a failure hasn't bubbled out
     private func arbitrate(_ ast: LeafAST, via chain: [String] = []) -> ELF<LeafAST> {
-        if ast.info.requiredASTs.isEmpty {
-            /// Succeed immediately if the ast is cached and doesn't need resolution
+        if ast.info.requiredASTs.isEmpty && ast.info.requiredRaws.isEmpty {
+            /// Succeed immediately if the ast is cached and doesn't need any kind of resolution
             if ast.cached { return succeed(ast, on: eL) }
-            var ast = ast
-            ast.cached = true
+            var toCache = ast
+            toCache.stripOversizeRaws()
+            toCache.cached = true
+                        
             /// If cache is blocking, force insert and succeed immediately
             if cacheIsSync {
-                switch blockingCache!.insert(ast, replace: true) {
-                    case .success(let ast): return succeed(ast, on: eL)
-                    case .failure(let err): return fail(err, on: eL)
+                switch blockingCache!.insert(toCache, replace: true) {
+                    case .success        : return succeed(ast, on: eL)
+                    case .failure(let e) : return fail(e, on: eL)
                 }
             }
             /// Future-based cache insertion and succeed
-            return cache.insert(ast, on: eL, replace: true)
+            return cache.insert(toCache, on: eL, replace: true).map { _ in ast }
         }
+        
+        /// No ASTs need to be inlined but raws are needed
+        if !ast.info.requiredRaws.isEmpty { return arbitrateRaws(ast) }
+        
         /// If the AST is missing template inlines, try to resolve - resolve will recall arbitrate or fail as necessary
         /// An unresolved AST is not necessarily an unserializable document though:...
         /// Guard against cycles
@@ -156,6 +166,16 @@ public final class LeafRenderer {
             return try parser.parse()
         }
     }
+    
+    private func arbitrateRaws(_ ast: LeafAST) -> ELF<LeafAST> {
+        let fetches = ast.info.requiredRaws.map { self.readRaw($0) }
+        return ELF.reduce(into: ast, fetches, on: eL) { $0.inline(name: $1.0, raw: $1.1 ) }
+                  .flatMap { self.arbitrate($0) }
+    }
+    
+    private func readRaw(_ name: String, _ escape: Bool = false) -> ELF<(String, ByteBuffer)> {
+        sources.find(.searchKey(name), on: eL).map { (_, buffer) in (name, buffer) }
+    }
 
     /// Attempt to resolve a `LeafAST` - call only when ast has unresolved inlines
     private func resolve(_ ast: LeafAST, _ chain: [String] = []) -> ELF<LeafAST> {
@@ -171,35 +191,40 @@ public final class LeafRenderer {
     private func preflight(_ ast: LeafAST,
                            _ context: [String: LeafData]) -> ELF<ByteBuffer> {
         // FIXME: Configure behavior for rendering where "needed" is non empty
-            var needed = Set<LKVariable>(ast.info._requiredVars.map { !$0.isScoped ? $0.contextualized : $0 })
-            /// Reduce incoming data to only symbols required by the AST
-            var contexts: LKVarTable = needed.contains(.`self`) ? [.`self`: .dictionary(context)] : [:]
-            let context = context.filter {$0.key.isValidIdentifier}
-                                 .map { (LKVariable.atomic($0.key).contextualized, $0.value) }
-                                 .filter { needed.contains($0.0) }
-            contexts.merge(context, uniquingKeysWith: {a, b in a})
-            needed.subtract(contexts.keys)
-            
-            for (key, value) in self.userInfo ?? [:] {
-                guard let scope = key as? String, let key = LKVariable(scope), key != .`self` else { continue }
-                if needed.contains(key), let v = value as? LeafDataRepresentable {
-                    contexts[key] = v.leafData; needed.remove(key)
-                }
-                let scoped = needed.filter({$0.scope == scope})
-                guard !scoped.isEmpty, let dict = value as? [String: LeafDataRepresentable] else { continue }
-                scoped.forEach { if let v = dict[$0.member!] { contexts[$0] = v.leafData }; needed.remove($0) }
+        var needed = Set<LKVariable>(ast.info._requiredVars.map { !$0.isScoped ? $0.contextualized : $0 })
+        var contexts: LKVarTable = [.`self`: .dictionary(context)]
+        _ = context.filter { $0.key.isValidIdentifier }
+                   .map { contexts[LKVariable.atomic($0.key).contextualized] = $0.value }
+        needed.subtract(contexts.keys)
+        
+        for (key, value) in self.userInfo ?? [:] {
+            guard let scope = key as? String,
+                  let key = LKVariable(scope),
+                  key != .`self` else { continue }
+            if needed.contains(key),
+               let v = value as? LeafDataRepresentable {
+                contexts[key] = v.leafData
+                needed.remove(key)
             }
-            
-            var block = LKConf.entities.raw.instantiate(size: ast.info.underestimatedSize,
-                                                        encoding: LKConf.encoding)
-            let serializer = LKSerializer(ast, varTable: contexts, type(of: block), userInfo)
-            switch serializer.serialize(&block) {
-                case .success(let t) : cache.touch(serializer.ast.key,
-                                                   .atomic(time: t, size: block.byteCount))
-                                       return succeed(block.serialized.buffer, on: eL)
-                case .failure(let e) : return fail(e, on: eL)
+            let scoped = needed.filter({$0.scope == scope})
+            guard !scoped.isEmpty,
+                  let dict = value as? [String: LeafDataRepresentable] else { continue }
+            scoped.forEach {
+                if let v = dict[$0.member!] { contexts[$0] = v.leafData }
+                needed.remove($0)
+            }
+        }
+        
+        var block = LKConf.entities.raw.instantiate(size: ast.info.underestimatedSize,
+                                                    encoding: LKConf.encoding)
+        let serializer = LKSerializer(ast, varTable: contexts, type(of: block), userInfo)
+        switch serializer.serialize(&block) {
+            case .success(let t) : cache.touch(serializer.ast.key,
+                                               .atomic(time: t, size: block.byteCount))
+                                   return succeed(block.serialized.buffer, on: eL)
+            case .failure(let e) : return fail(e, on: eL)
 
-            }
+        }
 
     }
     

@@ -11,33 +11,33 @@ extension LeafEntities {
 
 internal protocol TypeCast: LKMapMethod {}
 extension TypeCast {
-    func evaluate(_ params: CallValues) -> LKData { params[0] }
+    func evaluate(_ params: LeafCallValues) -> LKData { params[0] }
 }
 
 struct IntIdentity: TypeCast, IntReturn {
-    static let callSignature: CallParameters = [.int]
+    static let callSignature: [LeafCallParameter] = [.int]
 }
 
 struct DoubleIdentity: TypeCast, DoubleReturn {
-    static let callSignature: CallParameters = [.double]
+    static let callSignature: [LeafCallParameter] = [.double]
 }
 
 struct BoolIdentity: TypeCast, BoolReturn {
-    static let callSignature: CallParameters = [.bool]
+    static let callSignature: [LeafCallParameter] = [.bool]
 }
 
 struct StringIdentity: TypeCast, StringReturn {
-    static let callSignature: CallParameters = [.string]
+    static let callSignature: [LeafCallParameter] = [.string]
 }
 
 struct DataIdentity: TypeCast, DataReturn {
-    static let callSignature: CallParameters = [.data]
+    static let callSignature: [LeafCallParameter] = [.data]
 }
 
 struct ArrayIdentity: TypeCast, ArrayReturn {
-    static let callSignature: CallParameters = [.array]
+    static let callSignature: [LeafCallParameter] = [.array]
 }
 
 struct DictionaryIdentity: TypeCast, DictionaryReturn {
-    static let callSignature: CallParameters = [.dictionary]
+    static let callSignature: [LeafCallParameter] = [.dictionary]
 }

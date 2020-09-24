@@ -13,15 +13,15 @@ internal extension LeafEntities {
 
 /// (Array || Dictionary.values) -> Bool
 internal struct CollectionToBoolMap: LKMapMethod, BoolReturn {
-    static let callSignature: CallParameters = [.collections]
+    static var callSignature:[LeafCallParameter] { [.collections] }
 
     init(_ map: @escaping (AnyCollection<LKData>) -> Bool) { f = map }
 
-    func evaluate(_ params: CallValues) -> LKData {
+    func evaluate(_ params: LeafCallValues) -> LKData {
         switch params[0].container {
             case .dictionary(let x) : return .bool(f(.init(x.values)))
             case .array(let x)      : return .bool(f(.init(x)))
-            default                 : return .trueNil }
+            default                 : return .error(internal: "Only supports collections") }
     }
     
     private let f: (AnyCollection<LKData>) -> Bool
@@ -31,15 +31,15 @@ internal struct CollectionToBoolMap: LKMapMethod, BoolReturn {
 
 /// (Array | Dictionary, Any) -> Bool
 internal struct CollectionElementToBoolMap: LKMapMethod, BoolReturn {
-    static let callSignature: CallParameters = [.collections, .any]
+    static var callSignature: [LeafCallParameter] { [.collections, .any] }
 
     init(_ map: @escaping (AnyCollection<LKData>, LKData) -> Bool) { f = map }
 
-    func evaluate(_ params: CallValues) -> LKData {
+    func evaluate(_ params: LeafCallValues) -> LKData {
         switch params[0].container {
             case .dictionary(let x) : return .bool(f(.init(x.values), params[1]))
             case .array(let x)      : return .bool(f(.init(x), params[1]))
-            default                 : return .trueNil }
+            default                 : return .error(internal: "Only supports collections") }
     }
     
     private let f: (AnyCollection<LKData>, LKData) -> Bool
@@ -49,9 +49,9 @@ internal struct CollectionElementToBoolMap: LKMapMethod, BoolReturn {
 
 /// (String, String) -> Bool
 internal struct StrStrToBoolMap: LKMapMethod, BoolReturn {
-    static let callSignature: CallParameters = [.string, .string]
+    static var callSignature: [LeafCallParameter] { [.string, .string] }
 
-    func evaluate(_ params: CallValues) -> LKData { .bool(f(params[0].string!, params[1].string!)) }
+    func evaluate(_ params: LeafCallValues) -> LKData { .bool(f(params[0].string!, params[1].string!)) }
     
     private init(_ map: @escaping (String, String) -> Bool) { f = map }
     private let f: (String, String) -> Bool
@@ -63,9 +63,9 @@ internal struct StrStrToBoolMap: LKMapMethod, BoolReturn {
 
 /// (String) -> Bool
 internal struct StrToBoolMap: LKMapMethod, BoolReturn {
-    static let callSignature: CallParameters = [.string]
+    static var callSignature: [LeafCallParameter] { [.string] }
 
-    func evaluate(_ params: CallValues) -> LKData { .bool(f(params[0].string!)) }
+    func evaluate(_ params: LeafCallValues) -> LKData { .bool(f(params[0].string!)) }
     
     private init(_ map: @escaping (String) -> Bool) { f = map }
     private let f: (String) -> Bool

@@ -9,14 +9,14 @@ public protocol LeafMethod: LeafFunction {
     
     /// If the method is marked `mutating`, return non-nil for `mutate` to the value the operand should
     /// now hold, or nil if it has not changed. Always return `result`
-    func mutatingEvaluate(_ params: CallValues) -> (mutate: LeafData?, result: LeafData)
+    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LeafData?, result: LeafData)
 }
 
 public extension LeafMethod {
     static var mutating: Bool { false }
     
-    func mutatingEvaluate(_ params: CallValues) -> (mutate: LeafData?, result: LeafData) {
-        __MajorBug("Mutating evaluation called on non-mutating method") }
+    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LeafData?, result: LeafData) {
+        (nil, .error("")) }
 }
 
 public protocol LeafMutatingMethod: LeafMethod {}
@@ -25,7 +25,7 @@ public extension LeafMutatingMethod {
     static var mutating: Bool { true }
     static var invariant: Bool { false }
     
-    func evaluate(_ params: CallValues) -> LeafData {
+    func evaluate(_ params: LeafCallValues) -> LeafData {
         __MajorBug("Non-mutating evaluation called on mutating method") }
 }
 
@@ -42,15 +42,12 @@ internal extension LeafMethod {
                      "Method's first parameter cannot be labeled")
         precondition(callSignature.first!.defaultValue == nil,
                      "Method's first parameter cannot be defaulted")
-        precondition(callSignature.first!.optional == false,
-                     "Method's first parameter cannot be optional")
-        precondition(mutating ? invariant : true,
+//        precondition(callSignature.first!.optional == false,
+//                     "Method's first parameter cannot be optional")
+        precondition(mutating ? !invariant : true,
                      "Mutating methods cannot be invariant")
         callSignature._sanity()
     }
 }
 
-internal protocol LKMapMethod: LeafMethod {}
-internal extension LKMapMethod {
-    static var invariant: Bool { true }
-}
+internal protocol LKMapMethod: LeafMethod, Invariant {}

@@ -41,7 +41,7 @@ internal struct LKSyntax: LKPrintable {
             case .block(let f, let b as Evaluate, _): return "\(f)(\(b.identifier)):"
             case .block(let f, _, let t): return "\(f)\(t?.short ?? ""):"
             case .passthrough(let p): return p.short
-            case .raw(let r): return "raw(\(type(of: r)): \(r.byteCount.formatBytes))"
+            case .raw(let r): return "raw(\(type(of: r)): \(r.byteCount.formatBytes()))"
             case .scope(let table) where table != nil: return "scope(table: \(table!))"
             case .scope: return "scope(undefined)"
         }
@@ -70,8 +70,8 @@ extension ContiguousArray where Element == LKSyntax {
         var result = rule
         let maxBuffer = String(self.count - 1).count
         for index in self.indices {
-            if case .raw(let b as ByteBuffer) = self[index].container,
-               terse, b.contents == Character.newLine.description { continue }
+            if terse, case .raw(let b) = self[index].container,
+               b.contents == Character.newLine.description { continue }
             let prefix = String(repeating: " ", count: maxBuffer - String(index).count) + "\(index): "
             result += "\(indent(depth) + prefix + (terse ? self[index].short : self[index].description))\n"
             if case .scope(.some(let table)) = self[index].container {

@@ -360,9 +360,7 @@ final class LeafTests: LeafTestClass {
 
         let syntax = """
         0: [$:index - int(5)]
-        2: int(5)
-        4: int(5)
-        6: int(-5)
+        1: raw(LeafBuffer: 7B)
         """
 
         let expectation = """
@@ -389,13 +387,8 @@ final class LeafTests: LeafTestClass {
         """
 
         let syntax = """
-         0: bool(false)
-         2: bool(true)
-         4: bool(true)
-         6: bool(false)
-         8: bool(true)
-        10: bool(true)
-        12: bool(false)
+        0: bool(false)
+        1: raw(LeafBuffer: 32B)
         """
 
         let expectation = """

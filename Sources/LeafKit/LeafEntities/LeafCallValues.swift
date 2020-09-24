@@ -18,7 +18,7 @@ public struct LeafCallValues {
     internal var count: Int { values.count }
     
     /// Generate fulfilled LeafData call values from symbols in incoming tuple
-    internal init?(_ sig: CallParameters,
+    internal init?(_ sig:[LeafCallParameter],
                    _ tuple: LKTuple?,
                    _ symbols: LKVarStack) {
         if tuple == nil && !sig.isEmpty { return nil }

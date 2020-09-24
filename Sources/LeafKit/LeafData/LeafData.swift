@@ -147,6 +147,11 @@ extension LeafData: ExpressibleByDictionaryLiteral,
     /// Creates a new `LeafData` for `Optional<LeafData>`
     public static func `nil`(_ type: LeafDataType) -> Self {
         Self(.optional(nil, type)) }
+    
+    public static func error(_ reason: String,
+                             function: String = #function) -> Self {
+        Self(.error(reason: reason, function: function))
+    }
 
     // MARK: Literal Initializer Conformances
     public init(nilLiteral: ()) { self = .trueNil }
@@ -168,13 +173,18 @@ extension LeafData: LKSymbol {
         self.state = raw.state
     }
 
+    static func error(internal reason: String) -> Self {
+        Self(.error(reason: reason, function: "LeafKit"))
+    }
+    
     /// Creates a new `LeafData` from `() -> LeafData` if possible or `nil` if not possible.
     /// `returns` must specify a `CaseType` that the function will return
-    static func lazy(_ lambda: @escaping () -> Self,
-                     returns type: LKDType,
-                     variant: Bool) throws -> Self {
-        variant ? Self(.lazy(f: lambda, returns: type)) : lambda()
+    static func lazy(_ lambda: @escaping () -> Self, returns type: LKDType) -> Self {
+        Self(.lazy(f: lambda, returns: type))
     }
+    
+    var errored: Bool { state.rawValue == 0 }
+    var error: String? { !errored ? nil : container.error! }
 
     /// Note - we don't consider an optional container true for this purpose
     var isTrueNil    : Bool { state == .trueNil }
@@ -254,4 +264,21 @@ extension LeafData: LKSymbol {
 
     func resolve(_ symbols: LKVarStack) -> Self { self }
     func evaluate(_ symbols: LKVarStack) -> Self { state.contains(.variant) ? container.evaluate : self }
+}
+
+internal protocol LKDSelf: StringReturn {}
+internal extension LKDSelf {
+    static var invariant: Bool { true }
+    
+    func evaluate(_ params: LeafCallValues) -> LeafData {
+        .string("\(params[0].celf.short.capitalized)\(params[0].isNil ? "?" : "")")
+    }
+}
+
+internal struct LKDSelfMethod: LKDSelf, LeafMethod {
+    static var callSignature: [LeafCallParameter] { [.init(types: .any, optional: true)] }
+}
+
+internal struct LKDSelfFunction: LKDSelf {
+    static var callSignature: [LeafCallParameter] { [.init(label: "of", types: .any, optional: true)] }
 }

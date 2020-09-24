@@ -59,11 +59,11 @@ final class LKParserTests: LeafTestClass {
     
     func testLooping() throws {
         let sample = """
-        #(x = 10)
+        #(var x = 10)
         #while(x > 0):
         #for(i in x):.#endfor#(x -= 2)#endwhile
-        #repeat(while: x < 10):
-        #for(i in x):.#endfor#(x += 2)#endrepeat
+        #while(x <= 10):
+        #(x += 2)#for(i in x):.#endfor#endwhile
         """
         
         let expected = """
@@ -75,7 +75,6 @@ final class LKParserTests: LeafTestClass {
         ....
         ..
 
-
         ..
         ....
         ......
@@ -83,16 +82,8 @@ final class LKParserTests: LeafTestClass {
         ..........
         """
 
-        let sampleAST = try parse(sample)
-
-        print(sampleAST.formatted)
-        let serializer = LKSerializer(sampleAST, [:], ByteBuffer.self)
-        let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
-        var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
-        switch serializer.serialize(&block) {
-            case .success       : XCTAssertEqual(block.contents, expected)
-            case .failure(let e): print(e.localizedDescription)
-        }
+        let output = try render(sample)
+        XCTAssertEqual(output, expected)
     }
     
     func testSerialize() throws {
@@ -148,15 +139,13 @@ final class LKParserTests: LeafTestClass {
 
         print(sampleAST.formatted)
         let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
-        let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
-        var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
-
+        var block = ByteBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
         let result = serializer.serialize(&block)
         switch result {
             case .success(let duration):
                 XCTAssertEqual(block.contents, expected)
-                print("    Parse: " + parsedTime.formatSeconds)
-                print("Serialize: " + duration.formatSeconds)
+                print("    Parse: " + parsedTime.formatSeconds())
+                print("Serialize: " + duration.formatSeconds())
             case .failure(let error):
                 print(error.localizedDescription)
         }
@@ -178,7 +167,7 @@ final class LKParserTests: LeafTestClass {
     }
 
     func testVsComplex() throws {
-        let loopCount = 1000
+        let loopCount = 10
         let context: [String: LeafData] = [
             "name"  : "vapor",
             "skills" : Array.init(repeating: ["bool": true.leafData, "string": "a;sldfkj".leafData,"int": 100.leafData], count: loopCount).leafData,
@@ -198,15 +187,14 @@ final class LKParserTests: LeafTestClass {
             var lap = Date()
             var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
             let sampleAST = try! sampleParse.parse()
-            print("    Parse: " + lap.distance(to: Date()).formatSeconds)
+            print("    Parse: " + lap.distance(to: Date()).formatSeconds())
             lap = Date()
             let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
-            let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
-            var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
-            print("    Setup: " + lap.distance(to: Date()).formatSeconds)
+            var block = ByteBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
+            print("    Setup: " + lap.distance(to: Date()).formatSeconds())
             let result = serializer.serialize(&block)
             switch result {
-                case .success(let duration) : print("Serialize: " + duration.formatSeconds)
+                case .success(let duration) : print("Serialize: " + duration.formatSeconds())
                                               total += duration
                 case .failure(let error)    : print(error.localizedDescription)
             }
@@ -228,10 +216,10 @@ final class LKParserTests: LeafTestClass {
 
 //        print("Raw Swift unwrap and concat: \(rawSwift.formatSeconds)")
 
-        print("Average serialize duration: \((total / 10.0).formatSeconds)")
+        print("Average serialize duration: \((total / 10.0).formatSeconds())")
 //        print(String(format: "Overhead: %.2f%%", 1000.0 * rawSwift / total))
 //        print(String("Difference per loop: " + (((total/10.0) - rawSwift)/Double(loopCount)).formatSeconds))
-        print("Output size: \(leafBuffer.readableBytes.formatBytes)")
+        print("Output size: \(leafBuffer.readableBytes.formatBytes())")
         print(leafBuffer.string)
     }
 
@@ -259,8 +247,7 @@ final class LKParserTests: LeafTestClass {
         let sampleAST = try parse(sample)
         print(sampleAST.formatted)
         let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
-        let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
-        var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
+        var block = ByteBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
 
         let result = serializer.serialize(&block)
         switch result {
@@ -279,8 +266,7 @@ final class LKParserTests: LeafTestClass {
         print(sampleAST.formatted)
         
         let serializer = LKSerializer(sampleAST, [:], ByteBuffer.self)
-        let buffer = ByteBufferAllocator().buffer(capacity: Int(sampleAST.underestimatedSize))
-        var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
+        var block = ByteBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
 
         let result = serializer.serialize(&block)
         switch result {
@@ -331,8 +317,7 @@ final class LKParserTests: LeafTestClass {
         """
         
         let serializer = LKSerializer(parsedAST, ["x": "Hi tdotclare"], ByteBuffer.self)
-        let buffer = ByteBufferAllocator().buffer(capacity: Int(parsedAST.underestimatedSize))
-        var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
+        var block = ByteBuffer.instantiate(size: parsedAST.underestimatedSize, encoding: .utf8)
         let result = serializer.serialize(&block)
         switch result {
             case .success        : XCTAssertEqual(block.contents, serializeExpected)
@@ -379,8 +364,7 @@ final class LKParserTests: LeafTestClass {
         """
         
         let serializer = LKSerializer(parsedAST, [:], ByteBuffer.self)
-        let buffer = ByteBufferAllocator().buffer(capacity: Int(parsedAST.underestimatedSize))
-        var block = ByteBuffer.instantiate(data: buffer, encoding: .utf8)
+        var block = ByteBuffer.instantiate(size: parsedAST.underestimatedSize, encoding: .utf8)
         let result = serializer.serialize(&block)
         switch result {
             case .success        : XCTAssertEqual(block.contents, serializeExpected)
@@ -409,7 +393,7 @@ final class LKParserTests: LeafTestClass {
         _ = try renderer.render(path: "sample", context: context).always {
             switch $0 {
                 case .failure(let e): XCTFail((e as! LeafError).localizedDescription)
-                case .success(let b): XCTAssertTrue(b.readableBytes == 0, "\(b.readableBytes.formatBytes)")
+                case .success(let b): XCTAssertTrue(b.readableBytes == 0, "\(b.readableBytes.formatBytes())")
             }
         }.wait()
     }

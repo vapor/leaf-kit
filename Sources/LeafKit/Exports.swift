@@ -11,9 +11,6 @@ public typealias LeafASTKey = LeafAST.Key
 public typealias LeafASTInfo = LeafAST.Info
 public typealias LeafASTTouch = LeafAST.Touch
 
-// MARK: - LeafFunction, *Method, *Block, *Raw
-public typealias CallParameters = [LeafCallParameter]
-public typealias CallValues = LeafCallValues
 
 // MARK: - LeafBlock, *Raw
 public typealias ParseSignatures = [String: [LeafParseParameter]]
@@ -35,7 +32,7 @@ public extension String {
     }
 }
 
-extension CallParameters: LKPrintable {
+extension Array: LKPrintable where Element == LeafCallParameter {
     var description: String { short }
     var short: String  { "(\(map {$0.short}.joined(separator: ", ")))" }
 }

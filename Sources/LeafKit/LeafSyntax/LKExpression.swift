@@ -225,10 +225,9 @@ internal struct LKExpression: LKSymbol {
                 } else if lhs.celf == .string {
                     return .string(lhs.string! + (rhs.string ?? ""))
                 } else if lhs.celf == .data {
-                    return .data(lhs.data! + (rhs.data ?? Data()))
-                } else if !lhs.state.intersection(rhs.state)
-                                    .intersection([.celfMask, .collection])
-                                    .contains(.void) {
+                    guard let rhsData = rhs.data else { fallthrough }
+                    return .data(lhs.data! + rhsData)
+                } else if lhs.isCollection && lhs.celf == rhs.celf {
                     if lhs.celf == .array { return .array(lhs.array! + rhs.array!) }
                     guard let lhs = lhs.dictionary, let rhs = rhs.dictionary,
                           Set(lhs.keys).intersection(Set(rhs.keys)).isEmpty else { fallthrough }
@@ -359,7 +358,7 @@ internal struct LKExpression: LKSymbol {
                 case .modulo   : value = lhsI.remainderReportingOverflow(dividingBy: rhsI)
                 default        : return nil
             }
-            return value.overflow ? nil : .int(value.partialValue)
+            return value.overflow ? .error(internal: "Integer overflow") : .int(value.partialValue)
         } else {
             guard let lhsD = lhs.double, let rhsD = rhs.double else { return nil }
             switch op {

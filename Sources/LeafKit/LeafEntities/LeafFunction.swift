@@ -5,7 +5,7 @@
 /// Example: `#date("now", "YYYY-mm-dd")`
 public protocol LeafFunction {
     /// Array of the function's full call parameters
-    static var callSignature: CallParameters { get }
+    static var callSignature: [LeafCallParameter] { get }
 
     /// The concrete type(s) of `LeafData` the function returns
     static var returns: Set<LeafDataType> { get }
@@ -14,7 +14,7 @@ public protocol LeafFunction {
     static var invariant: Bool { get }
 
     /// The actual evaluation function of the `LeafFunction`, which will be called with fully resolved data
-    func evaluate(_ params: CallValues) -> LeafData
+    func evaluate(_ params: LeafCallValues) -> LeafData
 }
 
 public protocol StringReturn: LeafFunction {}
@@ -43,7 +43,10 @@ public extension DoubleReturn { static var returns: Set<LeafDataType> { .double 
 public protocol DataReturn: LeafFunction {}
 public extension DataReturn { static var returns: Set<LeafDataType> { .data } }
 
+public protocol Invariant: LeafFunction {}
+public extension Invariant { static var invariant: Bool { true } }
+
 internal extension LeafFunction {
     var invariant: Bool { Self.invariant }
-    var sig: CallParameters { Self.callSignature }
+    var sig: [LeafCallParameter] { Self.callSignature }
 }

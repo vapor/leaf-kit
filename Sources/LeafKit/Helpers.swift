@@ -12,6 +12,8 @@ internal typealias LKDTypeSet = Set<LeafDataType>
 internal typealias LKParams = [LKParameter]
 
 
+
+
 // MARK: - Internal Helper Extensions
 
 internal extension Comparable {
@@ -21,26 +23,29 @@ internal extension Comparable {
 
 internal extension Double {
     /// Convenience for formatting Double to a s/ms/µs String
-    var formatSeconds: String {
+    func formatSeconds(places: Int = 2) -> String {
         let abs = self.magnitude
-        if abs * 10 > 1 { return String(format: "%.3f%", abs) + " s"}
-        if abs * 1_000 > 1 { return String(format: "%.3f%", abs * 1_000) + " ms" }
-        return String(format: "%.3f%", abs * 1_000_000) + " µs"
+        if abs * 10 > 1 { return String(format: "%.\(places)f%", abs) + " s"}
+        if abs * 1_000 > 1 { return String(format: "%.\(places)f%", abs * 1_000) + " ms" }
+        return String(format: "%.\(places)f%", abs * 1_000_000) + " µs"
     }
 }
 
 internal extension Int {
     /// Convenience for formatting Ints to a B/kB/mB String
-    var formatBytes: String { "\(signum() == -1 ? "-" : "")\(magnitude.formatBytes)" }
+    func formatBytes(places: Int = 2) -> String { "\(signum() == -1 ? "-" : "")\(magnitude.formatBytes(places: places))" }
 }
 
 internal extension UnsignedInteger {
     /// Convenience for formatting UInts to a B/kB/mB String
-    var formatBytes: String {
-        if self > 1024 * 512 { return String(format: "%.2fmB", Double(self)/1024.0/1024.0) }
-        if self > 512 { return String(format: "%.2fkB", Double(self)/1024.0) }
+    func formatBytes(places: Int = 2) -> String {
+        if self > 1024 * 1024 * 512 { return String(format: "%.\(places)fGB", Double(self)/1024.0/1024.0/1024.0) }
+        if self > 1024 * 512 { return String(format: "%.\(places)fMB", Double(self)/1024.0/1024.0) }
+        if self > 512 { return String(format: "%.\(places)fKB", Double(self)/1024.0) }
         return "\(self)B"
     }
 }
 
-
+internal extension CaseIterable {
+    static var terse: String { "[\(Self.allCases.map {"\($0)"}.joined(separator: ", "))]" }
+}

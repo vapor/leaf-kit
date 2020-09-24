@@ -11,7 +11,7 @@ internal struct LKParser: LKErroring {
         self.entities = LKConf.entities
         self.key = key
         self.tokens = tokens
-        self.rawStack = [entities.raw.instantiate(data: nil, encoding: .utf8)]
+        self.rawStack = [entities.raw.instantiate(size: 0, encoding: LKConf.encoding)]
     }
 
     mutating func parse() throws -> LeafAST {
@@ -188,8 +188,20 @@ internal struct LKParser: LKErroring {
     /// Append a passthrough syntax object to the current scope and return true to continue parsing
     @discardableResult
     private mutating func append(_ syntax: LKParameter) -> Bool {
-        scopes[currentScope].append(.passthrough(syntax))
-        underestimatedSize += syntax.underestimatedSize
+        // FIXME: Check that current scope is empty and instantiate raw instead
+        /// If the syntax is a literal and previous is a `.raw`, immediately feed it in
+        if case .value(let v) = syntax.container, v.invariant,
+           case .raw(var previous) = scopes[currentScope].last?.container {
+            previous.append(v)
+            if let e = previous.error { return bool(err("Serialize Error: \(e)")) }
+            scopes[currentScope][scopes[currentScope].count - 1] = .raw(previous)
+            return true
+        }
+        
+        defer {
+            scopes[currentScope].append(.passthrough(syntax))
+            underestimatedSize += syntax.underestimatedSize
+        }
         
         /// If passthrough object is variable creation, append to current scope's set of created vars
         if case .expression(let e) = syntax.container,
@@ -207,21 +219,21 @@ internal struct LKParser: LKErroring {
     /// Append a new raw block from a String.
     @discardableResult
     private mutating func appendRaw(_ raw: String) -> Bool {
-        var buffer = ByteBufferAllocator().buffer(capacity: raw.count)
-        buffer.writeString(raw)
-        underestimatedSize += UInt32(buffer.readableBytes)
-        var newRaw = type(of: rawStack.last!).instantiate(data: buffer, encoding: .utf8)
+        var newRaw = type(of: rawStack.last!).instantiate(size: UInt32(raw.count),
+                                                          encoding: rawStack.last!.encoding)
+        newRaw.append(.string(raw))
+        underestimatedSize += newRaw.byteCount
         let checkAt = scopes[currentScope].count - 2
         let blockCheck: Bool
         if checkAt >= 0, case .block = scopes[currentScope][checkAt].container { blockCheck = true }
         else { blockCheck = false }
         // If previous is raw and it's not a scope atomic, concat or append new
         if case .raw(var previous) = scopes[currentScope].last?.container,
-           !blockCheck {
+           !blockCheck, type(of: previous) == type(of: newRaw) {
             previous.append(&newRaw)
             if let e = previous.error { return bool(err("Serialize Error: \(e)")) }
             scopes[currentScope][checkAt + 1] = .raw(previous)
-        } else { scopes[currentScope].append(.raw(buffer)) }
+        } else { scopes[currentScope].append(.raw(newRaw)) }
         return true
     }
 
@@ -234,7 +246,7 @@ internal struct LKParser: LKErroring {
             case .failure(let r) : return bool(err("\(t) couldn't be parsed: \(r)"))
             case .success(let f)
               where f.count == 1 : return append(.function(t, f[0].0, f[0].1))
-            case .success(let f) : return append(.dynamic(t, f, p))
+            case .success        : return append(.function(t, nil, p))
         }
     }
 
@@ -265,7 +277,10 @@ internal struct LKParser: LKErroring {
             scopes[currentScope].removeLast()
             scopes[currentScope].append(decayed.isEmpty ? .scope(nil) : decayed[0] )
         } else { scopeStack.removeLast() }
-        if rawBlock { rawStack.removeLast() }
+        if rawBlock {
+            if rawStack.last?.recall ?? false { rawStack[rawStack.count - 1].close() }
+            rawStack.removeLast()
+        }
         createdVars.removeLast()
         return true
     }
@@ -357,9 +372,8 @@ internal struct LKParser: LKErroring {
                     else { return bool(err("#\(name)(\"file\", as: type) where type is `leaf` or a raw handler")) }
                     if case .keyword(.leaf) = behavior { process = true }
                     else if case .variable(let v) = behavior, v.isAtomic,
-                            let handler = String(v.member!) as String?,
-                            handler == "raw" || entities.rawFactories[handler] != nil {
-                        raw = handler != "raw" ? handler : nil
+                            entities.rawFactories[v.member!] != nil {
+                        raw = v.member
                     } else { return bool(err("#\(name)(\"file\", as: type) where type is `leaf`, `raw`, or a named raw handler")) }
                 } else { process = true }
                 let inline = Inline(file: file,
@@ -378,7 +392,7 @@ internal struct LKParser: LKErroring {
                 guard tuple?.isEmpty ?? true else { return bool(err("Using #\(name)() with parameters is not yet supported")) }
                 if isBlock {
                     /// When enabled, type will be picked from parameter & params will be passed
-                    rawStack.append(type(of: rawStack.last!).instantiate(data: nil, encoding: .utf8))
+                    rawStack.append(type(of: rawStack.last!).instantiate(size: 0, encoding: LKConf.encoding))
                     return openBlock(name, RawSwitch(type(of: rawStack.last!), .init()), nil)
                 }
         }
@@ -701,8 +715,12 @@ internal struct LKParser: LKErroring {
 
         /// Attempt to resolve the current complex expression into an atomic single param (leaving as single value complex)
         func closeComplex() -> Bool {
-            // pull the current complex off the stack
+            /// pull the current complex off the stack
             guard makeVariableIfOpen(), var exp = complexes.popLast() else { return false }
+            
+            /// Validate any literal values are not error states
+            let e = exp.compactMap {$0.error}
+            guard e.isEmpty else { return bool(err(e.first!)) }
 
             var opCount: Int { countOpsWhere { _ in true } }
 
@@ -810,8 +828,9 @@ internal struct LKParser: LKErroring {
                                 }
                                 original = v
                             }
-                            complexAppend(M.count == 1 ? .function(m, M[0].0, M[0].1, original)
-                                                       : .dynamic(m, M, tuple, original))
+                            
+                            complexAppend(M.count == 1 ? .function(m, M[0].0, M[0].1, .some(original))
+                                                       : .function(m, nil, tuple, .some(original)))
                     }
                     currentState = .start
                 /// Atomic function
@@ -826,7 +845,7 @@ internal struct LKParser: LKErroring {
                         case .failure(let r)   : return void(err(r))
                         case .success(let F)
                             where F.count == 1 : complexAppend(.function(f, F[0].0, F[0].1))
-                        case .success(let F)   : complexAppend(.dynamic(f, F, tuple))
+                        case .success          : complexAppend(.function(f, nil, tuple))
                     }
             }
         }

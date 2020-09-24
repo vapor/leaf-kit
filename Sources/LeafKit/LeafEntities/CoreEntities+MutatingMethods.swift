@@ -6,9 +6,9 @@ internal extension LeafEntities {
 }
 /// Mutating (String, String)
 internal struct MutatingStrStrMap: LeafMutatingMethod, VoidReturn {
-    static let callSignature: CallParameters = [.string, .string]
+    static let callSignature:[LeafCallParameter] = [.string, .string]
 
-    func mutatingEvaluate(_ params: CallValues) -> (mutate: LKData?, result: LKData) {
+    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LKData?, result: LKData) {
         let cache = params[0].string!
         var operand = cache
         f(&operand, params[1].string!)
@@ -24,9 +24,9 @@ internal struct MutatingStrStrMap: LeafMutatingMethod, VoidReturn {
 
 /// Mutating (String, Int) -> String
 internal struct MutatingStrToStrMap: LeafMutatingMethod, StringReturn {
-    static let callSignature: CallParameters = [.string]
+    static let callSignature:[LeafCallParameter] = [.string]
 
-    func mutatingEvaluate(_ params: CallValues) -> (mutate: LKData?, result: LKData) {
+    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LKData?, result: LKData) {
         let cache = params[0].string!
         var operand = cache
         let result = f(&operand)

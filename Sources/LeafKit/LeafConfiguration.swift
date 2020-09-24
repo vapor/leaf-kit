@@ -2,6 +2,7 @@
 // MARK: -
 
 import Foundation
+import NIOConcurrencyHelpers
 
 /// General configuration of Leaf
 /// - Sets the default View directory where templates will be looked for
@@ -25,23 +26,18 @@ public struct LeafConfiguration {
     
     @LeafRuntimeGuard public static var entities: LeafEntities = .leaf4Core
     
-    @LeafRuntimeGuard public static var timeout: Double = 30.0
+    @LeafRuntimeGuard(condition: {$0>0})
+    public static var timeout: Double = 30.0
+    
+    @LeafRuntimeGuard public static var rawCachingLimit: UInt32 = 1024
     
     @LeafRuntimeGuard public static var encoding: String.Encoding = .utf8
-    
-    @LeafRuntimeGuard public static var boolFormatter: (Bool) -> String = { $0.description }
-    @LeafRuntimeGuard public static var intFormatter: (Int) -> String = { $0.description }
-    @LeafRuntimeGuard public static var doubleFormatter: (Double) -> String = { $0.description }
-    @LeafRuntimeGuard public static var nilFormatter: () -> String = { "" }
-    @LeafRuntimeGuard public static var stringFormatter: (String) -> String = { $0 }
-    @LeafRuntimeGuard public static var dataFormatter: (Data) -> String? =
-        { String(data: $0, encoding: encoding) }
 
     static var isRunning: Bool { started }
     
     /// Convenience for getting running state of LeafKit that will assert with a fault message for soft-failing things
     static func running(fault message: String) -> Bool {
-        assert(!started, "LeafKit is running; \(message)")
+        assert(!started, "\(message) after LeafRenderer has instantiated")
         return started
     }
 
@@ -52,22 +48,37 @@ public struct LeafConfiguration {
 
     /// Convenience flag for global write-once
     private static var started = false
-
-    static func accessed() { _accessed = true }
-    /// Convenience flag for local lock-after-access
-    private static var _accessed = false
 }
 
 
-@propertyWrapper
-public struct LeafRuntimeGuard<T> {
+/// `LeafRuntimeGuard` secures a value against being changed once a `LeafRenderer` is active
+///
+/// Attempts to change the value secured by the runtime guard will assert in debug to warn against
+/// programmatic changes to a value that needs to be consistent across the running state of LeafKit.
+/// Such attempts to change will silently fail in production builds.
+@propertyWrapper public struct LeafRuntimeGuard<T> {
     public var wrappedValue: T {
         get { _unsafeValue }
-        set { if !LKConf.running(fault: fault) { _unsafeValue = newValue } }
+        set {
+            assert(condition(newValue), "\(object) failed conditional check")
+            if !LKConf.running(fault: "Cannot configure \(object)")
+               { _unsafeValue = newValue }
+        }
     }
     
-    public init(wrappedValue: T, local: Bool = false) { self._unsafeValue = wrappedValue }
+    public init(wrappedValue: T,
+                module: String = #fileID,
+                component: String = #function,
+                condition: @escaping (T) -> Bool = {_ in true}) {
+        self._unsafeValue = wrappedValue
+        let module = String(module.split(separator: "/").first ?? "")
+        self.object = module.isEmpty ? component : "\(module).\(component)"
+        self.condition = condition
+    }
     
     internal var _unsafeValue: T
-    internal var fault: String = "Cannot configure after a LeafRenderer has instantiated"
+    private let condition: (T) -> Bool
+    private let object: String
+    
+    internal var fault: String { "Cannot configure \(object)" }
 }

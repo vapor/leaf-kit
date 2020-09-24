@@ -8,6 +8,7 @@ public enum LeafDataType: UInt8, CaseIterable, Hashable {
     case data
     case dictionary
     case array
+    
     case void
 
     public var description: String { short }
@@ -15,7 +16,7 @@ public enum LeafDataType: UInt8, CaseIterable, Hashable {
 
 public extension Set where Element == LeafDataType {
     /// Any `LeafDataType` but `.void`
-    static var any: Self { Set(LeafDataType.allCases.filter {$0 != .void}) }
+    static var any: Self { Set(LeafDataType.allCases.filter {$0.returnable}) }
     /// `LeafDataType` == `Collection`
     static var collections: Self { [.array, .dictionary] }
     /// `LeafDataType` == `SignedNumeric`
@@ -61,4 +62,6 @@ extension LKDType: LKPrintable {
             case .void       : return .ambiguous
         }
     }
+    
+    internal var returnable: Bool { self != .void }
 }

@@ -42,15 +42,15 @@ internal func parse(_ str: String, name: String = "default") throws -> LeafAST {
 internal func render(name: String = "test-render",
                      _ template: String,
                      _ context: [String: LKData] = [:]) throws -> String {
+    _ = LeafConfiguration.init(rootDirectory: "")
     var lexer = LKLexer(LKRawTemplate(name, template))
     let tokens = try lexer.lex()
     var parser = LKParser(.searchKey(name), tokens)
     let ast = try parser.parse()
-    let buffer = ByteBufferAllocator().buffer(capacity: Int(ast.underestimatedSize))
-    var block = ByteBuffer.instantiate(data: buffer, encoding: LKConf.encoding)
+    var block = ByteBuffer.instantiate(size: ast.underestimatedSize, encoding: .utf8)
     let serializer = LKSerializer(ast, context, ByteBuffer.self)
     switch serializer.serialize(&block) {
-        case .success(_)     : return block.contents
+        case .success        : return block.contents
         case .failure(let e) : throw e
     }
 }
@@ -86,7 +86,7 @@ internal class TestRenderer {
     }
 
     var queued: Int { lock.withLock { counter } }
-    var isDone: Bool { lock.withLock { counter == 0 } ? true : false }
+    var isDone: Bool { lock.withLock { counter <= 0 } ? true : false }
     func finishTask() { lock.withLock { counter -= 1 } }
     var lap: Double { let lap = timer.distance(to: Date()); timer = Date(); return lap }
 }
@@ -153,7 +153,7 @@ internal var projectTestFolder: String { "/\(#file.split(separator: "/").dropLas
 final class PrintTests: LeafTestClass {
     func testRaw() throws {
         let template = "hello, raw text"
-        let expectation = "0: raw(ByteBuffer: 15B)"
+        let expectation = "0: raw(LeafBuffer: 15B)"
 
         let v = try parse(template)
         XCTAssertEqual(v.terse, expectation)
@@ -176,9 +176,9 @@ final class PrintTests: LeafTestClass {
         let expectation = """
         0: for($:names):
         1: scope(table: 1)
-           0: raw(ByteBuffer: 12B)
+           0: raw(LeafBuffer: 12B)
            1: $:name
-           2: raw(ByteBuffer: 2B)
+           2: raw(LeafBuffer: 2B)
         """
 
         let v = try parse(template)
@@ -197,11 +197,11 @@ final class PrintTests: LeafTestClass {
         """
         let expectation = """
         0: if($:foo):
-        1: raw(ByteBuffer: 16B)
+        1: raw(LeafBuffer: 16B)
         2: elseif([$:bar == string(bar)]):
-        3: raw(ByteBuffer: 15B)
+        3: raw(LeafBuffer: 15B)
         4: else:
-        5: raw(ByteBuffer: 14B)
+        5: raw(LeafBuffer: 14B)
         """
 
         let v = try parse(template)
@@ -231,7 +231,7 @@ final class PrintTests: LeafTestClass {
         0: export(title):
         1: string(Welcome)
         3: export(body):
-        4: raw(ByteBuffer: 17B)
+        4: raw(LeafBuffer: 17B)
         6: extend("base", leaf):
         7: scope(undefined)
         """

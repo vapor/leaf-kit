@@ -43,7 +43,7 @@ struct ForLoop: CoreBlock {
                                .keyword([.in]),
                                .callParameter])]
     ]
-    static let callSignature: CallParameters = [.types([.array, .dictionary, .string, .int])]
+    static let callSignature:[LeafCallParameter] = [.types([.array, .dictionary, .string, .int])]
 
     private(set) var scopeVariables: [String]? = nil
 
@@ -77,7 +77,7 @@ struct ForLoop: CoreBlock {
         }
     }
 
-    mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+    mutating func evaluateScope(_ params: LeafCallValues, _ variables: inout [String: LeafData]) -> EvalCount {
         if set {
             switch params[0].container {
                 case .array(let a)      : cache = a.enumerated().map { (o, e) in
@@ -132,11 +132,11 @@ struct ForLoop: CoreBlock {
 
 /// `#while(bool):` - 0...n while
 internal struct WhileLoop: CoreBlock, Nonscoping {
-    static let callSignature: CallParameters = [.bool]
+    static let callSignature:[LeafCallParameter] = [.bool]
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> WhileLoop {.init()}
 
-    mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+    mutating func evaluateScope(_ params: LeafCallValues, _ variables: inout [String: LeafData]) -> EvalCount {
         params[0].bool! ? .indefinite : .discard
     }
 
@@ -147,13 +147,13 @@ internal struct WhileLoop: CoreBlock, Nonscoping {
 /// Note - can't safely be used if the while condition is mutating - a flag would be needed to defer evaluation
 internal struct RepeatLoop: CoreBlock, Nonscoping {
     // FIXME: Can't be used yet
-    static let callSignature: CallParameters = [.bool(labeled: "while")]
+    static let callSignature:[LeafCallParameter] = [.bool(labeled: "while")]
 
     var cache: Bool? = nil
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> RepeatLoop {.init()}
 
-    mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+    mutating func evaluateScope(_ params: LeafCallValues, _ variables: inout [String: LeafData]) -> EvalCount {
         let result: EvalCount = cache != false ? .indefinite : .discard
         cache = params[0].bool!
         return result
@@ -169,12 +169,12 @@ struct IfBlock: ChainedBlock, CoreBlock, Nonscoping {
     static let chainsTo: [ChainedBlock.Type] = []
     static let chainAccepts: [ChainedBlock.Type] = [ElseIfBlock.self, ElseBlock.self]
 
-    static let callSignature: CallParameters = [.bool]
+    static let callSignature:[LeafCallParameter] = [.bool]
 
     static func instantiate(_ signature: String?,
                             _ params: [String]) throws -> IfBlock {.init()}
 
-    mutating func evaluateScope(_ params: CallValues,
+    mutating func evaluateScope(_ params: LeafCallValues,
                                    _ variables: inout [String: LeafData]) -> EvalCount {
         params[0].bool! ? .once : .discard }
 }
@@ -184,11 +184,11 @@ struct ElseIfBlock: ChainedBlock, CoreBlock, Nonscoping {
     static var chainsTo: [ChainedBlock.Type] = [ElseIfBlock.self, IfBlock.self]
     static var chainAccepts: [ChainedBlock.Type] = [ElseIfBlock.self, ElseBlock.self]
 
-    static var callSignature: CallParameters = [.bool]
+    static var callSignature:[LeafCallParameter] = [.bool]
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> ElseIfBlock {.init()}
 
-    mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+    mutating func evaluateScope(_ params: LeafCallValues, _ variables: inout [String: LeafData]) -> EvalCount {
         params[0].bool! ? .once : .discard }
 }
 
@@ -197,9 +197,9 @@ struct ElseBlock: ChainedBlock, CoreBlock, Nonscoping {
     static var chainsTo: [ChainedBlock.Type] = [ElseIfBlock.self, IfBlock.self]
     static var chainAccepts: [ChainedBlock.Type] = []
 
-    static var callSignature: CallParameters = []
+    static var callSignature:[LeafCallParameter] = []
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> ElseBlock {.init()}
 
-    mutating func evaluateScope(_ params: CallValues, _ variables: inout [String: LeafData]) -> EvalCount { .once }
+    mutating func evaluateScope(_ params: LeafCallValues, _ variables: inout [String: LeafData]) -> EvalCount { .once }
 }
