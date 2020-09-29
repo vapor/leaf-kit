@@ -449,28 +449,9 @@ final class LeafKitTests: LeafTestClass {
         XCTAssertEqual(view, "Todo: Leaf!")
     }
 
-    func _testRenderer() throws {
-        let threadPool = NIOThreadPool(numberOfThreads: 1)
-        threadPool.start()
-        let fileio = NonBlockingFileIO(threadPool: threadPool)
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        let renderer = TestRenderer(
-            configuration: .init(rootDirectory: templateFolder),
-            sources: .singleSource(NIOLeafFiles(fileio: fileio)),
-            eventLoop: group.next()
-        )
-
-        var buffer = try! renderer.render(path: "test").wait()
-        let string = buffer.readString(length: buffer.readableBytes)!
-        print(string)
-
-        try threadPool.syncShutdownGracefully()
-        try group.syncShutdownGracefully()
-    }
-
     func testRendererContext() throws {
         var test = TestFiles()
-        test.files["/foo.leaf"] = "Hello #custom($prefix, name)"
+        test.files["/foo.leaf"] = "Hello #custom(name)"
 
 //        struct CustomTag: LeafTag {
 //            func render(_ ctx: LeafContext) throws -> LeafData {
@@ -479,25 +460,24 @@ final class LeafKitTests: LeafTestClass {
 //                return .string(prefix + param)
 //            }
 //        }
-        struct CustomTag: LeafFunction {
-            static let callSignature:[LeafCallParameter] = [
-                .init(types: [.string], defaultValue: ""),
-                .init(types: [.string], defaultValue: "") ]
-            static let returns: Set<LeafDataType> = [.string]
-            static let invariant: Bool = false
+        struct CustomTag: LeafUnsafeEntity, StringReturn {
+            static var callSignature:[LeafCallParameter]  {[.string]}
+            static var invariant: Bool {false}
+            
+            var externalObjects: ExternalObjects? = nil
+            var prefix: String? { externalObjects?["prefix"] as? String }
             
             func evaluate(_ params: LeafCallValues) -> LeafData {
-                .string(params[0].string! + params[1].string!) }
+                .string((prefix ?? "") + params[0].string!) }
         }
         
         LeafConfiguration.entities.use(CustomTag(), asFunction: "custom")
         
-        let renderer = TestRenderer(
-//            tags: ["custom": CustomTag()],
-            sources: .singleSource(test),
-            userInfo: ["prefix": "bar"]
-        )
-        let view = try renderer.render(path: "foo", context: ["name": "vapor"]).wait()
+        let renderer = TestRenderer(sources: .singleSource(test))
+        var ctx: LeafRenderer.Context = ["name": "vapor"]
+        try ctx.register(object: "bar", as: "prefix", contextualize: false)
+        
+        let view = try renderer.render(path: "foo", context: ctx).wait()
 
         XCTAssertEqual(view.string, "Hello barvapor")
     }
@@ -692,7 +672,7 @@ final class LeafKitTests: LeafTestClass {
         XCTAssertEqual(delegatePage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Also an admin")
     }
 
-    func testDeepResolve() {
+    func testDeepResolve() throws {
         var test = TestFiles()
         test.files["/a.leaf"] = """
         #for(a in b):#if(false):Hi#elseif(true && false):Hi#else:#export(derp):DEEP RESOLUTION #(a)#endexport#extend("b")#endif#endfor
@@ -711,24 +691,21 @@ final class LeafKitTests: LeafTestClass {
 
         let renderer = TestRenderer(sources: .singleSource(test))
 
-        let page = try! renderer.render(path: "a", context: ["b":["1","2","3"]]).wait()
-            XCTAssertEqual(page.string, expected)
+        let page = try renderer.render(path: "a", context: .init(["b":["1","2","3"]])).wait()
+        XCTAssertEqual(page.string, expected)
     }
 
     func testFileSandbox() throws {
         let threadPool = NIOThreadPool(numberOfThreads: 1)
         threadPool.start()
         let fileio = NonBlockingFileIO(threadPool: threadPool)
+        let files = NIOLeafFiles(fileio: fileio,
+                                 limits: .default,
+                                 sandboxDirectory: templateFolder,
+                                 viewDirectory: templateFolder + "SubTemplates/")
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-
-        let renderer = TestRenderer(
-            configuration: .init(rootDirectory: templateFolder),
-            sources: .singleSource(NIOLeafFiles(fileio: fileio,
-                                                limits: .default,
-                                                sandboxDirectory: templateFolder,
-                                                viewDirectory: templateFolder + "SubTemplates/")),
-            eventLoop: group.next()
-        )
+        
+        let renderer = TestRenderer(sources: .singleSource(files), eventLoop: group.next())
 
         renderer.render(path: "test").whenComplete { _ in renderer.finishTask() }
         renderer.render(path: "../test").whenComplete { _ in renderer.finishTask() }
@@ -924,5 +901,47 @@ final class LeafKitTests: LeafTestClass {
         
         let parsed = try parse(template)
         XCTAssertEqual(parsed.terse, expected)
+    }
+    
+    func testContexts() throws {
+        var aContext: LeafRenderer.Context = [:]
+        let myAPI = _APIVersioning(identifier: "myAPI", version: (0,0,1))
+        try aContext.register(object: myAPI, as: "api")
+      //  try aContext.lockAsLiteral(scope: "api")
+        
+        let template = """
+        #if(!$api.isRelease && !override):#Error("This API is not vended publically")#endif
+        #($api ? $api : throw(reason: "No API information"))
+        Results!
+        """
+        let expected = """
+
+        ["identifier": "myAPI", "isRelease": false, "version": ["major": 0, "minor": 0, "patch": 1]]
+        Results!
+        """
+        
+        try XCTAssertThrowsError(render(template, aContext))
+        
+        try aContext.setValue(at: "override", to: true)
+        let output = try render(template, aContext)
+        XCTAssertEqual(output, expected)
+    }
+}
+
+struct _APIVersioning: LeafContextPublisher {
+    let identifier: String
+    let version: (major: Int, minor: Int, patch: Int)
+
+    func coreVariables() -> [String: () -> LeafData] {
+        ["identifier" : {.string(identifier)},
+         "version"    : {.dictionary(["major": .int(version.major),
+                                      "minor": .int(version.minor),
+                                      "patch": .int(version.patch)])}]
+    }
+}
+
+extension _APIVersioning {
+    func extendedVariables() -> [String: () -> LeafData] {
+        ["isRelease": { .bool(version.major > 0) }]
     }
 }

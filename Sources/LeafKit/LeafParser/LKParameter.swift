@@ -82,9 +82,9 @@ internal struct LKParameter: LKSymbol {
     private(set) var isLiteral: Bool
     
     /// Will always resolve to a new LKParameter
-    func resolve(_ symbols: LKVarStack) -> Self { isValued ? .init(container.resolve(symbols)) : self }
+    func resolve(_ symbols: inout LKVarStack) -> Self { isValued ? .init(container.resolve(&symbols)) : self }
     /// Will always evaluate to a .value container, potentially holding trueNil
-    func evaluate(_ symbols: LKVarStack) -> LKData { container.evaluate(symbols) }
+    func evaluate(_ symbols: inout LKVarStack) -> LKData { container.evaluate(&symbols) }
     
     var description: String { container.description }
     var short: String { isTuple ? container.description : container.short }
@@ -275,18 +275,18 @@ internal struct LKParameter: LKSymbol {
             }
         }
 
-        func resolve(_ symbols: LKVarStack) -> Self {
-            if resolved && invariant { return .value(evaluate(symbols)) }
+        func resolve(_ symbols: inout LKVarStack) -> Self {
+            if resolved && invariant { return .value(evaluate(&symbols)) }
             switch self {
                 case .value, .keyword,
                      .operator          : return self
-                case .expression(let e) : return .expression(e.resolve(symbols))
-                case .variable(let v)   : if let value = symbols.match(v) { return .value(value) }
+                case .expression(let e) : return .expression(e.resolve(&symbols))
+                case .variable(let v)   : if let value = symbols.match(v), !value.errored { return .value(value) }
                                           return self
                 case .tuple(let t)
-                    where t.isEvaluable : return .tuple(t.resolve(symbols))
+                    where t.isEvaluable : return .tuple(t.resolve(&symbols))
                 case .function(let n, let f, var p, let m)
-                                        : if p != nil { p!.values = p!.values.map { $0.resolve(symbols) } }
+                : if p != nil { p!.values = p!.values.map { $0.resolve(&symbols) } }
                                           guard f == nil else  { return .function(n, f, p, m) }
                                           let result = m != nil ? LKConf.entities.validateMethod(n, p, (m!) != nil)
                                                                 : LKConf.entities.validateFunction(n, p)
@@ -300,26 +300,26 @@ internal struct LKParameter: LKSymbol {
             }
         }
 
-        func evaluate(_ symbols: LKVarStack) -> LeafData {
+        func evaluate(_ symbols: inout LKVarStack) -> LeafData {
             switch self {
-                case .value(let v)              : return v.evaluate(symbols)
+                case .value(let v)              : return v.evaluate(&symbols)
                 case .variable(let v)           : return symbols.match(v) ?? .trueNil
-                case .expression(let e)         : return e.evaluate(symbols)
+                case .expression(let e)         : return e.evaluate(&symbols)
                 case .tuple(let t)
-                        where t.isEvaluable     : return t.evaluate(symbols)
+                        where t.isEvaluable     : return t.evaluate(&symbols)
                 case .function(let n, let f as Evaluate, _, _)
                                                 :
                     /// `Define` parameter was found - evaluate if non-value, and return
                     if let x = symbols.match(.define(f.identifier))?.container {
-                        if case .evaluate(let x) = x { return x.evaluate(symbols) }
+                        if case .evaluate(let x) = x { return x.evaluate(&symbols) }
                         else { return x.evaluate } }
                     /// Or `Evaluate` had a default - evaluate and return that
-                    else if let x = f.defaultValue { return x.evaluate(symbols) }
+                    else if let x = f.defaultValue { return x.evaluate(&symbols) }
                     return .error("\(f.identifier) is undefined and has no default value", function: n) /// Otherwise, nil
                 case .function(let n, var f, let p, let m) :
                     var params = p ?? .init()
                     for i in params.values.indices where !params.values[i].isLiteral {
-                        let evaluated = params.values[i].evaluate(symbols)
+                        let evaluated = params.values[i].evaluate(&symbols)
                         if evaluated.errored { return evaluated }
                         if evaluated.celf == .void { return .error(internal: "\(params.values[i].description) returned void") }
                         params.values[i] = .value(evaluated)
@@ -337,10 +337,10 @@ internal struct LKParameter: LKSymbol {
                         }
                     }
                     
-                    guard let call = LeafCallValues(f!.sig, params, symbols) else {
+                    guard let call = LeafCallValues(f!.sig, params, &symbols) else {
                         return .error(internal: "Couldn't validate parameter types for \(n)\(params.description)") }
                     if var unsafeF = f as? LeafUnsafeEntity {
-                        unsafeF.userInfo = symbols[0].unsafe
+                        unsafeF.externalObjects = symbols.context.externalObjects
                         f = (unsafeF as! LeafFunction)
                     }
                     if case .some(.some(let op)) = m, let f = f as? LeafMethod {
@@ -350,7 +350,7 @@ internal struct LKParameter: LKSymbol {
                     } else { return f!.evaluate(call) }
                 case .keyword(let k)
                         where k.isEvaluable     : let x = LKParameter.keyword(k, reduce: true)
-                                                  return x.container.evaluate(symbols)
+                                                  return x.container.evaluate(&symbols)
                 case .keyword, .operator        : return .error(internal: "\(short) is not evaluable")
                 case .tuple                     : __MajorBug("Unevaluable Tuples should not exist")
             }

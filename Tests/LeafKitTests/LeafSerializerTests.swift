@@ -22,7 +22,7 @@ final class SerializerTests: LeafTestClass {
             var lap = Date()
             print("    Parse: " + lap.distance(to: Date()).formatSeconds())
             lap = Date()
-            let _ = try! render(name: "sample", input, context)
+            let _ = try! render(name: "sample", input, .init(context))
             let duration = lap.distance(to: Date())
             print("Serialize: " + duration.formatSeconds())
             total += duration

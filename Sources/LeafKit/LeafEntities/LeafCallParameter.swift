@@ -72,8 +72,7 @@ internal extension LeafCallParameter {
                      "Parameters cannot take .void types")
         precondition(!(label?.isEmpty ?? false) && label != "_",
                      "Use nil for unlabeled parameters, not empty strings or _")
-        precondition(label?.isValidIdentifier ?? true &&
-                     LeafKeyword(rawValue: label ?? "") == nil,
+        precondition(label?.isValidIdentifier ?? true,
                      "Label must be a valid, non-keyword Leaf identifier")
         precondition(types.contains(defaultValue?.celf ?? types.first!),
                      "Default value is not a match for the argument types")

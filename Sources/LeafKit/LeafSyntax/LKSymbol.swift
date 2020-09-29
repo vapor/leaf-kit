@@ -16,13 +16,13 @@ internal protocol LKSymbol: LKPrintable {
     /// Attempt to resolve with provided symbols.
     ///
     /// Always returns the same type of object,
-    func resolve(_ symbols: LKVarStack) -> Self
+    func resolve(_ symbols: inout LKVarStack) -> Self
 
     /// Force attempt to evalute the symbol with provided symbols
     ///
     /// Atomic symbols should always result in `LeafData` or`.trueNil` if unevaluable due to lack
     /// of needed symbols, or if a non-atomic (eg, `Tuple` or a non-calculation `Expression`)
-    func evaluate(_ symbols: LKVarStack) -> LKData
+    func evaluate(_ symbols: inout LKVarStack) -> LKData
 }
 
 /// Provide `description` and `short` printable representations for convenience

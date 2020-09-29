@@ -14,6 +14,7 @@ public final class LeafEntities {
         entities.registerControlFlow()
         
         entities.registerTypeCasts()
+        entities.registerErroring()
 
         entities.registerArrayReturns()
         entities.registerBoolReturns()
@@ -331,8 +332,8 @@ public final class LeafEntities {
 
 internal extension String {
     func _sanity() {
+        precondition(!isKeyword, "Name cannot be Leaf keyword")
         precondition(isValidIdentifier, "Name must be valid Leaf identifier")
-        precondition(LeafKeyword(rawValue: self) == nil, "Name cannot be Leaf keyword")
     }
 }
 

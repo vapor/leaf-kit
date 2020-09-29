@@ -48,8 +48,9 @@ public struct LeafError: Error, CustomStringConvertible {
         /// Errors due to malformed template syntax or grammar
         case lexerError(LexerError)
         /// Errors due to malformed template syntax or grammar
-        // FIXME: Implement a specific ParserError type
-         case parserError(ParserError)
+        case parserError(ParserError)
+        
+        case invalidIdentifier(String)
 
         /// Error due to timeout (may or may not be permanent)
         case timeout(Double)
@@ -92,6 +93,7 @@ public struct LeafError: Error, CustomStringConvertible {
             case .timeout(let d)              : m += "Exceeded timeout at \(d.formatSeconds())"
             case .configurationError(let d)   : m += "Configuration error: \(d)"
             case .missingRaw(let f)           : m += "Missing raw inline file \"\(f)\""
+            case .invalidIdentifier(let i)    : m += "\(i) is not a valid Leaf identifier"
             case .cyclicalReference(let k, let c)
                 : m += "\(k) cyclically referenced in [\((c + ["!\(k)"]).joined(separator: " -> "))]"
                 

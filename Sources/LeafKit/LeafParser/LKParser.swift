@@ -7,14 +7,22 @@ internal struct LKParser: LKErroring {
     let key: LeafASTKey
     var error: LeafError? = nil
 
-    init(_ key: LeafASTKey, _ tokens: [LKToken]) {
+    init(_ key: LeafASTKey, _ tokens: [LKToken], _ context: LeafRenderer.Context = .init([:])) {
         self.entities = LKConf.entities
         self.key = key
         self.tokens = tokens
         self.rawStack = [entities.raw.instantiate(size: 0, encoding: LKConf.encoding)]
+        self.literals = .init(context: context.literalsOnly, stack: [])
     }
-
+    
     mutating func parse() throws -> LeafAST {
+        literals.stack.append(([], LKVarTablePtr.allocate(capacity: 1)))
+        literals.stack[0].vars.initialize(to: [:])
+        defer {
+            literals.stack[0].vars.deinitialize(count: 1)
+            literals.stack[0].vars.deallocate()
+        }
+        
         var more = true
         while more { more = advance() }
         if !errored && !openBlocks.isEmpty {
@@ -64,6 +72,8 @@ internal struct LKParser: LKErroring {
     /// Stack of explicitly created variables and whether they've been set yet
     private var createdVars: [[LKVariable: Bool]] = [[:]]
     
+    private var literals: LKVarStack
+    
     /// Process the next `LKToken` or multiple tokens.
     private mutating func advance() -> Bool {
         guard let current = pop(), error == nil else { return false }
@@ -90,7 +100,7 @@ internal struct LKParser: LKErroring {
             if tuple.count > 1 { return bool(err("Anonymous tag can't have multiple parameters")) }
             /// Validate tuple is single parameter, append or evaluate & append raw if invariant
             if var v = tuple[0] {
-                if v.resolved && v.invariant { v = .value(v.evaluate([])) }
+                if v.resolved && v.invariant { v = .value(v.evaluate(&literals)) }
                 guard append(v) else { return false }
             }
             /// Decay trailing colon to raw :
@@ -302,7 +312,7 @@ internal struct LKParser: LKErroring {
         
         x.subtract(requiredVars)
         x = x.filter { !requiredVars.contains($0.contextualized) }
-        requiredVars.formUnion(x.map {$0.contextualized})
+        requiredVars.formUnion(x.map( {$0.contextualized}))
         return true
     }
     
@@ -488,6 +498,14 @@ internal struct LKParser: LKErroring {
 
         @discardableResult
         func complexAppend(_ a: LKParameter) -> Bool {
+            var a = a
+            /// If an invariant function with all literal params, and not a mutating or unsafe object, evaluate immediately
+            if case .function(_, .some(let f), let t, _) = a.container,
+               f as? LeafMutatingMethod == nil && f as? LeafUnsafeEntity == nil,
+               t?.values.allSatisfy({$0.isLiteral}) ?? true {
+                let values = t?.values.map {$0.data!} ?? []
+                a = .value(f.evaluate(.init(values, t?.labels ?? [:])))
+            }
             /// `#(var x), #(var x = value)` - var flags "creation", checked on close complex
             if case .keyword(let k) = a.container, k.isVariableDeclaration {
                 guard !forFunction, tuples.count == 1, currentTuple.isEmpty,
@@ -623,7 +641,7 @@ internal struct LKParser: LKErroring {
         func express(_ params: [LKParameter]) -> LKParameter? {
             if let expression = LKExpression.express(params) {
                 return expression.invariant && expression.resolved
-                    ? .value(expression.evaluate([]))
+                    ? .value(expression.evaluate(&literals))
                     : .expression(expression)
             } else if let expression = LKExpression.expressTernary(params) {
                 return .expression(expression)
@@ -718,10 +736,6 @@ internal struct LKParser: LKErroring {
             /// pull the current complex off the stack
             guard makeVariableIfOpen(), var exp = complexes.popLast() else { return false }
             
-            /// Validate any literal values are not error states
-            let e = exp.compactMap {$0.error}
-            guard e.isEmpty else { return bool(err(e.first!)) }
-
             var opCount: Int { countOpsWhere { _ in true } }
 
             func countOpsWhere(_ check: (LeafOperator) -> Bool) -> Int {
@@ -737,8 +751,11 @@ internal struct LKParser: LKErroring {
             func wrapInfix(_ i: Int) -> Bool {
                 guard 0 < i && i < exp.count - 1,
                       let wrap = express([exp[i - 1], exp[i], exp[i + 1]]) else { return false }
+                if let e = exp[i - 1].error { return bool(err(e)) }
+                if let e = exp[i + 1].error { return bool(err(e)) }
                 exp[i - 1] = wrap; exp.remove(at: i); exp.remove(at: i); return true }
             func wrapNot(_ i: Int) -> Bool {
+                if let e = exp[i + 1].error { return bool(err(e)) }
                 guard exp.indices.contains(i + 1),
                       let wrap = express([exp[i], exp[i + 1]]) else { return false }
                 exp[i] = wrap; exp.remove(at: i + 1); return true }
@@ -760,19 +777,24 @@ internal struct LKParser: LKErroring {
                 guard tF > 2, exp[tF - 2].operator == .ternaryTrue, exp.count >= tF,
                       let ternary = express([exp[tF - 3], exp[tF - 1], exp[tF + 1]])
                 else { return false }
-                exp[tF - 3] = ternary; exp.removeSubrange((tF - 2)...(tF + 1))
+                let eOne = exp[tF - 1].error
+                let eTwo = exp[tF + 1].error
+                if let eOne = eOne, let eTwo = eTwo {
+                    return bool(err("Both sides of ternary expression produce errors:\n\(eOne)\n\(eTwo)")) }
+                exp[tF - 3] = ternary
+                exp.removeSubrange((tF - 2)...(tF + 1))
             }
             
             // Custom expressions can still be at most 3-part, anything more is invalid
             guard exp.count <= 3 else { return false }
             if exp.isEmpty { complexes.append([]); return true }
-            guard exp.count > 1 else { exp[0] = exp[0].resolve([]); complexes.append(exp); return true }
+            guard exp.count > 1 else { exp[0] = exp[0].resolve(&literals); complexes.append(exp); return true }
             
             // Handle assignment
             if exp[1].operator?.assigning == true {
                 if exp.count == 2 { return bool(err("No value to assign")) }
                 if !exp[2].isValued { return bool(err("Non-valued type can't be assigned")) }
-                exp[2] = exp[2].resolve([])
+                exp[2] = exp[2].resolve(&literals)
                 complexes.append([.expression(LKExpression.express(exp)!)])
                 return true
             }
@@ -842,10 +864,11 @@ internal struct LKParser: LKErroring {
                     }
                     let result = entities.validateFunction(f, tuple)
                     switch result {
-                        case .failure(let r)   : return void(err(r))
                         case .success(let F)
                             where F.count == 1 : complexAppend(.function(f, F[0].0, F[0].1))
+                        /// Can't find an exact match yet - don't grab an actual object, just store the tuple
                         case .success          : complexAppend(.function(f, nil, tuple))
+                        case .failure(let r)   : return void(err(r))
                     }
             }
         }

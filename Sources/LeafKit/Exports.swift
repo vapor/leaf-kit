@@ -27,9 +27,12 @@ public extension Character {
 public extension String {
     /// Whether the string is valid as an identifier (variable part or function name) in LeafKit
     var isValidIdentifier: Bool {
-        !isEmpty && allSatisfy({$0.isValidInIdentifier})
+        !isEmpty && !isKeyword
             && first?.canStartIdentifier ?? false
+            && allSatisfy({$0.isValidInIdentifier})
     }
+    
+    var isKeyword: Bool { LeafKeyword(rawValue: self) != nil }
 }
 
 extension Array: LKPrintable where Element == LeafCallParameter {

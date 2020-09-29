@@ -116,7 +116,7 @@ internal extension LeafOperator {
 
     static var validCharacters: Set<Character> {
         Set(LeafOperator.allCases).subtracting(unlexable)
-                                  .map { $0.rawValue }.joined()
+                                  .map {$0.rawValue}.joined()
                                   .reduce(into: [], { $0.insert($1) })
     }
 

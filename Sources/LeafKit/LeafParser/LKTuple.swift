@@ -36,26 +36,26 @@ internal struct LKTuple: LKSymbol {
     }
 
     /// `(value(1), bool(true), ...)`
-    var short: String { wrap(values.map { $0.short }.joined(separator: ", ")) }
+    var short: String { wrap(values.map {$0.short}.joined(separator: ", ")) }
 
     private func wrap(_ s: String) -> String { collection ? "[\(s)]" : "(\(s))" }
     
     // MARK: LKSymbol
-    func resolve(_ symbols: LKVarStack) -> Self {
+    func resolve(_ symbols: inout LKVarStack) -> Self {
         if resolved { return self }
         var updated = self
         for index in values.indices where !values[index].resolved {
-            updated.values[index] = values[index].resolve(symbols)
+            updated.values[index] = values[index].resolve(&symbols)
         }
         return updated
     }
     
-    func evaluate(_ symbols: LKVarStack) -> LeafData {
+    func evaluate(_ symbols: inout LKVarStack) -> LeafData {
         if labels.isEmpty {
-            return .array(values.map { $0.evaluate(symbols) })
+            return .array(values.map { $0.evaluate(&symbols) })
         } else {
             let inverted = Dictionary(labels.map { ($0.value, $0.key) }, uniquingKeysWith: {a, _ in a})
-            let dict = values.indices.map { (inverted[$0]!, values[$0].evaluate(symbols)) }
+            let dict = values.indices.map { (inverted[$0]!, values[$0].evaluate(&symbols)) }
             return .dictionary(.init(dict, uniquingKeysWith: {a, _ in a}))
         }
     }

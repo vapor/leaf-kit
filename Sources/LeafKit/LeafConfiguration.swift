@@ -2,11 +2,8 @@
 // MARK: -
 
 import Foundation
-import NIOConcurrencyHelpers
 
-/// General configuration of Leaf
-/// - Sets the default View directory where templates will be looked for
-/// - Guards setting the global tagIndicator (default `#`).
+/// General global configuration of Leaf
 public struct LeafConfiguration {
     /// Initialize Leaf with a specific tagIndicator
     /// - Parameter rootDirectory: Default directory where templates will be found
@@ -21,27 +18,21 @@ public struct LeafConfiguration {
     }
 
     @LeafRuntimeGuard public static var rootDirectory: String = "/"
-
     @LeafRuntimeGuard public static var tagIndicator: Character = .octothorpe
-    
     @LeafRuntimeGuard public static var entities: LeafEntities = .leaf4Core
-    
-    @LeafRuntimeGuard(condition: {$0>0})
-    public static var timeout: Double = 30.0
-    
+    @LeafRuntimeGuard(condition: {$0>0}) public static var timeout: Double = 30.0
     @LeafRuntimeGuard public static var rawCachingLimit: UInt32 = 1024
-    
     @LeafRuntimeGuard public static var encoding: String.Encoding = .utf8
+    
+    public static var isRunning: Bool { started }
 
-    static var isRunning: Bool { started }
+    // MARK: - Internal/Private Only
     
     /// Convenience for getting running state of LeafKit that will assert with a fault message for soft-failing things
     static func running(fault message: String) -> Bool {
         assert(!started, "\(message) after LeafRenderer has instantiated")
         return started
     }
-
-    // MARK: - Internal/Private Only
     
     /// WARNING: Reset global "started" flag - only for testing use
     static func __reset() { started = false }

@@ -20,12 +20,12 @@ public struct LeafCallValues {
     /// Generate fulfilled LeafData call values from symbols in incoming tuple
     internal init?(_ sig:[LeafCallParameter],
                    _ tuple: LKTuple?,
-                   _ symbols: LKVarStack) {
+                   _ symbols: inout LKVarStack) {
         if tuple == nil && !sig.isEmpty { return nil }
         guard let tuple = tuple else { values = []; labels = [:]; return }
         self.labels = tuple.labels
         self.values = tuple.values.enumerated().compactMap {
-            sig[$0.offset].match($0.element.evaluate(symbols)) }
+            sig[$0.offset].match($0.element.evaluate(&symbols)) }
         /// Some values not matched - call fails
         if count < tuple.count { return nil }
     }

@@ -41,7 +41,7 @@ internal func parse(_ str: String, name: String = "default") throws -> LeafAST {
 /// - Returns: A fully rendered view
 internal func render(name: String = "test-render",
                      _ template: String,
-                     _ context: [String: LKData] = [:]) throws -> String {
+                     _ context: LeafRenderer.Context = [:]) throws -> String {
     _ = LeafConfiguration.init(rootDirectory: "")
     var lexer = LKLexer(LKRawTemplate(name, template))
     let tokens = try lexer.lex()
@@ -65,24 +65,20 @@ internal class TestRenderer {
     private static var configured = false
     private var timer: Date = .distantPast
 
-    init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
-         cache: LeafCache = DefaultLeafCache(),
+    init(cache: LeafCache = DefaultLeafCache(),
          sources: LeafSources = .singleSource(TestFiles()),
          eventLoop: EventLoop = EmbeddedEventLoop(),
-         userInfo: [AnyHashable : Any] = [:],
          tasks: Int = 1) {
-        self.r = .init(configuration: configuration,
-                              cache: cache,
-                              sources: sources,
-                              eventLoop: eventLoop,
-                              userInfo: userInfo)
+        self.r = .init(cache: cache,
+                       sources: sources,
+                       eventLoop: eventLoop)
         lock = .init()
         counter = tasks
     }
 
-    func render(source: String? = nil, path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
+    func render(source: String? = nil, path: String, context: LeafRenderer.Context = [:]) -> EventLoopFuture<ByteBuffer> {
         if timer == .distantPast { timer = Date() }
-        return r.render(path: path, from: source != nil ? source! : "$", context: context)
+        return r.render(template: path, from: source != nil ? source! : "$", context: context)
     }
 
     var queued: Int { lock.withLock { counter } }

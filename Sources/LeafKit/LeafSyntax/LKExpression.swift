@@ -18,25 +18,25 @@ internal struct LKExpression: LKSymbol {
 
     private(set) var baseType: LKDType?
 
-    func resolve(_ symbols: LKVarStack) -> Self {
+    func resolve(_ symbols: inout LKVarStack) -> Self {
         form.exp != .ternary
-            ? .init(.init(storage.map { $0.resolve(symbols) }), form)
-            : .init(.init([storage[0].resolve(symbols), storage[1], storage[2]]), form)
+            ? .init(.init(storage.map { $0.resolve(&symbols) }), form)
+            : .init(.init([storage[0].resolve(&symbols), storage[1], storage[2]]), form)
     }
 
-    func evaluate(_ symbols: LKVarStack) -> LKData {
+    func evaluate(_ symbols: inout LKVarStack) -> LKData {
         switch form.exp {
             case .calculation : break
-            case .ternary     : return evalTernary(symbols)
+            case .ternary     : return evalTernary(&symbols)
             case .assignment  : __MajorBug("Assignment should have redirected")
             case .custom      :
                 if case .keyword(let k) = first.container,
-                   k.isVariableDeclaration { return createVariable(symbols) }
+                   k.isVariableDeclaration { return createVariable(&symbols) }
                 __MajorBug("Custom expression produced in AST")
         }
 
-        let lhsData = lhs?.evaluate(symbols) ?? .trueNil
-        let rhsData = rhs?.evaluate(symbols) ?? .trueNil
+        let lhsData = lhs?.evaluate(&symbols) ?? .trueNil
+        let rhsData = rhs?.evaluate(&symbols) ?? .trueNil
         switch form.op! {
             case .infix        : return evalInfix(lhsData, op!, rhsData)
             case .unaryPrefix  : return evalPrefix(op!, rhsData)
@@ -48,8 +48,8 @@ internal struct LKExpression: LKSymbol {
     var short: String {
         switch form.exp {
             case .assignment,
-                 .calculation: return "[\([lhs?.short ?? "", op?.short ?? "", rhs?.short ?? ""].joined(separator: " "))]"
-            case .ternary: return "[\(storage[0].short) ? \(storage[1].short) : \(storage[2].short) ]"
+                 .calculation: return "[\([lhs?.short ?? "", op?.short ?? "", rhs?.short ?? ""].filter{ !$0.isEmpty }.joined(separator: " "))]"
+            case .ternary: return "[\(storage[0].short) ? \(storage[1].short) : \(storage[2].short)]"
             case .custom: return "[\(storage.compactMap { $0.operator != .subOpen ? $0.short : nil }.joined(separator: " "))]"
         }
     }
@@ -251,26 +251,26 @@ internal struct LKExpression: LKSymbol {
         }
     }
     
-    func createVariable(_ symbols: LKVarStack) -> LKData {
+    func createVariable(_ symbols: inout LKVarStack) -> LKData {
         if case .variable(let x) = second.container,
-           let value = third?.container.evaluate(symbols) { symbols.create(x, value) }
+           let value = third?.container.evaluate(&symbols) { symbols.create(x, value) }
         return .trueNil
     }
     
     /// Evaluate assignments.
     ///
     /// If variable lookup succeeds, return variable key and value to set to; otherwise error
-    func evalAssignment(_ symbols: LKVarStack) -> Result<(LKVariable, LKData), LeafError> {
+    func evalAssignment(_ symbols: inout LKVarStack) -> Result<(LKVariable, LKData), LeafError> {
         guard case .variable(let assignor) = first.container,
               let op = op, op.assigning,
-              let value = third?.evaluate(symbols) else {
+              let value = third?.evaluate(&symbols) else {
             __MajorBug("Improper assignment expression") }
         
         if assignor.isPathed, let parent = assignor.parent,
            symbols.match(parent) == nil {
-            return .failure(err("\(parent.short) does not exist; cannot set \(assignor)"))
+            return .failure(err("\(parent.terse) does not exist; cannot set \(assignor)"))
         } else if !assignor.isPathed, symbols.match(assignor) == nil {
-            return .failure(err("\(assignor.short) must be defined first with `var \(assignor.member ?? "")`"))
+            return .failure(err("\(assignor.terse) must be defined first with `var \(assignor.member ?? "")`"))
         }
         /// Straight assignment just requires identifier parent exists if it's pathed.
         if op == .assignment { return .success((assignor, value)) }
@@ -291,13 +291,13 @@ internal struct LKExpression: LKSymbol {
     }
 
     /// Evaluate a ternary expression
-    private func evalTernary(_ symbols: LKVarStack) -> LKData {
-        let condition = first.evaluate(symbols)
+    private func evalTernary(_ symbols: inout LKVarStack) -> LKData {
+        let condition = first.evaluate(&symbols)
         switch condition.bool {
             case .some(true),
-                 .none where !condition.isNil: return second.evaluate(symbols)
+                 .none where !condition.isNil: return second.evaluate(&symbols)
             case .some(false),
-                 .none where condition.isNil: return third!.evaluate(symbols)
+                 .none where condition.isNil: return third!.evaluate(&symbols)
             case .none: __MajorBug("Ternary condition returned non-bool")
         }
     }

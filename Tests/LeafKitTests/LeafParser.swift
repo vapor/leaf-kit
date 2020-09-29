@@ -133,12 +133,13 @@ final class LKParserTests: LeafTestClass {
             "aDict" : ["one": 1, "two": 2.0, "three": ["five", "ten"]]
         ]
         
+        
         let start = Date()
         let sampleAST = try parse(sample)
         let parsedTime = start.distance(to: Date())
 
         print(sampleAST.formatted)
-        let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
+        let serializer = LKSerializer(sampleAST, .init(context), ByteBuffer.self)
         var block = ByteBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
         let result = serializer.serialize(&block)
         switch result {
@@ -163,7 +164,7 @@ final class LKParserTests: LeafTestClass {
             <script>"Don't let me get out & do some serious damage"</script>
             """
         ]
-        try XCTAssertEqual(render(name: "test", sample, context) , expected)
+        try XCTAssertEqual(render(name: "test", sample, .init(context)) , expected)
     }
 
     func testVsComplex() throws {
@@ -189,7 +190,7 @@ final class LKParserTests: LeafTestClass {
             let sampleAST = try! sampleParse.parse()
             print("    Parse: " + lap.distance(to: Date()).formatSeconds())
             lap = Date()
-            let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
+            let serializer = LKSerializer(sampleAST, .init(context), ByteBuffer.self)
             var block = ByteBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
             print("    Setup: " + lap.distance(to: Date()).formatSeconds())
             let result = serializer.serialize(&block)
@@ -246,7 +247,7 @@ final class LKParserTests: LeafTestClass {
         
         let sampleAST = try parse(sample)
         print(sampleAST.formatted)
-        let serializer = LKSerializer(sampleAST, context, ByteBuffer.self)
+        let serializer = LKSerializer(sampleAST, .init(context), ByteBuffer.self)
         var block = ByteBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
 
         let result = serializer.serialize(&block)
@@ -390,7 +391,7 @@ final class LKParserTests: LeafTestClass {
             "me": "LOGAN"
         ]
         
-        _ = try renderer.render(path: "sample", context: context).always {
+        _ = try renderer.render(path: "sample", context: .init(context)).always {
             switch $0 {
                 case .failure(let e): XCTFail((e as! LeafError).localizedDescription)
                 case .success(let b): XCTAssertTrue(b.readableBytes == 0, "\(b.readableBytes.formatBytes())")

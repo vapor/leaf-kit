@@ -97,7 +97,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case .optional(_, let t) : return "\(t)()?"
             case .string(let s)      : return "string(\(s))"
             case .evaluate           : return "evaluate(deferred)"
-            case .error              : return "error(\(self.error!)"
+            case .error              : return "error(\(self.error!))"
         }
     }
 

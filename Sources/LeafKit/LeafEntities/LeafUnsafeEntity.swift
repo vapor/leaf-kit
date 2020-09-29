@@ -5,7 +5,7 @@
 /// Any structures so passed *may be reference types* if so configured - no guarantees are made, and
 /// using such an unsafe entity on a non-threadsafe stored value may cause runtime issues.
 public protocol LeafUnsafeEntity {
-    var userInfo: ExternalObjects? { get set }
+    var externalObjects: ExternalObjects? { get set }
 }
 
 public typealias ExternalObjects = [AnyHashable: Any]

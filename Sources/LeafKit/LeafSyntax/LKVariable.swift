@@ -31,13 +31,17 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
         isScope ? nil
                 : !isPathed ? String(flat.dropFirst(Int(memberStart)))
                             : String(flat.dropLast(flat.count - Int(memberEnd)).dropFirst(Int(memberStart))) }
+    
+    var lastPart: String? {
+        !isPathed ? nil
+                  : String(flat.reversed().split(separator: ".", maxSplits: 1).first!.reversed()) }
 
     // MARK: - LKSymbol
     var resolved: Bool { false }
     var invariant: Bool { state.contains(.constant) }
     var symbols: Set<LKVariable> { [self] }
-    func resolve(_ symbols: LKVarStack) -> Self { self }
-    func evaluate(_ symbols: LKVarStack) -> LeafData { symbols.match(self) ?? .trueNil }
+    func resolve(_ symbols: inout LKVarStack) -> Self { self }
+    func evaluate(_ symbols: inout LKVarStack) -> LeafData { symbols.match(self) ?? .trueNil }
 
     // MARK: - LKPrintable
     var description: String { flat }
@@ -74,6 +78,7 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
     /// Convenience for a `Define` identifier - MUST be atomic
     static func define(_ m: String) -> Self { .init(member: m, define: true)}
 
+    static func scope(_ s: String) -> Self { .init(scope: s) }
 
     /// Remap a variant symbol onto `self` context
     var contextualized: Self { .init(from: self) }

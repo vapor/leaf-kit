@@ -262,8 +262,8 @@ extension LeafData: LKSymbol {
     var invariant: Bool { !state.contains(.variant) }
     var symbols: Set<LKVariable> { [] }
 
-    func resolve(_ symbols: LKVarStack) -> Self { self }
-    func evaluate(_ symbols: LKVarStack) -> Self { state.contains(.variant) ? container.evaluate : self }
+    func resolve(_ symbols: inout LKVarStack) -> Self { self }
+    func evaluate(_ symbols: inout LKVarStack) -> Self { state.contains(.variant) ? container.evaluate : self }
 }
 
 internal protocol LKDSelf: StringReturn {}
