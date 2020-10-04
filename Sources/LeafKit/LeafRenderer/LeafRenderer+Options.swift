@@ -1,11 +1,11 @@
-
-// MARK: - Internal Implementation
+// MARK: - Public Implementation
 
 public extension LeafRenderer.Option {
     static var allCases: [Self] {[
         .timeout(LKRContext.$timeout._unsafeValue),
         .missingVariableThrows(LKRContext.$missingVariableThrows._unsafeValue),
-        .grantUnsafeEntityAccess(LKRContext.$grantUnsafeEntityAccess._unsafeValue)
+        .grantUnsafeEntityAccess(LKRContext.$grantUnsafeEntityAccess._unsafeValue),
+        .cacheBypass(LKRContext.$cacheBypass._unsafeValue)
     ]}
     
     func hash(into hasher: inout Hasher) { hasher.combine(celf) }
@@ -16,11 +16,8 @@ public extension LeafRenderer.Options {
     static var globalSettings: Self { .init(LeafRenderer.Option.allCases) }
     
     init(_ elements: [LeafRenderer.Option]) {
-        self._storage = []
-        elements.forEach  {
-            if _storage.contains($0) { return }
-            if $0.valid == true { _storage.update(with: $0) }
-        }
+        self._storage = elements.reduce(into: []) {
+            if !$0.contains($1) && $1.valid == true { $0.update(with: $1) } }
     }
     
     init(arrayLiteral elements: LeafRenderer.Option...) { self.init(elements) }
@@ -51,10 +48,10 @@ internal extension LeafRenderer.Option {
     
     var valid: Bool? {
         switch self {
-            case .missingVariableThrows,
-                 .grantUnsafeEntityAccess,
-                 .cacheBypass              : return true
-            case .timeout(let t)           : return LKRContext.$timeout.validate(t)
+            case .missingVariableThrows(let b)   : return LKRContext.$missingVariableThrows.validate(b)
+            case .grantUnsafeEntityAccess(let b) : return LKRContext.$grantUnsafeEntityAccess.validate(b)
+            case .cacheBypass(let b)             : return LKRContext.$cacheBypass.validate(b)
+            case .timeout(let t)                 : return LKRContext.$timeout.validate(t)
         }
     }
 }

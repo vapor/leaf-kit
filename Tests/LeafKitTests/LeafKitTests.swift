@@ -451,8 +451,7 @@ final class LeafKitTests: LeafTestClass {
 
     func testRendererContext() throws {
         struct CustomTag: LeafUnsafeEntity, StringReturn {
-            static var callSignature:[LeafCallParameter]  {[.string]}
-            static var invariant: Bool {false}
+            static var callSignature: [LeafCallParameter]  {[.string]}
             
             var externalObjects: ExternalObjects? = nil
             var prefix: String? { externalObjects?["prefix"] as? String }
@@ -971,7 +970,7 @@ final class LeafKitTests: LeafTestClass {
     func testElideRenderOptionChanges() throws {
         XCTAssertEqual(LeafRenderer.Option.Case.allCases.count,
                        LeafRenderer.Option.allCases.count)
-        XCTAssertEqual(LeafRenderer.Option.allCases.count, 3)
+        XCTAssertEqual(LeafRenderer.Option.allCases.count, 4)
         var options: LeafRenderer.Options = .globalSettings
         XCTAssertEqual(options._storage.count, 0)
         options.update(.timeout(1.0))

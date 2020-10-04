@@ -28,9 +28,9 @@ internal func lex(_ str: String, name: String = "default") throws -> [LKToken] {
 /// - Returns: A lexed and parsed array of Syntax
 internal func parse(_ str: String, name: String = "default") throws -> LeafAST {
     var lexer = LKLexer(LKRawTemplate(name, str))
-    let tokens = try! lexer.lex()
+    let tokens = try lexer.lex()
     var parser = LKParser(.searchKey(name), tokens)
-    let syntax = try! parser.parse()
+    let syntax = try parser.parse()
 
     return syntax
 }
@@ -47,7 +47,7 @@ internal func render(name: String = "test-render",
     var parser = LKParser(.searchKey(name), tokens)
     let ast = try parser.parse()
     var block = ByteBuffer.instantiate(size: ast.underestimatedSize, encoding: .utf8)
-    let serializer = LKSerializer(ast, context, ByteBuffer.self)
+    let serializer = LKSerializer(ast, context, LeafBuffer.self)
     switch serializer.serialize(&block) {
         case .success        : return block.contents
         case .failure(let e) : throw e
@@ -89,7 +89,7 @@ internal class TestRenderer {
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
-public final class LeafTestFiles: LeafSource {
+internal final class LeafTestFiles: LeafSource {
     var files: [String: String] {
         get { lock.withLock {_files} }
         set { lock.withLockVoid {_files = newValue} }

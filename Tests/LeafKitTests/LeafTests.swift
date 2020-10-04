@@ -187,6 +187,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testArrayIf() throws {
+        LKRContext.missingVariableThrows = false
         let template = """
         #if(namelist):#for(name in namelist):Hello, #(name)!#endfor#else:No Name!#endif
         """

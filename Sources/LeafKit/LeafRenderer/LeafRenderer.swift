@@ -22,8 +22,8 @@ public final class LeafRenderer {
 
     /// Initial configuration of LeafRenderer.
     init(cache: LeafCache,
-                sources: LeafSources,
-                eventLoop: EventLoop) {
+         sources: LeafSources,
+         eventLoop: EventLoop) {
         if !LKConf.started { LKConf.started = true }
         
         self.cache = cache
@@ -113,7 +113,6 @@ public final class LeafRenderer {
         internal var anyLiteral: Bool = false
         /// Render-specific option overrides
         internal var options: Options? = nil
-        internal var softFail: Bool = false
     }
 }
 
@@ -244,8 +243,8 @@ private extension LeafRenderer {
            let hit = blockingCache!.retrieve(key) { return succeed(hit, on: eL) }
         
         return !context.cacheBypass ? cache.retrieve(key, on: eL)
-                                            .flatMapThrowing { if let hit = $0 { return hit } else { throw "" } }
-                                            .flatMapError { _ in self.read(key, context) }
+                                           .flatMapThrowing { if let hit = $0 { return hit } else { throw "" } }
+                                           .flatMapError { _ in self.read(key, context) }
                                     : read(key, context)
     }
 
