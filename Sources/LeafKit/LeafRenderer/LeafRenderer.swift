@@ -16,14 +16,11 @@ public final class LeafRenderer {
     public let cache: LeafCache
     /// A thread-safe implementation of `LeafSource` protocol
     public let sources: LeafSources
-    
-    // MARK: Static Properties
-  //  @LeafRuntimeGuard public static var defaultOptions: Set<Option> = []
 
     /// Initial configuration of LeafRenderer.
-    init(cache: LeafCache,
-         sources: LeafSources,
-         eventLoop: EventLoop) {
+    public init(cache: LeafCache,
+                sources: LeafSources,
+                eventLoop: EventLoop) {
         if !LKConf.started { LKConf.started = true }
         
         self.cache = cache
@@ -31,16 +28,12 @@ public final class LeafRenderer {
         self.eL = eventLoop
         self.blockingCache = cache as? LKSynchronousCache
         self.cacheIsSync = blockingCache != nil
-//        self.worker = .init(label: "codes.vapor.leaf.renderer",
-//                            attributes: .concurrent,
-//                            autoreleaseFrequency: .never)
     }
     
     // MARK: Private Only
     private let eL: EventLoop
     private let cacheIsSync: Bool
     private let blockingCache: LKSynchronousCache?
-//    private let worker: DispatchQueue
     
     // MARK: - Scoped Objects
     
