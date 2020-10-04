@@ -22,6 +22,14 @@ public extension LeafRenderer.Context {
         self.init(context!)
     }
     
+    init?(encodable asSelf: Encodable) {
+        let encoder = LKEncoder()
+        guard (try? asSelf.encode(to: encoder)) != nil,
+              let dict = encoder.root?.leafData.dictionary else { return nil }
+        self.init(dict)
+    }
+    
+    
     static var defaultContextScope: String { LKVariable.selfScope }
     
     /// Set the contextual values for a specific valid scope, overwriting if any exist.
