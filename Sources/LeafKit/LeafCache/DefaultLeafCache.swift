@@ -10,7 +10,6 @@ public final class DefaultLeafCache {
     }
     
     // MARK: - Stored Properties - Private Only
-    private var _isEnabled: Bool = true
     private let locks: (cache: RWLock, touch: RWLock)
     /// NOTE: internal read-only purely for test access validation - not assured
     private(set) var cache: [LeafASTKey: LeafAST]
@@ -19,12 +18,6 @@ public final class DefaultLeafCache {
 
 // MARK: - Public - LeafCache
 extension DefaultLeafCache: LeafCache {
-    /// Global setting for enabling or disabling the cache
-    public var isEnabled: Bool {
-        get { locks.cache.readWithLock { _isEnabled } }
-        set { locks.cache.writeWithLock { _isEnabled = newValue } }
-    }
-
     public var count: Int { locks.cache.readWithLock { cache.count } }
     
     public var isEmpty: Bool { locks.cache.readWithLock { cache.isEmpty } }
@@ -63,13 +56,11 @@ extension DefaultLeafCache: LeafCache {
     ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
     public func remove(_ key: LeafASTKey,
                        on loop: EventLoop) -> EventLoopFuture<Bool?> {
-        guard _isEnabled else { return fail(.cachingDisabled, on: loop) }
-        return succeed(remove(key), on: loop)
-    }
+        return succeed(remove(key), on: loop) }
 
     public func touch(_ key: LeafASTKey,
                       _ values: LeafASTTouch) {
-        if _isEnabled { locks.touch.writeWithLock { touches[key]!.aggregate(values: values) } }
+        locks.touch.writeWithLock { touches[key]!.aggregate(values: values) }
     }
     
     public func info(for key: LeafASTKey,
@@ -91,7 +82,6 @@ extension DefaultLeafCache: LeafCache {
 extension DefaultLeafCache: LKSynchronousCache {
     /// Blocking file load behavior
     func insert(_ document: LeafAST, replace: Bool) -> Result<LeafAST, LeafError> {
-        guard _isEnabled else { return .failure(err(.cachingDisabled)) }
         /// Blind failure if caching is disabled
         var e: Bool = false
         locks.cache.writeWithLock {
@@ -106,7 +96,6 @@ extension DefaultLeafCache: LKSynchronousCache {
 
     /// Blocking file load behavior
     func retrieve(_ key: LeafASTKey) -> LeafAST? {
-        guard _isEnabled else { return nil }
         return locks.cache.readWithLock {
             guard cache.keys.contains(key) else { return nil }
             locks.touch.writeWithLock {

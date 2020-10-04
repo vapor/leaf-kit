@@ -12,9 +12,6 @@
 ///
 /// `LeafAST.key: LeafASTKey` is to be used in all cases as the key for storing and retrieving cached documents.
 public protocol LeafCache {
-    /// Setting for enabling or disabling the cache
-    var isEnabled : Bool { get set }
-
     /// Current count of cached documents
     var count: Int { get }
     /// If cache is empty
@@ -65,4 +62,9 @@ public protocol LeafCache {
     
     /// Drop the entire cache contents
     func dropAll()
+}
+
+
+public extension LeafCache {
+    var isEmpty: Bool { count == 0 }
 }
