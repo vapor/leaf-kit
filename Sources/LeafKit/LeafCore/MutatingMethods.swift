@@ -5,9 +5,7 @@ internal extension LeafEntities {
     }
 }
 /// Mutating (String, String)
-internal struct MutatingStrStrMap: LeafMutatingMethod, VoidReturn {
-    static let callSignature:[LeafCallParameter] = [.string, .string]
-
+internal struct MutatingStrStrMap: LeafMutatingMethod, StringStringParam, VoidReturn {
     func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LKData?, result: LKData) {
         let cache = params[0].string!
         var operand = cache
@@ -15,17 +13,15 @@ internal struct MutatingStrStrMap: LeafMutatingMethod, VoidReturn {
         return (operand != cache ? operand.leafData : nil, .trueNil)
     }
     
+    static let append: Self = .init({$0.append($1)})
+    
     private init(_ map: @escaping (inout String, String) -> ()) { f = map }
     private let f: (inout String, String) -> ()
-    
-    static let append: Self = .init({$0.append($1)})
 }
 
 
 /// Mutating (String, Int) -> String
-internal struct MutatingStrToStrMap: LeafMutatingMethod, StringReturn {
-    static let callSignature:[LeafCallParameter] = [.string]
-
+internal struct MutatingStrToStrMap: LeafMutatingMethod, StringParam, StringReturn {
     func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LKData?, result: LKData) {
         let cache = params[0].string!
         var operand = cache
@@ -33,8 +29,8 @@ internal struct MutatingStrToStrMap: LeafMutatingMethod, StringReturn {
         return (operand != cache ? operand.leafData : nil, .string(result))
     }
     
+    static let popLast: Self = .init({ $0.popLast().map{String($0)} })
+    
     private init(_ map: @escaping (inout String) -> String?) { f = map }
     private let f: (inout String) -> String?
-    
-    static let popLast: Self = .init({ $0.popLast().map{String($0)} })
 }

@@ -2,7 +2,7 @@
 import XCTest
 
 final class LeafTests: LeafTestClass {
-    // currently not supported.. discussion ongoing
+    /// currently not supported.. discussion ongoing
     func _testInterpolated() throws {
         let template = """
         <p>#("foo: \\(foo)")</p>
@@ -35,8 +35,8 @@ final class LeafTests: LeafTestClass {
         try XCTAssertEqual(render(template), "hi #thisIsNotATag...")
     }
 
-    // conversation ongoing
     func testComplexIf() throws {
+        LKRContext.missingVariableThrows = false
         let template = """
         #if(a): #if(b): hallo #else: #if(c): dallo #else: ballo #endif #endif #endif
         """
@@ -139,6 +139,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testStringIf() throws {
+        LKRContext.missingVariableThrows = false
         let template = """
         #if(name):Hello, #(name)!#else:No Name!#endif
         """
@@ -149,6 +150,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testEqualIf() throws {
+        LKRContext.missingVariableThrows = false
         let template = """
         #if(string1 == string2):Good#else:Bad#endif
         """
@@ -159,6 +161,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testAndStringIf() throws {
+        LKRContext.missingVariableThrows = false
         let template = """
         #if(name && one):Hello, #(name)#(one)!#elseif(name):Hello, #(name)!#else:No Name!#endif
         """
@@ -171,6 +174,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testOrStringIf() throws {
+        LKRContext.missingVariableThrows = false
         let template = """
         #if(name || one):Hello, #(name)#(one)!#else:No Name!#endif
         """
@@ -306,32 +310,27 @@ final class LeafTests: LeafTestClass {
         try XCTAssertEqual(render(template, ["arrays": data]), expected)
     }
 
-    // It would be nice if a pre-render phase could catch things like calling
-    // tags that would normally ALWAYS throw in serializing (eg, calling index
-    // when not in a loop) so that warnings can be provided and AST can be minimized.
-    func testLoopTagsInvalid() throws {
+    /// Obviated by rebuild
+    func _testLoopTagsInvalid() throws {
         let template = """
-            #if(isFirst):Wrong#else:Right#endif
-            """
-            let expected = "Right"
+        #if(isFirst):Wrong#else:Right#endif
+        """
+        let expected = "Right"
 
         try XCTAssertEqual(render(template, [:]), expected)
     }
-
-    // Current implementation favors context keys over tag keys, so
-    // defining a key for isFirst in context will override accessing registered
-    // LeafTags with the same name.
-    // More reason to introduce scoping tag keys!!
-    func testTagContextOverride() throws {
+    
+    /// Obviated by rebuild
+    func _testTagContextOverride() throws {
         let template = """
-            #if(isFirst):Wrong (Maybe)#else:Right#endif
-            """
-            let expected = "Wrong (Maybe)"
+        #if(isFirst):Wrong (Maybe)#else:Right#endif
+        """
+        let expected = "Wrong (Maybe)"
 
         try XCTAssertEqual(render(template, ["isFirst": true]), expected)
     }
 
-    // Validate parse resolution of negative numbers
+    /// Validate parse resolution of negative numbers
     func testNegatives() throws {
         let input = """
         #(10)
@@ -349,7 +348,7 @@ final class LeafTests: LeafTestClass {
         try XCTAssertEqual(render(input), expectation)
     }
 
-    // Validate parse resolution of evaluable expressions
+    /// Validate parse resolution of evaluable expressions
     func testComplexParameters() throws {
         let input = """
         #(index-5)
@@ -374,7 +373,7 @@ final class LeafTests: LeafTestClass {
         try XCTAssertEqual(render(input,["index":10]), expectation)
     }
 
-    // Validate parse resolution of negative numbers
+    /// Validate parse resolution of negative numbers
     func testOperandGrouping() throws {
         let input = """
         #(!true&&!false)

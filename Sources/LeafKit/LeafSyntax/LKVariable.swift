@@ -21,6 +21,7 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
     var isPathed: Bool { state.contains(.pathed) }
     var isAtomic: Bool { !(isScoped || isPathed) }
     var isDefine: Bool { state.contains(.defined) }
+    /// NOTE: Only set in state for `symbols` expressed by a parameter for the purpose of determining if its required
     var isCoalesced: Bool { state.contains(.coalesced) }
     
     var scope: String? {
@@ -30,7 +31,7 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
     var member: String? {
         isScope ? nil
                 : !isPathed ? String(flat.dropFirst(Int(memberStart)))
-                            : String(flat.dropLast(flat.count - Int(memberEnd)).dropFirst(Int(memberStart))) }
+                            : String(flat.dropLast(flat.count - Int(memberEnd + 1)).dropFirst(Int(memberStart))) }
     
     var lastPart: String? {
         !isPathed ? nil
@@ -41,7 +42,7 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
     var invariant: Bool { state.contains(.constant) }
     var symbols: Set<LKVariable> { [self] }
     func resolve(_ symbols: inout LKVarStack) -> Self { self }
-    func evaluate(_ symbols: inout LKVarStack) -> LeafData { symbols.match(self) ?? .trueNil }
+    func evaluate(_ symbols: inout LKVarStack) -> LeafData { symbols.match(self) }
 
     // MARK: - LKPrintable
     var description: String { flat }
@@ -56,9 +57,9 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
           _ member: String? = nil,
           _ path: [String]? = nil) {
         /// Member, scope, path parts must all be valid identifiers. If scope is nil, member must not be empty.
-        guard member?.isValidIdentifier ?? true, scope?.isValidIdentifier ?? true,
+        guard member?.isValidLeafIdentifier ?? true, scope?.isValidLeafIdentifier ?? true,
               member != nil || scope != nil else { return nil }
-        if path?.isEmpty == false, !path!.allSatisfy({$0.isValidIdentifier}) { return nil }
+        if path?.isEmpty == false, !path!.allSatisfy({$0.isValidLeafIdentifier}) { return nil }
         
         var flat = "$\(scope ?? "")"
         self.memberStart = member == nil ? 0 : UInt8(flat.count + 1)
@@ -92,6 +93,7 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
     func extend(with: String) -> Self { isScope ? .init(from: self, member: with) : .init(from: self, path: with) }
     /// Validate if self is descendent of ancestor
     func isDescendent(of ancestor: Self) -> Bool { flat.hasPrefix(ancestor.flat) && flat.count != ancestor.flat.count }
+    var parts: [String] { .init(flat.split(separator: ".").map {String($0)}.dropFirst()) }
         
     /// Generate an atomic unscoped variable
     private init(member: String, define: Bool = false) { self.init("$:\(member)", 2, 0, !define ? .atomic : [.atomic, .defined]) }
@@ -115,12 +117,13 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
             self.init(scope, 0, 0, .scope(scope))
         }
         else {
-            let unpathed = child.flat.filter({$0 == .period}).count == 1
-            let end = child.flat.lastIndex(of: .period)!
+            let end = child.flat.index(before: child.flat.lastIndex(of: .period)!)
             let f = String(child.flat[child.flat.startIndex...end])
+            let unpathed = !f.contains(".")
             var state = child.state
             if unpathed { state = state.subtracting(.pathed) }
-            self.init(f, child.memberStart, unpathed ? 0 : child.memberEnd, state) }
+            self.init(f, child.memberStart, unpathed ? 0 : child.memberEnd, state)
+        }
     }
 
     /// Remap a scoped variable top level variable with a member
@@ -163,6 +166,6 @@ internal struct LKVarState: OptionSet {
     static let incoming: Self = [.scoped, .constant]
     ///
     static func scope(_ scope: String = LKVariable.selfScope) -> Self {
-        scope == LKVariable.selfScope ? [incoming, selfScoped] : incoming
+        scope == LKVariable.selfScope ? [scoped, constant, selfScoped] : incoming
     }
 }

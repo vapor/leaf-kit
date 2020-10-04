@@ -3,44 +3,49 @@
 
 import Foundation
 
-/// General global configuration of Leaf
+/// `LeafConfiguration` provides global storage of properites that must be consistent across
+/// `LeafKit` while running. Alter the global configuration of LeafKit by setting the static properties
+/// of the structure prior to calling `LeafRenderer.render()`; any changes subsequently will be ignored.
 public struct LeafConfiguration {
-    /// Initialize Leaf with a specific tagIndicator
-    /// - Parameter rootDirectory: Default directory where templates will be found
-    /// - Parameter tagIndicator: Unique tagIndicator - may only be set once.
-    public init(rootDirectory: String,
-                tagIndicator: Character = Self.tagIndicator) {
-        if !Self.started {
-            Character.tagIndicator = tagIndicator
-            Self.rootDirectory = rootDirectory
-            Self.started = true
-        }
-    }
-
-    @LeafRuntimeGuard public static var rootDirectory: String = "/"
+    // MARK: - Global-Only Options
+    /// The character used to signal tag processing
     @LeafRuntimeGuard public static var tagIndicator: Character = .octothorpe
+    
+    /// Root filesystem directory for file-based `LeafSource` adherents provided by LeafKit
+    @LeafRuntimeGuard public static var rootDirectory: String = "/"
+    
+    /// Entities (functions, blocks, raw blocks, types) the LeafKit engine recognizes
     @LeafRuntimeGuard public static var entities: LeafEntities = .leaf4Core
-    @LeafRuntimeGuard(condition: {$0>0}) public static var timeout: Double = 30.0
+        
+    /// File size limit on raw inlined files to be cached in a resolved AST
     @LeafRuntimeGuard public static var rawCachingLimit: UInt32 = 1024
+    
+    /// Output buffer encoding
     @LeafRuntimeGuard public static var encoding: String.Encoding = .utf8
     
+    // MARK: - Overrideable Options
+    
+    
+    
+    // MARK: - State
+    
+    /// Convenience to check state of LeafKit
     public static var isRunning: Bool { started }
 
-    // MARK: - Internal/Private Only
+    // MARK: - Internal Only
     
     /// Convenience for getting running state of LeafKit that will assert with a fault message for soft-failing things
-    static func running(fault message: String) -> Bool {
+    internal static func running(fault message: String) -> Bool {
         assert(!started, "\(message) after LeafRenderer has instantiated")
         return started
     }
     
     /// WARNING: Reset global "started" flag - only for testing use
-    static func __reset() { started = false }
+    internal static func __reset() { started = false }
 
     /// Convenience flag for global write-once
-    private static var started = false
+    internal static var started = false
 }
-
 
 /// `LeafRuntimeGuard` secures a value against being changed once a `LeafRenderer` is active
 ///
@@ -50,26 +55,35 @@ public struct LeafConfiguration {
 @propertyWrapper public struct LeafRuntimeGuard<T> {
     public var wrappedValue: T {
         get { _unsafeValue }
-        set {
-            assert(condition(newValue), "\(object) failed conditional check")
-            if !LKConf.running(fault: "Cannot configure \(object)")
-               { _unsafeValue = newValue }
-        }
+        set { if !LKConf.running(fault: "Cannot configure \(object)") {
+                    assert(condition(newValue), "\(object) failed conditional check")
+                    _unsafeValue = newValue } }
     }
     
+    public var projectedValue: Self { self }
+    
+    /// `condition` may be used to provide an asserting validation closure that will assert if false
+    /// when setting; *WILL FATAL IF FAILING AT INITIAL SETTING TIME*
     public init(wrappedValue: T,
                 module: String = #fileID,
                 component: String = #function,
                 condition: @escaping (T) -> Bool = {_ in true}) {
-        self._unsafeValue = wrappedValue
+        precondition(condition(wrappedValue), "\(wrappedValue) failed conditional check")
         let module = String(module.split(separator: "/").first ?? "")
         self.object = module.isEmpty ? component : "\(module).\(component)"
         self.condition = condition
+        self._unsafeValue = wrappedValue
+    }
+    
+    /// T/F evaluation of condition, and if T is Hashable, nil if the values are the same
+    internal func validate(_ other: T) -> Bool? {
+        if let a = other as? AnyHashable,
+           let b = _unsafeValue as? AnyHashable,
+           a == b { return nil }
+        return condition(other)
     }
     
     internal var _unsafeValue: T
-    private let condition: (T) -> Bool
+    internal let condition: (T) -> Bool
     private let object: String
-    
-    internal var fault: String { "Cannot configure \(object)" }
 }

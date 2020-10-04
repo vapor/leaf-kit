@@ -12,11 +12,7 @@ internal extension LeafEntities {
 }
 
 /// (Array || Dictionary.values) -> Bool
-internal struct CollectionToBoolMap: LKMapMethod, BoolReturn {
-    static var callSignature:[LeafCallParameter] { [.collections] }
-
-    init(_ map: @escaping (AnyCollection<LKData>) -> Bool) { f = map }
-
+internal struct CollectionToBoolMap: LKMapMethod, CollectionsParam, BoolReturn {
     func evaluate(_ params: LeafCallValues) -> LKData {
         switch params[0].container {
             case .dictionary(let x) : return .bool(f(.init(x.values)))
@@ -24,17 +20,16 @@ internal struct CollectionToBoolMap: LKMapMethod, BoolReturn {
             default                 : return .error(internal: "Only supports collections") }
     }
     
-    private let f: (AnyCollection<LKData>) -> Bool
-    
     static let isEmpty: Self = .init({ $0.isEmpty })
+    
+    private init(_ map: @escaping (AnyCollection<LKData>) -> Bool) { f = map }
+    private let f: (AnyCollection<LKData>) -> Bool
 }
 
 /// (Array | Dictionary, Any) -> Bool
 internal struct CollectionElementToBoolMap: LKMapMethod, BoolReturn {
     static var callSignature: [LeafCallParameter] { [.collections, .any] }
-
-    init(_ map: @escaping (AnyCollection<LKData>, LKData) -> Bool) { f = map }
-
+    
     func evaluate(_ params: LeafCallValues) -> LKData {
         switch params[0].container {
             case .dictionary(let x) : return .bool(f(.init(x.values), params[1]))
@@ -42,33 +37,31 @@ internal struct CollectionElementToBoolMap: LKMapMethod, BoolReturn {
             default                 : return .error(internal: "Only supports collections") }
     }
     
-    private let f: (AnyCollection<LKData>, LKData) -> Bool
-    
     static let contains: Self = .init({for x in $0 where x.celf == $1.celf {if x == $1 { return true }}; return false})
+    
+    private init(_ map: @escaping (AnyCollection<LKData>, LKData) -> Bool) { f = map }
+    private let f: (AnyCollection<LKData>, LKData) -> Bool
 }
 
 /// (String, String) -> Bool
-internal struct StrStrToBoolMap: LKMapMethod, BoolReturn {
-    static var callSignature: [LeafCallParameter] { [.string, .string] }
-
+internal struct StrStrToBoolMap: LKMapMethod, StringStringParam, BoolReturn {
     func evaluate(_ params: LeafCallValues) -> LKData { .bool(f(params[0].string!, params[1].string!)) }
-    
-    private init(_ map: @escaping (String, String) -> Bool) { f = map }
-    private let f: (String, String) -> Bool
     
     static let hasPrefix: Self = .init({ $0.hasPrefix($1) })
     static let hasSuffix: Self = .init({ $0.hasSuffix($1) })
     static let contains: Self = .init({ $0.contains($1) })
+    
+    private init(_ map: @escaping (String, String) -> Bool) { f = map }
+    private let f: (String, String) -> Bool
+    
 }
 
 /// (String) -> Bool
-internal struct StrToBoolMap: LKMapMethod, BoolReturn {
-    static var callSignature: [LeafCallParameter] { [.string] }
-
+internal struct StrToBoolMap: LKMapMethod, StringParam, BoolReturn {
     func evaluate(_ params: LeafCallValues) -> LKData { .bool(f(params[0].string!)) }
+    
+    static let isEmpty: Self = .init({ $0.isEmpty })
     
     private init(_ map: @escaping (String) -> Bool) { f = map }
     private let f: (String) -> Bool
-    
-    static let isEmpty: Self = .init({ $0.isEmpty })
 }

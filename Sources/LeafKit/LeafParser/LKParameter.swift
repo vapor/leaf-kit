@@ -128,6 +128,11 @@ internal struct LKParameter: LKSymbol {
         }
     }
     
+    var isSubscript: Bool {
+        if case .expression(let e) = container, e.op == .subScript { return true }
+        else { return false }
+    }
+    
     /// Rough estimate estimate of output size
     var underestimatedSize: UInt32 {
         switch container {
@@ -281,8 +286,8 @@ internal struct LKParameter: LKSymbol {
                 case .value, .keyword,
                      .operator          : return self
                 case .expression(let e) : return .expression(e.resolve(&symbols))
-                case .variable(let v)   : if let value = symbols.match(v), !value.errored { return .value(value) }
-                                          return self
+                case .variable(let v)   : let value = symbols.match(v)
+                                          return value.errored ? self : .value(value)
                 case .tuple(let t)
                     where t.isEvaluable : return .tuple(t.resolve(&symbols))
                 case .function(let n, let f, var p, let m)
@@ -303,16 +308,17 @@ internal struct LKParameter: LKSymbol {
         func evaluate(_ symbols: inout LKVarStack) -> LeafData {
             switch self {
                 case .value(let v)              : return v.evaluate(&symbols)
-                case .variable(let v)           : return symbols.match(v) ?? .trueNil
+                case .variable(let v)           : return symbols.match(v)
                 case .expression(let e)         : return e.evaluate(&symbols)
                 case .tuple(let t)
                         where t.isEvaluable     : return t.evaluate(&symbols)
                 case .function(let n, let f as Evaluate, _, _)
                                                 :
+                    let x = symbols.match(.define(f.identifier))
                     /// `Define` parameter was found - evaluate if non-value, and return
-                    if let x = symbols.match(.define(f.identifier))?.container {
-                        if case .evaluate(let x) = x { return x.evaluate(&symbols) }
-                        else { return x.evaluate } }
+                    if case .evaluate(let x) = x.container { return x.evaluate(&symbols) }
+                    /// Or parameter was literal - return
+                    else if !x.errored { return x.container.evaluate }
                     /// Or `Evaluate` had a default - evaluate and return that
                     else if let x = f.defaultValue { return x.evaluate(&symbols) }
                     return .error("\(f.identifier) is undefined and has no default value", function: n) /// Otherwise, nil
@@ -343,7 +349,7 @@ internal struct LKParameter: LKSymbol {
                         unsafeF.externalObjects = symbols.context.externalObjects
                         f = (unsafeF as! LeafFunction)
                     }
-                    if case .some(.some(let op)) = m, let f = f as? LeafMethod {
+                    if case .some(.some(let op)) = m, let f = f as? LeafMutatingMethod {
                         let x = f.mutatingEvaluate(call)
                         if let updated = x.0 { symbols.update(op, updated) }
                         return x.1

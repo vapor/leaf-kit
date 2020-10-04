@@ -23,12 +23,12 @@ import Glibc
 /// This object provides a lock on top of a single `pthread_mutex_t`. This kind
 /// of lock is safe to use with `libpthread`-based threading models, such as the
 /// one used by NIO.
-public final class RWLock {
+internal final class RWLock {
     fileprivate let rwlock: UnsafeMutablePointer<pthread_rwlock_t> =
         UnsafeMutablePointer.allocate(capacity: 1)
 
     /// Create a new lock.
-    public init() {
+    init() {
         var attr = pthread_rwlockattr_t()
         pthread_rwlockattr_init(&attr)
         let err = pthread_rwlock_init(self.rwlock, &attr)
@@ -41,19 +41,19 @@ public final class RWLock {
         rwlock.deallocate()
     }
 
-    public func lock(forWrite: Bool = false) {
+    func lock(forWrite: Bool = false) {
         let err = forWrite ? pthread_rwlock_wrlock(self.rwlock)
                            : pthread_rwlock_rdlock(self.rwlock)
         precondition(err == 0, "\(#function) failed in pthread_rwlock with error \(err)")
     }
 
-    public func unlock() {
+    func unlock() {
         let err = pthread_rwlock_unlock(self.rwlock)
         precondition(err == 0, "\(#function) failed in pthread_rwlock with error \(err)")
     }
 }
 
-extension RWLock {
+internal extension RWLock {
     /// Acquire the lock for the duration of the given block.
     ///
     /// This convenience method should be preferred to `lock` and `unlock` in
@@ -63,21 +63,21 @@ extension RWLock {
     /// - Parameter body: The block to execute while holding the lock.
     /// - Returns: The value returned by the block.
     @inlinable
-    public func readWithLock<T>(_ body: () throws -> T) rethrows -> T {
+    func readWithLock<T>(_ body: () throws -> T) rethrows -> T {
         lock(forWrite: false)
         defer { unlock() }
         return try body()
     }
     
     @inlinable
-    public func writeWithLock<T>(_ body: () throws -> T) rethrows -> T {
+    func writeWithLock<T>(_ body: () throws -> T) rethrows -> T {
         lock(forWrite: true)
         defer { unlock() }
         return try body()
     }
 
     @inlinable
-    public func writeWithLock(_ body: () throws -> Void) rethrows -> Void {
+    func writeWithLock(_ body: () throws -> Void) rethrows -> Void {
         lock(forWrite: true)
         defer { unlock() }
         try body()

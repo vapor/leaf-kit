@@ -44,7 +44,6 @@ public struct LeafAST: Hashable {
     public func hash(into hasher: inout Hasher) { hasher.combine(key) }
     public static func ==(lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key }
     
-    
     mutating public func touch(values: Touch) {
         info.touched = Date()
         info.touch.aggregate(values: values)
@@ -230,8 +229,7 @@ internal extension LeafAST {
 
     /// Inline raw ByteBuffers
     mutating func inline(raws: [String: ByteBuffer]) {
-        raws.forEach { inline(name: $0, raw: $1) }
-    }
+        raws.forEach { inline(name: $0, raw: $1) } }
     
     mutating func inline(name: String, raw: ByteBuffer) {
         info.requiredRaws.remove(name)
@@ -281,18 +279,6 @@ internal extension LeafAST {
     }
 }
 
-/// true if print lhs before rhs - only used for atomic levels, ignores paths
-private func variablePrecedence(lhs: LKVariable, rhs: LKVariable) -> Bool {
-    switch (lhs.scope, rhs.scope) {
-        case (.none, .none): return lhs.member! < rhs.member!
-        case (.some(let l), .some(let r)) where l == r: return lhs.member ?? "" < rhs.member ?? ""
-        case (.some(let l), .some(let r)): return l < r
-        case (.some, .none): return true
-        case (.none, .some): return false
-    }
-}
-
-
 internal extension LeafASTTouch {
     mutating func aggregate(values: Self) {
         sizeMax.maxAssign(values.sizeMax)
@@ -308,4 +294,15 @@ internal extension LeafASTTouch {
         .init(count: 1, sizeAvg: size, sizeMax: size, execAvg: time, execMax: time) }
     
     static let empty: Self = .init(count: 0, sizeAvg: 0, sizeMax: 0, execAvg: 0, execMax: 0)
+}
+
+/// true if print lhs before rhs - only used for atomic levels, ignores paths
+private func variablePrecedence(lhs: LKVariable, rhs: LKVariable) -> Bool {
+    switch (lhs.scope, rhs.scope) {
+        case (.none, .none): return lhs.member! < rhs.member!
+        case (.some(let l), .some(let r)) where l == r: return lhs.member ?? "" < rhs.member ?? ""
+        case (.some(let l), .some(let r)): return l < r
+        case (.some, .none): return true
+        case (.none, .some): return false
+    }
 }

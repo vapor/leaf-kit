@@ -1,16 +1,24 @@
 import NIOConcurrencyHelpers
 
 /// The default implementation of `LeafCache`
-public final class DefaultLeafCache: LKSynchronousCache {
+public final class DefaultLeafCache {
     /// Initializer
     public init() {
         self.locks = (.init(), .init())
         self.cache = [:]
         self.touches = [:]
     }
+    
+    // MARK: - Stored Properties - Private Only
+    private var _isEnabled: Bool = true
+    private let locks: (cache: RWLock, touch: RWLock)
+    /// NOTE: internal read-only purely for test access validation - not assured
+    private(set) var cache: [LeafASTKey: LeafAST]
+    private var touches: [LeafASTKey: LeafASTTouch]
+}
 
-    // MARK: - Public - LeafCache
-
+// MARK: - Public - LeafCache
+extension DefaultLeafCache: LeafCache {
     /// Global setting for enabling or disabling the cache
     public var isEnabled: Bool {
         get { locks.cache.readWithLock { _isEnabled } }
@@ -59,16 +67,28 @@ public final class DefaultLeafCache: LKSynchronousCache {
         return succeed(remove(key), on: loop)
     }
 
-    public func touch(_ key: LeafASTKey, _ values: LeafASTTouch) {
+    public func touch(_ key: LeafASTKey,
+                      _ values: LeafASTTouch) {
         if _isEnabled { locks.touch.writeWithLock { touches[key]!.aggregate(values: values) } }
     }
     
-    public func info(for key: LeafASTKey, on loop: EventLoop) -> EventLoopFuture<LeafASTInfo?> {
+    public func info(for key: LeafASTKey,
+                     on loop: EventLoop) -> EventLoopFuture<LeafASTInfo?> {
         succeed(info(for: key), on: loop)
     }
+    
+    public func dropAll() {
+        locks.cache.writeWithLock {
+            locks.touch.writeWithLock {
+                cache.removeAll()
+                touches.removeAll()
+            }
+        }
+    }
+}
 
-    // MARK: - Internal - LKSynchronousCache
-
+// MARK: - Internal - LKSynchronousCache
+extension DefaultLeafCache: LKSynchronousCache {
     /// Blocking file load behavior
     func insert(_ document: LeafAST, replace: Bool) -> Result<LeafAST, LeafError> {
         guard _isEnabled else { return .failure(err(.cachingDisabled)) }
@@ -115,11 +135,4 @@ public final class DefaultLeafCache: LKSynchronousCache {
             return cache[key]!.info
         }
     }
-
-    // MARK: - Stored Properties - Private Only
-    private var _isEnabled: Bool = true
-    private let locks: (cache: RWLock, touch: RWLock)
-    /// NOTE: internal read-only purely for test access validation - not assured
-    private(set) var cache: [LeafASTKey: LeafAST]
-    private var touches: [LeafASTKey: LeafASTTouch]
 }

@@ -18,18 +18,22 @@ internal protocol CoreBlock: LeafBlock {}
 internal extension CoreBlock {
     static var invariant: Bool { true }
     static var evaluable: Bool { false }
+    static var returns: Set<LeafDataType> { .void }
 }
 
-internal protocol Nonscoping {}
+internal protocol Nonscoping { init() }
 internal extension Nonscoping {
     static var parseSignatures: ParseSignatures? { nil }
     var scopeVariables: [String]? { nil }
+    
+    static func instantiate(_ signature: String?,
+                            _ params: [String]) throws -> Self { Self.init() }
 }
 
 
 /// `#for(value in collection):` or `#for((index, value) in collection):`
 struct ForLoop: CoreBlock {
-    static let parseSignatures: ParseSignatures? = [
+    static var parseSignatures: ParseSignatures? {[
         /// `#for(_ in collection)`
         "discard": [.expression([.keyword([._]),
                                  .keyword([.in]),
@@ -42,19 +46,20 @@ struct ForLoop: CoreBlock {
         "tuple": [.expression([.tuple([.unscopedVariable, .unscopedVariable]),
                                .keyword([.in]),
                                .callParameter])]
-    ]
-    static let callSignature:[LeafCallParameter] = [.types([.array, .dictionary, .string, .int])]
+    ]}
+    static var callSignature: [LeafCallParameter] { [.types([.array, .dictionary, .string, .int])] }
 
-    private(set) var scopeVariables: [String]? = nil
+    private(set) var scopeVariables: [String]? = nil 
 
-    static func instantiate(_ signature: String?, _ params: [String]) throws -> ForLoop {
+    static func instantiate(_ signature: String?,
+                            _ params: [String]) throws -> ForLoop {
         switch signature {
             case "tuple"   : return ForLoop(key: params[0], value: params[1])
             case "discard" : return ForLoop()
             case "single"  : return ["index", "key"].contains(params[0])
-                                        ? ForLoop(key: params[0])
-                                        : ForLoop(value: params[0])
-            default        : __MajorBug("ForLoop called with no signature")
+                                                    ? ForLoop(key: params[0])
+                                                    : ForLoop(value: params[0])
+            default        : __Unreachable("ForLoop called with no signature")
         }
     }
 
@@ -77,7 +82,8 @@ struct ForLoop: CoreBlock {
         }
     }
 
-    mutating func evaluateScope(_ params: LeafCallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+    mutating func evaluateScope(_ params: LeafCallValues,
+                                _ variables: inout [String: LeafData]) -> EvalCount {
         if set {
             switch params[0].container {
                 case .array(let a)      : cache = a.enumerated().map { (o, e) in
@@ -132,74 +138,75 @@ struct ForLoop: CoreBlock {
 
 /// `#while(bool):` - 0...n while
 internal struct WhileLoop: CoreBlock, Nonscoping {
-    static let callSignature:[LeafCallParameter] = [.bool]
+    static var callSignature: [LeafCallParameter] { [.bool] }
+    static func instantiate(_ signature: String?,
+                            _ params: [String]) throws -> WhileLoop {.init()}
 
-    static func instantiate(_ signature: String?, _ params: [String]) throws -> WhileLoop {.init()}
+    mutating func evaluateScope(_ params: LeafCallValues,
+                                _ variables: inout [String: LeafData]) -> EvalCount {
+        params[0].bool! ? .indefinite : .discard }
 
-    mutating func evaluateScope(_ params: LeafCallValues, _ variables: inout [String: LeafData]) -> EvalCount {
-        params[0].bool! ? .indefinite : .discard
-    }
-
-    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount { __MajorBug("While loops never return non-nil") }
+    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount {
+        __Unreachable("While loops never return non-nil") }
 }
 
 /// `#repeat(while: bool):` 1...n+1 while
 /// Note - can't safely be used if the while condition is mutating - a flag would be needed to defer evaluation
 internal struct RepeatLoop: CoreBlock, Nonscoping {
     // FIXME: Can't be used yet
-    static let callSignature:[LeafCallParameter] = [.bool(labeled: "while")]
-
+    static var callSignature:[LeafCallParameter] { [.bool(labeled: "while")] }
     var cache: Bool? = nil
 
     static func instantiate(_ signature: String?, _ params: [String]) throws -> RepeatLoop {.init()}
-
-    mutating func evaluateScope(_ params: LeafCallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+    
+    mutating func evaluateScope(_ params: LeafCallValues,
+                                _ variables: inout [String: LeafData]) -> EvalCount {
         let result: EvalCount = cache != false ? .indefinite : .discard
         cache = params[0].bool!
         return result
     }
 
-    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount { __MajorBug("Repeat loops never return non-nil") }
+    mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount { __Unreachable("Repeat loops never return non-nil") }
 }
 
 // MARK: - Control Flow: Branching
 
 /// `#if(bool)` - accepts `elseif, else`
 struct IfBlock: ChainedBlock, CoreBlock, Nonscoping {
-    static let chainsTo: [ChainedBlock.Type] = []
-    static let chainAccepts: [ChainedBlock.Type] = [ElseIfBlock.self, ElseBlock.self]
-
-    static let callSignature:[LeafCallParameter] = [.bool]
-
+    static var callSignature: [LeafCallParameter] { [.bool] }
+    static var chainsTo: [ChainedBlock.Type] { [] }
+    static var chainAccepts: [ChainedBlock.Type] { [ElseIfBlock.self, ElseBlock.self] }
+ 
     static func instantiate(_ signature: String?,
-                            _ params: [String]) throws -> IfBlock {.init()}
+                            _ params: [String]) throws -> IfBlock { .init() }
 
     mutating func evaluateScope(_ params: LeafCallValues,
-                                   _ variables: inout [String: LeafData]) -> EvalCount {
+                                _ variables: inout [String: LeafData]) -> EvalCount {
         params[0].bool! ? .once : .discard }
 }
 
 /// `#elseif(bool)` - chains to `if, elseif`, accepts `elseif, else`
 struct ElseIfBlock: ChainedBlock, CoreBlock, Nonscoping {
-    static var chainsTo: [ChainedBlock.Type] = [ElseIfBlock.self, IfBlock.self]
-    static var chainAccepts: [ChainedBlock.Type] = [ElseIfBlock.self, ElseBlock.self]
+    static var callSignature: [LeafCallParameter] { [.bool] } 
+    static var chainsTo: [ChainedBlock.Type] { [ElseIfBlock.self, IfBlock.self] }
+    static var chainAccepts: [ChainedBlock.Type] { [ElseIfBlock.self, ElseBlock.self] }
 
-    static var callSignature:[LeafCallParameter] = [.bool]
+    static func instantiate(_ signature: String?,
+                            _ params: [String]) throws -> ElseIfBlock {.init()}
 
-    static func instantiate(_ signature: String?, _ params: [String]) throws -> ElseIfBlock {.init()}
-
-    mutating func evaluateScope(_ params: LeafCallValues, _ variables: inout [String: LeafData]) -> EvalCount {
+    mutating func evaluateScope(_ params: LeafCallValues,
+                                _ variables: inout [String: LeafData]) -> EvalCount {
         params[0].bool! ? .once : .discard }
 }
 
 /// `#elseif(bool)` - chains to `if, elseif` - end of chain
-struct ElseBlock: ChainedBlock, CoreBlock, Nonscoping {
-    static var chainsTo: [ChainedBlock.Type] = [ElseIfBlock.self, IfBlock.self]
-    static var chainAccepts: [ChainedBlock.Type] = []
+struct ElseBlock: ChainedBlock, CoreBlock, Nonscoping, EmptyParams {
+    static var chainsTo: [ChainedBlock.Type] { [ElseIfBlock.self, IfBlock.self] }
+    static var chainAccepts: [ChainedBlock.Type] { [] }
 
-    static var callSignature:[LeafCallParameter] = []
+    static func instantiate(_ signature: String?,
+                            _ params: [String]) throws -> ElseBlock {.init()}
 
-    static func instantiate(_ signature: String?, _ params: [String]) throws -> ElseBlock {.init()}
-
-    mutating func evaluateScope(_ params: LeafCallValues, _ variables: inout [String: LeafData]) -> EvalCount { .once }
+    mutating func evaluateScope(_ params: LeafCallValues,
+                                _ variables: inout [String: LeafData]) -> EvalCount { .once }
 }

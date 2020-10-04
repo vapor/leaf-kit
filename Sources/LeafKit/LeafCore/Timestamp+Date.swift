@@ -3,8 +3,6 @@ import NIOConcurrencyHelpers
 
 internal extension LeafEntities {
     func registerMisc() {
-        use(LKDSelfMethod(), asMethod: "type")
-        use(LKDSelfFunction(), asFunction: "type")
         use(LeafTimestamp(), asFunction: "Timestamp")
         use(LeafDateFormatters.ISO8601(), asFunction: "Date")
         use(LeafDateFormatters.Fixed(), asFunction: "Date")
@@ -12,11 +10,16 @@ internal extension LeafEntities {
     }
 }
 
+// MARK: - LeafTimestamp
+
 /// A time interval relative to the specificed base date
 ///
 /// Default value for the reference date is the Swift Date `referenceDate` (2001-01-01 00:00:00 +0000)
 public struct LeafTimestamp: LeafFunction, DoubleReturn, Invariant {
-    public static var callSignature:[LeafCallParameter] {[
+    /// The date used as the reference base for all interpretations of Double timestamps
+    @LeafRuntimeGuard public static var referenceBase: ReferenceBase = .referenceDate
+    
+    public static var callSignature: [LeafCallParameter] {[
         .init(types: [.int, .double, .string], defaultValue: "now"),
         .string(labeled: "since", defaultValue: referenceBase.leafData),
     ]}
@@ -32,8 +35,6 @@ public struct LeafTimestamp: LeafFunction, DoubleReturn, Invariant {
         return .double(base == x ? 0 : x.interval - offset)
     }
     
-    @LeafRuntimeGuard public static var referenceBase: ReferenceBase = .referenceDate
-            
     public enum ReferenceBase: String, RawRepresentable, CaseIterable, LeafDataRepresentable {
         case now
         case unixEpoch
@@ -42,20 +43,6 @@ public struct LeafTimestamp: LeafFunction, DoubleReturn, Invariant {
         case distantFuture
         
         public var leafData: LeafData { .string(rawValue) }
-       
-        internal var interval: Double {
-            switch self {
-                case .now: return Date().timeIntervalSinceReferenceDate
-                case .unixEpoch: return -1 * Date.timeIntervalBetween1970AndReferenceDate
-                case .referenceDate: return 0
-                case .distantFuture: return Date.distantFuture.timeIntervalSinceReferenceDate
-                case .distantPast: return Date.distantPast.timeIntervalSinceReferenceDate
-            }
-        }
-        
-        internal static func fault(_ str: String) -> LeafData {
-            .error("\(str) is not a valid reference base; must be one of \(Self.terse)]")
-        }
     }
 }
 
@@ -65,7 +52,8 @@ public struct LeafDateFormatters {
     public static var defaultTZIdentifier: String = "UTC"
     
     /// Used by `ISO8601`
-    @LeafRuntimeGuard public static var defaultFractionalSeconds: Bool = false
+    @LeafRuntimeGuard
+    public static var defaultFractionalSeconds: Bool = false
     
     /// Used by `Custom`
     @LeafRuntimeGuard(condition: {Locale.availableIdentifiers.contains($0)})
@@ -101,6 +89,7 @@ public struct LeafDateFormatters {
         }
     }
     
+    /// Fixed format DateFormatter strings
     public struct Fixed: LeafFunction, StringReturn, Invariant {
         public static var callSignature: [LeafCallParameter] {[
             .init(label: "timeStamp", types: [.int, .double, .string]),
@@ -112,6 +101,7 @@ public struct LeafDateFormatters {
             LeafDateFormatters.evaluate(params, fixed: true) }
     }
     
+    /// Variable format localized DateFormatter strings
     public struct Localized: LeafFunction, StringReturn, Invariant {
         public static var callSignature: [LeafCallParameter] {[
             .init(label: "timeStamp", types: [.int, .double, .string]),
@@ -124,6 +114,7 @@ public struct LeafDateFormatters {
             LeafDateFormatters.evaluate(params, fixed: false) }
     }
     
+    // MARK: Internal Only
     
     internal struct Key: Hashable {
         let format: String
@@ -133,33 +124,58 @@ public struct LeafDateFormatters {
         init(_ format: String, _ tZ: String, _ locale: String? = nil) {
             self.format = format
             self.tZ = tZ
-            self.locale = locale
-        }
-    }
-    
-    internal static subscript(timezone: String) -> ISO8601DateFormatter? {
-        get { lock.readWithLock { iso8601[timezone] } }
-        set { lock.writeWithLock { iso8601[timezone] = newValue } }
-    }
-    
-    internal static subscript(key: Key) -> DateFormatter? {
-        get { lock.readWithLock { locale[key] } }
-        set { lock.writeWithLock { locale[key] = newValue } }
+            self.locale = locale }
     }
     
     internal static var iso8601: [String: ISO8601DateFormatter] = [:]
     internal static var locale: [Key: DateFormatter] = [:]
+
+    private static let lock: RWLock = .init()
+}
+
+// MARK: Internal implementations
+
+internal extension LeafTimestamp.ReferenceBase {
+    var interval: Double {
+         switch self {
+             case .now: return Date().timeIntervalSinceReferenceDate
+             case .unixEpoch: return -1 * Date.timeIntervalBetween1970AndReferenceDate
+             case .referenceDate: return 0
+             case .distantFuture: return Date.distantFuture.timeIntervalSinceReferenceDate
+             case .distantPast: return Date.distantPast.timeIntervalSinceReferenceDate
+         }
+     }
+
+     static func fault(_ str: String) -> LeafData {
+         .error("\(str) is not a valid reference base; must be one of \(Self.terse)]") }
+}
+
+internal extension LeafDateFormatters {
+    static subscript(timezone: String) -> ISO8601DateFormatter? {
+        get { lock.readWithLock { iso8601[timezone] } }
+        set { lock.writeWithLock { iso8601[timezone] = newValue } }
+    }
     
-    internal static func timeZone(_ from: String) -> TimeZone? {
+    static subscript(key: Key) -> DateFormatter? {
+        get { lock.readWithLock { locale[key] } }
+        set { lock.writeWithLock { locale[key] = newValue } }
+    }
+    
+    static var base: Date {
+        Date(timeIntervalSinceReferenceDate: LeafTimestamp.referenceBase.interval) }
+    
+    static var now: () -> LeafData = {
+        LeafTimestamp().evaluate(.init(["now", LeafTimestamp.referenceBase.leafData], ["since": 1])) }
+    
+    static func timeZone(_ from: String) -> TimeZone? {
         if let tz = TimeZone(abbreviation: from) {
             return tz }
         else if let tz = TimeZone(identifier: from) {
-            return tz
-        }
+            return tz }
         return nil
     }
     
-    internal static func evaluate(_ params: LeafCallValues, fixed: Bool) -> LeafData {
+    static func evaluate(_ params: LeafCallValues, fixed: Bool) -> LeafData {
         let f = params[1].string!
         let z = params[2].string!
         let l = params[3].string
@@ -187,12 +203,4 @@ public struct LeafDateFormatters {
         
         return .string(formatter!.string(from: base.addingTimeInterval(timestamp.double!)))
     }
-    
-    internal static var base: Date {
-        Date(timeIntervalSinceReferenceDate: LeafTimestamp.referenceBase.interval) }
-    private static var now: () -> LeafData = {
-        LeafTimestamp().evaluate(.init(["now", LeafTimestamp.referenceBase.leafData], ["since": 1]))
-    }
-    
-    private static let lock: RWLock = .init()
 }

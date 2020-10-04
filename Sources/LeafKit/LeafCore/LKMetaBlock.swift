@@ -24,11 +24,8 @@ internal enum LKMetaForm: Int, Hashable {
 // MARK: - Define/Evaluate/Inline/RawSwitch
 
 /// `Define` blocks will be followed by a normal scope table reference or an atomic syntax
-internal struct Define: LKMetaBlock {
-    static let form: LKMetaForm = .define
-    static let callSignature:[LeafCallParameter] = []
-    static let returns: Set<LKDType> = [.void]
-    static let invariant: Bool = true
+internal struct Define: LKMetaBlock, EmptyParams, VoidReturn, Invariant {
+    static var form: LKMetaForm { .define }
 
     var identifier: String
     var param: LKParameter?
@@ -36,16 +33,14 @@ internal struct Define: LKMetaBlock {
     var row: Int
 
     mutating func remap(offset: Int) { table += offset }
-
+    
     static let warning = "call signature is (identifier) when a block, (identifier, evaluableParameter) when a function"
 }
 
 /// `Evaluate` blocks will be followed by either a nil scope syntax or a passthrough syntax if it has a defaulted value
-internal struct Evaluate: LKMetaBlock {
-    static let form: LKMetaForm = .evaluate
-    static let callSignature:[LeafCallParameter] = []
-    static let returns: Set<LKDType> = .any
-    static let invariant: Bool = false
+internal struct Evaluate: LKMetaBlock, EmptyParams, AnyReturn {
+    static var form: LKMetaForm { .evaluate }
+    static var invariant: Bool { false }
 
     let identifier: String
     let defaultValue: LKParameter?
@@ -59,11 +54,8 @@ internal struct Evaluate: LKMetaBlock {
 /// scope syntax will point to the inlined file's remapped entry table.
 /// If inlined file is not being processed, rawBlock will be replaced with one of the same type with the inlined
 /// raw document's contents.
-internal struct Inline: LKMetaBlock {
+internal struct Inline: LKMetaBlock, EmptyParams, VoidReturn, Invariant {
     static var form: LKMetaForm { .inline }
-    static var callSignature: [LeafCallParameter] { [] }
-    static var returns: Set<LeafDataType> { .void }
-    static var invariant: Bool { true }
 
     var file: String
     var process: Bool
@@ -72,11 +64,8 @@ internal struct Inline: LKMetaBlock {
 }
 
 /// `RawSwitch` either alters the current raw handler when by itself, or produces an isolated raw handling block with an attached scope
-internal struct RawSwitch: LKMetaBlock {
+internal struct RawSwitch: LKMetaBlock, EmptyParams, AnyReturn, Invariant {
     static var form: LKMetaForm { .rawSwitch }
-    static var callSignature: [LeafCallParameter] { [] }
-    static var returns: Set<LeafDataType> { .any }
-    static var invariant: Bool { true }
 
     init(_ factory: LKRawBlock.Type, _ tuple: LKTuple) {
         self.factory = factory
@@ -90,17 +79,18 @@ internal struct RawSwitch: LKMetaBlock {
 // MARK: Default Implementations
 
 extension LKMetaBlock {
-    static var parseSignatures: ParseSignatures? { __MajorBug("LKMetaBlock") }
+    static var parseSignatures: ParseSignatures? { __Unreachable("LKMetaBlock") }
     static var evaluable: Bool { false }
-    static func instantiate(_ signature: String?, _ params: [String]) throws -> Self  {
-        __MajorBug("LKMetaBlock") }
-
+    
     var form: LKMetaForm { Self.form }
-
     var scopeVariables: [String]? { nil }
+    
+    static func instantiate(_ signature: String?,
+                            _ params: [String]) throws -> Self  { __Unreachable("LKMetaBlock") }
+
     mutating func evaluateScope(_ params: LeafCallValues,
                                    _ variables: inout [String: LeafData]) -> EvalCount  { .once }
     mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount {
-        __MajorBug("Metablocks only called once") }
+        __Unreachable("Metablocks only called once") }
 }
 

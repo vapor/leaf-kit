@@ -1,7 +1,5 @@
 // MARK: Subject to change prior to 1.0.0 release
 
-//import Dispatch
-
 // MARK: - `LeafRenderer` Summary
 
 /// `LeafRenderer` implements the full Leaf language pipeline.
@@ -13,19 +11,21 @@
 /// Additional instances of LeafRenderer can then be created using these shared modules to allow
 /// concurrent rendering, potentially with unique per-instance scoped data via `userInfo`.
 public final class LeafRenderer {
-    // MARK: - Public Only
-    
+    // MARK: Instance Properties
     /// A thread-safe implementation of `LeafCache` protocol
     public let cache: LeafCache
     /// A thread-safe implementation of `LeafSource` protocol
     public let sources: LeafSources
-    /// The NIO `EventLoop` on which this instance of `LeafRenderer` will operate
-    public var eventLoop: EventLoop { eL }
+    
+    // MARK: Static Properties
+  //  @LeafRuntimeGuard public static var defaultOptions: Set<Option> = []
 
     /// Initial configuration of LeafRenderer.
-    public init(cache: LeafCache,
+    init(cache: LeafCache,
                 sources: LeafSources,
                 eventLoop: EventLoop) {
+        if !LKConf.started { LKConf.started = true }
+        
         self.cache = cache
         self.sources = sources
         self.eL = eventLoop
@@ -36,39 +36,35 @@ public final class LeafRenderer {
 //                            autoreleaseFrequency: .never)
     }
     
-    /// The public interface to `LeafRenderer`
-    /// - Parameter path: Name of the template to be used
-    /// - Parameter context: Any unique context data for the template to use
-    /// - Returns: Serialized result of using the template, or a failed future
-    ///
-    /// Interpretation of `path` is dependent on the implementation of `LeafSource` but is assumed to
-    /// be relative to `LeafConfiguration.rootDirectory`.
-    ///
-    /// Where `LeafSource` is a file sytem based source, some assumptions should be made; `.leaf`
-    /// extension should be inferred if none is provided- `"path/to/template"` corresponds to
-    /// `"/.../ViewDirectory/path/to/template.leaf"`, while an explicit extension -
-    /// `"file.svg"` would correspond to `"/.../ViewDirectory/file.svg"`
-    public func render(template: String,
-                       context: Context) -> EventLoopFuture<ByteBuffer> {
-        if template.isEmpty { return fail(.noTemplateExists("No template name provided"), on: eL) }
-        return _render(.searchKey(template), context)
-    }
-
-    public func render(template: String,
-                       from source: String,
-                       context: Context) -> EventLoopFuture<ByteBuffer> {
-        if template.isEmpty { return fail(.noTemplateExists("No template name provided"), on: eL) }
-        if source.isEmpty { return fail(.noTemplateExists("No LeafSource key provided"), on: eL) }
-        if source != "$", source.first == "$" || source.contains(":") {
-            return fail(.illegalAccess("Invalid LeafSource key"), on: eL)
+    // MARK: Private Only
+    private let eL: EventLoop
+    private let cacheIsSync: Bool
+    private let blockingCache: LKSynchronousCache?
+//    private let worker: DispatchQueue
+    
+    // MARK: - Scoped Objects
+    
+    // MARK: - LeafRenderer.Option
+    /// Locally overrideable options for how LeafRenderer handles rendering
+    public enum Option: Hashable, CaseIterable {
+        case timeout(Double)
+        case missingVariableThrows(Bool)
+        case grantUnsafeEntityAccess(Bool)
+        
+        public enum Case: UInt8, RawRepresentable, CaseIterable {
+            case timeout
+            case missingVariableThrows
+            case grantUnsafeEntityAccess
         }
-        return _render(.init(source, template), context)
     }
     
-    public func info(for template: String) -> EventLoopFuture<LeafASTInfo?> {
-        cache.info(for: .searchKey(template), on: eL)
+    // MARK: - LeafRenderer.Options
+    /// Local options for overriding global settings
+    public struct Options: ExpressibleByArrayLiteral {
+        var _storage: Set<Option>
     }
     
+    // MARK: - LeafRenderer.Context
     /// A wrapper object for storing all external model data that will be provided to `LeafRenderer`
     ///
     /// This is used as an intermediate object rather than immediately computed as arbitrary objects may
@@ -80,30 +76,118 @@ public final class LeafRenderer {
     /// Note that the context will be "frozen" in its state at the time it is passed to `LeafRenderer` and no
     /// alterations in Swift will affect the state of the rendering of the template. *WARNING*
     public struct Context: ExpressibleByDictionaryLiteral {
-        public static var defaultContextScope: String { LKVariable.selfScope }
+        // MARK: Global Configurations
         
-        // MARK: - Internal only
+        /// Rendering timeout duration limit in seconds; must be at least 1ms, clock timeout >= serialize timeout
+        @LeafRuntimeGuard(condition: {$0 >= 0.001}) public static var timeout: Double = 0.050
+        
+        /// Controls behavior of serialize when a variable has no value in context:
+        /// When true, throws an error and aborts serializing; when false, returns Void? and decays chain.
+        @LeafRuntimeGuard public static var missingVariableThrows: Bool = true
+        
+        /// When true, `LeafUnsafeEntity` tags will have access to contextual objects
+        @LeafRuntimeGuard public static var grantUnsafeEntityAccess: Bool = false
+        
+        
+        // MARK: LeafRenderer.Context.ObjectMode
+        public struct ObjectMode: OptionSet {
+            public init(rawValue: UInt8) { self.rawValue = rawValue }
+            public var rawValue: UInt8
+            
+            public static var unsafe: Self = .init(rawValue: 1 << 0)
+            public static var contextual: Self = .init(rawValue: 1 << 1)
+            
+            public static var all: Self = [unsafe, contextual]
+        }
+        
+        /// Context must be set as root as initialization in order to allow literal values to be set
+        public let isRootContext: Bool
+        
+        // MARK: Internal Stored Properties
         internal var contexts: [LKVariable: LKContextDictionary] = [:]
         internal var externalObjects: ExternalObjects = [:]
+        internal var anyLiteral: Bool = false
+        /// Render-specific option overrides
+        internal var options: Options? = nil
+        internal var softFail: Bool = false
     }
-    
-    // MARK: - Private Only
-    
-    private let eL: EventLoop
-    private let cacheIsSync: Bool
-    private let blockingCache: LKSynchronousCache?
-//    private let worker: DispatchQueue
-
-    // 50 ms limit for execution to act in a blocking fashion
-    private static let blockLimit = 0.050
 }
 
-// MARK: - Private implementation
+// MARK: - Public Implementation
+public extension LeafRenderer {
+    // MARK: Stored Properties
+    
+    /// The NIO `EventLoop` on which this instance of `LeafRenderer` will operate
+    var eventLoop: EventLoop { eL }
+       
+    // MARK: Methods
+    
+    /// The public interface to `LeafRenderer`
+    /// - Parameter template: Name of the template to be used
+    /// - Parameter context: Any unique context data for the template to use
+    /// - Parameter options: Any overrides of global options for this render call
+    /// - Returns: Serialized result of using the template, or a failed future
+    ///
+    /// Interpretation of `template` is dependent on the implementation of `LeafSource` but is assumed to
+    /// be relative to `LeafConfiguration.rootDirectory`.
+    ///
+    /// Where `LeafSource` is a file sytem based source, some assumptions should be made; `.leaf`
+    /// extension should be inferred if none is provided- `"path/to/template"` corresponds to
+    /// `"/.../ViewDirectory/path/to/template.leaf"`, while an explicit extension -
+    /// `"file.svg"` would correspond to `"/.../ViewDirectory/file.svg"`
+    func render(template: String,
+                context: Context,
+                options: Options? = nil) -> EventLoopFuture<ByteBuffer> {
+        if template.isEmpty { return fail(.noTemplateExists("No template name provided"), on: eL) }
+        return _render(.searchKey(template), context, options)
+    }
+    
+    /// The public interface to `LeafRenderer`
+    /// - Parameters:
+    ///   - template: Name of the template to be used
+    ///   - source: A specific (and only) `LeafSource` key to check for the template
+    ///   - context: Any unique context data for the template to use
+    ///   - options: Any overrides of global options for this render call
+    /// - Returns: Serialized result of using the template, or a failed future
+    ///
+    /// Interpretation of `template` is dependent on the implementation of `LeafSource` but is assumed to
+    /// be relative to `LeafConfiguration.rootDirectory`.
+    ///
+    /// Where `LeafSource` is a file sytem based source, some assumptions should be made; `.leaf`
+    /// extension should be inferred if none is provided- `"path/to/template"` corresponds to
+    /// `"/.../ViewDirectory/path/to/template.leaf"`, while an explicit extension -
+    /// `"file.svg"` would correspond to `"/.../ViewDirectory/file.svg"`
+    func render(template: String,
+                from source: String,
+                context: Context,
+                options: Options? = nil) -> EventLoopFuture<ByteBuffer> {
+        if template.isEmpty { return fail(.noTemplateExists("No template name provided"), on: eL) }
+        if source.isEmpty { return fail(.noTemplateExists("No LeafSource key provided"), on: eL) }
+        if source != "$", source.first == "$" || source.contains(":") {
+            return fail(.illegalAccess("Invalid LeafSource key"), on: eL)
+        }
+        return _render(.init(source, template), context, options)
+    }
+    
+    func info(for template: String) -> EventLoopFuture<LeafASTInfo?> {
+        cache.info(for: .searchKey(template), on: eL)
+    }
+}
+
+// MARK: - Private Implementation
 private extension LeafRenderer {
-    func _render(_ key: LeafASTKey, _ ctx: Context) -> ELF<ByteBuffer> {
+    // 10 ms limit for execution to act in a blocking fashion
+    private static var blockLimit: Double { 0.010 }
+    
+    func _render(_ key: LeafASTKey, _ ctx: Context, _ options: Options?) -> ELF<ByteBuffer> {
+        var ctx = ctx
+        if let options = options { ctx.options = options }
+        ctx.setSoftFail()
+        
         /// Short circuit for resolved blocking cache hits
         if cacheIsSync, let hit = blockingCache!.retrieve(key),
-           hit.info.requiredASTs.isEmpty, hit.info.touch.execAvg < Self.blockLimit {
+           hit.info.requiredASTs.isEmpty,
+           hit.info.touch.execAvg < Self.blockLimit {
             return preflight(hit, ctx)
         }
 
@@ -140,7 +224,7 @@ private extension LeafRenderer {
         /// If the AST is missing template inlines, try to resolve - resolve will recall arbitrate or fail as necessary
         /// An unresolved AST is not necessarily an unserializable document though:...
         /// Guard against cycles
-        let chain = chain + [ast.name]
+        let chain = chain + CollectionOfOne(ast.name)
         let cycle = Set(chain).intersection(ast.requiredASTs)
         if !cycle.isEmpty { return fail(.cyclicalReference(cycle.first!, chain), on: eL) }
         return resolve(ast, context, chain)
@@ -174,7 +258,7 @@ private extension LeafRenderer {
             guard let string = buf.readString(length: buf.readableBytes) else {
                 throw err(.unknownError("\(name) exists but was unreadable")) }
 
-            // FIXME: lex/parse should fork to a threadpool?
+            // FIXME: Lex/Parse should fork to a threadpool
             var lexer = LKLexer(LKRawTemplate(name, string))
             let tokens = try lexer.lex()
             var parser = LKParser(key, tokens, context)
@@ -197,7 +281,6 @@ private extension LeafRenderer {
     func resolve(_ ast: LeafAST,
                  _ context: LeafRenderer.Context,
                  _ chain: [String] = []) -> ELF<LeafAST> {
-        // FIXME: A configuration flag should dictate handling of unresolved ASTS
         let fetches = ast.info.requiredASTs.map {
             self.fetch(.searchKey($0), context)
                 .flatMap { self.arbitrate($0, context, via: chain) } }
@@ -207,62 +290,43 @@ private extension LeafRenderer {
     }
 
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
-    func preflight(_ ast: LeafAST, _ context: Context) -> ELF<ByteBuffer> {
-        // FIXME: Configure behavior for rendering where "needed" is non empty
-        var needed = Set<LKVariable>(ast.info._requiredVars.map { !$0.isScoped ? $0.contextualized : $0 })
+    func preflight(_ ast: LeafAST,
+                   _ context: Context) -> ELF<ByteBuffer> {
+        var needed = Set<LKVariable>(ast.info._requiredVars
+                                             .map {!$0.isScoped ? $0.contextualized : $0})
         needed.subtract(context.allVariables)
-        guard needed.isEmpty else { return fail(err("\(needed.description) missing"), on: eL) }
-//        var contexts: LKVarTable = [.`self`: .dictionary(context)]
-//        _ = context.filter { $0.key.isValidIdentifier }
-//                   .map { contexts[LKVariable.atomic($0.key).contextualized] = $0.value }
-//        needed.subtract(contexts.keys)
         
-//        for (key, value) in self.userInfo ?? [:] {
-//            guard let scope = key as? String,
-//                  let key = LKVariable(scope),
-//                  key != .`self` else { continue }
-//            if needed.contains(key),
-//               let v = value as? LeafDataRepresentable {
-//                contexts[key] = v.leafData
-//                needed.remove(key)
-//            }
-//            let scoped = needed.filter({$0.scope == scope})
-//            guard !scoped.isEmpty,
-//                  let dict = value as? [String: LeafDataRepresentable] else { continue }
-//            scoped.forEach {
-//                if let v = dict[$0.member!] { contexts[$0] = v.leafData }
-//                needed.remove($0)
-//            }
-//        }
+        let shouldThrow = needed.isEmpty ? false : context.options?.missingVariableThrows
+                                                   ?? LKRContext.missingVariableThrows
+        
+        if shouldThrow { return fail(err("\(needed.description) missing"), on: eL) }
         
         var block = LKConf.entities.raw.instantiate(size: ast.info.underestimatedSize,
                                                     encoding: LKConf.encoding)
+        
         let serializer = LKSerializer(ast, context, type(of: block))
         switch serializer.serialize(&block) {
             case .success(let t) : cache.touch(serializer.ast.key,
                                                .atomic(time: t, size: block.byteCount))
                                    return succeed(block.serialized.buffer, on: eL)
             case .failure(let e) : return fail(e, on: eL)
-
         }
-
     }
     
-    func serialize(_ serializer: LKSerializer,
-                   _ buffer: LKRawBlock,
-                   _ duration: Double = 0,
-                   _ resume: Bool = false) -> ELF<ByteBuffer> {
-        let timeout = max(Self.blockLimit, LKConf.timeout - duration)
-        var buffer = buffer
-        switch serializer.serialize(&buffer, timeout, resume) {
-            case .success(let t) : let buffer = buffer as! ByteBuffer
-                                   cache.touch(serializer.ast.key,
-                                               .atomic(time: t, size: buffer.byteCount))
-                                   return succeed(buffer, on: eL)
-            case .failure(let e) : guard case .timeout(let d) = e.reason,
-                                         LKConf.timeout > duration + d else {
-                                        return fail(e, on: eL) }
-                                   return serialize(serializer, buffer, duration + d, true)
-        }
-    }
+//    func serialize(_ serializer: LKSerializer,
+//                   _ buffer: LKRawBlock,
+//                   _ duration: Double = 0,
+//                   _ resume: Bool = false) -> ELF<ByteBuffer> {
+//        let timeout = max(LKConf.blockingLimit, LKConf.timeout - duration)
+//        var buffer = buffer
+//        switch serializer.serialize(&buffer, timeout, resume) {
+//            case .success(let t) : cache.touch(serializer.ast.key,
+//                                               .atomic(time: t, size: buffer.byteCount))
+//                                   return succeed(buffer.serialized.buffer, on: eL)
+//            case .failure(let e) : guard case .timeout(let d) = e.reason,
+//                                         LKConf.timeout > duration + d else {
+//                                        return fail(e, on: eL) }
+//                                   return serialize(serializer, buffer, duration + d, true)
+//        }
+//    }
 }

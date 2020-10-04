@@ -7,8 +7,17 @@ internal struct LKVarStack {
     var context: LeafRenderer.Context
     var stack: [(ids: Set<String>, vars: LKVarTablePtr)]
     
-    /// Locate the `LKVariable` in the stack, if possible
-    mutating func match(_ variable: LKVariable) -> LKData? {
+    @inline(__always)
+    mutating func match(_ variable: LKVariable) -> LKData {
+        var err: LKData { .error(internal: "No value for \(variable.terse) in context") }
+        let result = _match(variable)
+        return context.softFail ? result?.errored ?? true ? .trueNil : result!
+                                : result ?? err
+    }
+    
+    /// Locate the `LKVariable` in the stack, if possible - prefer `match` but useful in some situations
+    @inline(__always)
+    mutating func _match(_ variable: LKVariable) -> LKData? {
         var err: LKData { .error(internal: "No value for \(variable.terse) in context") }
         
         if variable.isScoped { return context.get(variable) }
@@ -31,6 +40,7 @@ internal struct LKVarStack {
     
     /// Update a non-scoped/pathed variable that explicitly exists, or create at specified level if an atomic
     /// Default atomic creation level is the topmost stack (nil)
+    @inline(__always)
     mutating func update(_ variable: LKVariable,
                          _ value: LKData,
                          createAt level: Int? = nil) {

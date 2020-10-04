@@ -1,7 +1,7 @@
 import Foundation
 import NIO
 
-internal struct LKParser: LKErroring {
+internal struct LKParser {
     // MARK: - Internal Only
 
     let key: LeafASTKey
@@ -13,6 +13,7 @@ internal struct LKParser: LKErroring {
         self.tokens = tokens
         self.rawStack = [entities.raw.instantiate(size: 0, encoding: LKConf.encoding)]
         self.literals = .init(context: context.literalsOnly, stack: [])
+        self.literals.context.options = [.missingVariableThrows(true)]
     }
     
     mutating func parse() throws -> LeafAST {
@@ -25,7 +26,7 @@ internal struct LKParser: LKErroring {
         
         var more = true
         while more { more = advance() }
-        if !errored && !openBlocks.isEmpty {
+        if error == nil && !openBlocks.isEmpty {
             error = err("[\(openBlocks.map { "#\($0.name)(...):" }.joined(separator: ", "))] still open at EOF")
         }
         if let error = error { throw error }
@@ -306,7 +307,7 @@ internal struct LKParser: LKErroring {
         for created in createdVars.reversed() {
             let unset = created.filter {$0.value == false}
             let matched = x.intersection(unset.keys)
-            if !matched.isEmpty { return bool(err("\(matched.first!) used before assignment")) }
+            if !matched.isEmpty { return bool(err("`\(matched.first!.terse)` used before initialization")) }
             x.subtract(created.keys)
         }
         
@@ -317,7 +318,7 @@ internal struct LKParser: LKErroring {
     }
     
     private mutating func checkExplicitVariableState(_ v: LKVariable, _ set: Bool) -> Bool {
-        guard createdVars[depth][v] == nil else { return bool(err("\(v.terse) is already declared in this scope")) }
+        guard createdVars[depth][v] == nil else { return bool(err("`\(v.terse)` is already declared in this scope")) }
         createdVars[depth][v] = set
         return true
     }
@@ -501,7 +502,9 @@ internal struct LKParser: LKErroring {
             var a = a
             /// If an invariant function with all literal params, and not a mutating or unsafe object, evaluate immediately
             if case .function(_, .some(let f), let t, _) = a.container,
-               f as? LeafMutatingMethod == nil && f as? LeafUnsafeEntity == nil,
+               f as? LKMetaBlock == nil,
+               f as? LeafMutatingMethod == nil,
+               f as? LeafUnsafeEntity == nil,
                t?.values.allSatisfy({$0.isLiteral}) ?? true {
                 let values = t?.values.map {$0.data!} ?? []
                 a = .value(f.evaluate(.init(values, t?.labels ?? [:])))
@@ -659,12 +662,21 @@ internal struct LKParser: LKErroring {
                 guard makeVariableIfOpen() else { return }
                 guard complexes.count == 1, functions[0] == nil else {
                     return void(err("Assignment only allowed at top level of an expression") )}
+                guard !currentComplex.contains(where: {$0.isSubscript}) else {
+                    return void(err("Assignment via subscripted access not yet supported")) }
                 guard case .variable(let assignor) = currentComplex.first?.container,
                       currentComplex.count == 1 else {
                     return void(err("Assignment only allowed as first operation")) }
+                guard !assignor.isScoped else {
+                    return void(err("Can't assign; `\(assignor.terse)` is constant")) }
+                
+                // FIXME: Pathed
+                guard !assignor.isPathed else {
+                    return void(err("Assignment to pathed variables is not yet supported")) }
+                
                 if let match = createdVars.match(assignor) {
                     guard !match.0.isConstant || createdVars.last![assignor] == false else {
-                        return void(err("Can't assign; \(assignor.flat) is constant")) }
+                        return void(err("Can't assign; `\(assignor.terse)` is constant")) }
                 }
                 if op == .assignment && createdVars.last![assignor] == false {
                     createdVars[depth][assignor] = true }
@@ -845,7 +857,7 @@ internal struct LKParser: LKErroring {
                             var original: LKVariable? = nil
                             if mutating, case .variable(let v) = operand.container {
                                 if let match = createdVars.match(v) {
-                                    if !match.1 { return void(err("\(v.terse) used before assignment")) }
+                                    if !match.1 { return void(err("\(v.terse) used before initialization")) }
                                     if match.0.isConstant { return void(err("\(v.terse) is constant; can't call mutating method `\(m)()`")) }
                                 }
                                 original = v
@@ -893,7 +905,7 @@ internal struct LKParser: LKErroring {
                     }
                 case .paramDelimit where inTuple || retrying == true
                                    : guard closeComplex() else {
-                                         if !errored { void(err(.malformedExpression)) }
+                                         if error == nil { void(err(.malformedExpression)) }
                                          break }
                                      tupleAppend()
                 case .paramDelimit : void(err("Expressions can't be tuples"))
@@ -912,8 +924,8 @@ internal struct LKParser: LKErroring {
         }
         
         /// Error state from grammatically correct but unclosed parameters at EOF
-        if !errored && tuples.count > 1 { return `nil`(err("Template ended with open parameters")) }
-        if !errored && variableCreation.0 {
+        if error == nil && tuples.count > 1 { return `nil`(err("Template ended with open parameters")) }
+        if error == nil && variableCreation.0 {
             let style = variableCreation.constant ? "let" : "var"
             if tuples[0].count != 1 { return `nil`(err("Declare variables with #(\(style) x) or #(\(style) x = value)")) }
             var theVar: LKVariable? = nil
@@ -932,7 +944,7 @@ internal struct LKParser: LKErroring {
             /// Return a custom expression
             return .init([(nil, .expression(.expressAny([.keyword(variableCreation.constant ? .let : .var), .variable(theVar!), value])!))])
         }
-        return !errored ? tuples.popLast() : nil
+        return error == nil ? tuples.popLast() : nil
     }
     
     mutating func bool(_ error: LeafError) -> Bool { self.error = error; return false }

@@ -97,9 +97,6 @@ public indirect enum LeafParseParameter: Hashable {
 
 /// Default implementations for typical `LeafBlock`s
 public extension LeafBlock {
-    /// Most blocks are not evaluable
-    static var returns: Set<LeafDataType> { .void }
-
     /// Default implementation of LeafFunction.evaluate()
     func evaluate(_ parameters: LeafCallValues) -> LeafData {
         if Self.evaluable { __MajorBug("LeafBlock called as a function: implement `evaluate`") }

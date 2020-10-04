@@ -7,7 +7,7 @@ import NIOConcurrencyHelpers
 
 final class GHLeafKitIssuesTest: LeafTestClass {
     /// https://github.com/vapor/leaf-kit/issues/33
-    func testGH33() {
+    func testGH33() throws {
         var test = TestFiles()
         test.files["/base.leaf"] = """
         <body>
@@ -40,12 +40,12 @@ final class GHLeafKitIssuesTest: LeafTestClass {
         """
 
         let renderer = TestRenderer(sources: .singleSource(test))
-        let page = try! renderer.render(path: "page").wait()
+        let page = try renderer.render(path: "page").wait()
         XCTAssertEqual(page.terse, expected)
     }
 
     /// https://github.com/vapor/leaf-kit/issues/50
-    func testGH50() {
+    func testGH50() throws {
         var test = TestFiles()
         test.files["/a.leaf"] = """
         #export(body):
@@ -67,8 +67,7 @@ final class GHLeafKitIssuesTest: LeafTestClass {
         """
 
         let renderer = TestRenderer(sources: .singleSource(test))
-        let page = try! renderer.render(path: "a",
-                                        context: ["challenges":["","",""]]).wait()
+        let page = try renderer.render(path: "a", context: ["challenges":["","",""]]).wait()
         XCTAssertEqual(page.terse, expected)
     }
 }

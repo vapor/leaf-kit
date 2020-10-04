@@ -450,16 +450,6 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testRendererContext() throws {
-        var test = TestFiles()
-        test.files["/foo.leaf"] = "Hello #custom(name)"
-
-//        struct CustomTag: LeafTag {
-//            func render(_ ctx: LeafContext) throws -> LeafData {
-//                let prefix = ctx.userInfo["prefix"] as? String ?? ""
-//                let param = ctx.parameters.first?.string ?? ""
-//                return .string(prefix + param)
-//            }
-//        }
         struct CustomTag: LeafUnsafeEntity, StringReturn {
             static var callSignature:[LeafCallParameter]  {[.string]}
             static var invariant: Bool {false}
@@ -473,11 +463,16 @@ final class LeafKitTests: LeafTestClass {
         
         LeafConfiguration.entities.use(CustomTag(), asFunction: "custom")
         
+        var test = TestFiles()
+        test.files["/foo.leaf"] = "Hello #custom(name)"
         let renderer = TestRenderer(sources: .singleSource(test))
-        var ctx: LeafRenderer.Context = ["name": "vapor"]
-        try ctx.register(object: "bar", as: "prefix", contextualize: false)
         
-        let view = try renderer.render(path: "foo", context: ctx).wait()
+        var baseContext: LeafRenderer.Context = ["name": "vapor"]
+        var moreContext: LeafRenderer.Context = [:]
+        try moreContext.register(object: "bar", as: "prefix", type: .unsafe)
+        try baseContext.overlay(moreContext)
+        
+        let view = try renderer.render(path: "foo", context: baseContext).wait()
 
         XCTAssertEqual(view.string, "Hello barvapor")
     }
@@ -772,6 +767,7 @@ final class LeafKitTests: LeafTestClass {
     }
     
     func testInline() throws {
+        LKRContext.missingVariableThrows = false
         let template = """
         #(var variable = 10)
         #inline("external", as: raw)
@@ -905,10 +901,9 @@ final class LeafKitTests: LeafTestClass {
     
     func testContexts() throws {
         var aContext: LeafRenderer.Context = [:]
-        let myAPI = _APIVersioning(identifier: "myAPI", version: (0,0,1))
-        try aContext.register(object: myAPI, as: "api")
-      //  try aContext.lockAsLiteral(scope: "api")
-        
+        let myAPI = _APIVersioning("myAPI", (0,0,1))
+        try aContext.register(object: myAPI, as: "api", type: .all)
+                
         let template = """
         #if(!$api.isRelease && !override):#Error("This API is not vended publically")#endif
         #($api ? $api : throw(reason: "No API information"))
@@ -925,23 +920,85 @@ final class LeafKitTests: LeafTestClass {
         try aContext.setValue(at: "override", to: true)
         let output = try render(template, aContext)
         XCTAssertEqual(output, expected)
+        
+        myAPI.version.major = 1
+      //  try aContext.cacheValue(in: "api", at: "version")
+        
+        let retry = try render(template, aContext)
+        XCTAssert(retry.contains("\"major\": 1"))
+    }
+    
+    func testEncoderEncodable() throws {
+        struct Test: Encodable, Equatable {
+            let fieldOne: String = "One"
+            let fieldTwo: Int = 2
+            let fieldThree: Double = 3.0
+            let fieldFour = ["One", "Two", "Three", "Four"]
+            let fieldFive = ["a": "A", "b": "B", "c": "C"]
+            
+            static func ==(lhs: Test, rhs: Test) -> Bool { true }
+        }
+        
+        let encoder = LKEncoder()
+        let encodable = Test()
+        try encodable.encode(to: encoder)
+        
+        let template = """
+        #(test.fieldOne)
+        #(test.fieldTwo)
+        #(test.fieldThree)
+        #(test.fieldFour)
+        #(test.fieldFive)
+        """
+        
+        let expected = """
+        One
+        2
+        3.0
+        ["One", "Two", "Three", "Four"]
+        ["a": "A", "b": "B", "c": "C"]
+        """
+            
+        let output = try render(template, .init(["test": encoder.leafData]))
+        XCTAssertEqual(output, expected)
+        
+        let ctx = LeafRenderer.Context(encodable: ["test": encodable])!
+        let direct = try render(template, ctx)
+        XCTAssertEqual(direct, expected)
+        
+    }
+    
+    
+    func testRenderOptions() throws {
+        XCTAssertEqual(LeafRenderer.Option.Case.allCases.count,
+                       LeafRenderer.Option.allCases.count)
+        XCTAssertEqual(LeafRenderer.Option.allCases.count, 3)
+        var options: LeafRenderer.Options = .globalSettings
+        XCTAssertEqual(options._storage.count, 0)
+        options.update(.timeout(1.0))
+        XCTAssertEqual(options._storage.count, 1)
+        options.unset(.timeout)
+        XCTAssertEqual(options._storage.count, 0)
     }
 }
 
-struct _APIVersioning: LeafContextPublisher {
+// MARK: For `testContexts()`
+class _APIVersioning: LeafContextPublisher {
+    init(_ a: String, _ b: (Int, Int, Int)) { self.identifier = a; self.version = b }
+    
     let identifier: String
-    let version: (major: Int, minor: Int, patch: Int)
+    var version: (major: Int, minor: Int, patch: Int)
 
-    func coreVariables() -> [String: () -> LeafData] {
-        ["identifier" : {.string(identifier)},
-         "version"    : {.dictionary(["major": .int(version.major),
-                                      "minor": .int(version.minor),
-                                      "patch": .int(version.patch)])}]
-    }
+    lazy private(set) var coreVariables: [String: LeafDataGenerator] = [
+        "identifier" : .immediate(identifier),
+        "version"    : .lazy(["major": self.version.major,
+                              "minor": self.version.minor,
+                              "patch": self.version.patch])
+    ]
 }
 
 extension _APIVersioning {
-    func extendedVariables() -> [String: () -> LeafData] {
-        ["isRelease": { .bool(version.major > 0) }]
-    }
+    var extendedVariables: [String: LeafDataGenerator] {[
+        "isRelease": .lazy(self.version.major > 0)
+    ]}
 }

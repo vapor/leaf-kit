@@ -118,7 +118,7 @@ internal struct LKExpression: LKSymbol {
     /// Generate a custom `LKExpression` if possible.
     private init?(custom: LKParams) {
         guard (2...3).contains(custom.count) else { return nil }
-        let storage = custom.count == 3 ? custom : custom + [.invalid]
+        let storage = custom.count == 3 ? custom : custom + CollectionOfOne(.invalid)
         self = .init(.init(storage), (.custom, nil))
     }
 
@@ -267,15 +267,15 @@ internal struct LKExpression: LKSymbol {
             __MajorBug("Improper assignment expression") }
         
         if assignor.isPathed, let parent = assignor.parent,
-           symbols.match(parent) == nil {
-            return .failure(err("\(parent.terse) does not exist; cannot set \(assignor)"))
-        } else if !assignor.isPathed, symbols.match(assignor) == nil {
+           (symbols._match(parent)?.celf ?? .void) != .dictionary {
+            return .failure(err("\(parent.terse) is not a dictionary; cannot set \(assignor)"))
+        } else if !assignor.isPathed, symbols._match(assignor) == nil {
             return .failure(err("\(assignor.terse) must be defined first with `var \(assignor.member ?? "")`"))
         }
         /// Straight assignment just requires identifier parent exists if it's pathed.
         if op == .assignment { return .success((assignor, value)) }
         
-        guard let old = symbols.match(assignor) else {
+        guard let old = symbols._match(assignor) else {
             return .failure(err("\(assignor.member!) does not exist; can't perform compound assignment")) }
         
         let new: LKData

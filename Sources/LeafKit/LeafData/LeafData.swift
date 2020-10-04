@@ -179,7 +179,7 @@ extension LeafData: LKSymbol {
     
     /// Creates a new `LeafData` from `() -> LeafData` if possible or `nil` if not possible.
     /// `returns` must specify a `CaseType` that the function will return
-    static func lazy(_ lambda: @escaping () -> Self, returns type: LKDType) -> Self {
+    static func lazy(_ lambda: @escaping () -> LeafData, returns type: LKDType) -> Self {
         Self(.lazy(f: lambda, returns: type))
     }
     
@@ -266,16 +266,13 @@ extension LeafData: LKSymbol {
     func evaluate(_ symbols: inout LKVarStack) -> Self { state.contains(.variant) ? container.evaluate : self }
 }
 
-internal protocol LKDSelf: StringReturn {}
+internal protocol LKDSelf: LeafNonMutatingMethod, Invariant, StringReturn {}
 internal extension LKDSelf {
-    static var invariant: Bool { true }
-    
     func evaluate(_ params: LeafCallValues) -> LeafData {
-        .string("\(params[0].celf.short.capitalized)\(params[0].isNil ? "?" : "")")
-    }
+        .string("\(params[0].celf.short.capitalized)\(params[0].isNil ? "?" : "")") }
 }
 
-internal struct LKDSelfMethod: LKDSelf, LeafMethod {
+internal struct LKDSelfMethod: LKDSelf {
     static var callSignature: [LeafCallParameter] { [.init(types: .any, optional: true)] }
 }
 

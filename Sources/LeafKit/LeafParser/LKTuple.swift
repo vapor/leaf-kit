@@ -56,7 +56,7 @@ internal struct LKTuple: LKSymbol {
         } else {
             let inverted = Dictionary(labels.map { ($0.value, $0.key) }, uniquingKeysWith: {a, _ in a})
             let dict = values.indices.map { (inverted[$0]!, values[$0].evaluate(&symbols)) }
-            return .dictionary(.init(dict, uniquingKeysWith: {a, _ in a}))
+            return .dictionary(.init(uniqueKeysWithValues: dict))
         }
     }
     

@@ -179,9 +179,7 @@ public struct LexerError: Error, CustomStringConvertible {
 }
 
 // MARK: - `ParserError` Summary (Wrapped by LeafError)
-// FIXME: Implement a specific ParserError type
 /// `ParserError` reports errors during the stage.
-
 public struct ParserError: Error, CustomStringConvertible {
     public enum Reason: CustomStringConvertible {
         case noEntity(String, String)
@@ -214,28 +212,21 @@ public struct ParserError: Error, CustomStringConvertible {
 
 // MARK: - Internal Conveniences
 
-/// An object that will halt on a single error; conveniences for setting that state & returning values
-internal protocol LKErroring {
-    var error: LeafError? { get }
-    var errored: Bool { get }
-}
-
-extension LKErroring {
-    var errored: Bool { error != nil }
-}
-
+@inline(__always)
 func err(_ cause: LeafErrorCause,
          _ file: String = #file,
          _ function: String = #function,
          _ line: UInt = #line,
          _ column: UInt = #column) -> LeafError { .init(cause, String(file.split(separator: "/").last ?? ""), function, line, column) }
 
+@inline(__always)
 func err(_ reason: String,
          _ file: String = #file,
          _ function: String = #function,
          _ line: UInt = #line,
          _ column: UInt = #column) -> LeafError { err(.unknownError(reason), file, function, line, column) }
 
+@inline(__always)
 func parseErr(_ cause: ParseErrorCause) -> LeafError { .init(.parserError(.init(cause))) }
 
 @inline(__always)

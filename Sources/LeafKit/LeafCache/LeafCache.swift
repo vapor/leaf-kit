@@ -62,4 +62,7 @@ public protocol LeafCache {
     /// is provided - method should still not block.
     func touch(_ key: LeafASTKey,
                _ value: LeafASTTouch)
+    
+    /// Drop the entire cache contents
+    func dropAll()
 }

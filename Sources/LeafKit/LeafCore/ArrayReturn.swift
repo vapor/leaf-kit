@@ -6,27 +6,21 @@ internal extension LeafEntities {
     }
 }
 
-internal struct ArrayToArrayMap: LKMapMethod, ArrayReturn {
-    static var callSignature: [LeafCallParameter] { [.array] }
-    
-    init(_ map: @escaping ([LKData]) -> [LKData]) { f = map }
-    
+internal struct ArrayToArrayMap: LKMapMethod, ArrayParam, ArrayReturn {
     func evaluate(_ params: LeafCallValues) -> LKData { .array(f(params[0].array!)) }
-    
-    private let f: ([LKData]) -> [LKData]
-    
+
     static let indices: Self = .init({$0.indices.map {$0.leafData}})
+    
+    private init(_ map: @escaping ([LKData]) -> [LKData]) { f = map }
+    private let f: ([LKData]) -> [LKData]
 }
 
-internal struct DictionaryToArrayMap: LKMapMethod, ArrayReturn {
-    static var callSignature: [LeafCallParameter] { [.dictionary] }
-    
-    init(_ map: @escaping ([String: LKData]) -> [LKData]) { f = map }
-    
+internal struct DictionaryToArrayMap: LKMapMethod, DictionaryParam, ArrayReturn {
     func evaluate(_ params: LeafCallValues) -> LKData { .array(f(params[0].dictionary!)) }
-    
-    private let f: ([String: LKData]) -> [LKData]
-    
+
     static let keys: Self = .init({Array($0.keys.map {$0.leafData})})
     static let values: Self = .init({Array($0.values)})
+    
+    private init(_ map: @escaping ([String: LKData]) -> [LKData]) { f = map }
+    private let f: ([String: LKData]) -> [LKData]
 }

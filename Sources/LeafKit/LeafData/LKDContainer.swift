@@ -21,12 +21,13 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     case optional(_ wrapped: Self?, _ type: LKDType)
 
     /// Lazy resolvable `() -> LeafData` where return is of `LeafDataType`
-    case lazy(f: () -> (LKData), returns: LKDType)
+    case lazy(f: () -> LeafData, returns: LKDType)
 
     /// A lazy evaluation of the param - Must be generated *only* during `LKSerialize` to defer evaluation
     case evaluate(param: LKParameter.Container)
 
     case error(reason: String, function: String)
+    case unset
     
     // MARK: - Properties
 
@@ -46,12 +47,16 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
                  .optional(_, let t) : return t
             case .evaluate           : return .void
             case .error              : return .void
+            case .unset              : return .void
         }
     }
 
     /// Will resolve anything but variant Lazy data (99% of everything), and unwrap optionals
     var evaluate: LKData {
-        if case .lazy(let f, _) = self { return f() } else { return .init(self) } }
+        if case .lazy(let f, _) = self { return f() }
+        if self == .unset { return .error(internal: "Variable used before being initialized") }
+        return .init(self)
+    }
 
     // MARK: - Equatable Conformance
     /// Strict equality comparision, with .nil/.void being equal - will fail on Lazy data that is variant
@@ -98,6 +103,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case .string(let s)      : return "string(\(s))"
             case .evaluate           : return "evaluate(deferred)"
             case .error              : return "error(\(self.error!))"
+            case .unset              : return "unset"
         }
     }
 
@@ -112,6 +118,8 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     
     /// Nil if not errored, or errored function/reason
     var error: String? { if case .error(let r, let f) = self { return "\(f): \(r)" } else { return nil } }
+    var isUnset: Bool { self == .unset }
+    
     
     var state: LKDState {
         var state: LKDState
@@ -131,6 +139,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case .lazy               : state.formUnion(.variant)
             case .optional(.none, _) : state.formUnion([.optional, .nil])
             case .optional           : state.formUnion(.optional)
+            case .unset              : state.formUnion(.variant)
             default: break
         }
         return state

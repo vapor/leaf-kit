@@ -103,7 +103,7 @@ final class LKParserTests: LeafTestClass {
         Discard for loop:#for(_ in self): .discard.#endfor
         Value for loop:#for(value in self): .value.#endfor
         Key and Value for loop:
-        #for((key, value) in self):.key&value. ["#(key)": #(value)]
+        #for((key, value) in self):.key&value. "#(key)" -> #(value)
         #endfor
         """
         
@@ -123,8 +123,8 @@ final class LKParserTests: LeafTestClass {
         Discard for loop: .discard. .discard.
         Value for loop: .value. .value.
         Key and Value for loop:
-        .key&value. ["aDict": ["one": 1, "three": [five, ten], "two": 2.0]]
-        .key&value. ["name": Mr. MagOO]
+        .key&value. "aDict" -> ["one": 1, "three": ["five", "ten"], "two": 2.0]
+        .key&value. "name" -> Mr. MagOO
         
         """
 
@@ -139,7 +139,7 @@ final class LKParserTests: LeafTestClass {
         let parsedTime = start.distance(to: Date())
 
         print(sampleAST.formatted)
-        let serializer = LKSerializer(sampleAST, .init(context), ByteBuffer.self)
+        let serializer = LKSerializer(sampleAST, .init(context), LeafBuffer.self)
         var block = ByteBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
         let result = serializer.serialize(&block)
         switch result {
@@ -202,26 +202,8 @@ final class LKParserTests: LeafTestClass {
             if x == 10 { leafBuffer.append(&block) }
         }
 
-//        let lap = Date()
-//        var buffered = ByteBufferAllocator().buffer(capacity: 0)
-//        buffered.append("hello, \(context["name"]!.string!)!\n".leafData)
-//        for index in context["skills"]!.array!.indices {
-//            buffered.append(context["skills"]!.array![index])
-//            buffered.append("\n\n".leafData)
-//        }
-//        let rawSwift = lap.distance(to: Date())
-//
-//        XCTAssert(buffered.writerIndex == leafBuffer.writerIndex, "Raw Swift & Leaf Output Don't Match")
-
-//        print("Indices - Leaf: \(leafBuffer.writerIndex) / Raw: \(buffered.writerIndex)")
-
-//        print("Raw Swift unwrap and concat: \(rawSwift.formatSeconds)")
-
         print("Average serialize duration: \((total / 10.0).formatSeconds())")
-//        print(String(format: "Overhead: %.2f%%", 1000.0 * rawSwift / total))
-//        print(String("Difference per loop: " + (((total/10.0) - rawSwift)/Double(loopCount)).formatSeconds))
         print("Output size: \(leafBuffer.readableBytes.formatBytes())")
-        print(leafBuffer.string)
     }
 
     func testEvalAndComments() throws {
@@ -407,10 +389,15 @@ final class LKParserTests: LeafTestClass {
             #(var x = "A String")
             #(x.append(" and more string"))
             #(x)
+            #(x = [:])
         #endif
         #(x -= 5)
         #(x)
         """
+        
+        let x = try render(scoped)
+        XCTAssert(x.contains("String and more"))
+        XCTAssert(x.contains("5"))
         
         let validConstant = """
         #(let x)
@@ -418,11 +405,25 @@ final class LKParserTests: LeafTestClass {
         #(x)
         """
         
+        let y = try render(validConstant)
+        XCTAssert(y.contains("A String"))
+        
         let invalidConstant = """
         #(let x = "A String")
         #(x.append(" and more string"))
         #(x)
         """
+        
+        do { try _ = render(invalidConstant); XCTFail("Should have thrown") }
+        catch { XCTAssert((error as! LeafError).description.contains("x is constant; can't call mutating method `append()`")) }
+        
+        let invalidConstantTwo = """
+        #(let x)
+        #(x)
+        """
+        
+        do { try _ = render(invalidConstantTwo); XCTFail("Should have thrown") }
+        catch { XCTAssert((error as! LeafError).description.contains("`x` used before initialization")) }
         
         let overloadScopeVariable = """
         #for(index in 10):
@@ -430,15 +431,16 @@ final class LKParserTests: LeafTestClass {
         #endfor
         """
         
-        let x = try render(scoped)
-        XCTAssert(x.contains("String and more"))
-        XCTAssert(x.contains("5"))
-        let y = try render(validConstant)
-        XCTAssert(y.contains("A String"))
-        do { try _ = render(invalidConstant); XCTFail("Should have thrown") }
-        catch { XCTAssert((error as! LeafError).description.contains("x is constant; can't call mutating method `append()`")) }
         let z = try render(overloadScopeVariable)
-        XCTAssert(z.contains("10"))        
+        XCTAssert(z.contains("10"))
+        
+        let invalidScopeAssign = """
+        #(self.x = 10)
+        #(x)
+        """
+        
+        do { let x = try render(invalidScopeAssign); print(x); XCTFail("Should have thrown") }
+        catch { XCTAssert((error as! LeafError).description.contains("Can't assign; `self.x` is constant")) }
     }
 }
 

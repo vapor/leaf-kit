@@ -5,8 +5,8 @@
 import Foundation
 import NIOFoundationCompat
 
-
-public struct LeafBuffer: LKRawBlock {    
+/// The default output object used by LeafKit to stream serialized data to.
+public struct LeafBuffer {
     @LeafRuntimeGuard public static var boolFormatter: (Bool) -> String = { $0.description }
     @LeafRuntimeGuard public static var intFormatter: (Int) -> String = { $0.description }
     @LeafRuntimeGuard public static var doubleFormatter: (Double) -> String = { $0.description }
@@ -15,14 +15,16 @@ public struct LeafBuffer: LKRawBlock {
     @LeafRuntimeGuard public static var dataFormatter: (Data) -> String? =
         { String(data: $0, encoding: LKConf.encoding) }
     
-    internal init(_ output: ByteBuffer, _ encoding: String.Encoding) {
-        self.output = output
-        self.encoding = encoding
-    }
-    
     private(set) var error: String? = nil
     private(set) var encoding: String.Encoding
     private var output: ByteBuffer
+}
+
+extension LeafBuffer: LKRawBlock {
+    init(_ output: ByteBuffer, _ encoding: String.Encoding) {
+        self.output = output
+        self.encoding = encoding
+    }
     
     static var recall: Bool { false }
 
@@ -46,19 +48,23 @@ public struct LeafBuffer: LKRawBlock {
     }
 
     /// Appends data using configured serializer views
-    mutating func append(_ data: LeafData) {
+    mutating func append(_ data: LeafData) { _append(data) }
+    
+    /// Appends data using configured serializer views
+    mutating func _append(_ data: LeafData, wrapString: Bool = false) {
         do {
             switch data.celf {
                 case .bool       : try write(Self.boolFormatter(data.bool!))
                 case .data       : try write(Self.dataFormatter(data.data!) ?? "")
                 case .double     : try write(Self.doubleFormatter(data.double!))
                 case .int        : try write(Self.intFormatter(data.int!))
-                case .string     : try write(Self.stringFormatter(data.string!))
+                case .string     : try write(Self.stringFormatter(wrapString ? "\"\(data.string!)\""
+                                                                             : data.string!))
                 case .void       : break
                 case .array      : let a = data.array!
                                    try write("[")
                                    for index in a.indices {
-                                        append(a[index])
+                                        _append(a[index], wrapString: true)
                                         if index != a.indices.last! { try write(", ") }
                                    }
                                    try write("]")
@@ -66,7 +72,7 @@ public struct LeafBuffer: LKRawBlock {
                                    try write("[")
                                    for index in d.indices {
                                         try write("\"\(d[index].key)\": ")
-                                        append(d[index].value)
+                                        _append(d[index].value, wrapString: true)
                                         if index != d.indices.last! { try write(", ") }
                                    }
                                    if d.isEmpty { try write(":") }
@@ -81,65 +87,4 @@ public struct LeafBuffer: LKRawBlock {
     var contents: String { output.contents }
         
     mutating func write(_ str: String) throws { try output.writeString(str, encoding: LKConf.encoding) }
-}
-
-extension ByteBuffer: LKRawBlock {
-    var error: String? { nil }
-    var encoding: String.Encoding { LKConf.encoding }
-    
-    static var recall: Bool { false }
-
-    static func instantiate(size: UInt32,
-                            encoding: String.Encoding) -> LKRawBlock {
-        ByteBufferAllocator().buffer(capacity: Int(size)) }
-
-
-    /// Always identity return and valid
-    var serialized: (buffer: ByteBuffer, valid: Bool?) { (self, true) }
-
-    /// Always takes either the serialized view of a `LKRawBlock` or the direct result if it's a `ByteBuffer`
-    mutating func append(_ block: inout LKRawBlock) {
-        var input = block as? Self ?? block.serialized.buffer
-        let inputEncoding = block.encoding
-        
-        guard encoding != inputEncoding else { writeBuffer(&input); return }
-        fatalError()
-    }
-    
-    mutating func append(_ data: LeafData) { _append(data) }
-
-    /// Appends data using configured serializer views
-    mutating func _append(_ data: LeafData, wrapString: Bool = false) {
-        switch data.celf {
-            case .bool       : write(LeafBuffer.boolFormatter(data.bool!))
-            case .data       : write(LeafBuffer.dataFormatter(data.data!) ?? "")
-            case .double     : write(LeafBuffer.doubleFormatter(data.double!))
-            case .int        : write(LeafBuffer.intFormatter(data.int!))
-            case .string     : write(LeafBuffer.stringFormatter(wrapString ? "\"\(data.string!)\"": data.string!))
-            case .void       : break
-            case .array      : let a = data.array!
-                               write("[")
-                               for index in a.indices {
-                                    _append(a[index], wrapString: true)
-                                    if index != a.indices.last! { write(", ") }
-                               }
-                               write("]")
-            case .dictionary : let d = data.dictionary!.sorted { $0.key < $1.key }
-                               write("[")
-                               for index in d.indices {
-                                    write("\"\(d[index].key)\": ")
-                                    _append(d[index].value, wrapString: true)
-                                    if index != d.indices.last! { write(", ") }
-                               }
-                               if d.isEmpty { write(":") }
-                               write("]")
-        }
-    }
-    
-    mutating func close() {}
-
-    var byteCount: UInt32 { UInt32(readableBytes) }
-    var contents: String { getString(at: readerIndex, length: readableBytes) ?? "" }
-    
-    mutating func write(_ str: String) { try! writeString(str, encoding: LKConf.encoding) }
 }

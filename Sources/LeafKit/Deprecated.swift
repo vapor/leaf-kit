@@ -36,7 +36,7 @@ public protocol LeafTag {
 ///     userInfo: [AnyHashable: Any] /* removed entirely */
 /// Leaf templates now have access to additional information in the form of scoped variables
 /// (eg: `$server.name` for a previously registered "server" variable scope)
-@available(*, deprecated, message: "Adhere to LeafFunction/Method/Block as appropriate")
+@available(*, deprecated, message: "Adhere to LeafFunction/Method/Block/UnsafeEntity as appropriate")
 public struct LeafContext {
     public let parameters: [LeafData]
     public let data: [String: LeafData]

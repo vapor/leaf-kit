@@ -51,7 +51,7 @@ final class SerializerTests: LeafTestClass {
             ]))
         ]))
 
-        let result = try! render(name: "test", input, ["people": people])
+        let result = try render(name: "test", input, ["people": people])
 
         XCTAssertEqual(result, """
 

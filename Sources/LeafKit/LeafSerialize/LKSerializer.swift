@@ -2,11 +2,10 @@
 // MARK: -
 import Foundation
 
-internal final class LKSerializer: LKErroring {
-    
+internal final class LKSerializer {
     // MARK: Stored Properties
     let ast: LeafAST
-    internal private(set) var error: LeafError? = nil
+    private(set) var error: LeafError? = nil
         
     private var threshold: Double
     private var start: Double
@@ -21,46 +20,21 @@ internal final class LKSerializer: LKErroring {
     private var stackDepth: Int = 0
     
     private var bufferStack: [UnsafeMutablePointer<LKRawBlock>] = []
-    private var bufferStackDepth: Int = 0
     
     private var idCache: [String: LKVariable] = [:]
     
+    private let allowUnsafe: Bool
+    
     // MARK: Computed Properties
-    /// Note - these are conveniences - most explicitly do not have setters to avoid overhead of get/set copying
-    private var table: Int { stack[stackDepth].table }
-    private var scope: ContiguousArray<LKSyntax> { ast.scopes[table] }
-    private var defines: [String: Define] { stack[stackDepth].defines }
-    private var breakChain: Bool? { get { stack[stackDepth].breakChain } set { stack[stackDepth].breakChain = newValue } }
-    private var scopeIDs: Set<String> { context.stack[contextDepth].ids }
-    private var vars: LKVarTablePtr { context.stack[contextDepth].vars }
-    private var unsafe: ExternalObjects { context.context.externalObjects }
-    private var allocated: Bool { get { stack[stackDepth].allocated } set { stack[stackDepth].allocated = newValue} }
-    private var count: UInt32? { get {stack[stackDepth].count} set { stack[stackDepth].count = newValue } }
-    private var block: LeafBlock? { stack[stackDepth].block }
-    private var tuple: LKTuple? { stack[stackDepth].tuple }
-    private var buffer: UnsafeMutablePointer<LKRawBlock> { bufferStack[bufferStackDepth] }
 
-    private var offset: Int { stack[stackDepth].offset }
-    private func advance(by offset: Int = 1) { stack[stackDepth].offset += offset }
-    
-    @inline(__always)
-    private var cutoff: Bool {
-        tickCount &+= 1
-        if tickCount == 0 { lap() }
-        if threshold < (lapTime - start) {
-            duration += lapTime - start
-            error = err(.timeout(duration))
-        }
-        return errored
-    }
-    
-    private var peek: LKSyntax? { scope.count > offset ? scope[offset] : nil }
-    
-    init(_ ast: LeafAST, _ context: LeafRenderer.Context, _ output: LKRawBlock.Type) {
+    init(_ ast: LeafAST,
+         _ context: LeafRenderer.Context,
+         _ output: LKRawBlock.Type) {
         self.ast = ast
         self.start = Date.distantFuture.timeIntervalSinceReferenceDate
         self.lapTime = Date.distantPast.timeIntervalSinceReferenceDate
-        self.threshold = LKConf.timeout
+        self.threshold = context.options?.timeout ?? LKRContext.timeout
+        self.allowUnsafe = context.options?.grantUnsafeEntityAccess ?? LKRContext.grantUnsafeEntityAccess
         self.context = .init(context: context, stack: [])
         self.context.stack.reserveCapacity(Int(ast.info.stackDepths.overallMax))
         self.context.stack.append(([], LKVarTablePtr.allocate(capacity: 1)))
@@ -69,6 +43,7 @@ internal final class LKSerializer: LKErroring {
                                                               encoding: LKConf.encoding))
         self.stack = .init(repeating: .init(bufferStack[0]),
                            count: Int(ast.info.stackDepths.overallMax))
+        self.stack[0].allocated = true
         vars.initialize(to: [:])
     }
 
@@ -91,7 +66,7 @@ internal final class LKSerializer: LKErroring {
         start = Date.timeIntervalSinceReferenceDate
         lapTime = Date.distantPast.timeIntervalSinceReferenceDate
         serialize:
-        while !cutoff, !errored, !stack.isEmpty {
+        while !cutoff, error == nil, !stack.isEmpty {
             /// At start of a scope block, evaluate the scope. Terminate if it
             /// can't evaluate, elide if scope is discard and continue to next
             if table > 0, offset == 0 {
@@ -235,23 +210,22 @@ internal final class LKSerializer: LKErroring {
                     if t != 0 { newScope(from: b, p: p, t: t, o: o) }
                     continue serialize
                 /// Evaluate scope, handle as necessary
-                case .scope: __MajorBug("Evaluation fail - should never hit scope")
+                case .scope: __Unreachable("Evaluation fail - should never hit scope")
                 /// Not in the top level scope and hit the end of the table but not done - repeat
                 case .none where count != 0 : stack[stackDepth].offset = 0; continue serialize
-                ///Done with current scope
+                /// Done with current scope
                 case .none: closeScope(); continue serialize
             }
             advance()
         }
         
-        if errored { return .failure(error!) }
+        if error != nil { return .failure(error!) }
         
         stack.removeAll()
         output = self.bufferStack[0].pointee
         return .success(Date.timeIntervalSinceReferenceDate - start + duration)
     }
 
-    
     /// Structure holding state objects for the current scope on the stack
     private struct ScopeState {
         /// Repetition count from block.evalCount - always 0 for the top level scope
@@ -266,6 +240,7 @@ internal final class LKSerializer: LKErroring {
         var buffer: UnsafeMutablePointer<LKRawBlock>
         var tuple: LKTuple?// = .init()
         var defines: [String: Define]// = [:]
+        var blockCreatedIDs: Set<String>?
 
         init(_ buffer: UnsafeMutablePointer<LKRawBlock>) {
             self.block = nil
@@ -276,7 +251,8 @@ internal final class LKSerializer: LKErroring {
             self.table = 0
             self.offset = 0
             self.breakChain = nil
-            self.allocated = true
+            self.allocated = false
+            self.blockCreatedIDs = nil
         }
 
         init(from: Self, _ block: LeafBlock, _ tuple: LKTuple?) {
@@ -289,6 +265,7 @@ internal final class LKSerializer: LKErroring {
             self.offset = 0
             self.breakChain = nil
             self.allocated = false
+            self.blockCreatedIDs = nil
         }
         
         mutating func set(from: Self, _ block: LeafBlock, _ tuple: LKTuple?) {
@@ -304,13 +281,16 @@ internal final class LKSerializer: LKErroring {
             self.allocated = false
         }
     }
+}
 
-    private func newScope(from block: LeafBlock,
-                          p params: LKTuple?,
-                          t table: Int,
-                          o offset: Int) {
+// MARK: - Scope Handling
+private extension LKSerializer {
+    @inline(__always) func newScope(from block: LeafBlock,
+                                    p params: LKTuple?,
+                                    t table: Int,
+                                    o offset: Int) {
         var b: LeafBlock
-        if var unsafeBlock = block as? LeafUnsafeEntity {
+        if var unsafeBlock = block as? LeafUnsafeEntity, allowUnsafe {
             unsafeBlock.externalObjects = unsafe
             b = unsafeBlock as! LeafBlock
         } else { b = block}
@@ -323,19 +303,20 @@ internal final class LKSerializer: LKErroring {
         stack[stackDepth].offset = offset
         if b.scopeVariables?.isEmpty == false {
             let ids = b.scopeVariables!.compactMap { x -> String? in
-                if x.isValidIdentifier { idCache[x] = .atomic(x) }
-                return x.isValidIdentifier ? x : nil
+                if x.isValidLeafIdentifier { idCache[x] = .atomic(x) }
+                return x.isValidLeafIdentifier ? x : nil
             }
             if !ids.isEmpty {
                 allocated = true
+                blockCreatedIDs = .init(ids)
                 contextDepth += 1
                 context.stack.append((.init(ids), .allocate(capacity: 1)))
                 vars.initialize(to: .init(minimumCapacity: ids.count))
-            }
+            } else { blockCreatedIDs = nil }
         }
     }
-
-    private func closeScope() {
+    
+    @inline(__always) func closeScope() {
         if allocated, let x = context.stack.popLast()?.vars {
             x.deinitialize(count: 1); x.deallocate(); contextDepth -= 1 }
         stackDepth -= 1
@@ -346,16 +327,14 @@ internal final class LKSerializer: LKErroring {
         }
     }
     
-    private func nextMatchesChain(_ antecedent: ChainedBlock.Type) -> Bool {
+    @inline(__always) func nextMatchesChain(_ antecedent: ChainedBlock.Type) -> Bool {
         guard stack[stackDepth].breakChain != nil,
               case .block(_, let n as ChainedBlock, _) = peek?.container,
               type(of: n).chainsTo.contains(where: {$0 == antecedent}) else { return false }
         return true
     }
     
-    private func lap() { lapTime = Date().timeIntervalSinceReferenceDate }
-
-    private func evaluateScope() -> Bool? {
+    @inline(__always) func evaluateScope() -> Bool? {
         if table * offset < 1 {
             /// All metablocks will always run only once and do not produce variables; can be elided
             if block as? LKMetaBlock != nil { count = 0; return true }
@@ -387,7 +366,7 @@ internal final class LKSerializer: LKErroring {
         return true
     }
 
-    private func reEvaluateScope() -> Bool {
+    @inline(__always) func reEvaluateScope() -> Bool {
         var scopeVariables: [String: LeafData] = [:]
         let scopeValue = stack[stackDepth].block!.reEvaluateScope(&scopeVariables)
         /// if evaluate to discard, stop immediately and end the current block
@@ -400,23 +379,13 @@ internal final class LKSerializer: LKErroring {
         count = toGo - 1
         return true
     }
-    
-    private func coalesceVariables(_ new: [String: LeafData]) {
-        scopeIDs.map { idCache[$0]! }
-                .forEach { context.update($0, new[$0.member!] ?? .trueNil) }
-    }
-    
-    private func append(_ block: inout LKRawBlock) {
-        buffer.pointee.append(&block)
-        if let e = buffer.pointee.error { void(err("Serialize Error: \(e)")) }
-    }
+}
 
-    private func append(_ data: LeafData) {
-        if data.errored { error = err(.unknownError(data.error!)); return }
-        if !data.isNil || data.isTrueNil { stack[stackDepth].buffer.pointee.append(data) } }
-    
+// MARK: - Variable Handling
+private extension LKSerializer {
     /// Has to be used with atomic, unscoped
-    private func assignValue(_ key: LKVariable, _ value: LKData) {
+    @inline(__always)
+    func assignValue(_ key: LKVariable, _ value: LKData) {
         var depth = context.stack.count - 1
         let root = key.member!
         while depth >= 0 {
@@ -427,6 +396,7 @@ internal final class LKSerializer: LKErroring {
                     context.stack[depth].vars.dropDescendents(of: key)
                 }
                 context.stack[depth].vars.pointee[key] = value
+                // FIXME: setting pathed entires does not cascade up to the root
                 return
             } else { depth -= 1 }
         }
@@ -438,6 +408,71 @@ internal final class LKSerializer: LKErroring {
         }
     }
     
+    @inline(__always)
+    func coalesceVariables(_ new: [String: LeafData]) {
+        guard let vars = blockCreatedIDs?.intersection(new.keys)
+                                         .compactMap({idCache[$0]}),
+              !vars.isEmpty else { return }
+        vars.forEach { context.update($0, new[$0.member!]!) }
+    }
+}
+
+// MARK: - Serialize Output Handling
+private extension LKSerializer {
+    @inline(__always) func append(_ block: inout LKRawBlock) {
+        buffer.pointee.append(&block)
+        if let e = buffer.pointee.error { void(err("Serialize Error: \(e)")) }
+    }
+    
+    @inline(__always) func append(_ data: LeafData) {
+        if data.errored { error = err(.unknownError(data.error!)); return }
+        if !data.isNil || data.isTrueNil { stack[stackDepth].buffer.pointee.append(data) }
+    }
+}
+
+// MARK: - Erroring
+private extension LKSerializer {
+    @inline(__always) func lap() { lapTime = Date().timeIntervalSinceReferenceDate }
+    
+    @inline(__always) var cutoff: Bool {
+        tickCount &+= 1
+        if tickCount == 0 { lap() }
+        if threshold < (lapTime - start) {
+            duration += lapTime - start
+            error = err(.timeout(duration))
+        }
+        return error != nil
+    }
+    
     func bool(_ error: LeafError) -> Bool { self.error = error; return false }
     func void(_ error: LeafError) { self.error = error }
+}
+
+// MARK: - Computed Property Conveniences
+/// Note - these are conveniences - most explicitly do not have setters to avoid overhead of get/set copying
+private extension LKSerializer {
+    @inline(__always) var table: Int { stack[stackDepth].table }
+    @inline(__always) var scope: ContiguousArray<LKSyntax> { ast.scopes[table] }
+    @inline(__always) var defines: [String: Define] { stack[stackDepth].defines }
+    @inline(__always) var breakChain: Bool? {
+        get { stack[stackDepth].breakChain }
+        set { stack[stackDepth].breakChain = newValue } }
+    @inline(__always) var scopeIDs: Set<String> { context.stack[contextDepth].ids }
+    @inline(__always) var blockCreatedIDs: Set<String>? {
+        get { stack[stackDepth].blockCreatedIDs }
+        set { stack[stackDepth].blockCreatedIDs = newValue } }
+    @inline(__always) var vars: LKVarTablePtr { context.stack[contextDepth].vars }
+    @inline(__always) var unsafe: ExternalObjects { context.context.externalObjects }
+    @inline(__always) var allocated: Bool {
+        get { stack[stackDepth].allocated }
+        set { stack[stackDepth].allocated = newValue} }
+    @inline(__always) var count: UInt32? {
+        get {stack[stackDepth].count}
+        set { stack[stackDepth].count = newValue } }
+    @inline(__always) var block: LeafBlock? { stack[stackDepth].block }
+    @inline(__always) var tuple: LKTuple? { stack[stackDepth].tuple }
+    @inline(__always) var buffer: UnsafeMutablePointer<LKRawBlock> { bufferStack.last! }
+    @inline(__always) var offset: Int { stack[stackDepth].offset }
+    @inline(__always) func advance(by offset: Int = 1) { stack[stackDepth].offset += offset }
+    @inline(__always) var peek: LKSyntax? { scope.count > offset ? scope[offset] : nil }
 }

@@ -1,20 +1,4 @@
-// MARK: Internal Type Shorthands
-
-internal typealias LKConf = LeafConfiguration
-internal typealias ELF = EventLoopFuture
-/// `Leaf(Kit)Data`
-internal typealias LKData = LeafData
-/// `Leaf(Kit)DataType`
-internal typealias LKDType = LeafDataType
-/// Set of LKDTypes
-internal typealias LKDTypeSet = Set<LeafDataType>
-/// `[LKParameter]` - no special bounds enforced, used to pass to `LKTuple` which validates
-internal typealias LKParams = [LKParameter]
-
-
-
-
-// MARK: - Internal Helper Extensions
+/// Internal conveniences on native Swift types/protocols
 
 internal extension Comparable {
     /// Conditional shorthand for lhs = max(lhs, rhs)
@@ -48,4 +32,9 @@ internal extension UnsignedInteger {
 
 internal extension CaseIterable {
     static var terse: String { "[\(Self.allCases.map {"\($0)"}.joined(separator: ", "))]" }
+}
+
+extension Array: LKPrintable where Element == LeafCallParameter {
+    var description: String { short }
+    var short: String  { "(\(map {$0.short}.joined(separator: ", ")))" }
 }
