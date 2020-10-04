@@ -463,7 +463,7 @@ final class LeafKitTests: LeafTestClass {
         
         LeafConfiguration.entities.use(CustomTag(), asFunction: "custom")
         
-        let test = TestFiles()
+        let test = LeafTestFiles()
         test.files["/foo.leaf"] = "Hello #custom(name)"
         let renderer = TestRenderer(sources: .singleSource(test))
         
@@ -478,7 +478,7 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testImportResolve() {
-        let test = TestFiles()
+        let test = LeafTestFiles()
         test.files["/a.leaf"] = """
         #export(variable):Hello#endexport
         #extend("b")
@@ -521,7 +521,7 @@ final class LeafKitTests: LeafTestClass {
     func _testCacheSpeedLinear(templates: Int, iterations: Int) -> (Double, Double) {
         let threads = min(System.coreCount, 4)
         let group = MultiThreadedEventLoopGroup(numberOfThreads: threads)
-        let test = TestFiles()
+        let test = LeafTestFiles()
 
         for name in 1...templates { test.files["/\(name).leaf"] = "#Date(Timestamp() + \((-1000000...1000000).randomElement()!).0)" }
 //        for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf\"" }
@@ -584,7 +584,7 @@ final class LeafKitTests: LeafTestClass {
                                layer3: Int,
                                iterations: Int) -> (Double, Double) {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-        let test = TestFiles()
+        let test = LeafTestFiles()
 
         for name in 1...layer3 { test.files["/\(name)-3.leaf"] = "Template \(name)"}
         for name in 1...layer2 { test.files["/\(name)-2.leaf"] = "Template \(name) -> #extend(\"\((name % layer3)+1)-3\")"}
@@ -638,7 +638,7 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testImportParameter() throws {
-        let test = TestFiles()
+        let test = LeafTestFiles()
         test.files["/base.leaf"] = """
         #define(adminValue, admin)
         #inline("parameter")
@@ -668,7 +668,7 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testDeepResolve() throws {
-        let test = TestFiles()
+        let test = LeafTestFiles()
         test.files["/a.leaf"] = """
         #for(a in b):#if(false):Hi#elseif(true && false):Hi#else:#export(derp):DEEP RESOLUTION #(a)#endexport#extend("b")#endif#endfor
         """
@@ -723,9 +723,9 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testMultipleSources() throws {
-        let sourceOne = TestFiles()
-        let sourceTwo = TestFiles()
-        let hiddenSource = TestFiles()
+        let sourceOne = LeafTestFiles()
+        let sourceTwo = LeafTestFiles()
+        let hiddenSource = LeafTestFiles()
         sourceOne.files["/a.leaf"] = "This file is in sourceOne"
         sourceTwo.files["/b.leaf"] = "This file is in sourceTwo"
         hiddenSource.files["/c.leaf"] = "This file is in hiddenSource"
@@ -775,7 +775,7 @@ final class LeafKitTests: LeafTestClass {
         #inline("external")
         """
         
-        let testFiles = TestFiles()
+        let testFiles = LeafTestFiles()
         testFiles.files = ["/template.leaf": template,
                            "/external.leaf": "#(variable)",
                            "/uncachedraw.leaf": "#inline(\"excessiveraw.txt\", as: raw)",
@@ -982,7 +982,7 @@ final class LeafKitTests: LeafTestClass {
     
     func testRenderOptions() throws {
         let expected = "Original Template"
-        let source = TestFiles()
+        let source = LeafTestFiles()
         source.files["/template.leaf"] = expected
         
         let renderer = LeafRenderer(cache: DefaultLeafCache(),

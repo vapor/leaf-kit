@@ -65,7 +65,7 @@ internal class TestRenderer {
     private var timer: Date = .distantPast
 
     init(cache: LeafCache = DefaultLeafCache(),
-         sources: LeafSources = .singleSource(TestFiles()),
+         sources: LeafSources = .singleSource(LeafTestFiles()),
          eventLoop: EventLoop = EmbeddedEventLoop(),
          tasks: Int = 1) {
         self.r = .init(cache: cache,
@@ -75,9 +75,11 @@ internal class TestRenderer {
         counter = tasks
     }
 
-    func render(source: String? = nil, path: String, context: LeafRenderer.Context = [:]) -> EventLoopFuture<ByteBuffer> {
+    func render(source: String? = nil, path: String,
+                context: LeafRenderer.Context = [:],
+                options: LeafRenderer.Options? = nil) -> EventLoopFuture<ByteBuffer> {
         if timer == .distantPast { timer = Date() }
-        return r.render(template: path, from: source != nil ? source! : "$", context: context)
+        return r.render(template: path, from: source != nil ? source! : "$", context: context, options: options)
     }
 
     var queued: Int { lock.withLock { counter } }

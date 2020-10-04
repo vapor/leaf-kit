@@ -7,7 +7,7 @@ import NIOConcurrencyHelpers
 final class LeafErrorTests: LeafTestClass {
     /// Verify that cyclical references via #extend will throw `LeafError.cyclicalReference`
     func testCyclicalError() {
-        let test = TestFiles()
+        let test = LeafTestFiles()
         test.files["/a.leaf"] = "#extend(\"b\")"
         test.files["/b.leaf"] = "#extend(\"c\")"
         test.files["/c.leaf"] = "#extend(\"a\")"
@@ -21,7 +21,7 @@ final class LeafErrorTests: LeafTestClass {
 
     /// Verify that referecing a non-existent template will throw `LeafError.noTemplateExists`
     func testDependencyError() {
-        let test = TestFiles()
+        let test = LeafTestFiles()
         test.files["/a.leaf"] = "#extend(\"b\")"
         test.files["/b.leaf"] = "#extend(\"c\")"
         let expected = "No template found for c"

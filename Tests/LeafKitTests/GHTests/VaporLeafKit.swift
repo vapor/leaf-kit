@@ -8,7 +8,7 @@ import NIOConcurrencyHelpers
 final class GHLeafKitIssuesTest: LeafTestClass {
     /// https://github.com/vapor/leaf-kit/issues/33
     func testGH33() throws {
-        let test = TestFiles()
+        let test = LeafTestFiles()
         test.files["/base.leaf"] = """
         <body>
             Directly extended snippet
@@ -46,7 +46,7 @@ final class GHLeafKitIssuesTest: LeafTestClass {
 
     /// https://github.com/vapor/leaf-kit/issues/50
     func testGH50() throws {
-        let test = TestFiles()
+        let test = LeafTestFiles()
         test.files["/a.leaf"] = """
         #export(body):
         #for(challenge in challenges):

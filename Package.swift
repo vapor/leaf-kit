@@ -7,7 +7,7 @@ let package = Package(
        .macOS(.v10_15)
     ],
     products: [
-        .library(name: "LeafKit", targets: ["LeafKit"]),
+        .library(name: "LeafKit", targets: ["LeafKit"])
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.20.2"),
