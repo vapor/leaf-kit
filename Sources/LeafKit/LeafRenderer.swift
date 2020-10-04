@@ -50,11 +50,13 @@ public final class LeafRenderer {
         case timeout(Double)
         case missingVariableThrows(Bool)
         case grantUnsafeEntityAccess(Bool)
+        case cacheBypass(Bool)
         
         public enum Case: UInt8, RawRepresentable, CaseIterable {
             case timeout
             case missingVariableThrows
             case grantUnsafeEntityAccess
+            case cacheBypass
         }
     }
     
@@ -88,6 +90,8 @@ public final class LeafRenderer {
         /// When true, `LeafUnsafeEntity` tags will have access to contextual objects
         @LeafRuntimeGuard public static var grantUnsafeEntityAccess: Bool = false
         
+        /// When true, render call will always parse & serialize the template & any inlines in entirety
+        @LeafRuntimeGuard public static var cacheBypass: Bool = false        
         
         // MARK: LeafRenderer.Context.ObjectMode
         public struct ObjectMode: OptionSet {
@@ -179,20 +183,20 @@ private extension LeafRenderer {
     // 10 ms limit for execution to act in a blocking fashion
     private static var blockLimit: Double { 0.010 }
     
-    func _render(_ key: LeafASTKey, _ ctx: Context, _ options: Options?) -> ELF<ByteBuffer> {
-        var ctx = ctx
-        if let options = options { ctx.options = options }
-        ctx.setSoftFail()
+    func _render(_ key: LeafASTKey, _ context: Context, _ options: Options?) -> ELF<ByteBuffer> {
+        var context = context
+        if let options = options { context.options = options }        
         
         /// Short circuit for resolved blocking cache hits
-        if cacheIsSync, let hit = blockingCache!.retrieve(key),
+        if !context.cacheBypass, cacheIsSync,
+           let hit = blockingCache!.retrieve(key),
            hit.info.requiredASTs.isEmpty,
            hit.info.touch.execAvg < Self.blockLimit {
-            return preflight(hit, ctx)
+            return preflight(hit, context)
         }
 
-        return fetch(key, ctx).flatMap { self.arbitrate($0, ctx) }
-                              .flatMap { self.preflight($0, ctx) }
+        return fetch(key, context).flatMap { self.arbitrate($0, context) }
+                                  .flatMap { self.preflight($0, context) }
     }
 
     /// Call with any state of ASTBox - will fork to various behaviors as required until finally returning a
@@ -202,10 +206,9 @@ private extension LeafRenderer {
                    via chain: [String] = []) -> ELF<LeafAST> {
         if ast.info.requiredASTs.isEmpty && ast.info.requiredRaws.isEmpty {
             /// Succeed immediately if the ast is cached and doesn't need any kind of resolution
-            if ast.cached { return succeed(ast, on: eL) }
+            if ast.cached || context.cacheBypass { return succeed(ast, on: eL) }
             var toCache = ast
             toCache.stripOversizeRaws()
-            toCache.cached = true
                         
             /// If cache is blocking, force insert and succeed immediately
             if cacheIsSync {
@@ -237,10 +240,13 @@ private extension LeafRenderer {
     func fetch(_ key: LeafASTKey,
                _ context: LeafRenderer.Context) -> ELF<LeafAST> {
         /// Try to hit blocking cache LeafAST, otherwise hit async cache, then try if no cache hit - read a template
-        if cacheIsSync, let hit = blockingCache!.retrieve(key) { return succeed(hit, on: eL) }
-        return cache.retrieve(key, on: eL)
-                    .flatMapThrowing { if let hit = $0 { return hit } else { throw "" } }
-                    .flatMapError { _ in self.read(key, context) }
+        if !context.cacheBypass, cacheIsSync,
+           let hit = blockingCache!.retrieve(key) { return succeed(hit, on: eL) }
+        
+        return !context.cacheBypass ? cache.retrieve(key, on: eL)
+                                            .flatMapThrowing { if let hit = $0 { return hit } else { throw "" } }
+                                            .flatMapError { _ in self.read(key, context) }
+                                    : read(key, context)
     }
 
     /// Read in an individual `LeafAST`
@@ -296,8 +302,7 @@ private extension LeafRenderer {
                                              .map {!$0.isScoped ? $0.contextualized : $0})
         needed.subtract(context.allVariables)
         
-        let shouldThrow = needed.isEmpty ? false : context.options?.missingVariableThrows
-                                                   ?? LKRContext.missingVariableThrows
+        let shouldThrow = needed.isEmpty ? false : context.missingVariableThrows
         
         if shouldThrow { return fail(err("\(needed.description) missing"), on: eL) }
         

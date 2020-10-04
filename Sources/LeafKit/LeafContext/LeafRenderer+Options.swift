@@ -45,14 +45,16 @@ internal extension LeafRenderer.Option {
             case .timeout                 : return .timeout
             case .missingVariableThrows   : return .missingVariableThrows
             case .grantUnsafeEntityAccess : return .grantUnsafeEntityAccess
+            case .cacheBypass             : return .cacheBypass
         }
     }
     
     var valid: Bool? {
         switch self {
-            case .timeout(let t)                 : return LKRContext.$timeout.validate(t)
-            case .missingVariableThrows(let b)   : return LKRContext.$missingVariableThrows.validate(b)
-            case .grantUnsafeEntityAccess(let b) : return LKRContext.$grantUnsafeEntityAccess.validate(b)
+            case .missingVariableThrows,
+                 .grantUnsafeEntityAccess,
+                 .cacheBypass              : return true
+            case .timeout(let t)           : return LKRContext.$timeout.validate(t)
         }
     }
 }
@@ -60,14 +62,4 @@ internal extension LeafRenderer.Option {
 internal extension LeafRenderer.Options {
     subscript(key: LeafRenderer.Option.Case) -> LeafRenderer.Option? {
         _storage.first(where: {$0.celf == key}) }
-    
-    var timeout: Double {
-        if case .timeout(let b) = self[.timeout] { return b }
-        else { return LKRContext.timeout } }
-    var missingVariableThrows: Bool {
-        if case .missingVariableThrows(let b) = self[.missingVariableThrows] { return b }
-        else { return LKRContext.missingVariableThrows } }
-    var grantUnsafeEntityAccess: Bool {
-        if case .grantUnsafeEntityAccess(let b) = self[.grantUnsafeEntityAccess] { return b }
-        else { return LKRContext.grantUnsafeEntityAccess } }
 }

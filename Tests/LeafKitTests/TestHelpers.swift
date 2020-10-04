@@ -87,12 +87,17 @@ internal class TestRenderer {
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
-internal struct TestFiles: LeafSource {
-    var files: [String: String]
+internal class TestFiles: LeafSource {
+    var files: [String: String] {
+        get { lock.withLock {_files} }
+        set { lock.withLockVoid {_files = newValue} }
+    }
+    
+    var _files: [String: String]
     var lock: Lock
 
     init() {
-        files = [:]
+        _files = [:]
         lock = .init()
     }
 
@@ -102,13 +107,13 @@ internal struct TestFiles: LeafSource {
            !path.hasSuffix(".leaf") { path += ".leaf" }
         if !path.hasPrefix("/") { path = "/" + path }
 
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        if let file = self.files[path] {
-            var buffer = ByteBufferAllocator().buffer(capacity: file.count)
-            buffer.writeString(file)
-            return succeed(buffer, on: eventLoop)
-        } else { return fail(err(.noTemplateExists(template)), on: eventLoop) }
+        return lock.withLock {
+            if let file = _files[path] {
+                var buffer = ByteBufferAllocator().buffer(capacity: file.count)
+                buffer.writeString(file)
+                return succeed(buffer, on: eventLoop)
+            } else { return fail(err(.noTemplateExists(template)), on: eventLoop) }
+        }
     }
 }
 

@@ -33,8 +33,8 @@ internal final class LKSerializer {
         self.ast = ast
         self.start = Date.distantFuture.timeIntervalSinceReferenceDate
         self.lapTime = Date.distantPast.timeIntervalSinceReferenceDate
-        self.threshold = context.options?.timeout ?? LKRContext.timeout
-        self.allowUnsafe = context.options?.grantUnsafeEntityAccess ?? LKRContext.grantUnsafeEntityAccess
+        self.threshold = context.timeout
+        self.allowUnsafe = context.grantUnsafeEntityAccess
         self.context = .init(context: context, stack: [])
         self.context.stack.reserveCapacity(Int(ast.info.stackDepths.overallMax))
         self.context.stack.append(([], LKVarTablePtr.allocate(capacity: 1)))

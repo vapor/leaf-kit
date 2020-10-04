@@ -356,7 +356,7 @@ final class LKParserTests: LeafTestClass {
     }
     
     func _testResumingSerialize() throws {
-        var testFiles = TestFiles()
+        let testFiles = TestFiles()
         testFiles.files["/sample.leaf"] = """
             hello, #(name)!
             #for(index in skills):

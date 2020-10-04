@@ -257,6 +257,17 @@ internal extension LeafRenderer.Context {
             contexts[scope]![variable] = newValue
         }
     }
-    
-    mutating func setSoftFail() { softFail = !(options?.missingVariableThrows ?? Self.missingVariableThrows) }
+        
+    var timeout: Double {
+        if case .timeout(let b) = options?[.timeout] { return b }
+        else { return Self.timeout } }
+    var missingVariableThrows: Bool {
+        if case .missingVariableThrows(let b) = options?[.missingVariableThrows] { return b }
+        else { return Self.missingVariableThrows } }
+    var grantUnsafeEntityAccess: Bool {
+        if case .grantUnsafeEntityAccess(let b) = options?[.grantUnsafeEntityAccess] { return b }
+        else { return Self.grantUnsafeEntityAccess } }
+    var cacheBypass: Bool {
+        if case .cacheBypass(let b) = options?[.cacheBypass] { return b }
+        else { return Self.cacheBypass } }
 }
