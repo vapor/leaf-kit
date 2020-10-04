@@ -87,7 +87,7 @@ internal class TestRenderer {
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
-internal class TestFiles: LeafSource {
+public final class LeafTestFiles: LeafSource {
     var files: [String: String] {
         get { lock.withLock {_files} }
         set { lock.withLockVoid {_files = newValue} }
