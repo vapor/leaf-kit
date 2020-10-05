@@ -78,14 +78,13 @@ public struct NIOLeafFiles: LeafSource {
     /// Attempt to read a fully pathed template and return a ByteBuffer or fail
     private func read(path: String, on eL: EventLoop) -> ELF<ByteBuffer> {
         fileio.openFile(path: path, eventLoop: eL)
-              .flatMapError { _ in fail(.noTemplateExists(path), on: eL) }
               .flatMap { (h, r) in
-                          self.fileio.read(fileRegion: r,
-                                           allocator: ByteBufferAllocator(),
-                                           eventLoop: eL)
-                              .flatMapThrowing { try h.close()
-                                                 return $0 }
-                       }
+                    self.fileio.read(fileRegion: r,
+                                     allocator: ByteBufferAllocator(),
+                                     eventLoop: eL)
+                        .flatMapThrowing { try h.close()
+                                           return $0 }
+              }.flatMapError { e in fail(.noTemplateExists(path), on: eL) }
     }
     
     // MARK: - Scoped Type
