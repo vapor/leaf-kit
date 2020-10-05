@@ -145,7 +145,7 @@ internal struct LKExpression: LKSymbol {
 
     private mutating func setStates() {
         resolved = storage.allSatisfy { $0.resolved }
-        invariant = storage.first(where: {$0.invariant}) != nil
+        invariant = storage.allSatisfy {$0.invariant}
         // Restate variable as coalesced if operator is ??
         if storage[1].operator == .nilCoalesce {
             symbols.formUnion(rhs?.symbols ?? [])
