@@ -85,7 +85,7 @@ internal class TestRenderer {
     var queued: Int { lock.withLock { counter } }
     var isDone: Bool { lock.withLock { counter <= 0 } ? true : false }
     func finishTask() { lock.withLock { counter -= 1 } }
-    var lap: Double { let lap = timer.distance(to: Date()); timer = Date(); return lap }
+    var lap: Double { let lap = timer +-> Date(); timer = Date(); return lap }
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"

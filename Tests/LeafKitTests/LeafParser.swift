@@ -136,7 +136,7 @@ final class LKParserTests: LeafTestClass {
         
         let start = Date()
         let sampleAST = try parse(sample)
-        let parsedTime = start.distance(to: Date())
+        let parsedTime = start +-> Date()
 
         print(sampleAST.formatted)
         let serializer = LKSerializer(sampleAST, .init(context), LeafBuffer.self)
@@ -188,11 +188,11 @@ final class LKParserTests: LeafTestClass {
             var lap = Date()
             var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
             let sampleAST = try! sampleParse.parse()
-            print("    Parse: " + lap.distance(to: Date()).formatSeconds())
+            print("    Parse: " + (lap +-> Date()).formatSeconds())
             lap = Date()
             let serializer = LKSerializer(sampleAST, .init(context), ByteBuffer.self)
             var block = ByteBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
-            print("    Setup: " + lap.distance(to: Date()).formatSeconds())
+            print("    Setup: " + (lap +-> Date()).formatSeconds())
             let result = serializer.serialize(&block)
             switch result {
                 case .success(let duration) : print("Serialize: " + duration.formatSeconds())

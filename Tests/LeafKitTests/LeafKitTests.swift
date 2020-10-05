@@ -507,7 +507,7 @@ final class LeafKitTests: LeafTestClass {
             let result = self._testCacheSpeedLinear(templates: 50, iterations: iterations)
             dur += result.0
             ser += result.1
-            stop += start.distance(to: Date())
+            stop += start +-> Date()
         }
         dur /= 10
         ser /= 10
@@ -568,7 +568,7 @@ final class LeafKitTests: LeafTestClass {
             let result = self._testCacheSpeedRandom(layer1: 100, layer2: 20, layer3: 10, iterations: iterations)
             dur += result.0
             ser += result.1
-            stop += start.distance(to: Date())
+            stop += start +-> Date()
         }
         dur /= 10
         ser /= 10

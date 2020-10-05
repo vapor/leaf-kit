@@ -1,3 +1,5 @@
+import Foundation
+
 /// Internal conveniences on native Swift types/protocols
 
 internal extension Comparable {
@@ -37,4 +39,14 @@ internal extension CaseIterable {
 extension Array: LKPrintable where Element == LeafCallParameter {
     var description: String { short }
     var short: String  { "(\(map {$0.short}.joined(separator: ", ")))" }
+}
+
+/// Tired of writing `distance(to: ...`
+infix operator +->
+
+extension Date {
+    /// Tired of writing `distance(to: ...`
+    static func +->(_ from: Self, _ to: Self) -> Double {
+        from.timeIntervalSinceReferenceDate.distance(to: to.timeIntervalSinceReferenceDate)
+    }
 }
