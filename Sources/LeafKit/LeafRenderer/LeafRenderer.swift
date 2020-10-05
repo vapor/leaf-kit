@@ -184,11 +184,11 @@ private extension LeafRenderer {
            let hit = blockingCache!.retrieve(key),
            hit.info.requiredASTs.isEmpty,
            hit.info.touch.execAvg < Self.blockLimit {
-            return preflight(hit, context)
+            return syncSerialize(hit, context)
         }
 
         return fetch(key, context).flatMap { self.arbitrate($0, context) }
-                                  .flatMap { self.preflight($0, context) }
+                                  .flatMap { self.syncSerialize($0, context) }
     }
 
     /// Call with any state of ASTBox - will fork to various behaviors as required until finally returning a
@@ -288,8 +288,8 @@ private extension LeafRenderer {
     }
 
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
-    func preflight(_ ast: LeafAST,
-                   _ context: Context) -> ELF<ByteBuffer> {
+    func syncSerialize(_ ast: LeafAST,
+                       _ context: Context) -> ELF<ByteBuffer> {
         var needed = Set<LKVariable>(ast.info._requiredVars
                                              .map {!$0.isScoped ? $0.contextualized : $0})
         needed.subtract(context.allVariables)
@@ -303,27 +303,11 @@ private extension LeafRenderer {
         
         let serializer = LKSerializer(ast, context, type(of: block))
         switch serializer.serialize(&block) {
-            case .success(let t) : cache.touch(serializer.ast.key,
-                                               .atomic(time: t, size: block.byteCount))
-                                   return succeed(block.serialized.buffer, on: eL)
-            case .failure(let e) : return fail(e, on: eL)
+            case .failure(let e): return fail(e, on: eL)
+            case .success(let t):
+                if !context.cacheBypass {
+                    cache.touch(serializer.ast.key, .atomic(time: t, size: block.byteCount)) }
+                return succeed(block.serialized.buffer, on: eL)
         }
     }
-    
-//    func serialize(_ serializer: LKSerializer,
-//                   _ buffer: LKRawBlock,
-//                   _ duration: Double = 0,
-//                   _ resume: Bool = false) -> ELF<ByteBuffer> {
-//        let timeout = max(LKConf.blockingLimit, LKConf.timeout - duration)
-//        var buffer = buffer
-//        switch serializer.serialize(&buffer, timeout, resume) {
-//            case .success(let t) : cache.touch(serializer.ast.key,
-//                                               .atomic(time: t, size: buffer.byteCount))
-//                                   return succeed(buffer.serialized.buffer, on: eL)
-//            case .failure(let e) : guard case .timeout(let d) = e.reason,
-//                                         LKConf.timeout > duration + d else {
-//                                        return fail(e, on: eL) }
-//                                   return serialize(serializer, buffer, duration + d, true)
-//        }
-//    }
 }
