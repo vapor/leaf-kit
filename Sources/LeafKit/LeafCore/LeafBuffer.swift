@@ -53,6 +53,7 @@ extension LeafBuffer: LKRawBlock {
     /// Appends data using configured serializer views
     mutating func _append(_ data: LeafData, wrapString: Bool = false) {
         do {
+            guard !data.isNil else { return }
             switch data.celf {
                 case .bool       : try write(Self.boolFormatter(data.bool!))
                 case .data       : try write(Self.dataFormatter(data.data!) ?? "")
