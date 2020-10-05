@@ -65,7 +65,7 @@ public struct NIOLeafFiles: LeafSource {
                 return fail(.illegalAccess("Attempted to escape sandbox: \(t)"), on: eventLoop) }
         }
 
-        return read(path: template, on: eventLoop)
+        return read(path: t, on: eventLoop)
     }
 
     // MARK: - Private Only
