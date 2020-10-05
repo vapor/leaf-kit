@@ -817,7 +817,7 @@ final class LeafKitTests: LeafTestClass {
         Formatted "referenceDate": #Date("referenceDate", timeZone: "Europe/Athens")
         Fixed "unixEpoch": #Date(timeStamp: "unixEpoch",
                                  fixedFormat: "MM.dd.yyyy HH:mm",
-                                 timeZone: "GMT-4") EST
+                                 timeZone: "US/Eastern") EST
         Localized "unixEpoch": #Date(timeStamp: "unixEpoch",
                                      localizedFormat: "MMddyyyy",
                                      locale: "en_GR")
@@ -833,7 +833,7 @@ final class LeafKitTests: LeafTestClass {
         unixEpoch rebased: 0.0
         Formatted "referenceDate": 2001-01-01T00:00:00Z
         Formatted "referenceDate": 2001-01-01T02:00:00+02:00
-        Fixed "unixEpoch": 12.31.1969 20:00 EST
+        Fixed "unixEpoch": 12.31.1969 19:00 EST
         Localized "unixEpoch": 01/01/1970
         """
         
