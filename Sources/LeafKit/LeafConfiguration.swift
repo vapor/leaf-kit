@@ -23,10 +23,6 @@ public struct LeafConfiguration {
     /// Output buffer encoding
     @LeafRuntimeGuard public static var encoding: String.Encoding = .utf8
     
-    // MARK: - Overrideable Options
-    
-    
-    
     // MARK: - State
     
     /// Convenience to check state of LeafKit
@@ -41,7 +37,13 @@ public struct LeafConfiguration {
     }
     
     /// WARNING: Reset global "started" flag - only for testing use
-    internal static func __reset() { started = false }
+    public static func __VERYUNSAFEReset() {
+        #if DEBUG
+        started = false
+        #else
+        fatalError("DO NOT USE IN NON-DEBUG BUILDS")
+        #endif
+    }
 
     /// Convenience flag for global write-once
     internal static var started = false

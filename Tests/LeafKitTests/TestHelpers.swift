@@ -8,7 +8,7 @@ import Foundation
 /// Inherit from `LeafTestClass` rather than XCTestCase to avoid "Already running" assertions from other tests
 internal class LeafTestClass: XCTestCase {
     override func setUp() {
-        LKConf.__reset()
+        LKConf.__VERYUNSAFEReset()
         LKConf.entities = .leaf4Transitional
     }
 }
