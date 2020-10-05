@@ -61,7 +61,7 @@ public struct NIOLeafFiles: LeafSource {
                let hit = t.split(separator: "/").first(where: { $0.first == "."}) {
                 return fail(.illegalAccess("Attempted to access \(hit)"), on: eventLoop) }
 
-            if lim.contains(.toSandbox), !t.hasPrefix(sandBox + (escape ? viewDir : "")) {
+            if lim.contains(.toSandbox), !t.hasPrefix(sandBox + (!escape ? viewDir : "")) {
                 return fail(.illegalAccess("Attempted to escape sandbox: \(t)"), on: eventLoop) }
         }
 
