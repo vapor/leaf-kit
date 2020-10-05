@@ -64,14 +64,15 @@ public struct LeafConfiguration {
     
     public var projectedValue: Self { self }
     
+    
     /// `condition` may be used to provide an asserting validation closure that will assert if false
     /// when setting; *WILL FATAL IF FAILING AT INITIAL SETTING TIME*
     public init(wrappedValue: T,
-                module: String = #fileID,
+                module: String = #file,
                 component: String = #function,
                 condition: @escaping (T) -> Bool = {_ in true}) {
         precondition(condition(wrappedValue), "\(wrappedValue) failed conditional check")
-        let module = String(module.split(separator: "/").first ?? "")
+        let module = String(module.split(separator: "/").last?.split(separator: ".").first ?? "")
         self.object = module.isEmpty ? component : "\(module).\(component)"
         self.condition = condition
         self._unsafeValue = wrappedValue
