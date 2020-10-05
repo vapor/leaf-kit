@@ -237,7 +237,7 @@ private extension LeafRenderer {
         
         return !context.cacheBypass ? cache.retrieve(key, on: eL)
                                            .flatMapThrowing { if let hit = $0 { return hit } else { throw "" } }
-                                           .flatMapError { _ in self.read(key, context) }
+                                           .flatMapError { e in self.read(key, context) }
                                     : read(key, context)
     }
 

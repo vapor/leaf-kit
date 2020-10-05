@@ -88,6 +88,7 @@ public final class LeafSources {
         lock.lock()
         let source = sources[key]!
         lock.unlock()
+        
         return source.file(template: t, escape: true, on: eL)
                      .map { (source: key, buffer: $0) }
                      .flatMapError { if let e = $0 as? LeafError,
