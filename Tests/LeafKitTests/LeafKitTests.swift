@@ -839,6 +839,7 @@ final class LeafKitTests: LeafTestClass {
         
         let output = try render(template)
         print(output)
+        try print(parse(template).terse)
         XCTAssertEqual(output, expected)
     }
     
@@ -921,7 +922,6 @@ final class LeafKitTests: LeafTestClass {
         XCTAssertEqual(output, expected)
         
         myAPI.version.major = 1
-      //  try aContext.cacheValue(in: "api", at: "version")
         
         let retry = try render(template, aContext)
         XCTAssert(retry.contains("\"major\": 1"))

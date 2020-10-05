@@ -231,11 +231,11 @@ private extension LeafRenderer {
     /// - If found or read, return complete AST and a Bool signaling whether it was a cache hit or not
     func fetch(_ key: LeafASTKey,
                _ context: LeafRenderer.Context) -> ELF<LeafAST> {
-        /// Try to hit blocking cache LeafAST, otherwise hit async cache, then try if no cache hit - read a template
-        if !context.cacheBypass, cacheIsSync,
-           let hit = blockingCache!.retrieve(key) { return succeed(hit, on: eL) }
-            
         guard !context.cacheBypass else { return read(key, context) }
+        
+        /// Try to hit blocking cache LeafAST, otherwise hit async cache, then try if no cache hit - read a template
+        if cacheIsSync, let hit = blockingCache!.retrieve(key) { return succeed(hit, on: eL) }
+            
         return cache.retrieve(key, on: eL)
                     .flatMapThrowing { ast in
                                        if let hit = ast { return hit }

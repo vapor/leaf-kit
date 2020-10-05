@@ -10,7 +10,7 @@ public struct LeafBuffer {
     @LeafRuntimeGuard public static var boolFormatter: (Bool) -> String = { $0.description }
     @LeafRuntimeGuard public static var intFormatter: (Int) -> String = { $0.description }
     @LeafRuntimeGuard public static var doubleFormatter: (Double) -> String = { $0.description }
-    @LeafRuntimeGuard public static var nilFormatter: () -> String = { "" }
+    @LeafRuntimeGuard public static var nilFormatter: (_ type: String) -> String = { _ in "" }
     @LeafRuntimeGuard public static var stringFormatter: (String) -> String = { $0 }
     @LeafRuntimeGuard public static var dataFormatter: (Data) -> String? =
         { String(data: $0, encoding: LKConf.encoding) }
@@ -53,7 +53,10 @@ extension LeafBuffer: LKRawBlock {
     /// Appends data using configured serializer views
     mutating func _append(_ data: LeafData, wrapString: Bool = false) {
         do {
-            guard !data.isNil else { return }
+            guard !data.isNil else {
+                try write(Self.nilFormatter(data.celf.short))
+                return
+            }
             switch data.celf {
                 case .bool       : try write(Self.boolFormatter(data.bool!))
                 case .data       : try write(Self.dataFormatter(data.data!) ?? "")

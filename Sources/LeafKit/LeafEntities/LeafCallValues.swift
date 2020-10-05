@@ -8,19 +8,29 @@
 /// `.trueNil` is a unique case that never is an actual parameter value the function has received - it
 /// signals out-of-bounds indexing of the parameter value object.
 public struct LeafCallValues {
-    /// Get the value associated with the registered label in function's `callSignature`
-    subscript(index: String) -> LeafData { labels[index] != nil ? self[labels[index]!] : .trueNil }
-    /// Get the value at the specified 0-based index
-    subscript(index: Int) -> LeafData { (0..<count).contains(index) ? values[index] : .trueNil }
+    let values: [LeafData]
+    let labels: [String: Int]
+}
 
-    internal let values: [LeafData]
-    internal let labels: [String: Int]
-    internal var count: Int { values.count }
+public extension LeafCallValues {
+    /// Get the value at the specified 0-based index.
+    ///
+    /// Out of bounds positions return `.trueNil`
+    subscript(index: Int) -> LeafData { (0..<count).contains(index) ? values[index] : .trueNil }
     
+    /// Get the value associated with the registered label in function's `callSignature`
+    ///
+    /// Out of bounds positions return `.trueNil`
+    subscript(index: String) -> LeafData { labels[index] != nil ? self[labels[index]!] : .trueNil }
+    
+    var count: Int { values.count }
+}
+
+internal extension LeafCallValues {
     /// Generate fulfilled LeafData call values from symbols in incoming tuple
-    internal init?(_ sig:[LeafCallParameter],
-                   _ tuple: LKTuple?,
-                   _ symbols: inout LKVarStack) {
+    init?(_ sig:[LeafCallParameter],
+          _ tuple: LKTuple?,
+          _ symbols: inout LKVarStack) {
         if tuple == nil && !sig.isEmpty { return nil }
         guard let tuple = tuple else { values = []; labels = [:]; return }
         self.labels = tuple.labels
@@ -30,7 +40,7 @@ public struct LeafCallValues {
         if count < tuple.count { return nil }
     }
 
-    internal init(_ values: [LeafData], _ labels: [String: Int]) {
+    init(_ values: [LeafData], _ labels: [String: Int]) {
         self.values = values
         self.labels = labels
     }

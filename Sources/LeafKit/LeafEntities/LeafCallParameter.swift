@@ -23,44 +23,68 @@ public struct LeafCallParameter: LKPrintable, Equatable {
         _sanity()
     }
     
-    /// Shorthand convenience for an unlabled, non-optional, undefaulted parameter of a single type
-    public static func type(_ type: LeafDataType) -> Self { .init(types: [type]) }
-    /// Shorthand convenience for an unlabled, non-optional, undefaulted parameter of `[types]`
-    public static func types(_ types: Set<LeafDataType>) -> Self { .init(types: types) }
-    /// Shorthand convenience for an unlabled, undefaulted parameter of `[types]?`
-    public static func optionalTypes(_ types: Set<LeafDataType>) -> Self { .init(types: types, optional: true) }
-    
-    /// Any `LeafDataType` but `.void`
-    static var any: Self { .types(.any) }
-    /// `LeafDataType` == `Collection`
-    static var collections: Self { .types(.collections) }
-    /// `LeafDataType` == `SignedNumeric`
-    static var numerics: Self { .types(.numerics) }
-    
-    static var string: Self { .type(.string) }
-    static var int: Self { .type(.int) }
-    static var double: Self { .type(.double) }
-    static var void: Self { .type(.void) }
-    static var bool: Self { .type(.bool) }
-    static var data: Self { .type(.data) }
-    
-    static func string(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
-        .init(label: labeled, types: .string, optional: optional, defaultValue: defaultValue) }
-    static func double(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
-        .init(label: labeled, types: .double, optional: optional, defaultValue: defaultValue) }
-    static func int(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
-        .init(label: labeled, types: .int, optional: optional, defaultValue: defaultValue) }
-    static func bool(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
-        .init(label: labeled, types: .bool, optional: optional, defaultValue: defaultValue) }
-    
-    static var array: Self { .type(.array) }
-    static var dictionary: Self { .type(.dictionary) }
-
     /// `(value(1), isValid: bool(true), ...)`
     public var description: String { short }
     var short: String {
         "\(label != nil ? "\(label!): " : "")\(types.description)\(optional ? "?" : "")\(defaultValue != nil ? " = \(defaultValue!.short)" : "")"
     }
+}
+
+public extension LeafCallParameter {
+    /// Shorthand convenience for an unlabled, non-optional, undefaulted parameter of a single type
+    static func type(_ type: LeafDataType) -> Self { .init(types: [type]) }
+    
+    /// Shorthand convenience for an unlabled, non-optional, undefaulted parameter of `[types]`
+    static func types(_ types: Set<LeafDataType>) -> Self { .init(types: types) }
+    
+    /// Shorthand convenience for an unlabled, undefaulted parameter of `[types]?`
+    static func optionalTypes(_ types: Set<LeafDataType>) -> Self { .init(types: types, optional: true) }
+    
+    /// Any `LeafDataType` but `.void` (and implicitly not an errored state value)
+    static var any: Self { .types(.any) }
+    
+    /// `LeafDataType` == `Collection`
+    static var collections: Self { .types(.collections) }
+    
+    /// `LeafDataType` == `SignedNumeric`
+    static var numerics: Self { .types(.numerics) }
+    
+    /// Unlabeled, non-optional, undefaulted `.string`
+    static var string: Self { .type(.string) }
+    
+    /// Unlabeled, non-optional, undefaulted `.int`
+    static var int: Self { .type(.int) }
+    
+    /// Unlabeled, non-optional, undefaulted `.double`
+    static var double: Self { .type(.double) }
+        
+    /// Unlabeled, non-optional, undefaulted `.bool`
+    static var bool: Self { .type(.bool) }
+    
+    /// Unlabeled, non-optional, undefaulted `.data`
+    static var data: Self { .type(.data) }
+    
+    /// Unlabeled, non-optional, undefaulted `.array`
+    static var array: Self { .type(.array) }
+    
+    /// Unlabeled, non-optional, undefaulted `.dictionary`
+    static var dictionary: Self { .type(.dictionary) }
+    
+    /// string-only with conveniences for various options
+    static func string(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+        .init(label: labeled, types: .string, optional: optional, defaultValue: defaultValue) }
+    
+    /// double-only with conveniences for various options
+    static func double(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+        .init(label: labeled, types: .double, optional: optional, defaultValue: defaultValue) }
+    
+    /// int-only with conveniences for various options
+    static func int(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+        .init(label: labeled, types: .int, optional: optional, defaultValue: defaultValue) }
+    
+    /// bool-only with conveniences for various options
+    static func bool(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+        .init(label: labeled, types: .bool, optional: optional, defaultValue: defaultValue) }
 }
 
 internal extension LeafCallParameter {

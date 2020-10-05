@@ -1,5 +1,6 @@
 public final class LeafEntities {
-    // MARK: Stored Properties
+    // MARK: Internal Only Properties
+    
     /// Factories that produce `.raw` Blocks
     private(set) var rawFactories: [String: LKRawBlock.Type]
     /// Factories that produce named Blocks
@@ -10,20 +11,33 @@ public final class LeafEntities {
     private(set) var methods: [String: [LeafMethod]]
     
     /// Type registery
-    internal private(set) var types: [String: (LeafDataRepresentable.Type, LeafDataType)]
+    private(set) var types: [String: (LeafDataRepresentable.Type, LeafDataType)]
     
-    // MARK: Static Stored Properties
-    public static var leaf4Core: LeafEntities { ._leaf4Core }
-    public static var leaf4Transitional: LeafEntities { ._leaf4Transitional }
+    /// Initializer
+    /// - Parameter rawHandler: The default factory for `.raw` blocks
+    internal init(rawHandler: LKRawBlock.Type = LeafBuffer.self) {
+        self.rawFactories = [Self.defaultRaw: rawHandler]
+        self.blockFactories = [:]
+        self.functions = [:]
+        self.methods = [:]
+        self.types = [:]
+    }
+}
+
+public extension LeafEntities {
+    // MARK: Static Computed Properties
+    
+    static var leaf4Core: LeafEntities { ._leaf4Core }
+    static var leaf4Transitional: LeafEntities { ._leaf4Transitional }
     
     // MARK: Entity Registration Methods
-
+    
     /// Register a Block factory
     /// - Parameters:
     ///   - block: A `LeafBlock` adherent (which is not a `LKRawBlock` adherent)
     ///   - name: The name used to choose this factory - "name: `for`" == `#for():`
-    public func use(_ block: LeafBlock.Type,
-                    asBlock name: String) {
+    func use(_ block: LeafBlock.Type,
+             asBlock name: String) {
         if !LKConf.running(fault: "Cannot register new Block factories") {
             name._sanity()
             block.callSignature._sanity()
@@ -46,8 +60,8 @@ public final class LeafEntities {
     /// - Parameters:
     ///   - function: An instance of a `LeafFunction` adherant which is not a mutating `LeafMethod`
     ///   - name: "name: `date`" == `#date()`
-    public func use(_ function: LeafFunction,
-                    asFunction name: String) {
+    func use(_ function: LeafFunction,
+             asFunction name: String) {
         if !LKConf.running(fault: "Cannot register new function \(name)") {
             name._sanity()
             function.sig._sanity()
@@ -68,8 +82,8 @@ public final class LeafEntities {
     ///   - method: An instance of a `LeafMethod` adherant
     ///   - name: "name: `hasPrefix`" == `#(a.hasPrefix(b)`
     /// - Throws: If a function for name is already registered, or name is empty
-    public func use(_ method: LeafMethod,
-                    asMethod name: String) {
+    func use(_ method: LeafMethod,
+             asMethod name: String) {
         if !LKConf.running(fault: "Cannot register new method \(name)") {
             name._sanity()
             method.sig._sanity()
@@ -89,28 +103,16 @@ public final class LeafEntities {
     ///   - method: An instance of a `LeafMethod` adherant
     ///   - name: "name: `hasPrefix`" == `#hasPrefix(a,b)` && `#(a.hasPrefix(b)`
     /// - Throws: If a function for name is already registered, or name is empty
-    public func use(_ method: LeafMethod,
-                    asFunctionAndMethod name: String) {
+    func use(_ method: LeafMethod,
+             asFunctionAndMethod name: String) {
         use(method, asFunction: name)
         use(method, asMethod: name)
-    }
-    
-    // MARK: Internal Only
-    
-    /// Initializer
-    /// - Parameter rawHandler: The default factory for `.raw` blocks
-    internal init(rawHandler: LKRawBlock.Type = LeafBuffer.self) {
-        self.rawFactories = [Self.defaultRaw: rawHandler]
-        self.blockFactories = [:]
-        self.functions = [:]
-        self.methods = [:]
-        self.types = [:]
     }
 }
 
 // MARK: - Internal Only
-internal extension LeafEntities {
-    // MARK: Registrators
+internal extension LeafEntities {    
+    // MARK: Entity Registration Methods
     
     /// Register a type
     func use<T>(_ swiftType: T.Type,
