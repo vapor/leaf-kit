@@ -90,8 +90,8 @@ public final class LeafSources {
         lock.unlock()
         
         return source.file(template: t, escape: true, on: eL)
-                     .map { (source: key, buffer: $0) }
-                     .flatMapError { if let e = $0 as? LeafError,
+                     .map { buffer in (source: key, buffer: buffer) }
+                     .flatMapError { err in if let e = err as? LeafError,
                                         case .illegalAccess = e.reason {
                                             return fail(e, on: eL) }
                                      return self.searchSources(t, rest, on: eL) }
