@@ -818,9 +818,9 @@ final class LeafKitTests: LeafTestClass {
         Fixed "unixEpoch": #Date(timeStamp: "unixEpoch",
                                  fixedFormat: "MM.dd.yyyy HH:mm",
                                  timeZone: "US/Eastern") EST
-        Localized "unixEpoch": #Date(timeStamp: "unixEpoch",
+        Localized "unixEpoch": #Date(timeStamp: Timestamp("unixEpoch") + 2_500_000,
                                      localizedFormat: "MMddyyyy",
-                                     locale: "en_GR")
+                                     locale: "en")
         """
         
         let expected = """
@@ -834,7 +834,7 @@ final class LeafKitTests: LeafTestClass {
         Formatted "referenceDate": 2001-01-01T00:00:00Z
         Formatted "referenceDate": 2001-01-01T02:00:00+02:00
         Fixed "unixEpoch": 12.31.1969 19:00 EST
-        Localized "unixEpoch": 01/01/1970
+        Localized "unixEpoch": 01/29/1970
         """
         
         let output = try render(template)
