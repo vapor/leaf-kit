@@ -58,5 +58,5 @@ public protocol LeafContextPublisher {
 public extension LeafContextPublisher {
     /// Default implementation of `extended` - override to provide additional scoped values when the
     /// object is registered to a context
-    func extendedVariables() -> [String: LeafDataGenerator] { [:] }
+    var extendedVariables: [String: LeafDataGenerator] { [:] }
 }
