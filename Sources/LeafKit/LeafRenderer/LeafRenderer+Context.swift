@@ -1,4 +1,6 @@
 public extension LeafRenderer.Context {
+    static func emptyContext(isRoot: Bool = false) -> Self { .init(isRootContext: isRoot) }
+    
     /// Initialize a context with the given dictionary assigned to `self`
     init(_ context: [String: LeafDataRepresentable], isRoot: Bool = false) {
         self.isRootContext = isRoot
