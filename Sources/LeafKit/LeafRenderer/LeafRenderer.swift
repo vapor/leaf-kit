@@ -177,7 +177,7 @@ private extension LeafRenderer {
     
     func _render(_ key: LeafASTKey, _ context: Context, _ options: Options?) -> ELF<ByteBuffer> {
         var context = context
-        if let options = options { context.options = options }        
+        if let options = options { context.options = options }
         
         /// Short circuit for resolved blocking cache hits
         if !context.cacheBypass, cacheIsSync,
@@ -186,7 +186,7 @@ private extension LeafRenderer {
            hit.info.touch.execAvg < Self.blockLimit {
             return syncSerialize(hit, context)
         }
-
+        
         return fetch(key, context).flatMap { self.arbitrate($0, context) }
                                   .flatMap { self.syncSerialize($0, context) }
     }
@@ -234,11 +234,12 @@ private extension LeafRenderer {
         /// Try to hit blocking cache LeafAST, otherwise hit async cache, then try if no cache hit - read a template
         if !context.cacheBypass, cacheIsSync,
            let hit = blockingCache!.retrieve(key) { return succeed(hit, on: eL) }
-        
-        return !context.cacheBypass ? cache.retrieve(key, on: eL)
-                                           .flatMapThrowing { if let hit = $0 { return hit } else { throw "" } }
-                                           .flatMapError { e in self.read(key, context) }
-                                    : read(key, context)
+            
+        guard !context.cacheBypass else { return read(key, context) }
+        return cache.retrieve(key, on: eL)
+                    .flatMapThrowing { if let hit = $0 { return hit } else { throw "" } }
+                    .flatMapError { e in self.read(key, context) }
+                                    
     }
 
     /// Read in an individual `LeafAST`
