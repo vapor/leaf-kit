@@ -453,8 +453,8 @@ final class LeafKitTests: LeafTestClass {
         struct CustomTag: LeafUnsafeEntity, StringReturn {
             static var callSignature: [LeafCallParameter]  {[.string]}
             
-            var externalObjects: ExternalObjects? = nil
-            var prefix: String? { externalObjects?["prefix"] as? String }
+            var unsafeObjects: UnsafeObjects? = nil
+            var prefix: String? { unsafeObjects?["prefix"] as? String }
             
             func evaluate(_ params: LeafCallValues) -> LeafData {
                 .string((prefix ?? "") + params[0].string!) }
@@ -468,7 +468,7 @@ final class LeafKitTests: LeafTestClass {
         
         var baseContext: LeafRenderer.Context = ["name": "vapor"]
         var moreContext: LeafRenderer.Context = [:]
-        try moreContext.register(object: "bar", as: "prefix", type: .unsafe)
+        try moreContext.register(object: "bar", toScope: "prefix", type: .unsafe)
         try baseContext.overlay(moreContext)
         
         let view = try renderer.render(path: "foo", context: baseContext).wait()
@@ -902,7 +902,8 @@ final class LeafKitTests: LeafTestClass {
     func testContexts() throws {
         var aContext: LeafRenderer.Context = [:]
         let myAPI = _APIVersioning("myAPI", (0,0,1))
-        try aContext.register(object: myAPI, as: "api", type: .all)
+        try aContext.register(object: myAPI, toScope: "api")
+        try aContext.register(generators: myAPI.extendedVariables, toScope: "api")
                 
         let template = """
         #if(!$api.isRelease && !override):#Error("This API is not vended publically")#endif
@@ -1008,7 +1009,7 @@ class _APIVersioning: LeafContextPublisher {
     let identifier: String
     var version: (major: Int, minor: Int, patch: Int)
 
-    lazy private(set) var coreVariables: [String: LeafDataGenerator] = [
+    lazy private(set) var variables: [String: LeafDataGenerator] = [
         "identifier" : .immediate(identifier),
         "version"    : .lazy(["major": self.version.major,
                               "minor": self.version.minor,

@@ -150,6 +150,7 @@ internal struct LKExpression: LKSymbol {
         if storage[1].operator == .nilCoalesce {
             symbols.formUnion(rhs?.symbols ?? [])
             symbols.formUnion(lhs?.symbols.map { x in var x = x; x.state.formUnion(.coalesced); return x } ?? [])
+        //} else if let value = declaresVariable?.set { symbols.formUnion(value.symbols) }
         } else { storage.forEach { symbols.formUnion($0.symbols) } }
         
     }

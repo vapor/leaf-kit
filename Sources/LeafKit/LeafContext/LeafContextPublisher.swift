@@ -7,7 +7,7 @@
 /// call, if unsafe access is enabled, and the `.ObjectMode` contains `.unsafe`
 ///
 /// Additionally, because the object adheres to `LeafContextPublisher`, the values returned by
-/// `coreVariables()` will be registered as variables avaiable *in the serialized template*... eg,
+/// `variables()` will be registered as variables available *in the serialized template*... eg,
 /// `#($api.version.major)` will serialize as `0`, if `.ObjectMode` contains `.contextualized`
 ///
 /// If the context object is further directed to lock `api` scope as a global literal value, `$api` and its
@@ -21,7 +21,7 @@
 ///     let identifier: String
 ///     let version: (major: Int, minor: Int, patch: Int)
 ///
-///     lazy var coreVariables: [String: LeafDataGenerator] = [
+///     lazy var variables: [String: LeafDataGenerator] = [
 ///         "identifier" : .immediate(identifier),
 ///         "version"    : .lazy(["major": self.version.major,
 ///                               "minor": self.version.minor,
@@ -29,8 +29,8 @@
 ///     ]
 /// }
 ///
-/// // An example extension of the object allowing an additional set
-/// // of user-configured additional contextual objects.
+/// // An example extension of the object allowing an additional set of
+/// // user-configured additional generators
 /// extension APIVersioning {
 ///     var extendedVariables: [String: LeafDataGenerator] {[
 ///         "isRelease": { .lazy(version.major > 0) }
@@ -40,7 +40,8 @@
 /// let myAPI = APIVersioning("api", (0,0,1))
 ///
 /// var aContext: LeafRenderer.Context = [:]
-/// try aContext.register(object: myAPI, as: "api", type: .both)
+/// try aContext.register(object: myAPI, toScope: "api")
+/// try aContext.register(generators: myAPI.extendedVariables, toScope: "api")
 /// // Result of `#($api.version)` in Leaf:
 /// // ["major": 0, "minor": 0, "patch": 1]
 /// myAPI.version.major = 1
@@ -48,15 +49,6 @@
 /// // ["major": 1, "minor": 0, "patch": 1]
 /// ```
 public protocol LeafContextPublisher {
-    /// First-level API provider that adheres an object *it owns* to this protocol must implement `coreVariables`
-    var coreVariables: [String: LeafDataGenerator] { get }
-    /// First-level API providers *must not* implement `extendedVariables`; it must be left for final
-    /// use by users of the API.
-    var extendedVariables: [String: LeafDataGenerator] { get }
-}
-
-public extension LeafContextPublisher {
-    /// Default implementation of `extended` - override to provide additional scoped values when the
-    /// object is registered to a context
-    var extendedVariables: [String: LeafDataGenerator] { [:] }
+    /// First-level API provider that adheres an object *it owns* to this protocol must implement `variables`
+    var variables: [String: LeafDataGenerator] { get }
 }

@@ -721,7 +721,10 @@ internal struct LKParser {
         /// Add an atomic variable part to label, scope, member, or part, dependent on state
         func variableState(_ part: String, parseBypass: Bool = false) {
             /// Decay to label identifier if followed by a label indicator
-            if peek == .labelMark { currentLabel = part; pop(); return }
+            if peek == .labelMark {
+                currentLabel = part; pop()
+                return currentFunction == "#collection" ? void(err("Dictionary keys must be quoted")) : ()
+            }
             needIdentifier = false
             switch currentState {
                 case .start : openMember = part

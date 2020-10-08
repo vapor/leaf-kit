@@ -18,10 +18,10 @@ public struct LeafDataGenerator {
     public static func lazy(_ value: @escaping @autoclosure () -> LeafDataRepresentable) -> Self {
         .init(.lazy(.lazy(f: {value().leafData}, returns: .void))) }
     
-    internal init(_ value: Container) { self.container = value }
-    internal let container: Container
+    init(_ value: Container) { self.container = value }
+    let container: Container
     
-    internal enum Container: LeafDataRepresentable {
+    enum Container: LeafDataRepresentable {
         case immediate(LeafDataRepresentable)
         case lazy(LKDContainer)
         

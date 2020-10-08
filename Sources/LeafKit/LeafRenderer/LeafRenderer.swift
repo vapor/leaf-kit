@@ -88,13 +88,25 @@ public final class LeafRenderer {
         
         // MARK: LeafRenderer.Context.ObjectMode
         public struct ObjectMode: OptionSet {
-            public init(rawValue: UInt8) { self.rawValue = rawValue }
-            public var rawValue: UInt8
+            public init(rawValue: UInt16) { self.rawValue = rawValue }
+            public var rawValue: UInt16
             
+            /// Register the provided object as an unsafe object
             public static var unsafe: Self = .init(rawValue: 1 << 0)
+            /// Register the provided object as a context publisher (via LeafContextPublisher or LeafDataRepresentable)
             public static var contextual: Self = .init(rawValue: 1 << 1)
+            /// Prevent the object from being replaced, if registered as unsafe, and/or to prevents its context
+            /// variables from being replaced, if contextual. `lockContext` overrides contextual overlay if set.
+            public static var preventOverlay: Self = .init(rawValue: 1 << 2)
+            /// If contexual, prevents any context variables from being added to its associated scope.
+            public static var lockContextVariables: Self = .init(rawValue: 1 << 3)
             
-            public static var all: Self = [unsafe, contextual]
+            /// Default options register an object only as a context object,, and allows additional
+            /// variables to be registered to the scope it owns but not replace its own values.
+            public static var `default`: Self = [contextual, preventOverlay]
+            
+            /// Both `unsafe` && `contextual`
+            public static var bothModes: Self = [contextual, unsafe]
         }
         
         /// Context must be set as root as initialization in order to allow literal values to be set
@@ -102,7 +114,8 @@ public final class LeafRenderer {
         
         // MARK: Internal Stored Properties
         internal var contexts: [LKVariable: LKContextDictionary] = [:]
-        internal var externalObjects: ExternalObjects = [:]
+        internal var unsafeObjects: UnsafeObjects = [:]
+        internal var objects: [String: [(ObjectMode, Any, Set<String>)]] = [:]
         internal var anyLiteral: Bool = false
         /// Render-specific option overrides
         internal var options: Options? = nil
@@ -296,6 +309,7 @@ private extension LeafRenderer {
         var needed = Set<LKVariable>(ast.info._requiredVars
                                              .map {!$0.isScoped ? $0.contextualized : $0})
         needed.subtract(context.allVariables)
+        needed = needed.filter { !$0.isCoalesced }
         
         let shouldThrow = needed.isEmpty ? false : context.missingVariableThrows
         

@@ -346,7 +346,7 @@ internal struct LKParameter: LKSymbol {
                     guard let call = LeafCallValues(f!.sig, params, &symbols) else {
                         return .error(internal: "Couldn't validate parameter types for \(n)\(params.description)") }
                     if var unsafeF = f as? LeafUnsafeEntity {
-                        unsafeF.externalObjects = symbols.context.externalObjects
+                        unsafeF.unsafeObjects = symbols.context.unsafeObjects
                         f = (unsafeF as LeafFunction)
                     }
                     if case .some(.some(let op)) = m, let f = f as? LeafMutatingMethod {

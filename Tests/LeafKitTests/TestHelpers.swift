@@ -41,12 +41,15 @@ internal func parse(_ str: String, name: String = "default") throws -> LeafAST {
 /// - Returns: A fully rendered view
 internal func render(name: String = "test-render",
                      _ template: String,
-                     _ context: LeafRenderer.Context = [:]) throws -> String {
+                     _ context: LeafRenderer.Context = [:],
+                     options: LeafRenderer.Options = []) throws -> String {
     var lexer = LKLexer(LKRawTemplate(name, template))
     let tokens = try lexer.lex()
     var parser = LKParser(.searchKey(name), tokens)
     let ast = try parser.parse()
     var block = ByteBuffer.instantiate(size: ast.underestimatedSize, encoding: .utf8)
+    var context = context
+    context.options = options
     let serializer = LKSerializer(ast, context, LeafBuffer.self)
     switch serializer.serialize(&block) {
         case .success        : return block.contents
@@ -75,7 +78,8 @@ internal class TestRenderer {
         counter = tasks
     }
 
-    func render(source: String? = nil, path: String,
+    func render(source: String? = nil,
+                path: String,
                 context: LeafRenderer.Context = [:],
                 options: LeafRenderer.Options? = nil) -> EventLoopFuture<ByteBuffer> {
         if timer == .distantPast { timer = Date() }

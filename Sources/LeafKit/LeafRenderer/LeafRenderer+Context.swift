@@ -38,7 +38,7 @@ public extension LeafRenderer.Context {
     ///
     /// If scope already exists as a literal but LeafKit is running, update will fail. Will initialize context
     /// scope if it does not already exist.
-    mutating func setValues(for scope: String = defaultContextScope,
+    mutating func setValues(in scope: String = defaultContextScope,
                             to values: [String: LeafDataRepresentable],
                             allLiteral: Bool = false) throws {
         if allLiteral { try literalGuard() }
@@ -143,31 +143,69 @@ public extension LeafRenderer.Context {
     /// In both cases, `key` represents the access method - for contextual objects, the values it registers
     /// will be published as variables under `$key` scope in Leaf, and for unsafe objects, tags with access
     /// will have `externalObjects[key]` access to the exact object.
-    mutating func register(object: Any?,
-                           as key: String,
-                           type: ObjectMode = .contextual) throws {
-        assert(type.rawValue != 0, "Registering objects must have at least one mode set")
-        if object != nil, object is AnyClass {
-            preconditionFailure("Reference types are not currently supported") }
-        if type.contains(.unsafe) || object == nil { externalObjects[key] = object }
-        if type.contains(.contextual) && object == nil,
-           let scope = try? validateScope(key) {
-            defer { contexts[scope] = nil; checkLiterals() }
-            guard LKConf.isRunning else { return }
-            guard let ctx = contexts[scope], !ctx.literal else {
-                throw err("\(key) is a literal scope - cannot be unset") }
-            guard ctx.values.allSatisfy({$0.value.isVariable}) else {
-                throw err("\(key) has literal values - cannot be unset") }
-        } else if type.contains(.contextual), key.isValidLeafIdentifier, let object = object {
-            if let c = object as? LeafContextPublisher {
-                let values = c.coreVariables.merging(c.extendedVariables) {_, b in b}
-                try setValues(for: key, to: values.mapValues { $0.container })
-            }
-            else if let data = (object as? LeafDataRepresentable)?.leafData.dictionary {
-                try setValues(for: key, to: data) }
-            else { assertionFailure("A registered external object must be either `LeafContextPublisher` or `LeafDataRepresentable` vending a dictionary when `type` contains `.contextual`") }
+    mutating func register(object: Any,
+                           toScope key: String,
+                           type: ObjectMode = .default) throws {
+        precondition(!(type.intersection([.unsafe, .contextual])).isEmpty,
+            "Objects to register must be at least one of `unsafe` or `contextual`")
+        
+        var new = (type, object, Set<String>())
+        
+        if type.contains(.unsafe) {
+            try canOverlay(key, .unsafe)
+            unsafeObjects[key] = object
         }
+        
+        if type.contains(.contextual) {
+            guard key.isValidLeafIdentifier else {
+                throw err("\(key) is not a valid identifier for a variable scope") }
+            try canCreateVariables(key)
+            
+            let values: [String: LeafDataRepresentable]
+            
+            if let c = object as? LeafContextPublisher {
+                values = c.variables.mapValues { $0.container } }
+            else if let data = (object as? LeafDataRepresentable)?.leafData.dictionary {
+                values = data }
+            else {
+                values = [:]
+                assertionFailure("A registered external object must be either `LeafContextPublisher` or `LeafDataRepresentable` vending a dictionary when `type` contains `.contextual`") }
+            
+            if !values.isEmpty {
+                if type.contains(.preventOverlay) { new.2.formUnion(values.keys) }
+                let blockList = blocked(in: key).intersection(values.keys)
+                if !blockList.isEmpty {
+                    throw err("\(blockList.description) are locked to object(s) in context and cannot be overlaid") }
+            }
+            try setValues(in: key, to: values)
+        }
+        
+        if objects.keys.contains(key) { objects[key]!.append(new) } else { objects[key] = [new] }
     }
+    
+    mutating func register(generators: [String: LeafDataGenerator],
+                           toScope key: String) throws {
+        try canCreateVariables(key)
+        try setValues(in: key, to: generators.mapValues { $0.container })
+    }
+    
+    /// Clear an entire context scope.
+    ///
+    /// Note that if values were previously registered from an object that prevents overlay or extension, this will
+    /// not reset that state - new values will not be addable.
+    mutating func clearContext(scope key: String) throws {
+        guard let scope = try? validateScope(key) else { throw err("\(key) is not a valid scope") }
+        defer { contexts[scope] = nil; checkLiterals() }
+        guard LKConf.isRunning else { return }
+        guard let ctx = contexts[scope], !ctx.literal else {
+            throw err("\(key) is a literal scope - cannot be unset while running") }
+        guard ctx.values.allSatisfy({$0.value.isVariable}) else {
+            throw err("\(key) has literal values - cannot be unset while running") }
+    }
+
+    /// Remove a registered unsafe object, if it exists.
+    mutating func clearUnsafeObject(key: String) {
+        unsafeObjects.removeValue(forKey: key) }
     
     /// Overlay & merge the values of a second context onto a base one.
     ///
@@ -175,12 +213,19 @@ public extension LeafRenderer.Context {
     /// additional context values must be entirely variable (and if conflicts occur in a value where the
     /// underlaying context holds a literal value, will error).
     mutating func overlay(_ secondary: Self) throws {
-        guard !secondary.isRootContext else { throw err("Can only overlay non-root contexts") }
-        secondary.externalObjects.forEach { externalObjects[$0] = $1 }
+        guard !secondary.isRootContext else { throw err("Overlaid contexts cannot be root contexts") }
+        try secondary.unsafeObjects.forEach {
+            try canOverlay($0.key, .unsafe)
+            unsafeObjects[$0.key] = $0.value
+        }
         try secondary.contexts.forEach { k, v in
+            let scope = k.scope!
+            try canCreateVariables(scope)
             if contexts[k] == nil { contexts[k] = v }
             else {
+                let blockList = blocked(in: scope)
                 for key in v.values.keys {
+                    if blockList.contains(key) { throw err("\(key) is locked to an object and cannot be overlaid") }
                     if !(contexts[k]![key]?.isVariable ?? true) {
                         throw err("\(k.extend(with: key).terse) is literal in underlaying context; can't override") }
                     contexts[k]![key] = v[key]
@@ -191,6 +236,21 @@ public extension LeafRenderer.Context {
 }
 
 internal extension LeafRenderer.Context {
+    func canOverlay(_ scope: String, _ type: ObjectMode = .bothModes) throws {
+        if type.contains(.contextual) { try canCreateVariables(scope) }
+        if let x = objects[scope]?.last(where: { !$0.0.intersection(type).isEmpty && $0.0.contains(.preventOverlay) }) {
+            throw err("Can't overlay; \(String(describing: x.1)) already registered for `\(scope)`") }
+    }
+    
+    func canCreateVariables(_ scope: String) throws {
+        if let x = objects[scope]?.last(where: { $0.0.contains(.lockContextVariables) }) {
+            throw err("Can't create variables; \(String(describing: x.1)) locks variables in `\(scope)`") }
+    }
+    
+    func blocked(in scope: String) -> Set<String> {
+        objects[scope]?.filter { $0.0.isSuperset(of: [.contextual, .preventOverlay]) }
+                       .reduce(into: Set<String>()) { $0.formUnion($1.2) } ?? [] }
+    
     /// For complicated objects being passed in context to Leaf that may have expensive calculation, generators
     /// are preferred as they will only be accessed and calculated if the template actually uses the variable.
     ///
@@ -198,7 +258,7 @@ internal extension LeafRenderer.Context {
     /// flattened globally, so there's no benefit to doing it unless usage dictates the values will not change.
     mutating func setLazyValues(in scope: String = defaultContextScope,
                                 to generators: [String: LeafDataRepresentable]) throws {
-        try setValues(for: scope,
+        try setValues(in: scope,
                       to: generators.mapValues { v in LeafData.lazy({v.leafData},
                                                                     returns: .void) })
     }

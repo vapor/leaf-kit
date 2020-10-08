@@ -442,5 +442,20 @@ final class LKParserTests: LeafTestClass {
         do { let x = try render(invalidScopeAssign); print(x); XCTFail("Should have thrown") }
         catch { XCTAssert((error as! LeafError).description.contains("Can't assign; `self.x` is constant")) }
     }
+    
+    func testDefineNesting() throws {
+        let test = LeafTestFiles()
+        let renderer = TestRenderer(sources: .singleSource(test))
+        test.files["/define.leaf"] = """
+        #define(block):
+            #(param.name ?? "")
+        #enddefine
+
+        #(var param = ["name": "Teague"])
+        #evaluate(block)
+        """
+        
+        try _ = renderer.render(path: "define", options: [.missingVariableThrows(true)]).wait()
+    }
 }
 

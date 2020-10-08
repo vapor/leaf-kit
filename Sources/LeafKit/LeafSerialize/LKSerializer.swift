@@ -291,7 +291,7 @@ private extension LKSerializer {
                                     o offset: Int) {
         var b: LeafBlock
         if var unsafeBlock = block as? LeafUnsafeEntity, allowUnsafe {
-            unsafeBlock.externalObjects = unsafe
+            unsafeBlock.unsafeObjects = unsafe
             b = unsafeBlock as! LeafBlock
         } else { b = block}
         stackDepth += 1
@@ -462,7 +462,7 @@ private extension LKSerializer {
         get { stack[stackDepth].blockCreatedIDs }
         set { stack[stackDepth].blockCreatedIDs = newValue } }
     @inline(__always) var vars: LKVarTablePtr { context.stack[contextDepth].vars }
-    @inline(__always) var unsafe: ExternalObjects { context.context.externalObjects }
+    @inline(__always) var unsafe: UnsafeObjects { context.context.unsafeObjects }
     @inline(__always) var allocated: Bool {
         get { stack[stackDepth].allocated }
         set { stack[stackDepth].allocated = newValue} }
