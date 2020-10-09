@@ -43,6 +43,9 @@ public extension LeafRenderer.Context {
                             allLiteral: Bool = false) throws {
         if allLiteral { try literalGuard() }
         if scope == LKVariable.selfScope && allLiteral { throw err("`self` cannot be constant") }
+        try canCreateVariables(scope)
+        try checkBlockedVariables(in: scope, .init(values.keys))
+        
         let scopeVar = try getScopeKey(scope)
         let constantScope = contexts[scopeVar]?.literal ?? false
         if constantScope {
@@ -85,6 +88,7 @@ public extension LeafRenderer.Context {
                            to value: LeafDataRepresentable,
                            isLiteral: Bool = false) throws {
         if isLiteral { try literalGuard() }
+        try checkBlockedVariables(in: scope, [key])
         guard !key.isEmpty else { throw err("Value key must not be empty string") }
         let scopeVar = try getScopeKey(scope)
         guard isUpdateable(scopeVar, key) else { throw err("\(scope)[\(key)] is not settable") }
@@ -171,12 +175,7 @@ public extension LeafRenderer.Context {
                 values = [:]
                 assertionFailure("A registered external object must be either `LeafContextPublisher` or `LeafDataRepresentable` vending a dictionary when `type` contains `.contextual`") }
             
-            if !values.isEmpty {
-                if type.contains(.preventOverlay) { new.2.formUnion(values.keys) }
-                let blockList = blocked(in: key).intersection(values.keys)
-                if !blockList.isEmpty {
-                    throw err("\(blockList.description) are locked to object(s) in context and cannot be overlaid") }
-            }
+            if !values.isEmpty, type.contains(.preventOverlay) { new.2.formUnion(values.keys) }
             try setValues(in: key, to: values)
         }
         
@@ -185,7 +184,6 @@ public extension LeafRenderer.Context {
     
     mutating func register(generators: [String: LeafDataGenerator],
                            toScope key: String) throws {
-        try canCreateVariables(key)
         try setValues(in: key, to: generators.mapValues { $0.container })
     }
     
@@ -245,6 +243,12 @@ internal extension LeafRenderer.Context {
     func canCreateVariables(_ scope: String) throws {
         if let x = objects[scope]?.last(where: { $0.0.contains(.lockContextVariables) }) {
             throw err("Can't create variables; \(String(describing: x.1)) locks variables in `\(scope)`") }
+    }
+    
+    func checkBlockedVariables(in scope: String, _ ids: Set<String>) throws {
+        let blockList = ids.intersection(blocked(in: scope))
+        if !blockList.isEmpty {
+            throw err("\(blockList.description) \(blockList.count == 1 ? "is" : "are") locked to object(s) in context and cannot be overlaid") }
     }
     
     func blocked(in scope: String) -> Set<String> {
