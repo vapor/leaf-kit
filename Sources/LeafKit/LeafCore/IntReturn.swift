@@ -2,6 +2,8 @@ internal extension LeafEntities {
     func registerIntReturns() {
         use(CollectionToIntMap.count , asMethod: "count")
         use(StrToIntMap.count        , asMethod: "count")
+        use(IntIntToIntMap._min      , asFunction: "min")
+        use(IntIntToIntMap._max      , asFunction: "max")
     }
 }
 
@@ -28,4 +30,16 @@ internal struct CollectionToIntMap: LKMapMethod, CollectionsParam, IntReturn {
     
     private init(_ map: @escaping (AnyCollection<LKData>) -> Int) { f = map }
     private let f: (AnyCollection<LKData>) -> Int
+}
+
+internal struct IntIntToIntMap: LKMapMethod, IntReturn {
+    static var callSignature: [LeafCallParameter] = [.int, .int]
+    
+    func evaluate(_ params: LeafCallValues) -> LKData { .int(f(params[0].int!, params[1].int!)) }
+    
+    static let _min: Self = .init({ min($0, $1) })
+    static let _max: Self = .init({ max($0, $1) })
+    
+    private init(_ map: @escaping (Int, Int) -> Int) { f = map }
+    private let f: (Int, Int) -> Int
 }

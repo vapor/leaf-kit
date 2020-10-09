@@ -1000,6 +1000,11 @@ final class LeafKitTests: LeafTestClass {
         try XCTAssertEqual(render(), expected)
         try XCTAssertEqual(render(bypass: true), "Updated Template")
     }
+    
+    func testMisc() throws {
+        try XCTAssertEqual(render("#min(1, 0)"), "0")
+        try XCTAssertEqual(render("#max(1, 0)"), "1")
+    }
 }
 
 // MARK: For `testContexts()`

@@ -15,7 +15,7 @@ internal extension LeafEntities {
 /// A time interval relative to the specificed base date
 ///
 /// Default value for the reference date is the Swift Date `referenceDate` (2001-01-01 00:00:00 +0000)
-public struct LeafTimestamp: LeafFunction, DoubleReturn, Invariant {
+public struct LeafTimestamp: LeafFunction, DoubleReturn {
     /// The date used as the reference base for all interpretations of Double timestamps
     @LeafRuntimeGuard public static var referenceBase: ReferenceBase = .referenceDate
     
@@ -34,6 +34,8 @@ public struct LeafTimestamp: LeafFunction, DoubleReturn, Invariant {
         guard let x = ReferenceBase(rawValue: params[0].string!) else { return ReferenceBase.fault(params[0].string!) }
         return .double(base == x ? 0 : x.interval - offset)
     }
+    
+    public static var invariant: Bool { false }
     
     public enum ReferenceBase: String, RawRepresentable, CaseIterable, LeafDataRepresentable {
         case now

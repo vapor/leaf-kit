@@ -446,15 +446,22 @@ final class LKParserTests: LeafTestClass {
     func testDefineNesting() throws {
         let test = LeafTestFiles()
         let renderer = TestRenderer(sources: .singleSource(test))
-        test.files["/define.leaf"] = """
-        #def(block):
-            #(param.name ?? "")
-        #enddef
+        test.files["/input.leaf"] = """
+        #define(block):
+        <section>
+            <input type="text" name="#(param.name)" value="#(param.value)">
+        </section>
+        #enddefine
 
-        #eval(block)
+        #evaluate(block)
         """
         
-        try _ = renderer.render(path: "define", options: [.missingVariableThrows(true)]).wait()
+        test.files["/define.leaf"] = """
+        #inline("input")
+        #inline("input")
+        """
+        
+        try _ = renderer.render(path: "define", options: [.missingVariableThrows(false)]).wait()
     }
 }
 

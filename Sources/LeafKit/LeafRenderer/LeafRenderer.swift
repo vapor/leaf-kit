@@ -313,7 +313,7 @@ private extension LeafRenderer {
         
         let shouldThrow = needed.isEmpty ? false : context.missingVariableThrows
         
-        if shouldThrow { return fail(err("\(needed.description) missing"), on: eL) }
+        if shouldThrow { return fail(err("[\(needed.map {$0.terse}.joined(separator: ", "))] variable(s) missing"), on: eL) }
         
         var block = LKConf.entities.raw.instantiate(size: ast.info.underestimatedSize,
                                                     encoding: LKConf.encoding)
