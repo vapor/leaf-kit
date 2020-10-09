@@ -58,9 +58,9 @@ public protocol LeafCache {
     /// `a.aggregate(b)`, and only touch when document or info is requested. As such, no event loop
     /// is provided - method should still not block.
     func touch(_ key: LeafASTKey,
-               _ value: LeafASTTouch)
+               with value: LeafASTTouch)
     
-    /// Drop the entire cache contents
+    /// Drop the cache contents
     func dropAll()
 }
 

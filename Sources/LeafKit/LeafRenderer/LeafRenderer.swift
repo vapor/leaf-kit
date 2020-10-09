@@ -323,7 +323,7 @@ private extension LeafRenderer {
             case .failure(let e): return fail(e, on: eL)
             case .success(let t):
                 if !context.cacheBypass {
-                    cache.touch(serializer.ast.key, .atomic(time: t, size: block.byteCount)) }
+                    cache.touch(serializer.ast.key, with: .atomic(time: t, size: block.byteCount)) }
                 return succeed(block.serialized.buffer, on: eL)
         }
     }

@@ -41,7 +41,7 @@ extension DefaultLeafCache: LeafCache {
     }
 
     /// - Parameters:
-    ///   - name: Name of the `LeafAST`  to try to return
+    ///   - key: Name of the `LeafAST`  to try to return
     ///   - loop: `EventLoop` to return futures on
     /// - Returns: `EventLoopFuture<LeafAST?>` holding the `LeafAST` or nil if no matching result
     public func retrieve(_ key: LeafASTKey,
@@ -50,7 +50,7 @@ extension DefaultLeafCache: LeafCache {
     }
 
     /// - Parameters:
-    ///   - documentName: Name of the `LeafAST`  to try to purge from the cache
+    ///   - key: Name of the `LeafAST`  to try to purge from the cache
     ///   - loop: `EventLoop` to return futures on
     /// - Returns: `EventLoopFuture<Bool?>` - If no document exists, returns nil. If removed,
     ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
@@ -59,8 +59,8 @@ extension DefaultLeafCache: LeafCache {
         return succeed(remove(key), on: loop) }
 
     public func touch(_ key: LeafASTKey,
-                      _ values: LeafASTTouch) {
-        locks.touch.writeWithLock { touches[key]!.aggregate(values: values) }
+                      with values: LeafASTTouch) {
+        locks.touch.writeWithLock { touches[key]?.aggregate(values: values) }
     }
     
     public func info(for key: LeafASTKey,
