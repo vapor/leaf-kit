@@ -447,12 +447,12 @@ final class LKParserTests: LeafTestClass {
         let test = LeafTestFiles()
         let renderer = TestRenderer(sources: .singleSource(test))
         test.files["/define.leaf"] = """
-        #define(block):
+        #def(block):
             #(param.name ?? "")
-        #enddefine
+        #enddef
 
         #(var param = ["name": "Teague"])
-        #evaluate(block)
+        #eval(block)
         """
         
         try _ = renderer.render(path: "define", options: [.missingVariableThrows(true)]).wait()
