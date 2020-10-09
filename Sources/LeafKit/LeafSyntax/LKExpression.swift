@@ -197,7 +197,7 @@ internal struct LKExpression: LKSymbol {
     /// Evaluate an infix expression
     private func evalInfix(_ lhs: LKData, _ op: LeafOperator, _ rhs: LKData) -> LKData {
         switch op {
-            case .nilCoalesce    : return lhs.isNil ? rhs : lhs
+            case .nilCoalesce    : return lhs.isNil || lhs.errored ? rhs : lhs
             /// Equatable conformance passthrough
             case .equal          : return .bool(lhs == rhs)
             case .unequal        : return .bool(lhs != rhs)

@@ -451,7 +451,6 @@ final class LKParserTests: LeafTestClass {
             #(param.name ?? "")
         #enddef
 
-        #(var param = ["name": "Teague"])
         #eval(block)
         """
         
