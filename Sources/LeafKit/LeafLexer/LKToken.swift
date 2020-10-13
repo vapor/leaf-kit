@@ -79,6 +79,8 @@ internal enum LKToken: LKPrintable, Hashable  {
             case .whiteSpace   : return "whiteSpace"
         }
     }
+    
+    var isTagMark: Bool { self == .tagMark }
 
     /// A token that represents the valid objects that will be lexed inside parameters
     enum Parameter: LKPrintable, Hashable {

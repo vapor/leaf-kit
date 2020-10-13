@@ -178,8 +178,17 @@ public extension LeafRenderer {
         return _render(.init(source, template), context, options)
     }
     
-    func info(for template: String) -> EventLoopFuture<LeafASTInfo?> {
-        cache.info(for: .searchKey(template), on: eL)
+    func info(for template: String,
+              in source: String? = nil) -> EventLoopFuture<LeafASTInfo?> {
+        cache.info(for: .init(source ?? "$", template), on: eL)
+    }
+    
+    /// Check for a valid template in specified source or default search path (if nil)
+    ///
+    /// - Returns: T if possible Leaf template, F if not, nil if non-existant
+    func isLeafTemplate(_ template: String,
+                        in source: String? = nil) -> EventLoopFuture<Bool?> {
+        _isLeafTemplate(template, in: source)
     }
 }
 
@@ -326,5 +335,24 @@ private extension LeafRenderer {
                     cache.touch(serializer.ast.key, with: .atomic(time: t, size: block.byteCount)) }
                 return succeed(block.serialized.buffer, on: eL)
         }
+    }
+    
+    /// Check for a valid template in specified source or default search path (if nil)
+    ///
+    /// - Returns: T if possible Leaf template, F if not, nil if non-existant
+    func _isLeafTemplate(_ template: String, in source: String? = nil) -> ELF<Bool?> {
+        sources
+            .find(.init(source ?? "$", template), on: eL)
+            .flatMap {
+                var f = $0
+                let str = f.buffer.readString(length: f.buffer.readableBytes)
+                if str == nil { return succeed(false, on: self.eL) }
+                var lexer = LKLexer(LKRawTemplate("", str!))
+                guard let tokens = try? lexer.lex() else { return succeed(false, on: self.eL) }
+                return succeed(tokens.allSatisfy { $0.isTagMark == false }, on: self.eL) }
+            .flatMapErrorThrowing {
+                if case .noTemplateExists = ($0 as? LeafError)?.reason { return nil }
+                throw $0
+            }
     }
 }
