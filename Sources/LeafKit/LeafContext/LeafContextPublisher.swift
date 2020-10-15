@@ -50,5 +50,5 @@
 /// ```
 public protocol LeafContextPublisher {
     /// First-level API provider that adheres an object *it owns* to this protocol must implement `variables`
-    var variables: [String: LeafDataGenerator] { get }
+    var leafVariables: [String: LeafDataGenerator] { get }
 }

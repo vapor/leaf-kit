@@ -1014,7 +1014,7 @@ class _APIVersioning: LeafContextPublisher {
     let identifier: String
     var version: (major: Int, minor: Int, patch: Int)
 
-    lazy private(set) var variables: [String: LeafDataGenerator] = [
+    lazy private(set) var leafVariables: [String: LeafDataGenerator] = [
         "identifier" : .immediate(identifier),
         "version"    : .lazy(["major": self.version.major,
                               "minor": self.version.minor,

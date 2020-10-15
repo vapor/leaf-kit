@@ -168,7 +168,7 @@ public extension LeafRenderer.Context {
             let values: [String: LeafDataRepresentable]
             
             if let c = object as? LeafContextPublisher {
-                values = c.variables.mapValues { $0.container } }
+                values = c.leafVariables.mapValues { $0.container } }
             else if let data = (object as? LeafDataRepresentable)?.leafData.dictionary {
                 values = data }
             else {
