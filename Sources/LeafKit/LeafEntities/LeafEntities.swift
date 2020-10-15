@@ -1,5 +1,8 @@
 public final class LeafEntities {
     // MARK: Internal Only Properties
+    private(set) var identifiers: Set<String> = ["raw"]
+    private(set) var openers: Set<String> = ["raw"]
+    private(set) var closers: Set<String> = ["endraw"]
     
     /// Factories that produce `.raw` Blocks
     private(set) var rawFactories: [String: LKRawBlock.Type]
@@ -15,7 +18,7 @@ public final class LeafEntities {
     
     /// Initializer
     /// - Parameter rawHandler: The default factory for `.raw` blocks
-    internal init(rawHandler: LKRawBlock.Type = LeafBuffer.self) {
+    init(rawHandler: LKRawBlock.Type = LeafBuffer.self) {
         self.rawFactories = [Self.defaultRaw: rawHandler]
         self.blockFactories = [:]
         self.functions = [:]
@@ -29,7 +32,7 @@ public extension LeafEntities {
     
     static var leaf4Core: LeafEntities { ._leaf4Core }
     static var leaf4Transitional: LeafEntities { ._leaf4Transitional }
-    
+        
     // MARK: Entity Registration Methods
     
     /// Register a Block factory
@@ -51,8 +54,12 @@ public extension LeafEntities {
                 precondition(chained.chainsTo.filter { $0 != block.self}
                              .allSatisfy({ b in blockFactories.values.contains(where: {$0 == b})}),
                              "All types this block chains to must be registered.")
-            }
+                if chained.chainsTo.isEmpty { closers.insert("end" + name) }
+                else if chained.callSignature.isEmpty { closers.insert(name) }
+            } else { closers.insert("end" + name) }
             blockFactories[name] = block
+            identifiers.insert(name)
+            openers.insert(name)
         }
     }
 
@@ -74,13 +81,15 @@ public extension LeafEntities {
                 }
                 functions[name]!.append(function)
             } else { functions[name] = [function] }
+            identifiers.insert(name)
+            openers.insert(name)
         }
     }
 
     /// Register a LeafMethod
     /// - Parameters:
     ///   - method: An instance of a `LeafMethod` adherant
-    ///   - name: "name: `hasPrefix`" == `#(a.hasPrefix(b)`
+    ///   - name: "name: `hasPrefix`" == `#(a.hasPrefix(b))`
     /// - Throws: If a function for name is already registered, or name is empty
     func use(_ method: LeafMethod,
              asMethod name: String) {
@@ -95,6 +104,7 @@ public extension LeafEntities {
                 }
                 methods[name]!.append(method)
             } else { methods[name] = [method] }
+            identifiers.insert(name)
         }
     }
 
@@ -107,6 +117,19 @@ public extension LeafEntities {
              asFunctionAndMethod name: String) {
         use(method, asFunction: name)
         use(method, asMethod: name)
+    }
+    
+    /// Lightweight validor for a string that may be a Leaf template source.
+    ///
+    /// - Returns: True if all tag marks in the string are valid entities, but does not guarantee rendering will not error
+    ///            False if there are no tag marks in the string
+    ///            Nil if there are tag marks that are inherently erroring due to invalid entities.
+    func validate(in string: String) -> Bool? {
+        switch string.isLeafProcessable(self) {
+            case .success(true): return true
+            case .success(false): return false
+            case .failure: return nil
+        }
     }
 }
 
@@ -132,6 +155,8 @@ internal extension LeafEntities {
                 case .string     : use(StringIdentity(), asFunction: name)
                 case .void       : __MajorBug("Void is not a valid storable type")
             }
+            identifiers.insert(name)
+            openers.insert(name)
         }
     }
     
@@ -148,6 +173,9 @@ internal extension LeafEntities {
                          "A raw factory named \(name) already exists")
             rawFactories[name] = block
         }
+        identifiers.insert(name)
+        openers.insert(name)
+        closers.insert("end" + name)
     }
     
     /// Register a metablock
@@ -155,6 +183,9 @@ internal extension LeafEntities {
              asMeta name: String) {
         guard blockFactories[name] == nil else { __MajorBug("Metablock already registered") }
         blockFactories[name] = meta
+        identifiers.insert(name)
+        openers.insert(name)
+        if [.define, .rawSwitch].contains(meta.form) { closers.insert("end" + name) }
     }
     
     // MARK: Validators

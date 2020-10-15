@@ -12,6 +12,10 @@ import NIOConcurrencyHelpers
 /// - `.searchOrder` provides the keys of sources that an unspecified template request will search.
 public final class LeafSources {
     // MARK: - Public
+    
+    /// The default file extension used for implicit location of templates when no extension is provided
+    @LeafRuntimeGuard(condition: {!$0.contains(".")})
+    public static var defaultExtension: String = "leaf"
 
     /// All available `LeafSource`s of templates
     public var all: Set<String> { lock.withLock { keys } }

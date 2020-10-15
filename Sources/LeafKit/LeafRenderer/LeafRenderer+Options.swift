@@ -13,6 +13,7 @@ public extension LeafRenderer.Option {
 }
 
 public extension LeafRenderer.Options {
+    /// All global settings for options on `LeafRenderer`
     static var globalSettings: Self { .init(LeafRenderer.Option.allCases) }
     
     init(_ elements: [LeafRenderer.Option]) {

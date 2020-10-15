@@ -54,7 +54,7 @@ public final class LeafRenderer {
     }
     
     // MARK: - LeafRenderer.Options
-    /// Local options for overriding global settings
+    /// Local options for overriding global settings; valus are only set if they actually override global settings
     public struct Options: ExpressibleByArrayLiteral {
         var _storage: Set<Option>
     }
@@ -182,8 +182,6 @@ public extension LeafRenderer {
               in source: String? = nil) -> EventLoopFuture<LeafASTInfo?> {
         cache.info(for: .init(source ?? "$", template), on: eL)
     }
-    
-    static func isLeafProcessable(_ body: String) -> Bool? { _isProcessable(body) }
 }
 
 // MARK: - Private Implementation

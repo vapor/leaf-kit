@@ -245,20 +245,21 @@ final class PrintTests: LeafTestClass {
         let v = try parse(template)
         XCTAssertEqual(v.terse, expectation)
     }
-
-    // No longer relevant
-    func _testCustomTag() throws {
-        let template = """
-        #custom(tag, foo == bar):
-            some body
-        #endcustom
-        """
-        let expectation = """
-        custom(variable(tag), [foo == bar]):
-          raw("\\n    some body\\n")
-        """
-
-        let v = try parse(template)
-        XCTAssertEqual(v.terse, expectation)
+    
+    func testValidateStringAsLeaf() throws {
+        let tests: [(String, Result<Bool, String>)] = [
+            ("A sample with no Leaf", .success(false)),
+            ("A sample with \\#ecapedTagIndicators", .success(false)),
+            ("A sample with #(anonymous) tag", .success(true)),
+            ("A sample with #define(valid) tag usage", .success(true)),
+            ("A sample with #enddefine closing tag usage", .success(true)),
+            ("A sample with #notAValid() tag usage", .failure("")),
+            ("A cropped #samp", .failure("#samp")),
+            ("A sample with an ending mark#", .failure("#"))
+        ]
+        
+        for i in tests.indices {
+            XCTAssertEqual(tests[i].0.isLeafProcessable(.leaf4Core), tests[i].1)
+        }
     }
 }

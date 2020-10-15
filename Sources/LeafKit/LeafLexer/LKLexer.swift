@@ -9,18 +9,7 @@ internal struct LKLexer {
     init(_ template: LKRawTemplate) {
         self.src = template
         self.state = .raw
-
         self.entities = LKConf.entities
-        self.openers = .init(entities.blockFactories.keys)
-        self.openers.formUnion(entities.functions.keys)
-        self.closers = .init()
-
-        for (tag, factory) in entities.blockFactories {
-            if let chained = factory as? ChainedBlock.Type {
-                if chained.chainsTo.isEmpty { closers.insert("end" + tag) }
-                else if chained.callSignature.isEmpty { closers.insert(tag) }
-            } else { closers.insert("end" + tag) }
-        }
     }
 
     // MARK: - Internal
@@ -57,8 +46,6 @@ internal struct LKLexer {
     private var src: LKRawTemplate
     /// Configured entitites
     private let entities: LeafEntities
-    private var openers: Set<String>
-    private var closers: Set<String>
 
     /// Convenience for the current character to read
     private var current: Character? { src.peek() }
@@ -102,14 +89,15 @@ internal struct LKLexer {
         let id = src.readWhile { $0.isValidInIdentifier }
 
         /// If not a recognized identifier decay to raw and rewrite tagIndicator
-        guard openers.contains(id) || closers.contains(id) else {
+        guard entities.openers.contains(id) || entities.closers.contains(id) else {
             lexed[offset] = escapedTagID
             state = .raw;
             return .raw(id)
         }
 
         /// If the tag has parameters, and if it's a "closer" (end_xxxx, chained terminal tag eg: else)
-        let xor = (params: current == .leftParenthesis, terminal: closers.contains(id))
+        let xor = (params: current == .leftParenthesis,
+                   terminal: entities.closers.contains(id))
         switch xor {
             /// Terminal chained tags can't have params (eg, else)
             case (true , true ) : throw unknownError("Closing tags can't have parameters")
@@ -120,7 +108,7 @@ internal struct LKLexer {
                                   depth = 0
                                   return .tag(id)
             /// Terminal chained tag normal case
-            case (false, true ) where openers.contains(id)
+            case (false, true ) where entities.openers.contains(id)
                                 : if pop() != .colon {
                                     throw unknownError("Chained block missing `:`") }
                                   lexed.append(.tag(id))
