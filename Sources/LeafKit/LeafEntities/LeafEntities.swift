@@ -278,6 +278,7 @@ internal extension LeafEntities {
         /// True if actual parameter matches expected parameter value type, or if actual parameter is uncertain type
         func matches(_ actual: LKParameter, _ expected: LeafCallParameter) -> Bool {
             guard let t = actual.baseType else { return true }
+            if case .value(let literal) = actual.container, literal.isNil { return expected.optional }
             return expected.types.contains(t) ? true
                   : expected.types.first(where: {t.casts(to: $0) != .ambiguous}) != nil
         }
@@ -300,7 +301,7 @@ internal extension LeafEntities {
 
         let count = (in: tuples.in.count, out: expected.count)
         let defaults = expected.compactMap({ $0.defaultValue }).count
-        /// Guard that in.count <= out.count && in.count + default >= out.count
+        /// Guard that `in.count <= out.count` && `in.count + default >= out.count`
         if count.in > count.out { return .failure("Too many parameters") }
         if Int(count.in) + defaults < count.out { return .failure("Not enough parameters") }
 

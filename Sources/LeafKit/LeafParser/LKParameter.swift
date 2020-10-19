@@ -49,11 +49,11 @@ internal struct LKParameter: LKSymbol {
     /// Generate a `LKParameter`, auto-reduce to a `.value` or .`.variable` or a non-evaluable`.keyword`
     static func keyword(_ store: LeafKeyword,
                         reduce: Bool = false) -> LKParameter {
+        if store == .nil         { return .init(.value(.trueNil)) }
         if !store.isEvaluable
                       || !reduce { return .init(.keyword(store)) }
         if store.isBooleanValued { return .init(.value(.bool(store.bool!))) }
         if store == .`self`      { return .init(.variable(.`self`)) }
-        if store == .nil         { return .init(.value(.trueNil)) }
         __MajorBug("Unhandled evaluable keyword")
     }
 

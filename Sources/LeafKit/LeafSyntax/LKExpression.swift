@@ -325,22 +325,30 @@ internal struct LKExpression: LKSymbol {
     private func comparisonOp(_ op: LeafOperator, _ lhs: LKData, _ rhs: LKData) -> Bool? {
         if lhs.isCollection || rhs.isCollection || lhs.isNil || rhs.isNil { return nil }
         var op = op
-        var lhs = lhs
-        var rhs = rhs
         let numeric = lhs.isNumeric && rhs.isNumeric
         let manner = !numeric ? .string : lhs.celf == rhs.celf ? lhs.celf : .double
-        if op == .lesserOrEqual || op == .greaterOrEqual {
-            swap(&lhs, &rhs)
-            op = op == .lesserOrEqual ? .greater : .lesser
+        if [.greaterOrEqual, .lesserOrEqual].contains(op) {
+            switch manner {
+                case .int    : if lhs.int ?? 0 == rhs.int ?? 0 { return true }
+                case .double : if lhs.double ?? 0.0 == rhs.double ?? 0.0 { return true }
+                default      : if lhs.string ?? ""  == rhs.string ?? "" { return true }
+            }
+            op = op == .greaterOrEqual ? .greater : .lesser
         }
-        switch   (manner ,  op     ) {
-            case (.int   , .greater) : return lhs.int    ?? 0   > rhs.int    ?? 0
-            case (.double, .greater) : return lhs.double ?? 0.0 > rhs.double ?? 0.0
-            case (_      , .greater) : return lhs.string ?? ""  > rhs.string ?? ""
-            case (.int   , .lesser ) : return lhs.int    ?? 0   < rhs.int    ?? 0
-            case (.double, .lesser ) : return lhs.double ?? 0.0 < rhs.double ?? 0.0
-            case (_      , .lesser ) : return lhs.string ?? ""  < rhs.string ?? ""
-            default                  : return nil
+        switch op {
+            case .greater:
+                switch manner {
+                    case .int    : return lhs.int    ?? 0   > rhs.int    ?? 0
+                    case .double : return lhs.double ?? 0.0 > rhs.double ?? 0.0
+                    default      : return lhs.string ?? ""  > rhs.string ?? ""
+                }
+            case .lesser:
+                switch manner {
+                    case .int    : return lhs.int    ?? 0   < rhs.int    ?? 0
+                    case .double : return lhs.double ?? 0.0 < rhs.double ?? 0.0
+                    default      : return lhs.string ?? ""  < rhs.string ?? ""
+                }
+            default: return nil
         }
     }
 

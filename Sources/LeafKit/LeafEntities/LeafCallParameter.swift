@@ -104,12 +104,20 @@ internal extension LeafCallParameter {
     
     /// Return the parameter value if it's valid, coerce if possible, nil if not an interpretable match.
     func match(_ value: LeafData) -> LeafData? {
-        /// 1:1 expected match, valid as long as expecatation isn't non-optional with optional value
+        /// 1:1 expected match, valid as long as expectation isn't non-optional with optional value
         if types.contains(value.celf) { return !value.isNil || optional ? value : nil }
-        /// If not 1:1 match, non-optional but expecting a bool, nil coerces implicitly to false
-        if types.contains(.bool) && value.isNil, !optional { return .bool(false) }
-        /// All remaining nil values are invalid
-        if value.isNil { return nil }
+        /// If value is still nil but no match...
+        if value.isNil {
+            /// trueNil param
+            if value.celf == .void || !optional {
+                                  /// param accepts optional, coerce nil type to an expected type
+                return optional ? .init(.optional(nil, types.first!))
+                                  /// or if it takes bool, coerce to a false boolean or fail
+                                : types.contains(.bool) ? .bool(false) : nil
+            }
+            /// Remaining nil values are failures
+            return nil
+        }
         /// If only one type, return coerced value as long as it doesn't coerce to .trueNil (and for .bool always true)
         if types.count == 1 {
             let coerced = value.coerce(to: types.first!)

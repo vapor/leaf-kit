@@ -61,18 +61,20 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     // MARK: - Equatable Conformance
     /// Strict equality comparision, with .nil/.void being equal - will fail on Lazy data that is variant
     static func ==(lhs: Self, rhs: Self) -> Bool {
-        // If either side is optional and nil...
+        /// If either side is optional and nil...
         if lhs.isNil || rhs.isNil                             {
-            // Both sides must be nil
+            /// Both sides must be nil
             if lhs.isNil != rhs.isNil                         { return false }
-            // And concrete type must match
+            /// And either side can be trueNil
+            if lhs.baseType == .void || rhs.baseType == .void { return true  }
+            /// And concrete type must match
                                          return lhs.baseType == rhs.baseType }
-        // Both sides must be invariant or we won't test at all
+        /// Both sides must be invariant or we won't test at all
         guard (lhs.isLazy || rhs.isLazy) == false else        { return false }
 
-        // Direct tests on two concrete values of the same concrete type
+        /// Direct tests on two concrete values of the same concrete type
         switch (lhs, rhs) {
-            // Direct concrete type comparisons
+            /// Direct concrete type comparisons
             case (     .array(let a),      .array(let b)) : return a == b
             case (.dictionary(let a), .dictionary(let b)) : return a == b
             case (      .bool(let a),       .bool(let b)) : return a == b
@@ -80,7 +82,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case (       .int(let a),        .int(let b)) : return a == b
             case (    .double(let a),     .double(let b)) : return a == b
             case (      .data(let a),       .data(let b)) : return a == b
-            // Both/one side(s) are optional, unwrap and compare
+            /// Both/one side(s) are optional, unwrap and compare
             case (.optional(.some(let l),_), .optional(.some(let r),_))
                                                           : return l == r
             case (.optional(.some(let l),_),           _) : return l == rhs

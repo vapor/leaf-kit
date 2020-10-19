@@ -2,6 +2,7 @@ internal extension LeafEntities {
     func registerStringReturns() {
         use(StrToStrMap.uppercased, asMethod: "uppercased")
         use(StrToStrMap.lowercased, asMethod: "lowercased")
+        use(StrToStrMap.capitalized, asMethod: "capitalized")
         use(StrToStrMap.reversed, asMethod: "reversed")
         use(StrToStrMap.randomElement, asMethod: "randomElement")
         use(StrStrStrToStrMap.replace, asMethod: "replace")
@@ -16,6 +17,7 @@ internal struct StrToStrMap: LKMapMethod, StringParam, StringReturn {
     
     static let uppercased: Self = .init({ $0.uppercased() })
     static let lowercased: Self = .init({ $0.lowercased() })
+    static let capitalized: Self = .init({ $0.capitalized })
     static let reversed: Self = .init({ String($0.reversed()) })
     static let randomElement: Self = .init({ $0.isEmpty ? nil : String($0.randomElement()!) })
     static let escapeHTML: Self = .init({ $0.reduce(into: "", {$0.append(basicHTML[$1] ?? $1.description)}) })

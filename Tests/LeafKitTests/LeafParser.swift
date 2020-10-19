@@ -62,7 +62,7 @@ final class LKParserTests: LeafTestClass {
         #(var x = 10)
         #while(x > 0):
         #for(i in x):.#endfor#(x -= 2)#endwhile
-        #while(x <= 10):
+        #while(x < 10):
         #(x += 2)#for(i in x):.#endfor#endwhile
         """
         

@@ -442,4 +442,33 @@ final class LeafTests: LeafTestClass {
         XCTAssertTrue(!info.requiredVars.contains("aDeclaredVariable"))
         XCTAssertTrue(info.stackDepths.overallMax == 2)
     }
+    
+    func testSmallBugs() throws {
+        struct TakesNilParam: LeafFunction, Invariant, BoolReturn {
+            static var callSignature: [LeafCallParameter] {[.string(labeled: nil, optional: true)]}
+            func evaluate(_ params: LeafCallValues) -> LeafData {
+                .bool(params[0].string == nil)
+            }
+        }
+        
+        LeafConfiguration.entities.use(TakesNilParam(), asFunction: "takesNil")
+        
+        let input = """
+        #(5 >= 5)
+        #(5 >= 4)
+        #(4 >= 5)
+        #(nilVariable == nil)
+        #takesNil(nil)
+        """
+        
+        let expected = """
+        true
+        true
+        false
+        true
+        true
+        """
+        
+        try XCTAssertEqual(render(input, ["nilVariable": .string(nil)]), expected)
+    }
 }
