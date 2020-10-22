@@ -36,7 +36,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testComplexIf() throws {
-        LKRContext.missingVariableThrows = false
+        LKROption.missingVariableThrows = false
         let template = """
         #if(a): #if(b): hallo #else: #if(c): dallo #else: ballo #endif #endif #endif
         """
@@ -89,14 +89,18 @@ final class LeafTests: LeafTestClass {
         let template = """
         <p>
             <ul>
-                #for(name in names):<li>#(name)</li>#endfor
+                #for(name in names):
+                <li>#(name)</li>
+                #endfor
             </ul>
         </p>
         """
         let expect = """
         <p>
             <ul>
-                <li>Vapor</li><li>Leaf</li><li>Bits</li>
+                <li>Vapor</li>
+                <li>Leaf</li>
+                <li>Bits</li>
             </ul>
         </p>
         """
@@ -139,7 +143,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testStringIf() throws {
-        LKRContext.missingVariableThrows = false
+        LKROption.missingVariableThrows = false
         let template = """
         #if(name):Hello, #(name)!#else:No Name!#endif
         """
@@ -150,7 +154,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testEqualIf() throws {
-        LKRContext.missingVariableThrows = false
+        LKROption.missingVariableThrows = false
         let template = """
         #if(string1 == string2):Good#else:Bad#endif
         """
@@ -161,7 +165,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testAndStringIf() throws {
-        LKRContext.missingVariableThrows = false
+        LKROption.missingVariableThrows = false
         let template = """
         #if(name && one):Hello, #(name)#(one)!#elseif(name):Hello, #(name)!#else:No Name!#endif
         """
@@ -174,7 +178,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testOrStringIf() throws {
-        LKRContext.missingVariableThrows = false
+        LKROption.missingVariableThrows = false
         let template = """
         #if(name || one):Hello, #(name)#(one)!#else:No Name!#endif
         """
@@ -187,7 +191,7 @@ final class LeafTests: LeafTestClass {
     }
 
     func testArrayIf() throws {
-        LKRContext.missingVariableThrows = false
+        LKROption.missingVariableThrows = false
         let template = """
         #if(namelist):#for(name in namelist):Hello, #(name)!#endfor#else:No Name!#endif
         """
@@ -278,11 +282,8 @@ final class LeafTests: LeafTestClass {
         #endfor
         """
         let expected = """
-
             tanner - index=0 last=false first=true
-
             ziz - index=1 last=false first=false
-
             vapor - index=2 last=true first=false
 
         """
@@ -293,13 +294,15 @@ final class LeafTests: LeafTestClass {
     func testNestedLoopIndices() throws {
         let template = """
         #for((index, array) in arrays):
-        Array#(index) - [#for((index, element) in array): #(index)#if(isFirst):(first)#elseif(isLast):(last)#endif : "#(element)"#if(!isLast):, #endif#endfor]#endfor
+        Array#(index) - [#for((index, element) in array):
+        #(index)#if(isFirst):(first)#elseif(isLast):(last)#endif: "#(element)"#if(!isLast):, #endif#endfor]
+        #endfor
         """
         let expected = """
+        Array0 - [0(first): "zero", 1: "one", 2(last): "two"]
+        Array1 - [0(first): "a", 1: "b", 2(last): "c"]
+        Array2 - [0(first): "red fish", 1: "blue fish", 2(last): "green fish"]
 
-        Array0 - [ 0(first) : "zero",  1 : "one",  2(last) : "two"]
-        Array1 - [ 0(first) : "a",  1 : "b",  2(last) : "c"]
-        Array2 - [ 0(first) : "red fish",  1 : "blue fish",  2(last) : "green fish"]
         """
 
         let data = LeafData.array([
@@ -457,6 +460,8 @@ final class LeafTests: LeafTestClass {
         #(5 >= 5)
         #(5 >= 4)
         #(4 >= 5)
+        #(nonExistantVariable ? true : false)
+        #(nonExistantVariable == nil)
         #(nilVariable == nil)
         #takesNil(nil)
         """
@@ -465,10 +470,19 @@ final class LeafTests: LeafTestClass {
         true
         true
         false
+        false
+        true
         true
         true
         """
         
-        try XCTAssertEqual(render(input, ["nilVariable": .string(nil)]), expected)
+        try XCTAssertEqual(render(input, ["nilVariable": .string(nil)],
+                                  options: [.missingVariableThrows(false)]), expected)
+        
+        try XCTAssertThrowsError(render(input, ["nilVariable": .string(nil)],
+                                        options: [.missingVariableThrows(true)])) {
+            XCTAssert(($0 as! LeafError).description
+                        .contains("No value for nonExistantVariable in context"))
+        }
     }
 }

@@ -11,37 +11,37 @@ final class GHLeafKitIssuesTest: LeafTestClass {
         let test = LeafTestFiles()
         test.files["/base.leaf"] = """
         <body>
-            Directly extended snippet
-            #extend("partials/picture.svg")
-            #import(body)
+            Directly inlined snippet
+            #inline("partials/picture.svg")
+
+            #evaluate(body)
         </body>
         """
         test.files["/page.leaf"] = """
-        #export(body):
-            Snippet added through export/import
-        #extend("partials/picture.svg")
-        #endexport
-
-        #extend("base")
+        #define(body):
+        Snippet added through define/evaluate
+        #inline("partials/picture.svg")
+        #enddefine
+        #inline("base")
         """
         test.files["/partials/picture.svg"] = """
             <svg><path d="M0..."></svg>
+        
         """
 
         let expected = """
-
         <body>
-            Directly extended snippet
-                <svg><path d="M0..."></svg>
-            
-            Snippet added through export/import
+            Directly inlined snippet
+            <svg><path d="M0..."></svg>
+
+            Snippet added through define/evaluate
             <svg><path d="M0..."></svg>
         </body>
         """
 
         let renderer = TestRenderer(sources: .singleSource(test))
         let page = try renderer.render(path: "page").wait()
-        XCTAssertEqual(page.terse, expected)
+        XCTAssertEqual(page.string, expected)
     }
 
     /// https://github.com/vapor/leaf-kit/issues/50
@@ -56,10 +56,9 @@ final class GHLeafKitIssuesTest: LeafTestClass {
         #extend("a/b")
         """
         test.files["/a/b.leaf"] = "#import(body)"
-        test.files["/a/b-c-d.leaf"] = "HI"
+        test.files["/a/b-c-d.leaf"] = "HI\n"
 
         let expected = """
-
         HI
         HI
         HI

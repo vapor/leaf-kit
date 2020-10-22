@@ -40,16 +40,40 @@ public final class LeafRenderer {
     // MARK: - LeafRenderer.Option
     /// Locally overrideable options for how LeafRenderer handles rendering
     public enum Option: Hashable, CaseIterable {
+        /// Rendering timeout duration limit in seconds; must be at least 1ms, clock timeout >= serialize timeout
+        @LeafRuntimeGuard(condition: {$0 >= 0.001}) public static var timeout: Double = 0.050
+        
+        /// Controls behavior of serialize when a variable has no value in context:
+        /// When true, throws an error and aborts serializing; when false, returns Void? and decays chain.
+        @LeafRuntimeGuard public static var missingVariableThrows: Bool = true
+        
+        /// When true, `LeafUnsafeEntity` tags will have access to contextual objects
+        @LeafRuntimeGuard public static var grantUnsafeEntityAccess: Bool = false
+                
+        /// Output buffer encoding
+        @LeafRuntimeGuard public static var encoding: String.Encoding = .utf8
+        
+        /// Behaviors for how render calls will use the configured `LeafCache` for compiled templates
+        @LeafRuntimeGuard public static var caching: LeafCacheBehavior = .default
+        
+        /// The limit in bytes for an `inline(..., as: raw)` statement to embed the referenced
+        /// raw inline in the *cached* AST.
+        @LeafRuntimeGuard public static var embeddedASTRawLimit: UInt32 = 4096
+        
         case timeout(Double)
         case missingVariableThrows(Bool)
         case grantUnsafeEntityAccess(Bool)
-        case cacheBypass(Bool)
+        case encoding(String.Encoding)
+        case caching(LeafCacheBehavior)
+        case embeddedASTRawLimit(UInt32)
         
         public enum Case: UInt8, RawRepresentable, CaseIterable {
             case timeout
             case missingVariableThrows
             case grantUnsafeEntityAccess
-            case cacheBypass
+            case encoding
+            case caching
+            case embeddedASTRawLimit
         }
     }
     
@@ -71,21 +95,6 @@ public final class LeafRenderer {
     /// Note that the context will be "frozen" in its state at the time it is passed to `LeafRenderer` and no
     /// alterations in Swift will affect the state of the rendering of the template. *WARNING*
     public struct Context: ExpressibleByDictionaryLiteral {
-        // MARK: Global Configurations
-        
-        /// Rendering timeout duration limit in seconds; must be at least 1ms, clock timeout >= serialize timeout
-        @LeafRuntimeGuard(condition: {$0 >= 0.001}) public static var timeout: Double = 0.050
-        
-        /// Controls behavior of serialize when a variable has no value in context:
-        /// When true, throws an error and aborts serializing; when false, returns Void? and decays chain.
-        @LeafRuntimeGuard public static var missingVariableThrows: Bool = true
-        
-        /// When true, `LeafUnsafeEntity` tags will have access to contextual objects
-        @LeafRuntimeGuard public static var grantUnsafeEntityAccess: Bool = false
-        
-        /// When true, render call will always parse & serialize the template & any inlines in entirety
-        @LeafRuntimeGuard public static var cacheBypass: Bool = false        
-        
         // MARK: LeafRenderer.Context.ObjectMode
         public struct ObjectMode: OptionSet {
             public init(rawValue: UInt16) { self.rawValue = rawValue }
@@ -101,7 +110,7 @@ public final class LeafRenderer {
             /// If contexual, prevents any context variables from being added to its associated scope.
             public static var lockContextVariables: Self = .init(rawValue: 1 << 3)
             
-            /// Default options register an object only as a context object,, and allows additional
+            /// Default options register an object only as a context object, and allows additional
             /// variables to be registered to the scope it owns but not replace its own values.
             public static var `default`: Self = [contextual, preventOverlay]
             
@@ -109,7 +118,7 @@ public final class LeafRenderer {
             public static var bothModes: Self = [contextual, unsafe]
         }
         
-        /// Context must be set as root as initialization in order to allow literal values to be set
+        /// Context must be set as root as initialization in order to allow values to be set as literal
         public let isRootContext: Bool
         
         // MARK: Internal Stored Properties
@@ -132,18 +141,21 @@ public extension LeafRenderer {
     // MARK: Methods
     
     /// The public interface to `LeafRenderer`
-    /// - Parameter template: Name of the template to be used
-    /// - Parameter context: Any unique context data for the template to use
-    /// - Parameter options: Any overrides of global options for this render call
-    /// - Returns: Serialized result of using the template, or a failed future
+    /// - Parameters:
+    ///   - template: Name of the template to be used
+    ///   - context:  Any unique context data for the template to use
+    ///   - options:  Any overrides of global options for this render call
+    /// - Returns:    Serialized result of using the template, or a failed future
     ///
     /// Interpretation of `template` is dependent on the implementation of `LeafSource` but is assumed to
-    /// be relative to `LeafConfiguration.rootDirectory`.
+    /// be relative to the source's configured root directory.
     ///
-    /// Where `LeafSource` is a file sytem based source, some assumptions should be made; `.leaf`
-    /// extension should be inferred if none is provided- `"path/to/template"` corresponds to
-    /// `"/.../ViewDirectory/path/to/template.leaf"`, while an explicit extension -
-    /// `"file.svg"` would correspond to `"/.../ViewDirectory/file.svg"`
+    /// Where `LeafSource` is a file sytem based source, some assumptions should be made;
+    /// `LeafSources.defaultExtension` (defaults to .`leaf`) extension is inferred if none is
+    /// provided.
+    ///
+    /// `"path/to/template"` might correspond to`"/.../Views/path/to/template.leaf"`,
+    ///  while an explicit extension - `"file.svg"` would correspond to `"/.../Views/file.svg"`
     func render(template: String,
                 context: Context,
                 options: Options? = nil) -> EventLoopFuture<ByteBuffer> {
@@ -154,18 +166,20 @@ public extension LeafRenderer {
     /// The public interface to `LeafRenderer`
     /// - Parameters:
     ///   - template: Name of the template to be used
-    ///   - source: A specific (and only) `LeafSource` key to check for the template
-    ///   - context: Any unique context data for the template to use
-    ///   - options: Any overrides of global options for this render call
-    /// - Returns: Serialized result of using the template, or a failed future
+    ///   - source:   A specific (and only) `LeafSource` key to check for the template
+    ///   - context:  Any unique context data for the template to use
+    ///   - options:  Any overrides of global options for this render call
+    /// - Returns:    Serialized result of using the template, or a failed future
     ///
     /// Interpretation of `template` is dependent on the implementation of `LeafSource` but is assumed to
-    /// be relative to `LeafConfiguration.rootDirectory`.
+    /// be relative to the source's configured root directory.
     ///
-    /// Where `LeafSource` is a file sytem based source, some assumptions should be made; `.leaf`
-    /// extension should be inferred if none is provided- `"path/to/template"` corresponds to
-    /// `"/.../ViewDirectory/path/to/template.leaf"`, while an explicit extension -
-    /// `"file.svg"` would correspond to `"/.../ViewDirectory/file.svg"`
+    /// Where `LeafSource` is a file sytem based source, some assumptions should be made;
+    /// `LeafSources.defaultExtension` (defaults to .`leaf`) extension is inferred if none is
+    /// provided.
+    ///
+    /// `"path/to/template"` might correspond to`"/.../Views/path/to/template.leaf"`,
+    ///  while an explicit extension - `"file.svg"` would correspond to `"/.../Views/file.svg"`
     func render(template: String,
                 from source: String,
                 context: Context,
@@ -194,7 +208,7 @@ private extension LeafRenderer {
         if let options = options { context.options = options }
         
         /// Short circuit for resolved blocking cache hits
-        if !context.cacheBypass, cacheIsSync,
+        if cacheIsSync, context.caching.contains(.read),
            let hit = blockingCache!.retrieve(key),
            hit.info.requiredASTs.isEmpty,
            hit.info.touch.execAvg < Self.blockLimit {
@@ -212,10 +226,11 @@ private extension LeafRenderer {
                    via chain: [String] = []) -> ELF<LeafAST> {
         if ast.info.requiredASTs.isEmpty && ast.info.requiredRaws.isEmpty {
             /// Succeed immediately if the ast is cached and doesn't need any kind of resolution
-            if ast.cached || context.cacheBypass { return succeed(ast, on: eL) }
+            if ast.cached || !context.caching.contains(.store) { return succeed(ast, on: eL) }
             var toCache = ast
-            toCache.stripOversizeRaws()
-                        
+            
+            toCache.stripOversizeRaws(cacheLimit: context.embeddedASTRawLimit)
+            
             /// If cache is blocking, force insert and succeed immediately
             if cacheIsSync {
                 switch blockingCache!.insert(toCache, replace: true) {
@@ -245,7 +260,7 @@ private extension LeafRenderer {
     /// - If found or read, return complete AST and a Bool signaling whether it was a cache hit or not
     func fetch(_ key: LeafASTKey,
                _ context: LeafRenderer.Context) -> ELF<LeafAST> {
-        guard !context.cacheBypass else { return read(key, context) }
+        guard context.caching.contains(.read) else { return read(key, context) }
         
         /// Try to hit blocking cache LeafAST, otherwise hit async cache, then try if no cache hit - read a template
         if cacheIsSync, let hit = blockingCache!.retrieve(key) { return succeed(hit, on: eL) }
@@ -284,8 +299,10 @@ private extension LeafRenderer {
     func arbitrateRaws(_ ast: LeafAST,
                        _ context: LeafRenderer.Context) -> ELF<LeafAST> {
         let fetches = ast.info.requiredRaws.map { self.readRaw($0) }
-        return ELF.reduce(into: ast, fetches, on: eL) { $0.inline(name: $1.0, raw: $1.1 ) }
-                  .flatMap { self.arbitrate($0, context) }
+        return ELF.reduce(into: ast, fetches, on: eL) {
+                    $0.inline(name: $1.0, raw: $1.1,
+                              cacheLimit: context.embeddedASTRawLimit)
+                 }.flatMap { self.arbitrate($0, context) }
     }
     
     func readRaw(_ name: String, _ escape: Bool = false) -> ELF<(String, ByteBuffer)> {
@@ -317,13 +334,13 @@ private extension LeafRenderer {
         if shouldThrow { return fail(err("[\(needed.map {$0.terse}.joined(separator: ", "))] variable(s) missing"), on: eL) }
         
         var block = LKConf.entities.raw.instantiate(size: ast.info.underestimatedSize,
-                                                    encoding: LKConf.encoding)
+                                                    encoding: context.encoding)
         
         let serializer = LKSerializer(ast, context, type(of: block))
         switch serializer.serialize(&block) {
             case .failure(let e): return fail(e, on: eL)
             case .success(let t):
-                if !context.cacheBypass {
+                if context.caching.contains(.store) {
                     cache.touch(serializer.ast.key, with: .atomic(time: t, size: block.byteCount)) }
                 return succeed(block.serialized.buffer, on: eL)
         }

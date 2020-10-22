@@ -10,32 +10,17 @@ public struct LeafConfiguration {
     // MARK: - Global-Only Options
     /// The character used to signal tag processing
     @LeafRuntimeGuard public static var tagIndicator: Character = .octothorpe
-    
-    /// Root filesystem directory for file-based `LeafSource` adherents provided by LeafKit
-    @LeafRuntimeGuard public static var rootDirectory: String = "/"
-    
+        
     /// Entities (functions, blocks, raw blocks, types) the LeafKit engine recognizes
     @LeafRuntimeGuard public static var entities: LeafEntities = .leaf4Core
         
-    /// File size limit on raw inlined files to be cached in a resolved AST
-    @LeafRuntimeGuard public static var rawCachingLimit: UInt32 = 1024
-    
-    /// Output buffer encoding
-    @LeafRuntimeGuard public static var encoding: String.Encoding = .utf8
-    
     // MARK: - State
     
     /// Convenience to check state of LeafKit
     public static var isRunning: Bool { started }
 
     // MARK: - Internal Only
-    
-    /// Convenience for getting running state of LeafKit that will assert with a fault message for soft-failing things
-    internal static func running(fault message: String) -> Bool {
-        assert(!started, "\(message) after LeafRenderer has instantiated")
-        return started
-    }
-    
+
     /// WARNING: Reset global "started" flag - only for testing use
     public static func __VERYUNSAFEReset() {
         #if DEBUG
@@ -44,9 +29,15 @@ public struct LeafConfiguration {
         fatalError("DO NOT USE IN NON-DEBUG BUILDS")
         #endif
     }
-
+    
+    /// Convenience for getting running state of LeafKit that will assert with a fault message for soft-failing things
+    static func running(fault message: String) -> Bool {
+        assert(!started, "\(message) after LeafRenderer has instantiated")
+        return started
+    }
+    
     /// Convenience flag for global write-once
-    internal static var started = false
+    static var started = false
 }
 
 /// `LeafRuntimeGuard` secures a value against being changed once a `LeafRenderer` is active

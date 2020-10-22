@@ -54,14 +54,10 @@ final class SerializerTests: LeafTestClass {
         let result = try render(name: "test", input, ["people": people])
 
         XCTAssertEqual(result, """
-
         hello LOGAN
-
         you're pretty good at running
-
         you're pretty good at walking
-
-
+        
         """)
     }
 }

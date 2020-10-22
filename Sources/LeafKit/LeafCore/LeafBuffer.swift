@@ -12,12 +12,17 @@ public struct LeafBuffer {
     @LeafRuntimeGuard public static var doubleFormatter: (Double) -> String = { $0.description }
     @LeafRuntimeGuard public static var nilFormatter: (_ type: String) -> String = { _ in "" }
     @LeafRuntimeGuard public static var stringFormatter: (String) -> String = { $0 }
-    @LeafRuntimeGuard public static var dataFormatter: (Data) -> String? =
-        { String(data: $0, encoding: LKConf.encoding) }
+    @LeafRuntimeGuard public static var dataFormatter: (Data, String.Encoding) -> String? =
+        { String(data: $0, encoding: $1) }
     
-    private(set) var error: String? = nil
+    private(set) var error: Error? = nil
     private(set) var encoding: String.Encoding
     private var output: ByteBuffer
+    
+    /// Strip leading blank lines in appended raw blocks (for cropping after `voidAction()`)
+    private var stripLeadingBlanklines: Bool = false
+    /// Index of last trailing blank line of raw (for cropping extra whitespace at `close()`)
+    private var trailingBlanklineIndex: Int? = nil
 }
 
 extension LeafBuffer: LKRawBlock {
@@ -37,14 +42,50 @@ extension LeafBuffer: LKRawBlock {
 
     /// Always takes either the serialized view of a `LKRawBlock` or the direct result if it's a `ByteBuffer`
     mutating func append(_ block: inout LKRawBlock) {
+        close()
         var input = (block as? Self)?.output ?? block.serialized.buffer
-        guard encoding != block.encoding else { output.writeBuffer(&input); return }
-        guard let x = input.readString(length: input.readableBytes,
+//        guard encoding != block.encoding || stripBlanklines else {
+//            output.writeBuffer(&input)
+//            return
+//        }
+                
+        guard var x = input.readString(length: input.readableBytes,
                                        encoding: block.encoding) else {
             self.error = "Couldn't transcode input raw block"; return
         }
+        
+        if stripLeadingBlanklines {
+            while let nonWhitespace = x.firstIndex(where: {!$0.isWhitespace}),
+                  let newline = x.firstIndex(where: {$0.isNewline}),
+                  newline < nonWhitespace {
+                x.removeSubrange(x.startIndex...newline)
+                stripLeadingBlanklines = false
+            }
+            if x.firstIndex(where: {!$0.isWhitespace}) == nil,
+               let newline = x.firstIndex(where: {$0.isNewline}) {
+                x.removeSubrange(x.startIndex...newline) }
+        }
+        
+        guard !x.isEmpty else { return }
+        
+        var cropped = ""
+        
+        if let lastNonWhitespace = x.lastIndex(where: {!$0.isWhitespace}),
+           let lastNewline = x[lastNonWhitespace..<x.endIndex].lastIndex(where: {$0 == .newLine}),
+           let cropIndex = x.index(after: lastNewline) as String.Index?,
+           cropIndex < x.endIndex {
+            cropped = String(x[cropIndex..<x.endIndex])
+            x.removeSubrange(cropIndex..<x.endIndex)
+        }
+              
         do { try write(x) }
-        catch { self.error = error.localizedDescription }
+        catch { self.error = error }
+        
+        trailingBlanklineIndex = cropped.isEmpty ? nil : output.writerIndex
+        if cropped.isEmpty { return }
+        
+        do { try write(cropped) }
+        catch { self.error = error }
     }
 
     /// Appends data using configured serializer views
@@ -52,6 +93,8 @@ extension LeafBuffer: LKRawBlock {
     
     /// Appends data using configured serializer views
     mutating func _append(_ data: LeafData, wrapString: Bool = false) {
+        trailingBlanklineIndex = nil
+        stripLeadingBlanklines = false
         do {
             guard !data.isNil else {
                 try write(Self.nilFormatter(data.celf.short))
@@ -59,7 +102,7 @@ extension LeafBuffer: LKRawBlock {
             }
             switch data.celf {
                 case .bool       : try write(Self.boolFormatter(data.bool!))
-                case .data       : try write(Self.dataFormatter(data.data!) ?? "")
+                case .data       : try write(Self.dataFormatter(data.data!, encoding) ?? "")
                 case .double     : try write(Self.doubleFormatter(data.double!))
                 case .int        : try write(Self.intFormatter(data.int!))
                 case .string     : try write(Self.stringFormatter(wrapString ? "\"\(data.string!)\""
@@ -82,13 +125,30 @@ extension LeafBuffer: LKRawBlock {
                                    if d.isEmpty { try write(":") }
                                    try write("]")
             }
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = error }
     }
     
-    mutating func close() {}
+    mutating func voidAction() {
+        stripLeadingBlanklines = true
+        close()
+    }
+    
+    mutating func close() {
+        if let newLine = trailingBlanklineIndex {
+            trailingBlanklineIndex = nil
+            output.moveWriterIndex(to: newLine)
+        }
+    }
 
-    var byteCount: UInt32 { output.byteCount }
-    var contents: String { output.contents }
-        
-    mutating func write(_ str: String) throws { try output.writeString(str, encoding: LKConf.encoding) }
+    var byteCount: UInt32 { UInt32(output.readableBytes) }
+    var contents: String {
+        output.getString(at: 0,
+                         length: trailingBlanklineIndex ?? output.readableBytes)
+               ?? "" }
+            
+    mutating func write(_ str: String) throws {
+        if (try? output.writeString(str, encoding: encoding)) == nil {
+            throw err("`\(str)` is not encodable to `\(encoding.description)`")
+        }
+    }
 }

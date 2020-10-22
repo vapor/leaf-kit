@@ -80,7 +80,7 @@ extension ContiguousArray where Element == LKSyntax {
             }
         }
         result += rule
-        if depth == 0 { result.removeLast(1) }
+        if depth == 0, !result.isEmpty { result.removeLast(1) }
         return result
     }
     static let indent = " "

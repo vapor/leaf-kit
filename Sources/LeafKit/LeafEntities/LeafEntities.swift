@@ -1,8 +1,8 @@
 public final class LeafEntities {
     // MARK: Internal Only Properties
-    private(set) var identifiers: Set<String> = ["raw"]
-    private(set) var openers: Set<String> = ["raw"]
-    private(set) var closers: Set<String> = ["endraw"]
+    private(set) var identifiers: Set<String> = []
+    private(set) var openers: Set<String> = []
+    private(set) var closers: Set<String> = []
     
     /// Factories that produce `.raw` Blocks
     private(set) var rawFactories: [String: LKRawBlock.Type]
@@ -48,8 +48,8 @@ public extension LeafEntities {
             precondition(block == RawSwitch.self ||
                          block as? LKRawBlock.Type == nil,
                          "Register LKRawBlock factories using `registerRaw(...)`")
-            precondition(!blockFactories.keys.contains(name),
-                         "A factory named \(name) already exists")
+            precondition(!openers.contains(name),
+                         "A block named `\(name)` already exists")
             if let chained = block as? ChainedBlock.Type {
                 precondition(chained.chainsTo.filter { $0 != block.self}
                              .allSatisfy({ b in blockFactories.values.contains(where: {$0 == b})}),
@@ -118,8 +118,8 @@ public extension LeafEntities {
         use(method, asFunction: name)
         use(method, asMethod: name)
     }
-    
-    /// Lightweight validor for a string that may be a Leaf template source.
+        
+    /// Lightweight validator for a string that may be a Leaf template source.
     ///
     /// - Returns: True if all tag marks in the string are valid entities, but does not guarantee rendering will not error
     ///            False if there are no tag marks in the string
@@ -169,19 +169,16 @@ internal extension LeafEntities {
         if !LKConf.running(fault: "Cannot register new Raw factory \(name)") {
             name._sanity()
             block.callSignature._sanity()
-            precondition(!rawFactories.keys.contains(name),
-                         "A raw factory named \(name) already exists")
+            precondition(!openers.contains(name),
+                         "A block named `\(name)` already exists")
             rawFactories[name] = block
         }
-        identifiers.insert(name)
-        openers.insert(name)
-        closers.insert("end" + name)
     }
     
     /// Register a metablock
     func use(_ meta: LKMetaBlock.Type,
              asMeta name: String) {
-        guard blockFactories[name] == nil else { __MajorBug("Metablock already registered") }
+        if openers.contains(name) { __MajorBug("Metablock already registered") }
         blockFactories[name] = meta
         identifiers.insert(name)
         openers.insert(name)

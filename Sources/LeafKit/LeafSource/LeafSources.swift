@@ -13,7 +13,11 @@ import NIOConcurrencyHelpers
 public final class LeafSources {
     // MARK: - Public
     
-    /// The default file extension used for implicit location of templates when no extension is provided
+    /// Default filesystem directory for file-based `LeafSource` adherents provided by LeafKit, if not
+    /// explicitly set when instantiating a `LeafSource`
+    @LeafRuntimeGuard public static var rootDirectory: String = "/"
+    
+    /// Default file extension used for implicit location of templates when no extension is provided
     @LeafRuntimeGuard(condition: {!$0.contains(".")})
     public static var defaultExtension: String = "leaf"
 

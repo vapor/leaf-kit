@@ -1,5 +1,6 @@
 import XCTest
 import NIOConcurrencyHelpers
+import Foundation
 @testable import LeafKit
 
 final class ParserTests: LeafTestClass {
@@ -479,18 +480,18 @@ final class LeafKitTests: LeafTestClass {
     func testImportResolve() {
         let test = LeafTestFiles()
         test.files["/a.leaf"] = """
-        #export(variable):Hello#endexport
+        #export(value, "Hello")
         #extend("b")
         """
         test.files["/b.leaf"] = """
-        #import(variable)
+        #import(value)
         """
 
         let renderer = TestRenderer(sources: .singleSource(test))
 
         do {
             let output = try renderer.render(path: "a").wait().string
-            XCTAssertEqual(output, "\nHello")
+            XCTAssertEqual(output, "Hello")
         } catch {
             let e = error as! LeafError
             XCTFail(e.localizedDescription)
@@ -669,7 +670,18 @@ final class LeafKitTests: LeafTestClass {
     func testDeepResolve() throws {
         let test = LeafTestFiles()
         test.files["/a.leaf"] = """
-        #for(a in b):#if(false):Hi#elseif(true && false):Hi#else:#export(derp):DEEP RESOLUTION #(a)#endexport#extend("b")#endif#endfor
+        #for(a in b):
+        #if(false):
+        Hi
+        #elseif(true && false):
+        Hi
+        #else:
+        #export(derp):
+        DEEP RESOLUTION #(a)
+        #endexport
+        #extend("b")
+        #endif
+        #endfor
         """
         test.files["/b.leaf"] = """
         #import(derp)
@@ -766,7 +778,7 @@ final class LeafKitTests: LeafTestClass {
     }
     
     func testInline() throws {
-        LKRContext.missingVariableThrows = false
+        LKROption.missingVariableThrows = false
         let template = """
         #(var variable = 10)
         #inline("external", as: raw)
@@ -776,19 +788,18 @@ final class LeafKitTests: LeafTestClass {
         
         let testFiles = LeafTestFiles()
         testFiles.files = ["/template.leaf": template,
-                           "/external.leaf": "#(variable)",
+                           "/external.leaf": "#(variable)\n",
                            "/uncachedraw.leaf": "#inline(\"excessiveraw.txt\", as: raw)",
                            "/excessiveraw.txt": .init(repeating: ".",
-                                                      count: Int(LKConf.rawCachingLimit) + 1)]
+                                                      count: Int(LKROption.embeddedASTRawLimit) + 1)]
         
         let expected = """
-
         #(variable)
         10
         10
+
         """
-        
-        
+                
         let renderer = TestRenderer(sources: .singleSource(testFiles))
         let output = try renderer.render(path: "template").wait().string
         let info = try renderer.r.info(for: "template").wait()!
@@ -797,7 +808,7 @@ final class LeafKitTests: LeafTestClass {
         
         let excessive = try renderer.render(path: "uncachedraw").wait().string
         let ast = (renderer.r.cache as! DefaultLeafCache).retrieve(.searchKey("uncachedraw"))!
-        XCTAssertTrue(excessive.count == Int(LKConf.rawCachingLimit) + 1)
+        XCTAssertTrue(excessive.count == Int(LKROption.embeddedASTRawLimit) + 1)
         XCTAssertTrue(ast.info.requiredRaws.contains("excessiveraw.txt"))
     }
     
@@ -805,8 +816,12 @@ final class LeafKitTests: LeafTestClass {
         IntFormatterMap.defaultPlaces = 2
         DoubleFormatterMap.defaultPlaces = 3
         
+        LKConf.entities.use(DoubleFormatterMap.seconds, asFunctionAndMethod: "formatSeconds")
+        LKConf.entities.use(IntFormatterMap.bytes, asFunctionAndMethod: "formatBytes")
+        
         let template = """
-        Set start time#(let start = Timestamp())
+        Set start time
+        #(let start = Timestamp())
         Bytes: #((500).formatBytes())
         Kilobytes: #((5_000).formatBytes())
         Megabytes: #((5_000_000).formatBytes())
@@ -874,7 +889,7 @@ final class LeafKitTests: LeafTestClass {
         LeafBuffer.intFormatter = {"\($0.description)"}
     }
     
-    func testRawBlock() throws {
+    func _testRawBlock() throws {
         let template = """
         #raw():
         Body
@@ -911,7 +926,6 @@ final class LeafKitTests: LeafTestClass {
         Results!
         """
         let expected = """
-
         ["identifier": "myAPI", "isRelease": false, "version": ["major": 0, "minor": 0, "patch": 1]]
         Results!
         """
@@ -971,7 +985,7 @@ final class LeafKitTests: LeafTestClass {
     func testElideRenderOptionChanges() throws {
         XCTAssertEqual(LeafRenderer.Option.Case.allCases.count,
                        LeafRenderer.Option.allCases.count)
-        XCTAssertEqual(LeafRenderer.Option.allCases.count, 4)
+        XCTAssertEqual(LeafRenderer.Option.allCases.count, 6)
         var options: LeafRenderer.Options = .globalSettings
         XCTAssertEqual(options._storage.count, 0)
         options.update(.timeout(1.0))
@@ -992,7 +1006,7 @@ final class LeafKitTests: LeafTestClass {
         func render(bypass: Bool = false) throws -> String {
             try renderer.render(template: "template",
                                 context: [:],
-                                options: [.cacheBypass(bypass)]).wait().string
+                                options: [.caching(bypass ? .bypass : .default)]).wait().string
         }
         
         try XCTAssertEqual(render(), expected)
@@ -1002,8 +1016,31 @@ final class LeafKitTests: LeafTestClass {
     }
     
     func testMisc() throws {
+        LKConf.entities.use(IntIntToIntMap._min, asFunction: "min")
+        LKConf.entities.use(IntIntToIntMap._max, asFunction: "max")
         try XCTAssertEqual(render("#min(1, 0)"), "0")
         try XCTAssertEqual(render("#max(1, 0)"), "1")
+    }
+    
+    /// µ is 2byte with lower 0xB5 in UTF8, 1byte 0x9D in NeXT encoding
+    func testEncoding() throws {
+        let files = LeafTestFiles()
+        files.files["/micro.leaf"] = "µ"
+        files.files["/tau.leaf"] = "τ"
+        let renderer = TestRenderer(sources: .singleSource(files))
+        
+        var utf8micro = try renderer.render(path: "micro", options: [.encoding(.utf8)]).wait()
+        XCTAssertEqual(utf8micro.readBytes(length: 2)![1], 0xB5)
+        
+        var nextstepmicro = try renderer.render(path: "micro", options: [.encoding(.nextstep)]).wait()
+        XCTAssertEqual(nextstepmicro.readBytes(length: 1)![0], 0x9D)
+        
+        var utf8tau = try renderer.render(path: "tau", options: [.encoding(.utf8)]).wait()
+        XCTAssertEqual(utf8tau.readBytes(length: 2)![1], 0x84)
+        
+        try XCTAssertThrowsError(renderer.render(path: "tau", options: [.encoding(.nextstep)]).wait()) {
+            XCTAssert(($0 as? LeafError)!.description.contains("`τ` is not encodable to `Western (NextStep)`"))
+        }
     }
 }
 

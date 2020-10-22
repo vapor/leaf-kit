@@ -34,13 +34,11 @@ internal struct LKExpression: LKSymbol {
                    k.isVariableDeclaration { return createVariable(&symbols) }
                 __MajorBug("Custom expression produced in AST")
         }
-
-        let lhsData = lhs?.evaluate(&symbols) ?? .trueNil
-        let rhsData = rhs?.evaluate(&symbols) ?? .trueNil
+        
         switch form.op! {
-            case .infix        : return evalInfix(lhsData, op!, rhsData)
-            case .unaryPrefix  : return evalPrefix(op!, rhsData)
-            case .unaryPostfix : return evalPostfix(lhsData, op!)
+            case .infix        : return evalInfix(lhs!.evaluate(&symbols), op!, rhs!.evaluate(&symbols))
+            case .unaryPrefix  : return evalPrefix(op!, rhs!.evaluate(&symbols))
+            case .unaryPostfix : return evalPostfix(lhs!.evaluate(&symbols), op!)
         }
     }
 
@@ -196,8 +194,10 @@ internal struct LKExpression: LKSymbol {
 
     /// Evaluate an infix expression
     private func evalInfix(_ lhs: LKData, _ op: LeafOperator, _ rhs: LKData) -> LKData {
+        if rhs.errored { return rhs }
+        if lhs.errored { return lhs }
         switch op {
-            case .nilCoalesce    : return lhs.isNil || lhs.errored ? rhs : lhs
+            case .nilCoalesce    : return lhs.isNil ? rhs : lhs
             /// Equatable conformance passthrough
             case .equal          : return .bool(lhs == rhs)
             case .unequal        : return .bool(lhs != rhs)
@@ -294,17 +294,19 @@ internal struct LKExpression: LKSymbol {
     /// Evaluate a ternary expression
     private func evalTernary(_ symbols: inout LKVarStack) -> LKData {
         let condition = first.evaluate(&symbols)
+        if condition.errored { return condition }
         switch condition.bool {
             case .some(true),
-                 .none where !condition.isNil: return second.evaluate(&symbols)
+                 .none where !condition.isNil  : return second.evaluate(&symbols)
             case .some(false),
-                 .none where condition.isNil: return third!.evaluate(&symbols)
-            case .none: __MajorBug("Ternary condition returned non-bool")
+                 .none where condition.isNil   : return third!.evaluate(&symbols)
+            case .none: __Unreachable("Ternary condition returned non-bool")
         }
     }
 
     /// Evaluate a prefix expression
     private func evalPrefix(_ op: LeafOperator, _ rhs: LKData) -> LKData {
+        if rhs.errored { return rhs }
         switch op {
             // nil == false; ergo !nil == true
             case .not   : return .bool(!(rhs.bool ?? false))
@@ -313,12 +315,13 @@ internal struct LKExpression: LKSymbol {
                 if case .int(let i) = rhs.container { return .int(-1 * i) }
                 else if case .double(let d) = rhs.container { return .double(-1 * d) }
                 else { fallthrough }
-            default     :  return .trueNil
+            default     :  return .error(internal: "Unhandled prefix operator")
         }
     }
 
     /// Evaluate a postfix expression
-    private func evalPostfix(_ lhs: LKData, _ op: LeafOperator) -> LKData { .trueNil }
+    private func evalPostfix(_ lhs: LKData, _ op: LeafOperator) -> LKData {
+        lhs.errored ? lhs : .error(internal: "Unhandled postfix operator") }
 
     /// Encapsulated calculation for `>, >=, <, <=`
     /// Nil returning unless both sides are in [.int, .double] or both are string-convertible & non-nil

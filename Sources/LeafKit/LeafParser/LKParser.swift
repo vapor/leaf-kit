@@ -11,7 +11,7 @@ internal struct LKParser {
         self.entities = LKConf.entities
         self.key = key
         self.tokens = tokens
-        self.rawStack = [entities.raw.instantiate(size: 0, encoding: LKConf.encoding)]
+        self.rawStack = [entities.raw.instantiate(size: 0, encoding: context.encoding)]
         self.literals = .init(context: context.literalsOnly, stack: [])
         self.literals.context.options = [.missingVariableThrows(true)]
     }
@@ -88,7 +88,7 @@ internal struct LKParser {
             return appendRaw(string)
         }
 
-        /// 3. Off chance it's tI @ EOF - append a raw tag indicator
+        /// 3. Off chance it's tagIndicator @ EOF - append a raw tag indicator
         guard peek != nil else { return appendRaw(Character.tagIndicator.description) }
 
         /// 4. .tagIndicator is *always* followed by .tag - anything else is Lexer error
@@ -103,6 +103,8 @@ internal struct LKParser {
             if var v = tuple[0] {
                 if v.resolved && v.invariant { v = .value(v.evaluate(&literals)) }
                 guard append(v) else { return false }
+            } else {
+                append(.value(.trueNil))
             }
             /// Decay trailing colon to raw :
             if peek == .blockMark { appendRaw(":"); offset += 1 }
@@ -233,6 +235,7 @@ internal struct LKParser {
         var newRaw = type(of: rawStack.last!).instantiate(size: UInt32(raw.count),
                                                           encoding: rawStack.last!.encoding)
         newRaw.append(.string(raw))
+        if let e = newRaw.error { return bool((e as? LeafError) ?? err(e.localizedDescription)) }
         underestimatedSize += newRaw.byteCount
         let checkAt = scopes[currentScope].count - 2
         let blockCheck: Bool
@@ -400,12 +403,13 @@ internal struct LKParser {
                 scopes[currentScope].append(.scope(nil))
                 if isBlock { appendRaw(":") }
             case .rawSwitch:
-                guard tuple?.isEmpty ?? true else { return bool(err("Using #\(name)() with parameters is not yet supported")) }
-                if isBlock {
-                    /// When enabled, type will be picked from parameter & params will be passed
-                    rawStack.append(type(of: rawStack.last!).instantiate(size: 0, encoding: LKConf.encoding))
-                    return openBlock(name, RawSwitch(type(of: rawStack.last!), .init()), nil)
-                }
+                return bool(err("Raw switching blocks not yet supported"))
+//                guard tuple?.isEmpty ?? true else { return bool(err("Using #\(name)() with parameters is not yet supported")) }
+//                if isBlock {
+//                    /// When enabled, type will be picked from parameter & params will be passed
+//                    rawStack.append(type(of: rawStack.last!).instantiate(size: 0, encoding: LKROption.encoding))
+//                    return openBlock(name, RawSwitch(type(of: rawStack.last!), .init()), nil)
+//                }
         }
         return true
     }
@@ -891,7 +895,7 @@ internal struct LKParser {
         /// open the first complex expression, param label, and tuple, etc.
         newTuple(function)
 
-        // MARK: - Paramter parsing cycle
+        // MARK: - Parameter parsing cycle
         parseCycle:
         while error == nil, let next = pop() {
             switch next {

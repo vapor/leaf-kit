@@ -64,7 +64,6 @@ public protocol LeafCache {
     func dropAll()
 }
 
-
 public extension LeafCache {
     var isEmpty: Bool { count == 0 }
 }

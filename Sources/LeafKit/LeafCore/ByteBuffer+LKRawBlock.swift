@@ -2,8 +2,8 @@ import Foundation
 import NIOFoundationCompat
 
 extension ByteBuffer: LKRawBlock {
-    var error: String? { nil }
-    var encoding: String.Encoding { LKConf.encoding }
+    var error: Error? { nil }
+    var encoding: String.Encoding { .utf8 }
     
     static var recall: Bool { false }
 
@@ -34,7 +34,7 @@ extension ByteBuffer: LKRawBlock {
         }
         switch data.celf {
             case .bool       : write(LeafBuffer.boolFormatter(data.bool!))
-            case .data       : write(LeafBuffer.dataFormatter(data.data!) ?? "")
+            case .data       : write(LeafBuffer.dataFormatter(data.data!, .utf8) ?? "")
             case .double     : write(LeafBuffer.doubleFormatter(data.double!))
             case .int        : write(LeafBuffer.intFormatter(data.int!))
             case .string     : write(LeafBuffer.stringFormatter(wrapString ? "\"\(data.string!)\"": data.string!))
@@ -58,10 +58,11 @@ extension ByteBuffer: LKRawBlock {
         }
     }
     
+    mutating func voidAction() {}
     mutating func close() {}
 
     var byteCount: UInt32 { UInt32(readableBytes) }
     var contents: String { getString(at: readerIndex, length: readableBytes) ?? "" }
     
-    mutating func write(_ str: String) { try! writeString(str, encoding: LKConf.encoding) }
+    mutating func write(_ str: String) { try! writeString(str, encoding: encoding) }
 }

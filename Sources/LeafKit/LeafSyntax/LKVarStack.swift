@@ -12,7 +12,7 @@ internal struct LKVarStack {
         var err: LKData { .error(internal: "No value for \(variable.terse) in context") }
         let result = _match(variable)
         return !context.missingVariableThrows ? result?.errored ?? true ? .trueNil : result!
-                                             : result ?? err
+                                              : result ?? err
     }
     
     /// Locate the `LKVariable` in the stack, if possible - prefer `match` but useful in some situations

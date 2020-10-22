@@ -7,9 +7,9 @@ internal extension LeafEntities {
     func registerMetaBlocks() {
         use(RawSwitch.self , asMeta: "raw")
         use(Define.self    , asMeta: "define")
-        use(Define.self    , asMeta: "def")
+        //use(Define.self    , asMeta: "def")
         use(Evaluate.self  , asMeta: "evaluate")
-        use(Evaluate.self  , asMeta: "eval")
+        //use(Evaluate.self  , asMeta: "eval")
         use(Inline.self    , asMeta: "inline")
     }
 }

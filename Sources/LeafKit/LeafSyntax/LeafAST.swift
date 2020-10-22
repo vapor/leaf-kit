@@ -228,18 +228,21 @@ internal extension LeafAST {
     }
 
     /// Inline raw ByteBuffers
-    mutating func inline(raws: [String: ByteBuffer]) {
-        raws.forEach { inline(name: $0, raw: $1) } }
+    mutating func inline(raws: [String: ByteBuffer], cacheLimit: UInt32 = UInt32.max) {
+        raws.forEach { inline(name: $0, raw: $1, cacheLimit: cacheLimit) } }
     
-    mutating func inline(name: String, raw: ByteBuffer) {
+    /// 
+    mutating func inline(name: String, raw: ByteBuffer, cacheLimit: UInt32) {
+        guard info.requiredRaws.contains(name) else { return }
         info.requiredRaws.remove(name)
-        if raw.readableBytes <= LKConf.rawCachingLimit { cached = false }
         raws[name] = raw
+        if raw.byteCount <= cacheLimit { cached = false }
     }
     
-    mutating func stripOversizeRaws() {
+    mutating func stripOversizeRaws(cacheLimit: UInt32 = 0) {
+        guard cacheLimit != 0 else { raws = [:]; return }
         raws.keys.forEach {
-            if raws[$0]!.readableBytes > LKConf.rawCachingLimit {
+            if raws[$0]!.readableBytes > cacheLimit {
                 raws[$0] = nil
                 info.requiredRaws.insert($0)
             }
@@ -263,7 +266,7 @@ internal extension LeafAST {
         info.stackDepths = stackDepths
     }
 
-    var formatted: String { summary + scopes.formatted }
+    var formatted: String { summary + "\n" + scopes.formatted }
     var terse: String { scopes.terse }
 
     var summary: String {

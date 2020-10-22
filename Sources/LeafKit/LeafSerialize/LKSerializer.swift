@@ -40,7 +40,7 @@ internal final class LKSerializer {
         self.context.stack.append(([], LKVarTablePtr.allocate(capacity: 1)))
         self.bufferStack.append(UnsafeMutablePointer<LKRawBlock>.allocate(capacity: 1))
         self.bufferStack[0].initialize(to: output.instantiate(size: ast.info.touch.sizeAvg,
-                                                              encoding: LKConf.encoding))
+                                                              encoding: context.encoding))
         self.stack = .init(repeating: .init(bufferStack[0]),
                            count: Int(ast.info.stackDepths.overallMax))
         self.stack[0].allocated = true
@@ -83,8 +83,11 @@ internal final class LKSerializer {
                     guard let run = block != nil ? evaluateScope() : true else { break serialize }
                     guard run else { continue serialize }
                     switch ast.scopes[(table * -1) - 1][offset].container {
-                        case .raw(var raw): append(&raw)
                         case .passthrough(let param): append(param.evaluate(&context))
+                        case .raw(var raw):
+                            append(&raw)
+                            buffer.pointee.close()
+                            buffer.pointee.voidAction()
                         default: __MajorBug("Non-atomic atomic scope")
                     }
                     if cutoff { break serialize }
@@ -93,12 +96,17 @@ internal final class LKSerializer {
                 while count! > 0, !cutoff {
                     guard reEvaluateScope() else { continue serialize }
                     switch ast.scopes[(-1 * table) - 1][offset].container {
-                        case .raw(var raw): append(&raw)
                         case .passthrough(let param): append(param.evaluate(&context))
+                        case .raw(var raw):
+                            append(&raw)
+                            buffer.pointee.close()
+                            buffer.pointee.voidAction()
                         default: __MajorBug("Non-atomic atomic scope")
                     }
                 }
-
+                if cutoff && count! > 0 { break serialize }
+                buffer.pointee.close()
+                buffer.pointee.voidAction()
                 advance()
                 closeScope()
                 continue
@@ -109,51 +117,54 @@ internal final class LKSerializer {
             switch next?.container {
                 // Basic cases. Append evaluated atomics/raws to the current buffer
                 case .raw(var raw)           : append(&raw)
-                case .passthrough(let param) :
-                    if case .expression(let exp) = param {
-                        if exp.form.exp == .assignment {
-                            let result = exp.evalAssignment(&context)
-                            switch result {
-                                case .success(let val): assignValue(val.0, val.1)
-                                case .failure(let err): return .failure(err)
-                            }
-                        } else if let x = exp.declaresVariable {
-                            if !allocated {
-                                allocated = true
-                                contextDepth += 1
-                                context.stack.append(([], .allocate(capacity: 1)))
-                                vars.initialize(to: .init())
-                                vars.pointee[x.variable] = .trueNil
-                            }
-                            context.stack[contextDepth].ids.insert(x.variable.member!)
-                            assignValue(x.variable, x.set?.evaluate(&context) ?? .trueNil)
-                        } else { append(param.evaluate(&context)) }
-                        break
+                case .passthrough(.expression(let exp)) where exp.form.exp == .assignment:
+                    buffer.pointee.voidAction()
+                    switch exp.evalAssignment(&context) {
+                        case .success(let val): assignValue(val.0, val.1)
+                        case .failure(let err): return .failure(err)
                     }
-                    
+                case .passthrough(.expression(let exp)):
+                    if let x = exp.declaresVariable {
+                        buffer.pointee.voidAction()
+                        if !allocated {
+                            allocated = true
+                            contextDepth += 1
+                            context.stack.append(([], .allocate(capacity: 1)))
+                            vars.initialize(to: .init())
+                            vars.pointee[x.variable] = .trueNil
+                        }
+                        context.stack[contextDepth].ids.insert(x.variable.member!)
+                        assignValue(x.variable, x.set?.evaluate(&context) ?? .trueNil)
+                    } else { append(exp.evaluate(&context)) }
+                case .passthrough(let param) :
                     append(param.evaluate(&context))
                 // Blocks
                 case .block(_, let b, let p):
+                    var elideVoidAction = false
                     /// Handle meta first
                     if let meta = b as? LKMetaBlock {
+                        elideVoidAction = true
                         switch meta.form {
                             case .inline    :
                                 let inline = meta as! Inline
                                 /// If inline type is `leaf`, elide - scope block dictates action
                                 guard !inline.process else { break }
-                                guard let b = ast.raws[inline.file] else {
+                                guard var raw: LKRawBlock = ast.raws[inline.file] else {
                                     return .failure(err(.missingRaw(inline.file))) }
                                 guard let rawBlockType = LKConf.entities.rawFactories[inline.rawIdentifier!] else {
                                     return .failure(err(.unknownError("No such raw block type for `\(inline.rawIdentifier!)`"))) }
-                                var inlineRaw = b as LKRawBlock
-                                var rawBlock = rawBlockType.instantiate(size: inlineRaw.byteCount, encoding: LKConf.encoding)
-                                rawBlock.append(&inlineRaw)
-                                if let e = rawBlock.error { return .failure(err(.unknownError(e))) }
+                                var rawBlock = rawBlockType.instantiate(size: raw.byteCount, encoding: context.context.encoding)
+                                rawBlock.append(&raw)
+                                if let e = rawBlock.error {
+                                    return .failure((e as? LeafError) ?? err(e.localizedDescription)) }
                                 buffer.pointee.append(&rawBlock)
                                 advance(by: 2)
                                 continue serialize
-                            case .rawSwitch : break /// Until raw Blocks are added, non-op - raw stack will always be ByteBuffer
+                            case .rawSwitch :
+                                /// Until raw Blocks are added, non-op - raw stack will always be ByteBuffer
+                                break
                             case .define    :
+                                buffer.pointee.voidAction()
                                 /// Push the scope pointer into the current stack's defines and skip next syntax
                                 let define = meta as! Define
                                 let id = define.identifier
@@ -188,6 +199,8 @@ internal final class LKSerializer {
                                 continue serialize
                         }
                     }
+                    
+                    if !elideVoidAction { buffer.pointee.voidAction() }
                     /// Otherwise actual scopes: Next check if a chained block and not at end of scope.
                     if let chained = b as? ChainedBlock {
                         if breakChain == true {
@@ -212,9 +225,17 @@ internal final class LKSerializer {
                 /// Evaluate scope, handle as necessary
                 case .scope: __Unreachable("Evaluation fail - should never hit scope")
                 /// Not in the top level scope and hit the end of the table but not done - repeat
-                case .none where count != 0 : stack[stackDepth].offset = 0; continue serialize
+                case .none where count != 0:
+                    buffer.pointee.close()
+                    buffer.pointee.voidAction()
+                    stack[stackDepth].offset = 0
+                    continue serialize
                 /// Done with current scope
-                case .none: closeScope(); continue serialize
+                case .none:
+                    buffer.pointee.close()
+                    buffer.pointee.voidAction()
+                    closeScope()
+                    continue serialize
             }
             advance()
         }
@@ -222,6 +243,7 @@ internal final class LKSerializer {
         if error != nil { return .failure(error!) }
         
         stack.removeAll()
+        buffer.pointee.close()
         output = self.bufferStack[0].pointee
         return .success(Date.timeIntervalSinceReferenceDate - start + duration)
     }
@@ -421,12 +443,13 @@ private extension LKSerializer {
 private extension LKSerializer {
     @inline(__always) func append(_ block: inout LKRawBlock) {
         buffer.pointee.append(&block)
-        if let e = buffer.pointee.error { void(err("Serialize Error: \(e)")) }
+        if let e = buffer.pointee.error { void((e as? LeafError) ?? err("Serialize Error: \(e)")) }
     }
     
     @inline(__always) func append(_ data: LeafData) {
         if data.errored { error = err(.unknownError(data.error!)); return }
-        if !data.isNil || data.isTrueNil { stack[stackDepth].buffer.pointee.append(data) }
+        if data.celf == .void { stack[stackDepth].buffer.pointee.voidAction() }
+        else { stack[stackDepth].buffer.pointee.append(data) }
     }
 }
 

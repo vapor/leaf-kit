@@ -195,9 +195,14 @@ internal struct LKLexer {
                 if pop() != .quote { throw unterminatedString }
                 return .param(.literal(.string(accumulate)))
             case .tagIndicator       : /// A comment - silently discard
-                src.readWhileNot([.tagIndicator])
-                if pop() != .tagIndicator {
-                    throw unknownError("Template ended in open comment") }
+                var x = src.readWhileNot([.tagIndicator])
+                while x.last == .backSlash {
+                    /// Read until hitting an unescaped tagIndicator
+                    if current == .tagIndicator { pop() }
+                    if current != nil { x = src.readWhileNot([.tagIndicator]) }
+                }
+                if current == nil { throw unknownError("Template ended in open comment") }
+                pop()
                 return nil
             default                  : break
         }

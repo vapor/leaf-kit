@@ -2,8 +2,8 @@ internal extension LeafEntities {
     func registerIntReturns() {
         use(CollectionToIntMap.count , asMethod: "count")
         use(StrToIntMap.count        , asMethod: "count")
-        use(IntIntToIntMap._min      , asFunction: "min")
-        use(IntIntToIntMap._max      , asFunction: "max")
+        //use(IntIntToIntMap._min      , asFunction: "min")
+        //use(IntIntToIntMap._max      , asFunction: "max")
     }
 }
 

@@ -1,6 +1,8 @@
 // MARK: Subject to change prior to 1.0.0 release
 // MARK: -
 
+import Foundation
+
 // MARK: `LeafError` Summary
 
 public typealias LeafErrorCause = LeafError.Reason
@@ -74,12 +76,12 @@ public struct LeafError: Error, CustomStringConvertible {
     public let column: UInt
     /// The specific reason for the error
     public let reason: Reason
-
+    
     /// Provide  a custom description of the `LeafError` based on type.
     ///
     /// - Where errors are caused by toolchain faults, will report the Swift source code location of the call
     /// - Where errors are from Lex or Parse errors, will report the template source location of the error
-    var localizedDescription: String {
+    public var localizedDescription: String {
         var m = "\(file.split(separator: "/").last ?? "?").\(function):\(line)\n"
         switch reason {
             case .illegalAccess(let r)        : m += r

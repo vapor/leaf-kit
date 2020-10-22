@@ -1,10 +1,10 @@
 // MARK: Subject to change prior to 1.0.0 release
 
-/// A `LKRawBlock` is a specialized `LeafBlock` that is provided raw ByteBuffer input.
+/// A `LKRawBlock` is a specialized `LeafBlock` that handles the output stream of Leaf processing.
 ///
 /// It may optionally process in another language and maintain its own state.
 internal protocol LKRawBlock: LeafFunction {
-    /// If the raw handler should be recalled after it has been provided its block's serialized contents
+    /// If the raw handler needs be signalled after it has been provided the contents of its entire block
     static var recall: Bool { get }
 
     /// Generate a `.raw` block
@@ -24,8 +24,11 @@ internal protocol LKRawBlock: LeafFunction {
     var serialized: (buffer: ByteBuffer, valid: Bool?) { get }
 
     /// Optional error information if the handler is stateful which LeafKit may choose to report/log.
-    var error: String? { get }
+    var error: Error? { get }
     
+    /// The encoding of the contents of the block.
+    ///
+    /// Incoming data appended to the block may be in a different encoding than the block itself expects.
     var encoding: String.Encoding { get }
 
     /// Append a second block to this one.
@@ -35,7 +38,13 @@ internal protocol LKRawBlock: LeafFunction {
     /// `block.serialized` to obtain a `ByteBuffer` to append
     mutating func append(_ block: inout LKRawBlock)
 
+    /// Append a `LeafData` object to the output stream
     mutating func append(_ data: LeafData)
+    
+    /// Signal that a non-outputting void Leaf action has happened
+    ///
+    /// Used to potentially strip unncessary whitespace from the template
+    mutating func voidAction()
     
     /// If type is `recall == true`, will be called when the block's scope is closed to allow cleanup/additions/validation
     mutating func close()

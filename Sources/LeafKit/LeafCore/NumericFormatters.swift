@@ -1,7 +1,7 @@
 internal extension LeafEntities {
     func registerNumericFormatters() {
-        use(DoubleFormatterMap.seconds, asFunctionAndMethod: "formatSeconds")
-        use(IntFormatterMap.bytes, asFunctionAndMethod: "formatBytes")
+        //use(DoubleFormatterMap.seconds, asFunctionAndMethod: "formatSeconds")
+        //use(IntFormatterMap.bytes, asFunctionAndMethod: "formatBytes")
     }
 }
 

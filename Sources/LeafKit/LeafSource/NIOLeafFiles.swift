@@ -56,8 +56,8 @@ public extension NIOLeafFiles {
     /// `viewDirectory` must be contained within (or overlap) `sandboxDirectory`
     init(fileio: NonBlockingFileIO,
          limits: Limit = .default,
-         sandboxDirectory: String = "/",
-         viewDirectory: String = "/",
+         sandboxDirectory: String = LeafSources.rootDirectory,
+         viewDirectory: String = LeafSources.rootDirectory,
          defaultExtension: String = LeafSources.defaultExtension) {
         self.fileio = fileio
         self.lim = limits

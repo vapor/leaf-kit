@@ -14,11 +14,8 @@ final class GHLeafIssuesTest: LeafTestClass {
         #endfor
         """
         let expected = """
-
             tanner: index=0 last=false first=true
-
             ziz: index=1 last=false first=false
-
             vapor: index=2 last=true first=false
 
         """
