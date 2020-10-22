@@ -18,11 +18,6 @@ public struct LeafDataGenerator {
     public static func lazy(_ value: @escaping @autoclosure () -> LeafDataRepresentable) -> Self {
         .init(.lazy(.lazy(f: {value().leafData}, returns: .void))) }
     
-    /// Produce a generator that defers evaluation of the parameter until `LeafRenderer` accesses it
-    public static func lazy(_ value: @escaping @autoclosure () -> [String: LeafDataRepresentable]) -> Self {
-        .init(.lazy(.lazy(f: {.dictionary(value().mapValues {$0.leafData})}, returns: .void)))
-    }
-    
     init(_ value: Container) { self.container = value }
     let container: Container
     

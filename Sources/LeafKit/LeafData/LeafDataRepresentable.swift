@@ -13,67 +13,82 @@ public protocol LeafDataRepresentable {
     var leafData: LeafData { get }
 }
 
+/// `LeafDataRepresentable` with a specified, fixed data type that is *always* returned (whether optional or not)
+public protocol LeafDataFixedRepresentation: LeafDataRepresentable {
+    static var celf: LeafDataType { get }
+}
+
 // MARK: - Default Conformances
 
-extension String: LeafDataRepresentable {
+extension String: LeafDataFixedRepresentation {
+    public static var celf: LeafDataType { .string }
     public var leafData: LeafData { .string(self) }
 }
 
 extension FixedWidthInteger {
-    public var leafData: LeafData { Int(exactly: self).map { .int($0) } ?? .int(nil) }
+    public static var celf: LeafDataType { .int }
+    public var leafData: LeafData { .int(Int(exactly: self)) }
 }
 
-extension Int8: LeafDataRepresentable {}
-extension Int16: LeafDataRepresentable {}
-extension Int32: LeafDataRepresentable {}
-extension Int64: LeafDataRepresentable {}
-extension Int: LeafDataRepresentable {}
-extension UInt8: LeafDataRepresentable {}
-extension UInt16: LeafDataRepresentable {}
-extension UInt32: LeafDataRepresentable {}
-extension UInt64: LeafDataRepresentable {}
-extension UInt: LeafDataRepresentable {}
+extension Int8: LeafDataFixedRepresentation {}
+extension Int16: LeafDataFixedRepresentation {}
+extension Int32: LeafDataFixedRepresentation {}
+extension Int64: LeafDataFixedRepresentation {}
+extension Int: LeafDataFixedRepresentation {}
+extension UInt8: LeafDataFixedRepresentation {}
+extension UInt16: LeafDataFixedRepresentation {}
+extension UInt32: LeafDataFixedRepresentation {}
+extension UInt64: LeafDataFixedRepresentation {}
+extension UInt: LeafDataFixedRepresentation {}
 
 extension BinaryFloatingPoint {
-    public var leafData: LeafData { Double(exactly: self).map { .double($0) } ?? .double(nil) }
+    public static var celf: LeafDataType { .double }
+    public var leafData: LeafData { .double(Double(exactly: self)) }
 }
 
-extension Float: LeafDataRepresentable {}
-extension Double: LeafDataRepresentable {}
+extension Float: LeafDataFixedRepresentation {}
+extension Double: LeafDataFixedRepresentation {}
 #if arch(i386) || arch(x86_64)
-extension Float80: LeafDataRepresentable {}
+extension Float80: LeafDataFixedRepresentation {}
 #endif
 
-extension Bool: LeafDataRepresentable {
+extension Bool: LeafDataFixedRepresentation {
+    public static var celf: LeafDataType { .bool }
     public var leafData: LeafData { .bool(self) }
 }
 
-extension UUID: LeafDataRepresentable {
+extension UUID: LeafDataFixedRepresentation {
+    public static var celf: LeafDataType { .string }
     public var leafData: LeafData { .string(description) }
 }
 
-extension Date: LeafDataRepresentable {
+extension Date: LeafDataFixedRepresentation {
+    public static var celf: LeafDataType { .double }
     /// `Date` conversion is reliant on the configured `LeafTimestamp.referenceBase`
     public var leafData: LeafData {
         .double(timeIntervalSince(Date(timeIntervalSinceReferenceDate: LeafTimestamp.referenceBase.interval))) }
 }
 
-extension Array where Element == LeafData {
-    public var leafData: LeafData { .array(map {$0}) }
-}
-
-extension Dictionary where Key == String, Value == LeafData {
-    public var leafData: LeafData { .dictionary(mapValues {$0}) }
-}
-
-extension Set: LeafDataRepresentable where Element: LeafDataRepresentable {
+extension Set: LeafDataRepresentable, LeafDataFixedRepresentation
+                                    where Element: LeafDataRepresentable {
+    public static var celf: LeafDataType { .array }
     public var leafData: LeafData { .array(map {$0.leafData}) }
 }
 
-extension Array: LeafDataRepresentable where Element: LeafDataRepresentable {
+extension Array: LeafDataRepresentable, LeafDataFixedRepresentation
+                                    where Element: LeafDataRepresentable {
+    public static var celf: LeafDataType { .array }
     public var leafData: LeafData { .array(map {$0.leafData}) }
 }
 
-extension Dictionary: LeafDataRepresentable where Key == String, Value: LeafDataRepresentable {
+extension Dictionary: LeafDataRepresentable, LeafDataFixedRepresentation
+                       where Key == String, Value: LeafDataRepresentable {
+    public static var celf: LeafDataType { .dictionary }
     public var leafData: LeafData { .dictionary(mapValues {$0.leafData}) }
+}
+
+extension Optional: LeafDataRepresentable, LeafDataFixedRepresentation
+                       where Wrapped: LeafDataFixedRepresentation {
+    public static var celf: LeafDataType { Wrapped.celf }
+    public var leafData: LeafData { self?.leafData ?? .init(.optional(nil, Self.celf)) }
 }
