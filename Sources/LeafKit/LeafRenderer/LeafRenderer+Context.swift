@@ -210,6 +210,8 @@ public extension LeafRenderer.Context {
     /// When stacking multiple contexts, only a root context may contain literals, so overlaying any
     /// additional context values must be entirely variable (and if conflicts occur in a value where the
     /// underlaying context holds a literal value, will error).
+    ///
+    /// If a context has options, those set in the second context will always override the lower context's options.
     mutating func overlay(_ secondary: Self) throws {
         guard !secondary.isRootContext else { throw err("Overlaid contexts cannot be root contexts") }
         try secondary.unsafeObjects.forEach {
@@ -229,6 +231,10 @@ public extension LeafRenderer.Context {
                     contexts[k]![key] = v[key]
                 }
             }
+        }
+        if secondary.options != nil  {
+            if options == nil { options = secondary.options }
+            else { secondary.options!._storage.forEach { options!._storage.update(with: $0) }  }
         }
     }
 }

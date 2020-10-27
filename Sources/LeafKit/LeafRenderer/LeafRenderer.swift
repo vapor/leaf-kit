@@ -127,13 +127,14 @@ public final class LeafRenderer {
         /// Context must be set as root as initialization in order to allow values to be set as literal
         public let isRootContext: Bool
         
+        /// Render-specific option overrides
+        public var options: Options? = nil
+        
         // MARK: Internal Stored Properties
         internal var contexts: [LKVariable: LKContextDictionary] = [:]
         internal var unsafeObjects: UnsafeObjects = [:]
         internal var objects: [String: [(ObjectMode, Any, Set<String>)]] = [:]
         internal var anyLiteral: Bool = false
-        /// Render-specific option overrides
-        internal var options: Options? = nil
     }
 }
 
