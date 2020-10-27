@@ -45,7 +45,7 @@ internal struct LKDataValue: LeafDataRepresentable {
         case literal(LeafData)
         case variable(LeafDataRepresentable, LeafData?)
         
-        var isVariable: Bool { if case .variable = self { return true } else { return true } }
+        var isVariable: Bool { if case .variable = self { return true } else { return false } }
         var leafData: LeafData {
             switch self {
                 case .variable(_, .some(let v)),

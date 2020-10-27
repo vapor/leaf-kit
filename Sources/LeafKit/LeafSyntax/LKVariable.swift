@@ -55,7 +55,8 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
     var terse: String {
         isDefine ? state.contains(.blockDefine) ? "define(\(member!))" : "\(member!)()"
                  : !isScoped ? String(flat.dropFirst(2))
-                             : isSelfScoped ? "self\(!isScope ? ".\(member!)" : "")" : flat }
+                             : isSelfScoped ? "self\(!isScope ? ".\(member!)" : "")"
+                                            : flat.replacingOccurrences(of: ":", with: ".") }
     
     static let selfScope = "context"
 
