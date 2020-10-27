@@ -333,7 +333,7 @@ internal struct LKParser {
         
         x.subtract(requiredVars)
         x = x.filter { !requiredVars.contains($0.contextualized) }
-        requiredVars.formUnion(x.map( {$0.contextualized}))
+        requiredVars.formUnion(x)
         return true
     }
     
@@ -494,9 +494,8 @@ internal struct LKParser {
                 }
                 
                 if name == "let" { identifier.state.formUnion(.constant) }
-                scopes[currentScope].append(.passthrough(.expression(.expressAny([
-                    .keyword(name == "var" ? .var : .let), .variable(identifier), value
-                ])!)))
+                return append(.expression(.expressAny([.keyword(name == "var" ? .var : .let), .variable(identifier), value
+                ])!))
         }
         return true
     }

@@ -441,8 +441,7 @@ final class LeafTests: LeafTestClass {
         
         XCTAssertTrue(info.requiredASTs == ["template"])
         XCTAssertTrue(info.requiredRaws == ["template"])
-        print(info.requiredVars)
-        XCTAssertTrue(info.requiredVars == ["self.variable", "self.aThirdVariable", "$scope:scoped"])
+        XCTAssertTrue(info.requiredVars == ["variable", "aThirdVariable", "$scope.scoped"])
         XCTAssertTrue(!info.requiredVars.contains("aDeclaredVariable"))
         XCTAssertTrue(info.stackDepths.overallMax == 2)
     }
@@ -485,5 +484,15 @@ final class LeafTests: LeafTestClass {
             XCTAssert(($0 as! LeafError).description
                         .contains("No value for nonExistantVariable in context"))
         }
+    }
+    
+    func testVarPassing() throws {
+        let test = LeafTestFiles()
+        test.files["/a.leaf"] = "#(title)"
+        test.files["/b.leaf"] = "#let(title = \"Hello\")\n#inline(\"a\")"
+        
+        let renderer = TestRenderer(sources: .singleSource(test))
+        
+        try _ = renderer.render(path: "b").wait()
     }
 }

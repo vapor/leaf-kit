@@ -333,7 +333,8 @@ private extension LeafRenderer {
         var needed = Set<LKVariable>(ast.info._requiredVars
                                         .map {$0.isDefine ? $0 : !$0.isScoped ? $0.contextualized : $0})
         needed.subtract(context.allVariables)
-        needed = needed.filter { !$0.isCoalesced }
+        needed.subtract(needed.compactMap {$0.isCoalesced ? $0 : nil})
+        needed.subtract(needed.compactMap {context.allVariables.contains($0.contextualized) ? $0 : nil})
         
         let shouldThrow = needed.isEmpty ? false : context.missingVariableThrows
         
