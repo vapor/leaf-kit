@@ -24,38 +24,52 @@
 /// # TODO
 /// - LKTokens would ideally also store the range of their location in the original source template
 /// - Tracking `.whiteSpace` in .`raw` to handle regularly formatted indentation, drop extraneous \n etc
-internal enum LKToken: LKPrintable, Hashable  {
-    /// Holds a variable-length string of data that will be passed through with no processing
-    case raw(String)
-
-    /// `#` (or as configured) - Top-level signal that indicates a Leaf tag/syntax object will follow.
-    case tagMark
+internal struct LKToken: LKPrintable, Hashable  {
+    internal init(_ token: LKToken.Container, _ source: (String, Int, Int)) {
+        self.token = token
+        self.source = source
+    }
     
-    /// Holds the name of an expected tag or syntax object (eg, `for`) in `#for(index in array)`
-    ///
-    /// - Nil: Anonymous tag (top level expression)
-    /// - Non-nil:  A named function or block, or an endblock tag
-    case tag(String?)
-    /// `:` - Indicates the start of a scoped body-bearing block
-    case blockMark
+    func hash(into hasher: inout Hasher) { hasher.combine(token) }
+    static func == (lhs: LKToken, rhs: LKToken) -> Bool { lhs.token == rhs.token }
+    
+    let token: Container
+    let source: (String, Int, Int)
+    
+    enum Container: Hashable {
+        /// Holds a variable-length string of data that will be passed through with no processing
+        case raw(String)
 
-    /// `(` -  Indicates the start of a tag's parameters
-    case paramsStart
-    /// `:` - Indicates a delineation of `label : value` in parameters
-    case labelMark
-    /// `,` -  Indicates separation of a tag's parameters
-    case paramDelimit
-    /// Holds a `ParameterToken` enum
-    case param(Parameter)
-    /// `)` -  Indicates the end of a tag's parameters
-    case paramsEnd
+        /// `#` (or as configured) - Top-level signal that indicates a Leaf tag/syntax object will follow.
+        case tagMark
 
-    /// A stream of consecutive white space (currently only used inside parameters)
-    case whiteSpace(String)
+        /// Holds the name of an expected tag or syntax object (eg, `for`) in `#for(index in array)`
+        ///
+        /// - Nil: Anonymous tag (top level expression)
+        /// - Non-nil:  A named function or block, or an endblock tag
+        case tag(String?)
+        /// `:` - Indicates the start of a scoped body-bearing block
+        case blockMark
+
+        /// `(` -  Indicates the start of a tag's parameters
+        case paramsStart
+        /// `:` - Indicates a delineation of `label : value` in parameters
+        case labelMark
+        /// `,` -  Indicates separation of a tag's parameters
+        case paramDelimit
+        /// Holds a `ParameterToken` enum
+        case param(Parameter)
+        /// `)` -  Indicates the end of a tag's parameters
+        case paramsEnd
+
+        /// A stream of consecutive white space (currently only used inside parameters)
+        case whiteSpace(String)
+    }
+    
 
     /// Returns `"tokenCase"` or `"tokenCase(valueAsString)"` if associated value
     var description: String {
-        switch self {
+        switch token {
             case .raw(let r)        : return "\(short)(\(r.debugDescription))"
             case .tag(.some(let t)) : return "\(short)(\"\(t)\")"
             case .param(let p)      : return "\(short)(\(p.description))"
@@ -65,7 +79,7 @@ internal enum LKToken: LKPrintable, Hashable  {
 
     /// Token case
     var short: String {
-        switch self {
+        switch token {
             case .raw          : return "raw"
             case .tagMark      : return "tagIndicator"
             case .tag(.none)   : return "expression"
@@ -80,7 +94,7 @@ internal enum LKToken: LKPrintable, Hashable  {
         }
     }
     
-    var isTagMark: Bool { self == .tagMark }
+    var isTagMark: Bool { token == .tagMark }
 
     /// A token that represents the valid objects that will be lexed inside parameters
     enum Parameter: LKPrintable, Hashable {

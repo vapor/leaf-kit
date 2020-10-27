@@ -29,10 +29,10 @@ extension ByteBuffer: LKRawBlock {
     /// Appends data using configured serializer views
     mutating func _append(_ data: LeafData, wrapString: Bool = false) {
         guard !data.isNil else {
-            write(LeafBuffer.nilFormatter(data.celf.short))
+            write(LeafBuffer.nilFormatter(data.storedType.short))
             return
         }
-        switch data.celf {
+        switch data.storedType {
             case .bool       : write(LeafBuffer.boolFormatter(data.bool!))
             case .data       : write(LeafBuffer.dataFormatter(data.data!, .utf8) ?? "")
             case .double     : write(LeafBuffer.doubleFormatter(data.double!))

@@ -72,7 +72,8 @@ internal struct LKContextDictionary {
             return cached.match(key)
         }
         else if !allVariables.contains(key) { return nil }
-        else { frozen = true }
+        
+        frozen = true
         
         let value: LeafData?
         if key == parent {
@@ -86,6 +87,4 @@ internal struct LKContextDictionary {
         cached[key] = value
         return value
     }
-    
-    mutating func freeze() { frozen = true }
 }

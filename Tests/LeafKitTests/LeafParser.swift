@@ -37,7 +37,6 @@ final class LKParserTests: LeafTestClass {
         #for(value in collection): something #endfor
         #for((key, value) in collection): something #endfor
         #while($request.name.lowercased() == "aValue"): Maybe do something #endwhile
-        #repeat(while: self.name != nil): Do something at least once #endrepeat
         """
 
         let template2 = """
@@ -254,7 +253,7 @@ final class LKParserTests: LeafTestClass {
         #define(block):
         Is #(self["me"] + " " + name)?: #($context.me == name)
         #enddefine
-        #define(parameterEvaluable, ["tdotclare", "Teague"])
+        #define(parameterEvaluable = ["tdotclare", "Teague"])
         
         #evaluate(parameterEvaluable)
         #evaluate(block)
@@ -263,14 +262,14 @@ final class LKParserTests: LeafTestClass {
                             multiple...
                             lines. # )
 
-        #define(block, nil)
+        #define(block = nil)
         Defaulted : #evaluate(block ?? "Block doesn't exist")
         No default: #evaluate(block)
         """
 
         let context: [String: LeafData] = ["name": "Teague", "me": "Teague"]
         
-        let sampleAST = try parse(sample)
+        let sampleAST = try parse(sample, options: [.parseWarningThrows(false)])
         print(sampleAST.formatted)
         let serializer = LKSerializer(sampleAST, .init(context), LeafBuffer.self)
         var block = LeafBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
@@ -319,7 +318,7 @@ final class LKParserTests: LeafTestClass {
         """
 
         let parseExpected = """
-         0: [var $:x void()?]
+         0: [var $:x void?]
          2: [var $:y int(15)]
          4: [$:x = array(count: 0)]
          6: $:x
@@ -461,7 +460,7 @@ final class LKParserTests: LeafTestClass {
         """
         
         do { try _ = render(invalidConstant); XCTFail("Should have thrown") }
-        catch { XCTAssert((error as! LeafError).description.contains("x is constant; can't call mutating method `append()`")) }
+        catch { XCTAssert(error.localizedDescription.contains("Can't mutate; `x` is constant")) }
         
         let invalidConstantTwo = """
         #(let x)
@@ -469,7 +468,7 @@ final class LKParserTests: LeafTestClass {
         """
         
         do { try _ = render(invalidConstantTwo); XCTFail("Should have thrown") }
-        catch { XCTAssert((error as! LeafError).description.contains("`x` used before initialization")) }
+        catch { XCTAssert(error.localizedDescription.contains("Variable `x` used before initialization")) }
         
         let overloadScopeVariable = """
         #for(index in 10):
@@ -486,7 +485,7 @@ final class LKParserTests: LeafTestClass {
         """
         
         do { let x = try render(invalidScopeAssign); print(x); XCTFail("Should have thrown") }
-        catch { XCTAssert((error as! LeafError).description.contains("Can't assign; `self.x` is constant")) }
+        catch { XCTAssert(error.localizedDescription.contains("Can't assign; `self.x` is constant")) }
     }
     
     func testDefineNesting() throws {
@@ -522,6 +521,18 @@ final class LKParserTests: LeafTestClass {
         let expected = "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n"
         try print(parse(sample).formatted)
         try XCTAssertEqual(render(sample), expected)
+    }
+    
+    func testSubscriptAssignment() throws {
+        let sample = """
+        #var(x = [1])
+        #(x[0] = 10)
+        #(x)
+        """
+                
+        try XCTAssertThrowsError(render(sample)) {
+            XCTAssert($0.localizedDescription.contains("Assignment via subscripted access not yet supported"))
+        }
     }
 }
 

@@ -6,15 +6,15 @@ import Foundation
 // MARK: `LeafError` Summary
 
 public typealias LeafErrorCause = LeafError.Reason
-public typealias LexErrorCause = LexerError.Reason
-public typealias ParseErrorCause = ParserError.Reason
+public typealias LexErrorCause = LexError.Reason
+public typealias ParseErrorCause = ParseError.Reason
 
 /// `LeafError` reports errors during the template rendering process, wrapping more specific
 /// errors if necessary during Lexing and Parsing stages.
 ///
 /// #TODO
 /// - Implement a ParserError subtype
-public struct LeafError: Error, CustomStringConvertible {
+public struct LeafError: LocalizedError, CustomStringConvertible {
     /// Possible cases of a LeafError.Reason, with applicable stored values where useful for the type
     public enum Reason {
         // MARK: Errors related to loading raw templates
@@ -48,9 +48,13 @@ public struct LeafError: Error, CustomStringConvertible {
 
         // MARK: Wrapped Errors related to Lexing or Parsing
         /// Errors due to malformed template syntax or grammar
-        case lexerError(LexerError)
+        case lexError(LexError)
         /// Errors due to malformed template syntax or grammar
-        case parserError(ParserError)
+        case parseError(ParseError)
+        /// Warnings from parsing, if escalated to an error
+        case parseWarnings([ParseError])
+        /// Errors from serializing to a LKRawBlock
+        case serializeError(LeafFunction.Type, Error, SourceLocation)
         
         case invalidIdentifier(String)
 
@@ -99,12 +103,25 @@ public struct LeafError: Error, CustomStringConvertible {
             case .cyclicalReference(let k, let c)
                 : m += "\(k) cyclically referenced in [\((c + ["!\(k)"]).joined(separator: " -> "))]"
                 
-            case .lexerError(let e)           : m = "Lexing error - \(e.description)"
-            case .parserError(let e)          : m = "Parse error - \(e.description)"
+            case .lexError(let e)             : m = "Lexing error\n\(e.description)"
+            case .parseError(let e)           : m = "Parse \(e.description)"
+            case .serializeError(let f, let e, let l) :
+                m = """
+                Serializing error
+                Error from \(f) in template "\(l.name)" while appending data at \(l.line):\(l.column):
+                \(e.localizedDescription)
+                """
+            case .parseWarnings(let w)        :
+                guard !w.isEmpty else { break }
+                m = """
+                Template "\(w.first!.name)" Parse Warning\(w.count > 0 ? "s" : ""):
+                \(w.map {"\($0.line):\($0.column) - \($0.reason.description)"}.joined(separator: "\n"))
+                """
         }
         return m
     }
 
+    public var errorDescription: String? { localizedDescription }
     public var description: String { localizedDescription }
 
     /// Create a `LeafError` - only `reason` typically used as source locations are auto-grabbed
@@ -124,10 +141,10 @@ public struct LeafError: Error, CustomStringConvertible {
 // MARK: - `LexerError` Summary (Wrapped by LeafError)
 
 /// `LexerError` reports errors during the stage.
-public struct LexerError: Error, CustomStringConvertible {
+public struct LexError: Error, CustomStringConvertible {
     // MARK: - Public
 
-    public enum Reason {
+    public enum Reason: CustomStringConvertible {
         // MARK: Errors occuring during Lexing
         /// A character not usable in parameters is present when Lexer is not expecting it
         case invalidParameterToken(Character)
@@ -137,25 +154,33 @@ public struct LexerError: Error, CustomStringConvertible {
         case unterminatedStringLiteral
         /// Use in place of fatalError to indicate extreme issue
         case unknownError(String)
+        
+        public var description: String {
+            switch self {
+                case .invalidOperator(let o): return "`\(o)` is not a valid operator"
+                case .invalidParameterToken(let c): return "`\(c)` is not meaningful in context"
+                case .unknownError(let e): return e
+                case .unterminatedStringLiteral: return "Unterminated string literal"
+            }
+        }
     }
 
     /// Stated reason for error
     public let reason: Reason
-    /// Template source file line where error occured
-    public let line: Int
-    /// Template source column where error occured
-    public let column: Int
     /// Name of template error occured in
-    public let name: String
+    public var name: String { sourceLocation.name }
+    /// Template source file line where error occured
+    public var line: Int { sourceLocation.line }
+    /// Template source column where error occured
+    public var column: Int { sourceLocation.column }
+    
+    /// Template source location where error occured
+    internal let sourceLocation: SourceLocation
 
     // MARK: - Internal Only
 
     /// State of tokens already processed by Lexer prior to error
     internal let lexed: [LKToken]
-    /// Flag to true if lexing error is something that may be recoverable during parsing;
-    /// EG, `"#anhtmlanchor"` may lex as a tag name but fail to tokenize to tag because it isn't
-    /// followed by a left paren. Parser may be able to recover by decaying it to `.raw`.
-    internal let recoverable: Bool
 
     /// Create a `LexerError`
     /// - Parameters:
@@ -165,49 +190,105 @@ public struct LexerError: Error, CustomStringConvertible {
     ///   - recoverable: Flag to say whether the error can potentially be recovered during Parse
     internal init(_ reason: Reason,
                   _ src: LKRawTemplate,
-                  _ lexed: [LKToken] = [],
-                  recoverable: Bool = false) {
+                  _ lexed: [LKToken] = []) {
         self.reason = reason
         self.lexed = lexed
-        self.line = src.line
-        self.column = src.column
-        self.name = src.name
-        self.recoverable = recoverable
+        self.sourceLocation = src.state
     }
 
     /// Convenience description of source file name, error reason, and location in file of error source
-    var localizedDescription: String { "\"\(name)\": \(reason) - \(line):\(column)" }
+    var localizedDescription: String { "Error in template \"\(name)\" - \(line):\(column)\n\(reason.description)" }
     public var description: String { localizedDescription }
 }
 
 // MARK: - `ParserError` Summary (Wrapped by LeafError)
 /// `ParserError` reports errors during the stage.
-public struct ParserError: Error, CustomStringConvertible {
-    public enum Reason: CustomStringConvertible {
-        case noEntity(String, String)
-        case sameName(String, String, [String])
+public struct ParseError: Error, CustomStringConvertible {
+    public enum Reason: Error, CustomStringConvertible {
+        case noEntity(type: String, name: String)
+        case sameName(type: String, name: String, matches: [String])
+        case mutatingMismatch(name: String)
+        case cantClose(name: String, open: String?)
+        case parameterError(name: String, reason: String)
+        case unset(String)
+        case declared(String)
+        case unknownError(String)
+        case missingKey
+        case missingValue(isDict: Bool)
+        case noPostfixOperand
+        case unvaluedOperand
+        case missingOperator
+        case missingIdentifier
+        case invalidIdentifier(String)
+        case invalidDeclaration
+        case malformedExpression
+        case noSubscript
+        case keyMismatch
+        case constant(String, mutate: Bool = false)
         
         public var description: String {
-            var message = ""
             switch self {
-                case .noEntity(let t, let name): message += "No \(t) named `\(name)` exists"
+                case .constant(let v, let m): return "Can't \(m ? "mutate" : "assign"); `\(v)` is constant"
+                case .keyMismatch: return "Subscripting accessor is wrong type for object"
+                case .noSubscript: return "Non-collection objects cannot be subscripted"
+                case .malformedExpression: return "Couldn't close expression"
+                case .invalidIdentifier(let s): return "`\(s)` is not a valid Leaf identifier"
+                case .invalidDeclaration: return "Variable declaration may only occur at start of top level expression"
+                case .missingIdentifier: return "Missing expected identifier in expression"
+                case .missingOperator: return "Missing valid operator between operands"
+                case .unvaluedOperand: return "Can't operate on non-valued operands"
+                case .noPostfixOperand: return "Missing operand for postfix operator"
+                case .missingKey: return "Collection literal missing key"
+                case .missingValue(let dict): return "\(dict ? "Dictionary" : "Array") literal missing value"
+                case .unknownError(let e): return e
+                case .unset(let v): return "Variable `\(v)` used before initialization"
+                case .declared(let v): return "Variable `\(v)` is already declared in this scope"
+                case .cantClose(let n, let o):
+                    return o.map { "`\(n)` can't close `\($0)`" }
+                        ?? "No open block matching `\(n)` to close"
+                case .mutatingMismatch(let name):
+                    return "Mutating methods exist for \(name) but operand is immutable"
+                case .parameterError(let name, let reason):
+                    return "\(name)(...) couldn't be parsed: \(reason)"
+                case .noEntity(let t, let name):
+                    return "No \(t) named `\(name)` exists"
                 case .sameName(let t, let name, let matches):
-                    message += "No exact match for \(t) \(name); \(matches.count) possible matches:"
-                    message += matches.map { "\(name)\($0)" }.joined(separator: "\n")
+                    return "No exact match for \(t) \(name); \(matches.count) possible matches: \(matches.map { "\(name)\($0)" }.joined(separator: "\n"))"
             }
-            return message
         }
     }
     
     public let reason: Reason
-    public internal(set) var line: Int = 0
-    public internal(set) var column: Int = 0
-    public internal(set) var name: String = ""
+    public let recoverable: Bool
     
-    internal init(_ reason: Reason) { self.reason = reason }
+    /// Name of template error occured in
+    public var name: String { sourceLocation.name }
+    /// Template source file line where error occured
+    public var line: Int { sourceLocation.line }
+    /// Template source column where error occured
+    public var column: Int { sourceLocation.column }
+    
+    /// Template source location where error occured
+    let sourceLocation: SourceLocation
+    
+    
+    init(_ reason: Reason,
+         _ location: SourceLocation,
+         _ recoverable: Bool = false) {
+        self.reason = reason
+        self.sourceLocation = location
+        self.recoverable = recoverable
+    }
+    
+    static func error(_ reason: String, _ location: SourceLocation) -> Self {
+        .init(.unknownError(reason), location, false) }
+    static func error(_ reason: Reason, _ location: SourceLocation) -> Self {
+        .init(reason, location, false) }
+    static func warning(_ reason: Reason, _ location: SourceLocation) -> Self {
+        .init(reason, location, true) }
     
     /// Convenience description of source file name, error reason, and location in file of error source
-    var localizedDescription: String { "\"\(name)\": \(reason.description) - \(line):\(column)" }
+    var localizedDescription: String { "\(recoverable ? "Warning" : "Error") in template \"\(name)\"\n\(line):\(column) - \(reason.description)" }
     public var description: String { localizedDescription }
 }
 
@@ -229,7 +310,10 @@ func err(_ reason: String,
          _ column: UInt = #column) -> LeafError { err(.unknownError(reason), file, function, line, column) }
 
 @inline(__always)
-func parseErr(_ cause: ParseErrorCause) -> LeafError { .init(.parserError(.init(cause))) }
+func parseErr(_ cause: ParseErrorCause,
+              _ location: SourceLocation,
+              _ recoverable: Bool = false) -> LeafError {
+    .init(.parseError(.init(cause, location, recoverable))) }
 
 @inline(__always)
 func succeed<T>(_ value: T, on eL: EventLoop) -> ELF<T> { eL.makeSucceededFuture(value) }

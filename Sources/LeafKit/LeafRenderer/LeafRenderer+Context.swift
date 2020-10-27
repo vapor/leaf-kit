@@ -4,7 +4,8 @@ public extension LeafRenderer.Context {
     /// Initialize a context with the given dictionary assigned to `self`
     init(_ context: [String: LeafDataRepresentable], isRoot: Bool = false) {
         self.isRootContext = isRoot
-        try! setValues(to: context) }
+        try! setValues(to: context)
+    }
     
     /// Initialize a context with the given dictionary literal assigned to `self`
     init(dictionaryLiteral elements: (String, LeafDataRepresentable)...) {
@@ -14,23 +15,22 @@ public extension LeafRenderer.Context {
     init(dictionaryLiteral elements: (String, LeafData)...) {
         self = .init(.init(uniqueKeysWithValues: elements)) }
     
-    init?(encodable: [String: Encodable]) {
+    init?(encodable: [String: Encodable], isRoot: Bool = false) {
         let context = try? encodable.mapValues { e -> LeafDataRepresentable in
             let encoder = LKEncoder()
             try e.encode(to: encoder)
             return encoder
         }
         guard context != nil else { return nil }
-        self.init(context!)
+        self.init(context!, isRoot: isRoot)
     }
     
-    init?(encodable asSelf: Encodable) {
+    init?(encodable asSelf: Encodable, isRoot: Bool = false) {
         let encoder = LKEncoder()
         guard (try? asSelf.encode(to: encoder)) != nil,
               let dict = encoder.root?.leafData.dictionary else { return nil }
-        self.init(dict)
+        self.init(dict, isRoot: isRoot)
     }
-    
     
     static var defaultContextScope: String { LKVariable.selfScope }
     
@@ -93,7 +93,7 @@ public extension LeafRenderer.Context {
         let scopeVar = try getScopeKey(scope)
         guard isUpdateable(scopeVar, key) else { throw err("\(scope)[\(key)] is not settable") }
         if let isVariable = contexts[scopeVar]?[key]?.isVariable, !isVariable && !isLiteral {
-            throw err("\(scope)[\(key)] was already declared as constant - cannot change to variable")
+            throw err("\(scope)[\(key)] was already declared as literal - cannot change to variable")
         }
         self[scopeVar, key] = isLiteral ? .literal(value.leafData) : .variable(value)
     }
@@ -106,13 +106,13 @@ public extension LeafRenderer.Context {
         guard let isVariable = contexts[scopeVar]![key]?.isVariable else {
             throw err("Value must already be set to update") }
         guard isVariable || !LKConf.isRunning else {
-            throw err("Constant context values cannot be updated after LeafKit starts") }
+            throw err("Literal context values cannot be updated after LeafKit starts") }
         contexts[scopeVar]![key] = isVariable ? .variable(value) : .literal(value)
     }
     
     /// Lock an existing value as globally literal
-    mutating func lockAsLiteral(key: String,
-                                in scope: String = defaultContextScope) throws {
+    mutating func lockAsLiteral(in scope: String = defaultContextScope,
+                                key: String) throws {
         try literalGuard()
         let scopeVar = try validateScope(scope)
         if contexts[scopeVar]![key] == nil { throw nonExistant(scope, key) }
@@ -327,6 +327,9 @@ internal extension LeafRenderer.Context {
     var timeout: Double {
         if case .timeout(let b) = options?[.timeout] { return b }
         else { return LKROption.timeout } }
+    var parseWarningThrows: Bool {
+        if case .parseWarningThrows(let b) = options?[.parseWarningThrows] { return b }
+        else { return LKROption.parseWarningThrows } }
     var missingVariableThrows: Bool {
         if case .missingVariableThrows(let b) = options?[.missingVariableThrows] { return b }
         else { return LKROption.missingVariableThrows } }

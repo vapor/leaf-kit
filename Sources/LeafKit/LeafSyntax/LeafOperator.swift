@@ -81,17 +81,14 @@ public enum LeafOperator: String, Hashable, CaseIterable, LKPrintable {
         }
         return "\(str): \(rawValue)"
     }
-}
-
-// MARK: - Internal Only
-internal extension LeafOperator {
+    
     /// Associated enum used with a `LeafOperator` to disambiguate contextual meaning
-    enum Form: UInt8, Hashable, LKPrintable {
+    public enum Form: UInt8, Hashable {
         case unaryPrefix
         case unaryPostfix
         case infix
 
-        var description: String { short }
+        public var description: String { short }
         var short: String       {
             switch self {
                 case .unaryPrefix  : return "unaryPrefix"
@@ -100,7 +97,10 @@ internal extension LeafOperator {
             }
         }
     }
+}
 
+// MARK: - Internal Only
+internal extension LeafOperator {
     // MARK: - State booleans
     var logical: Bool { Self.logical.contains(self) }
     var mathematical: Bool { Self.mathematical.contains(self) }
@@ -178,3 +178,5 @@ private extension LeafOperator {
         .unparseable : [evaluate]
     ]
 }
+
+extension LeafOperator.Form: LKPrintable {}

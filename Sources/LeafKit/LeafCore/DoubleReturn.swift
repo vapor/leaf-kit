@@ -1,8 +1,6 @@
 internal extension LeafEntities {
     func registerDoubleReturns() {
         use(DoubleIntToDoubleMap.rounded, asMethod: "rounded")
-   //     use(DoubleDoubleToDoubleMap._min, asFunction: "min")
-   //     use(DoubleDoubleToDoubleMap._max, asFunction: "max")
     }
 }
 

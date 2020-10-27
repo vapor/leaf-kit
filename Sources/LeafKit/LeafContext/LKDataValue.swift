@@ -57,7 +57,6 @@ internal struct LKDataValue: LeafDataRepresentable {
     
     private var container: Container
     
-    
     private init(_ value: LeafDataRepresentable, constant: Bool = false) {
         container = constant ? .literal(value.leafData) : .variable(value, nil) }
 }

@@ -15,7 +15,8 @@ public struct LeafCacheBehavior: OptionSet, Hashable {
     public static let bypass: Self = []
     
     /// Never read cached template, but cache compiled template.
-    /// Disregards `raw` inline configuration
+    /// Disregards `raw` inline configuration as if it's followed by a subsequent update, there's no point
+    /// and if it's followed by a default behavior, embedding raws will happen then.
     public static let update: Self = [.store]
     
     /// Whether to prefer reading an available cached version over checking `LeafSources`

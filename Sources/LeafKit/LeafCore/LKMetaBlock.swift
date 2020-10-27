@@ -11,6 +11,8 @@ internal extension LeafEntities {
         use(Evaluate.self  , asMeta: "evaluate")
         //use(Evaluate.self  , asMeta: "eval")
         use(Inline.self    , asMeta: "inline")
+        use(Declare.self   , asMeta: "var")
+        use(Declare.self   , asMeta: "let")
     }
 }
 
@@ -21,6 +23,7 @@ internal enum LKMetaForm: Int, Hashable {
     case define
     case evaluate
     case inline
+    case declare
 }
 
 // MARK: - Define/Evaluate/Inline/RawSwitch
@@ -36,7 +39,7 @@ internal struct Define: LKMetaBlock, EmptyParams, VoidReturn, Invariant {
 
     mutating func remap(offset: Int) { table += offset }
     
-    static let warning = "call signature is (identifier) when a block, (identifier, evaluableParameter) when a function"
+    static let warning = "call signature is (identifier) when a block, (identifier = evaluableParameter) when a function"
 }
 
 /// `Evaluate` blocks will be followed by either a nil scope syntax or a passthrough syntax if it has a defaulted value
@@ -63,6 +66,9 @@ internal struct Inline: LKMetaBlock, EmptyParams, VoidReturn, Invariant {
     var process: Bool
     var rawIdentifier: String?
     var availableVars: Set<LKVariable>?
+    
+    static let literalWarning = "requires a string literal argument for the file"
+    static let warning = "call signature is (\"file\", as: type) where type is `leaf`, `raw`, or a named raw handler"
 }
 
 /// `RawSwitch` either alters the current raw handler when by itself, or produces an isolated raw handling block with an attached scope
@@ -76,6 +82,15 @@ internal struct RawSwitch: LKMetaBlock, EmptyParams, AnyReturn, Invariant {
 
     var factory: LKRawBlock.Type
     var params: LeafCallValues
+}
+
+/// Variable declaration
+internal struct Declare: LKMetaBlock, EmptyParams, VoidReturn, Invariant {
+    static var form: LKMetaForm { .declare }
+    
+    let variable: Bool
+
+    static let warning = "call signature is (identifier) or (identifier = evaluableParameter)"
 }
 
 // MARK: Default Implementations

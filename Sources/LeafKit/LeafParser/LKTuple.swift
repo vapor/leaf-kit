@@ -61,6 +61,8 @@ internal struct LKTuple: LKSymbol {
     }
     
     private(set) var isEvaluable: Bool
+    
+    var baseType: LKDType? { labels.count == values.count ? .dictionary : labels.count == 0 ? .array : nil }
 
     // MARK: Fake Collection Adherence
     var isEmpty: Bool { values.isEmpty }
@@ -93,7 +95,7 @@ internal struct LKTuple: LKSymbol {
         invariant = values.allSatisfy { $0.invariant }
         symbols = values.reduce(into: .init()) { $0.formUnion($1.symbols) }
         
-        isEvaluable = labels.count == values.count ? true : labels.count == 0
+        isEvaluable = baseType != nil
         if values.first(where: {!$0.isValued}) != nil { isEvaluable = false }
     }
 }

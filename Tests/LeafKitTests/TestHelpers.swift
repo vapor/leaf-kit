@@ -9,7 +9,8 @@ import Foundation
 internal class LeafTestClass: XCTestCase {
     override func setUp() {
         LKConf.__VERYUNSAFEReset()
-        LKConf.entities = .leaf4Transitional
+        LKConf.entities = .leaf4Core
+        LKConf.entities.registerLeaf4Transitional()
     }
 }
 
@@ -26,10 +27,12 @@ internal func lex(_ str: String, name: String = "default") throws -> [LKToken] {
 /// Directly run a String "template" through `LKLexer` and `LeafParser`
 /// - Parameter str: Raw String holding Leaf template source data
 /// - Returns: A lexed and parsed array of Syntax
-internal func parse(_ str: String, name: String = "default") throws -> LeafAST {
+internal func parse(_ str: String, name: String = "default", options: LeafRenderer.Options? = nil) throws -> LeafAST {
     var lexer = LKLexer(LKRawTemplate(name, str))
     let tokens = try lexer.lex()
-    var parser = LKParser(.searchKey(name), tokens)
+    var context: LeafRenderer.Context = [:]
+    options.map { context.options = $0 }
+    var parser = LKParser(.searchKey(name), tokens, context)
     let syntax = try parser.parse()
 
     return syntax
@@ -142,8 +145,8 @@ internal extension ByteBuffer {
 
 internal extension Array where Element == LKToken {
     var string: String {
-        compactMap { if case .whiteSpace(_) = $0 { return nil }
-                     else if $0 == .raw("\n") { return nil }
+        compactMap { if case .whiteSpace(_) = $0.token { return nil }
+                     else if $0.token == .raw("\n") { return nil }
                      return $0.description + "\n" }.reduce("", +) }
 }
 
@@ -227,7 +230,7 @@ final class PrintTests: LeafTestClass {
 
     func testExtendAndExport() throws {
         let template = """
-        #export(title, "Welcome")
+        #export(title = "Welcome")
         #export(body):
             hello there
         #endexport
@@ -242,7 +245,7 @@ final class PrintTests: LeafTestClass {
         7: scope(undefined)
         """
 
-        let v = try parse(template)
+        let v = try parse(template, options: [.parseWarningThrows(false)])
         XCTAssertEqual(v.terse, expectation)
     }
     

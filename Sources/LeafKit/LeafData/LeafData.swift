@@ -12,8 +12,8 @@ public struct LeafData: LeafDataRepresentable, Equatable {
 
     // MARK: - Stored Properties
 
-    /// The case-self identity
-    public let celf: LeafDataType
+    /// Concrete stored type of the data
+    public let storedType: LeafDataType
     /// Actual storage
     let container: LKDContainer
     /// State storage flags
@@ -44,13 +44,13 @@ public struct LeafData: LeafDataRepresentable, Equatable {
     ///      `.bool(true)` -> `.string("true")` are all one-way lossless conversions
     /// - This does not imply it's not possible to *coerce* data - handle with `coerce(to:)`
     ///   EG: `.string("")` -> `.nil`, `.string("1")` -> ` .bool(true)`
-    public func isCastable(to type: LeafDataType) -> Bool { celf.casts(to: type) >= .castable }
+    public func isCastable(to type: LeafDataType) -> Bool { storedType.casts(to: type) >= .castable }
 
     /// Returns `true` if concrete object is potentially directly coercible to a second type in some way
     /// - EG: `.array()` -> `.dictionary()` where array indices become keys
     ///       or `.int(1)` -> `.bool(true)`
     /// - This does *not* validate the data itself in coercion
-    public func isCoercible(to type: LeafDataType) -> Bool { celf.casts(to: type) >= .coercible }
+    public func isCoercible(to type: LeafDataType) -> Bool { storedType.casts(to: type) >= .coercible }
 
     // MARK: - LeafDataRepresentable
     public var leafData: LeafData { self }
@@ -146,11 +146,11 @@ extension LeafData: ExpressibleByDictionaryLiteral,
         value.map { Self(.array($0)) } ?? .nil(.array) }
     /// Creates a new `LeafData` for `Optional<LeafData>`
     public static func `nil`(_ type: LeafDataType) -> Self {
-        Self(.optional(nil, type)) }
+        Self(.nil(type)) }
     
     public static func error(_ reason: String,
                              function: String = #function) -> Self {
-        Self(.error(reason: reason, function: function))
+        Self(.error(reason, function, nil))
     }
 
     // MARK: Literal Initializer Conformances
@@ -169,12 +169,14 @@ extension LeafData: LKSymbol {
     /// Creates a new `LeafData`.
     init(_ raw: LKDContainer) {
         self.container = raw
-        self.celf = raw.baseType
+        self.storedType = raw.baseType
         self.state = raw.state
     }
-
-    static func error(internal reason: String) -> Self {
-        Self(.error(reason: reason, function: "LeafKit"))
+    
+    static func error(internal reason: String,
+                             _ function: String = "LeafKit",
+                             _ location: SourceLocation? = nil) -> Self {
+        Self(.error(reason, "LeafKit", location))
     }
     
     /// Creates a new `LeafData` from `() -> LeafData` if possible or `nil` if not possible.
@@ -190,8 +192,6 @@ extension LeafData: LKSymbol {
     var isTrueNil    : Bool { state == .trueNil }
     var isCollection : Bool { state.contains(.collection) }
     var isNil        : Bool { state.contains(.nil) }
-    var isSome       : Bool { state.contains(.optional) && !isNil }
-    var isNone       : Bool { state.contains(.nil) }
     var isNumeric    : Bool { state.contains(.numeric) }
     var isComparable : Bool { state.contains(.comparable) }
     var isLazy       : Bool { state.contains(.variant) }
@@ -205,19 +205,19 @@ extension LeafData: LKSymbol {
     /// Returns the uniform type of the object, or nil if it can't be determined/is a non-uniform container
     var uniformType: LKDType? {
         // Default case - anything that doesn't return a container, or lazy containers
-        if !isCollection { return celf } else if isLazy { return nil }
+        if !isCollection { return storedType } else if isLazy { return nil }
         // A non-lazy container - somewhat expensive to check. 0 or 1 element
         // is always uniform of that type. Only 1 layer deep, considers collection
         // elements, even if all the same type, unequal
         if case .array(let a) = container {
-            guard a.count > 1 else { return a.first?.celf }
+            guard a.count > 1 else { return a.first?.storedType }
             if a.first!.isCollection { return nil }
-            let types = a.reduce(into: Set<LKDType>.init(), { $0.insert($1.celf) })
+            let types = a.reduce(into: Set<LKDType>.init(), { $0.insert($1.storedType) })
             return types.count == 1 ? types.first! : nil
         } else if case .dictionary(let d) = container {
-            guard d.count > 1 else { return d.values.first?.celf }
+            guard d.count > 1 else { return d.values.first?.storedType }
             if d.values.first!.isCollection { return nil }
-            let types = d.values.reduce(into: Set<LKDType>.init(), { $0.insert($1.celf) })
+            let types = d.values.reduce(into: Set<LKDType>.init(), { $0.insert($1.storedType) })
             return types.count == 1 ? types.first! : nil
         } else { return nil }
     }
@@ -228,15 +228,12 @@ extension LeafData: LKSymbol {
     /// Try to convert one concrete object to a second type. Special handling for optional converting to bool.
     func convert(to output: LKDType, _ level: LKDConversion = .castable) -> Self {
         typealias _Map = LKDConverters
-        // If celf is identity, return directly if invariant or return lazy evaluation
-        if celf == output { return invariant ? self : container.evaluate }
-        // If optional, no casting is possible between types
-        // - *Except* special case of void -> bool(false)
-        if isNil { return output == .bool && celf == .void ? .bool(false) : .trueNil }
+        /// If celf is identity, return directly if invariant or return lazy evaluation
+        if storedType == output { return invariant ? self : container.evaluate }
+        /// If nil, no casting is possible between types *Except* special case of void -> bool(false)
+        if isNil { return output == .bool && storedType == .void ? .bool(false) : .trueNil }
 
-        let input = !container.isLazy ? !container.isOptional ? container
-                                                              : container.unwrap!
-                                      : container.evaluate.container
+        let input = !container.isLazy ? container : container.evaluate.container
         switch input {
             case .array(let a)      : let m = _Map.arrayMaps[output]!
                                       return m.is >= level ? m.via(a) : .trueNil
@@ -269,7 +266,7 @@ extension LeafData: LKSymbol {
 internal protocol LKDSelf: LeafNonMutatingMethod, Invariant, StringReturn {}
 internal extension LKDSelf {
     func evaluate(_ params: LeafCallValues) -> LeafData {
-        .string("\(params[0].celf.short.capitalized)\(params[0].isNil ? "?" : "")") }
+        .string("\(params[0].storedType.short.capitalized)\(params[0].isNil ? "?" : "")") }
 }
 
 internal struct LKDSelfMethod: LKDSelf {

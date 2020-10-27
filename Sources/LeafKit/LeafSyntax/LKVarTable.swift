@@ -24,7 +24,7 @@ internal extension LKVarTable {
         
         var root = key.ancestor
         guard let hit = self[root] else { return nil }
-        guard hit.celf == .dictionary else { return err(root, key) }
+        guard hit.storedType == .dictionary else { return err(root, key) }
         root = key.parent!
         var path = [key.lastPart!]
         /// Move root up until hitting an actual value (possibly ancestor)

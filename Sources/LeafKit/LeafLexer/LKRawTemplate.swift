@@ -1,19 +1,15 @@
 // FIXME: Should really be initializable directly from `ByteBuffer`
 // TODO: Make `LeafSource` return this instead of `ByteBuffer` via extension
 
+public typealias SourceLocation = (name: String, line: Int, column: Int)
 
 /// Convenience wrapper around a `String` raw source to track line & column, pop, peek & scan.
 internal struct LKRawTemplate {
     // MARK: - Internal Only
-    let name: String
+    var state: SourceLocation
     
-    /// Current line at reading point
-    private(set) var line = 1
-    /// Current column at reading point
-    private(set) var column = 1
-
     init(_ name: String, _ source: String) {
-        self.name = name
+        self.state = (name, 1, 1)
         self.body = source
         self.current = body.startIndex
     }
@@ -40,8 +36,8 @@ internal struct LKRawTemplate {
     @discardableResult
     mutating func pop() -> Character? {
         guard current < body.endIndex else { return nil }
-        column = body[current] == .newLine ? 1 : column + 1
-        line += body[current] == .newLine ? 1 : 0
+        state.column = body[current] == .newLine ? 1 : state.column + 1
+        state.line += body[current] == .newLine ? 1 : 0
         defer { current = body.index(after: current) }
         return body[current]
     }

@@ -1,10 +1,3 @@
-internal extension LeafEntities {
-    func registerNumericFormatters() {
-        //use(DoubleFormatterMap.seconds, asFunctionAndMethod: "formatSeconds")
-        //use(IntFormatterMap.bytes, asFunctionAndMethod: "formatBytes")
-    }
-}
-
 public struct DoubleFormatterMap: LKMapMethod, StringReturn {
     @LeafRuntimeGuard public static var defaultPlaces: UInt8 = 2
     

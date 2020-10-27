@@ -3,7 +3,8 @@ public final class LeafEntities {
     private(set) var identifiers: Set<String> = []
     private(set) var openers: Set<String> = []
     private(set) var closers: Set<String> = []
-    
+    private(set) var assignment: Set<String> = []
+
     /// Factories that produce `.raw` Blocks
     private(set) var rawFactories: [String: LKRawBlock.Type]
     /// Factories that produce named Blocks
@@ -31,7 +32,6 @@ public extension LeafEntities {
     // MARK: Static Computed Properties
     
     static var leaf4Core: LeafEntities { ._leaf4Core }
-    static var leaf4Transitional: LeafEntities { ._leaf4Transitional }
         
     // MARK: Entity Registration Methods
     
@@ -50,6 +50,9 @@ public extension LeafEntities {
                          "Register LKRawBlock factories using `registerRaw(...)`")
             precondition(!openers.contains(name),
                          "A block named `\(name)` already exists")
+            blockFactories[name] = block
+            identifiers.insert(name)
+            openers.insert(name)
             if let chained = block as? ChainedBlock.Type {
                 precondition(chained.chainsTo.filter { $0 != block.self}
                              .allSatisfy({ b in blockFactories.values.contains(where: {$0 == b})}),
@@ -57,9 +60,6 @@ public extension LeafEntities {
                 if chained.chainsTo.isEmpty { closers.insert("end" + name) }
                 else if chained.callSignature.isEmpty { closers.insert(name) }
             } else { closers.insert("end" + name) }
-            blockFactories[name] = block
-            identifiers.insert(name)
-            openers.insert(name)
         }
     }
 
@@ -131,6 +131,37 @@ public extension LeafEntities {
             case .failure: return nil
         }
     }
+    
+    /// Register optional Metablocks prior to starting LeafKit
+    ///
+    /// `import`, `export`, `extend` synonyms for `define`, `evaluate`, `inline`
+    func registerLeaf4Transitional() {
+        use(Define.self   , asMeta: "export")
+        use(Evaluate.self , asMeta: "import")
+        use(Inline.self   , asMeta: "extend")
+    }
+    
+    /// Register optional Metablocks prior to starting LeafKit
+    ///
+    /// `def`, `eval` synonyms for `define`, `evaluate`
+    func registerLazyShorthands() {
+        use(Define.self   , asMeta: "def")
+        use(Evaluate.self , asMeta: "eval")
+    }
+    
+    /// Register optional entities prior to starting LeafKit
+    func regiterExtendedEntities() {
+        //use(IntIntToIntMap._min      , asFunction: "min")
+        //use(IntIntToIntMap._max      , asFunction: "max")
+        //use(DoubleDoubleToDoubleMap._min, asFunction: "min")
+        //use(DoubleDoubleToDoubleMap._max, asFunction: "max")
+        //use(StrToStrMap.reversed, asMethod: "reversed")
+        //use(StrToStrMap.randomElement, asMethod: "randomElement")
+        //use(StrStrStrToStrMap.replace, asMethod: "replace")
+        //use(StrToStrMap.escapeHTML, asFunctionAndMethod: "escapeHTML")
+        //use(DoubleFormatterMap.seconds, asFunctionAndMethod: "formatSeconds")
+        //use(IntFormatterMap.bytes, asFunctionAndMethod: "formatBytes")
+    }
 }
 
 // MARK: - Internal Only
@@ -178,32 +209,38 @@ internal extension LeafEntities {
     /// Register a metablock
     func use(_ meta: LKMetaBlock.Type,
              asMeta name: String) {
-        if openers.contains(name) { __MajorBug("Metablock already registered") }
-        blockFactories[name] = meta
-        identifiers.insert(name)
-        openers.insert(name)
-        if [.define, .rawSwitch].contains(meta.form) { closers.insert("end" + name) }
+        if !LKConf.running(fault: "Cannot register new Metablock factory \(name)") {
+            if meta.form != .declare { name._sanity() }
+            precondition(!openers.contains(name),
+                         "A block named `\(name)` already exists")
+            blockFactories[name] = meta
+            identifiers.insert(name)
+            openers.insert(name)
+            if [.define, .rawSwitch].contains(meta.form) { closers.insert("end" + name) }
+            if [.define, .declare].contains(meta.form) { assignment.insert(name) }
+        }
     }
     
     // MARK: Validators
     
     /// Return all valid matches.
     func validateFunction(_ name: String,
-                          _ params: LKTuple?) -> Result<[(LeafFunction, LKTuple?)], String> {
-        guard let functions = functions[name] else { return .failure("No function named `\(name)` exists") }
+                          _ params: LKTuple?) -> Result<[(LeafFunction, LKTuple?)], ParseErrorCause> {
+        guard let functions = functions[name] else { return .failure(.noEntity(type: "function", name: name)) }
         var valid: [(LeafFunction, LKTuple?)] = []
         for function in functions {
             if let tuple = try? validateTupleCall(params, function.sig).get()
             { valid.append((function, tuple.isEmpty ? nil : tuple)) } else { continue }
         }
-        if valid.isEmpty { return .failure(parseErr(.sameName("function", name, functions.map{$0.sig.short})).description) }
-        return .success(valid)
+        if !valid.isEmpty { return .success(valid) }
+        return .failure(.sameName(type: "function", name: name, matches: functions.map {$0.sig.short} ))
     }
     
     func validateMethod(_ name: String,
                         _ params: LKTuple?,
-                        _ mutable: Bool) -> Result<[(LeafFunction, LKTuple?)], String> {
-        guard let methods = methods[name] else { return .failure("No method named `\(name)` exists") }
+                        _ mutable: Bool) -> Result<[(LeafFunction, LKTuple?)], ParseErrorCause> {
+        guard let methods = methods[name] else {
+            return .failure(.noEntity(type: "method", name: name)) }
         var valid: [(LeafFunction, LKTuple?)] = []
         var mutatingMismatch = false
         for method in methods {
@@ -212,16 +249,16 @@ internal extension LeafEntities {
             { valid.append((method, tuple.isEmpty ? nil : tuple)) } else { continue }
         }
         if valid.isEmpty {
-            let additional = mutatingMismatch ? "\nPotential mutating matches for \(name) but operand is immutable" : ""
-            return .failure("\(parseErr(.sameName("function", name, methods.map{$0.sig.short})).description)\(additional)")
+            return .failure(mutatingMismatch ? .mutatingMismatch(name: name)
+            : .sameName(type: "function", name: name, matches: methods.map {$0.sig.short} ) )
         }
         return .success(valid)
     }
 
     func validateBlock(_ name: String,
-                       _ params: LKTuple?) -> Result<(LeafFunction, LKTuple?), String> {
+                       _ params: LKTuple?) -> Result<(LeafFunction, LKTuple?), ParseErrorCause> {
         guard blockFactories[name] != RawSwitch.self else { return validateRaw(params) }
-        guard let factory = blockFactories[name] else { return .failure("No block named `\(name)` exists") }
+        guard let factory = blockFactories[name] else { return .failure(.noEntity(type: "block", name: name)) }
         let block: LeafFunction?
         var call: LKTuple = .init()
 
@@ -230,7 +267,7 @@ internal extension LeafEntities {
             for (name, sig) in parseSigs {
                 guard let match = sig.splitTuple(params ?? .init()) else { continue }
                 guard let created = try? factory.instantiate(name, match.0) else {
-                    return .failure("Parse signature matched but couldn't instantiate")}
+                    return .failure(.parameterError(name: name, reason: "Parse signature matched but couldn't instantiate")) }
                 block = created
                 call = match.1
                 break validate
@@ -239,34 +276,35 @@ internal extension LeafEntities {
         } else if (params?.count ?? 0) == factory.callSignature.count {
             if let params = params { call = params }
             block = try? factory.instantiate(nil, [])
-        } else { return .failure("Factory doesn't take parameters") }
+        } else { return .failure(.parameterError(name: name, reason: "Takes no parameters")) }
 
-        guard let function = block else { return .failure("Parameters don't match parse signature") }
+        guard let function = block else {
+            return .failure(.parameterError(name: name, reason: "Parameters don't match parse signature") )}
         let validate = validateTupleCall(call, function.sig)
         switch validate {
-            case .failure(let message): return .failure("\(name) couldn't be parsed: \(message)")
+            case .failure(let message): return .failure(.parameterError(name: name, reason: message))
             case .success(let tuple): return .success((function, !tuple.isEmpty ? tuple : nil))
         }
     }
 
-    func validateRaw(_ params: LKTuple?) -> Result<(LeafFunction, LKTuple?), String> {
+    func validateRaw(_ params: LKTuple?) -> Result<(LeafFunction, LKTuple?), ParseErrorCause> {
         var name = Self.defaultRaw
         var call: LKTuple
 
         if let params = params {
             if case .variable(let v) = params[0]?.container, v.isAtomic { name = String(v.member!) }
-            else { return .failure("Specify raw handler with unquoted name") }
+            else { return .failure(.unknownError("Specify raw handler with unquoted name")) }
             call = params
             call.values.removeFirst()
             call.labels = call.labels.mapValues { $0 - 1 }
         } else { call = .init() }
 
-        guard let factory = rawFactories[name] else { return .failure("\(name) is not a raw handler")}
+        guard let factory = rawFactories[name] else { return .failure(.unknownError("\(name) is not a raw handler"))}
         guard call.values.allSatisfy({ $0.data != nil }) else {
-            return .failure("Raw handlers currently require concrete data parameters") }
+            return .failure(.unknownError("Raw handlers currently require literal data parameters")) }
         let validate = validateTupleCall(call, factory.callSignature)
         switch validate {
-            case .failure(let message): return .failure("\(name) couldn't be parsed: \(message)")
+            case .failure(let message): return .failure(.parameterError(name: name, reason: message))
             case .success(let tuple): return .success((RawSwitch(factory, tuple), nil))
         }
     }
@@ -359,18 +397,7 @@ private extension LeafEntities {
         entities.registerStringReturns()
         entities.registerMutatingMethods()
         
-        entities.registerNumericFormatters()
-        
         entities.registerMisc()
-        
-        return entities
-    }
-    
-    private static var _leaf4Transitional: LeafEntities {
-        let entities = _leaf4Core
-        entities.use(Define.self   , asMeta: "export")
-        entities.use(Evaluate.self , asMeta: "import")
-        entities.use(Inline.self   , asMeta: "extend")
         
         return entities
     }

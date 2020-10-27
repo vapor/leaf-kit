@@ -97,10 +97,10 @@ extension LeafBuffer: LKRawBlock {
         stripLeadingBlanklines = false
         do {
             guard !data.isNil else {
-                try write(Self.nilFormatter(data.celf.short))
+                try write(Self.nilFormatter(data.storedType.short))
                 return
             }
-            switch data.celf {
+            switch data.storedType {
                 case .bool       : try write(Self.boolFormatter(data.bool!))
                 case .data       : try write(Self.dataFormatter(data.data!, encoding) ?? "")
                 case .double     : try write(Self.doubleFormatter(data.double!))

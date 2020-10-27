@@ -1,8 +1,8 @@
-/// `LeafDataGenerator` is a wrapper for passing a `LeafDataRepresentable` object to
+/// `LeafDataGenerator` is a wrapper for passing `LeafDataRepresentable` objects to
 /// `LeafRenderer.Context` while deferring conversion to `LeafData` until being accessed
 ///
 /// In all cases, conversion of the `LeafDataRepresentable`-adhering parameter to concrete
-/// `LeafData` is deferred until it is actually accessed by `LeafRenderer` (because a template has
+/// `LeafData` is deferred until it is actually accessed by `LeafRenderer` (when a template has
 /// accessed its value).
 ///
 /// Can be created as either immediate storage of the parameter, or lazy generation of the

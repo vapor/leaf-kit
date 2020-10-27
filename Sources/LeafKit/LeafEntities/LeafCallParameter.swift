@@ -98,20 +98,20 @@ internal extension LeafCallParameter {
                      "Use nil for unlabeled parameters, not empty strings or _")
         precondition(label?.isValidLeafIdentifier ?? true,
                      "Label must be a valid, non-keyword Leaf identifier")
-        precondition(types.contains(defaultValue?.celf ?? types.first!),
+        precondition(types.contains(defaultValue?.storedType ?? types.first!),
                      "Default value is not a match for the argument types")
     }
     
     /// Return the parameter value if it's valid, coerce if possible, nil if not an interpretable match.
     func match(_ value: LeafData) -> LeafData? {
         /// 1:1 expected match, valid as long as expectation isn't non-optional with optional value
-        if types.contains(value.celf) { return !value.isNil || optional ? value : nil }
+        if types.contains(value.storedType) { return !value.isNil || optional ? value : nil }
         /// If value is still nil but no match...
         if value.isNil {
             /// trueNil param
-            if value.celf == .void || !optional {
+            if value.storedType == .void || !optional {
                                   /// param accepts optional, coerce nil type to an expected type
-                return optional ? .init(.optional(nil, types.first!))
+                return optional ? .init(.nil(types.first!))
                                   /// or if it takes bool, coerce to a false boolean or fail
                                 : types.contains(.bool) ? .bool(false) : nil
             }

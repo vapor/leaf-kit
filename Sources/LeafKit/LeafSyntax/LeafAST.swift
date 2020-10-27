@@ -204,8 +204,13 @@ internal extension LeafAST {
                                              : inAST.scopes[0][0]
                 info.underestimatedSize += nonAtomic ? inAST.underestimatedSize
                                                      : inAST.scopes[0][0].underestimatedSize
-                /// Update required vars with any new needed ones that aren't explicitly available at this inline point
-                info._requiredVars.formUnion(inAST.requiredVars.subtracting(meta.availableVars ?? []))
+                /// Non-block form defines required (eg x where`define(x = something)`, not `define(x):`)
+                let nonBlockDefines = inAST.requiredVars.filter { $0.isDefine && !$0.state.contains(.blockDefine) }
+                /// Matches for the define identifier provided that *are* block defines, not value defines
+                let badMatches = meta.availableVars?.intersection(nonBlockDefines).filter { $0.state.contains(.blockDefine) } ?? []
+                let satisfied = (meta.availableVars ?? []).subtracting(badMatches)
+                /// Update required vars with any new needed ones that aren't explicitly available at this inline point, and are good.
+                info._requiredVars.formUnion(inAST.requiredVars.subtracting(satisfied))
             }
         }
 
@@ -301,6 +306,7 @@ internal extension LeafASTTouch {
 
 /// true if print lhs before rhs - only used for atomic levels, ignores paths
 private func variablePrecedence(lhs: LKVariable, rhs: LKVariable) -> Bool {
+    if lhs.isDefine != rhs.isDefine { return !lhs.isDefine }
     switch (lhs.scope, rhs.scope) {
         case (.none, .none): return lhs.member! < rhs.member!
         case (.some(let l), .some(let r)) where l == r: return lhs.member ?? "" < rhs.member ?? ""

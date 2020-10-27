@@ -133,9 +133,10 @@ internal struct LKExpression: LKSymbol {
         self.invariant = false
         self.symbols = []
         switch form.exp {
-            case .calculation : self.baseType = lhs != nil ? lhs!.baseType : rhs!.baseType
             case .ternary     : self.baseType = second.baseType == third!.baseType ? second.baseType : nil
             case .assignment  : self.baseType = op == .assignment ? rhs!.baseType : lhs!.baseType
+            case .calculation where ![.subScript, .nilCoalesce].contains(op) :
+                self.baseType = lhs != nil ? lhs!.baseType : rhs!.baseType
             default           : self.baseType = nil
         }
         setStates()
@@ -223,17 +224,17 @@ internal struct LKExpression: LKSymbol {
                 if lhs.state.intersection(rhs.state).contains(.numeric) {
                     guard let numeric = numericOp(op, lhs, rhs) else { fallthrough }
                     return numeric
-                } else if lhs.celf == .string {
+                } else if lhs.storedType == .string {
                     return .string(lhs.string! + (rhs.string ?? ""))
-                } else if lhs.celf == .data {
+                } else if lhs.storedType == .data {
                     guard let rhsData = rhs.data else { fallthrough }
                     return .data(lhs.data! + rhsData)
-                } else if lhs.isCollection && lhs.celf == rhs.celf {
-                    if lhs.celf == .array { return .array(lhs.array! + rhs.array!) }
+                } else if lhs.isCollection && lhs.storedType == rhs.storedType {
+                    if lhs.storedType == .array { return .array(lhs.array! + rhs.array!) }
                     guard let lhs = lhs.dictionary, let rhs = rhs.dictionary,
                           Set(lhs.keys).intersection(Set(rhs.keys)).isEmpty else { fallthrough }
                     return .dictionary(lhs.merging(rhs) {old, _ in old })
-                } else if rhs.celf == .string {
+                } else if rhs.storedType == .string {
                     return .string((lhs.string ?? "") + rhs.string!)
                 } else { return .trueNil }
             case .minus, .divide, .multiply, .modulo :
@@ -242,10 +243,10 @@ internal struct LKExpression: LKSymbol {
                     return numeric
                 } else { fallthrough }
             case .subScript:
-                if lhs.celf == .array, let index = rhs.int,
+                if lhs.storedType == .array, let index = rhs.int,
                    case .array(let a) = lhs.container,
                    a.indices.contains(index) { return a[index] }
-                if lhs.celf == .dictionary, let key = rhs.string,
+                if lhs.storedType == .dictionary, let key = rhs.string,
                    case .dictionary(let d) = lhs.container { return d[key] ?? .trueNil }
                 fallthrough
             default: return .trueNil
@@ -268,7 +269,7 @@ internal struct LKExpression: LKSymbol {
             __MajorBug("Improper assignment expression") }
         
         if assignor.isPathed, let parent = assignor.parent,
-           (symbols._match(parent)?.celf ?? .void) != .dictionary {
+           (symbols._match(parent)?.storedType ?? .void) != .dictionary {
             return .failure(err("\(parent.terse) is not a dictionary; cannot set \(assignor)"))
         } else if !assignor.isPathed, symbols._match(assignor) == nil {
             return .failure(err("\(assignor.terse) must be defined first with `var \(assignor.member ?? "")`"))
@@ -329,7 +330,7 @@ internal struct LKExpression: LKSymbol {
         if lhs.isCollection || rhs.isCollection || lhs.isNil || rhs.isNil { return nil }
         var op = op
         let numeric = lhs.isNumeric && rhs.isNumeric
-        let manner = !numeric ? .string : lhs.celf == rhs.celf ? lhs.celf : .double
+        let manner = !numeric ? .string : lhs.storedType == rhs.storedType ? lhs.storedType : .double
         if [.greaterOrEqual, .lesserOrEqual].contains(op) {
             switch manner {
                 case .int    : if lhs.int ?? 0 == rhs.int ?? 0 { return true }
@@ -359,7 +360,7 @@ internal struct LKExpression: LKSymbol {
     /// Nil returning unless both sides are in [.int, .double]
     private func numericOp(_ op: LeafOperator, _ lhs: LKData, _ rhs: LKData) -> LKData? {
         guard lhs.state.intersection(rhs.state).contains(.numeric) else { return nil }
-        if lhs.celf == .int {
+        if lhs.storedType == .int {
             guard let lhsI = lhs.int, let rhsI = rhs.convert(to: .int, .coercible).int else { return nil }
             let value: (partialValue: Int, overflow: Bool)
             switch op {

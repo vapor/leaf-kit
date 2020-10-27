@@ -414,7 +414,7 @@ final class LeafTests: LeafTestClass {
         """#
         let lexed = try! lex(input)
         print(lexed)
-        if case .param(.literal(.string(let result))) = lexed[3] {
+        if case .param(.literal(.string(let result))) = lexed[3].token {
             XCTAssertEqual(result, "A string \"with quoted\" portions")
         } else { XCTFail() }
     }
@@ -424,7 +424,7 @@ final class LeafTests: LeafTestClass {
         #inline("template")
         #inline("template", as: leaf)
         #inline("template", as: raw)
-        #define(aBlock, variable)
+        #define(aBlock = variable)
         #define(anotherBlock):
             #(let aDeclaredVariable = variable * 2)
             #(aDeclaredVariable)
@@ -435,12 +435,13 @@ final class LeafTests: LeafTestClass {
         #($scope.scoped)
         """
         
-        let ast = try! parse(input)
+        let ast = try parse(input)
         let info = ast.info
         print(ast.summary)
         
         XCTAssertTrue(info.requiredASTs == ["template"])
         XCTAssertTrue(info.requiredRaws == ["template"])
+        print(info.requiredVars)
         XCTAssertTrue(info.requiredVars == ["self.variable", "self.aThirdVariable", "$scope:scoped"])
         XCTAssertTrue(!info.requiredVars.contains("aDeclaredVariable"))
         XCTAssertTrue(info.stackDepths.overallMax == 2)

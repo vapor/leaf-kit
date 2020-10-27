@@ -43,6 +43,9 @@ public final class LeafRenderer {
         /// Rendering timeout duration limit in seconds; must be at least 1ms, clock timeout >= serialize timeout
         @LeafRuntimeGuard(condition: {$0 >= 0.001}) public static var timeout: Double = 0.050
         
+        /// If true, warnings during parse will throw errors.
+        @LeafRuntimeGuard public static var parseWarningThrows: Bool = true
+        
         /// Controls behavior of serialize when a variable has no value in context:
         /// When true, throws an error and aborts serializing; when false, returns Void? and decays chain.
         @LeafRuntimeGuard public static var missingVariableThrows: Bool = true
@@ -60,7 +63,9 @@ public final class LeafRenderer {
         /// raw inline in the *cached* AST.
         @LeafRuntimeGuard public static var embeddedASTRawLimit: UInt32 = 4096
         
+        
         case timeout(Double)
+        case parseWarningThrows(Bool)
         case missingVariableThrows(Bool)
         case grantUnsafeEntityAccess(Bool)
         case encoding(String.Encoding)
@@ -69,6 +74,7 @@ public final class LeafRenderer {
         
         public enum Case: UInt8, RawRepresentable, CaseIterable {
             case timeout
+            case parseWarningThrows
             case missingVariableThrows
             case grantUnsafeEntityAccess
             case encoding
@@ -325,7 +331,7 @@ private extension LeafRenderer {
     func syncSerialize(_ ast: LeafAST,
                        _ context: Context) -> ELF<ByteBuffer> {
         var needed = Set<LKVariable>(ast.info._requiredVars
-                                             .map {!$0.isScoped ? $0.contextualized : $0})
+                                        .map {$0.isDefine ? $0 : !$0.isScoped ? $0.contextualized : $0})
         needed.subtract(context.allVariables)
         needed = needed.filter { !$0.isCoalesced }
         

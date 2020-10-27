@@ -19,8 +19,13 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
     var isScoped: Bool { state.contains(.scoped) }
     var isSelfScoped: Bool { state.contains(.selfScoped) }
     var isPathed: Bool { state.contains(.pathed) }
+    /// Atomic, implicit scope variable - `x` - not `$context.x` or `x.pathed`
     var isAtomic: Bool { !(isScoped || isPathed) }
     var isDefine: Bool { state.contains(.defined) }
+    var isDictionary: Bool { state.contains(.dictionary) }
+    var isArray: Bool { state.contains(.array) }
+    var isCollection: Bool { isArray || isDictionary }
+    
     /// NOTE: Only set in state for `symbols` expressed by a parameter for the purpose of determining if its required
     var isCoalesced: Bool { state.contains(.coalesced) }
     
@@ -48,8 +53,9 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
     var description: String { flat }
     var short: String { flat }
     var terse: String {
-        !isScoped ? String(flat.dropFirst(2))
-                  : isSelfScoped ? "self\(!isScope ? ".\(member!)" : "")" : flat }
+        isDefine ? state.contains(.blockDefine) ? "define(\(member!))" : "\(member!)()"
+                 : !isScoped ? String(flat.dropFirst(2))
+                             : isSelfScoped ? "self\(!isScope ? ".\(member!)" : "")" : flat }
     
     static let selfScope = "context"
 
@@ -143,8 +149,8 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
 }
 
 internal struct LKVarState: OptionSet {
-    private(set) var rawValue: UInt8
-    init(rawValue: UInt8) { self.rawValue = rawValue }
+    private(set) var rawValue: UInt16
+    init(rawValue: UInt16) { self.rawValue = rawValue }
     
     /// is constant
     static let constant: Self = .init(rawValue: 1 << 0)
@@ -159,6 +165,11 @@ internal struct LKVarState: OptionSet {
     /// Context is `self`
     static let selfScoped: Self = .init(rawValue: 1 << 5)
     
+    static let array: Self = .init(rawValue: 1 << 6)
+    static let dictionary: Self = .init(rawValue: 1 << 7)
+    
+    /// if `define` - represents block rather than concrete value
+    static let blockDefine: Self = .init(rawValue: 1 << 8)
     
     /// Unscoped & atomic
     static let atomic: Self = .init(rawValue: 0)

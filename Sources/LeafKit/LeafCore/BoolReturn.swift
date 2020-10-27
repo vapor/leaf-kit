@@ -37,7 +37,7 @@ internal struct CollectionElementToBoolMap: LKMapMethod, BoolReturn {
             default                 : return .error(internal: "Only supports collections") }
     }
     
-    static let contains: Self = .init({for x in $0 where x.celf == $1.celf {if x == $1 { return true }}; return false})
+    static let contains: Self = .init({for x in $0 where x.storedType == $1.storedType {if x == $1 { return true }}; return false})
     
     private init(_ map: @escaping (AnyCollection<LKData>, LKData) -> Bool) { f = map }
     private let f: (AnyCollection<LKData>, LKData) -> Bool

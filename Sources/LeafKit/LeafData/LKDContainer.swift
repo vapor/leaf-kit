@@ -18,15 +18,16 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     case array([LKData])
 
     /// Wrapped `Optional<LDContainer>`
-    case optional(_ wrapped: Self?, _ type: LKDType)
+    case `nil`(_ type: LKDType)
 
     /// Lazy resolvable `() -> LeafData` where return is of `LeafDataType`
     case lazy(f: () -> LeafData, returns: LKDType)
 
-    /// A lazy evaluation of the param - Must be generated *only* during `LKSerialize` to defer evaluation
+    /// A lazy evaluation of the param - Must be generated *only* during `LKSerialize`(and
+    /// subsequently stored in `VarStack`) to defer evaluation
     case evaluate(param: LKParameter.Container)
 
-    case error(reason: String, function: String)
+    case error(_ reason: String, _ function: String, _ location: SourceLocation?)
     case unset
     
     // MARK: - Properties
@@ -44,7 +45,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case .string             : return .string
             // Internal Wrapped Types
             case .lazy(_, let t),
-                 .optional(_, let t) : return t
+                 .nil(let t) : return t
             case .evaluate           : return .void
             case .error              : return .void
             case .unset              : return .void
@@ -82,11 +83,6 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case (       .int(let a),        .int(let b)) : return a == b
             case (    .double(let a),     .double(let b)) : return a == b
             case (      .data(let a),       .data(let b)) : return a == b
-            /// Both/one side(s) are optional, unwrap and compare
-            case (.optional(.some(let l),_), .optional(.some(let r),_))
-                                                          : return l == r
-            case (.optional(.some(let l),_),           _) : return l == rhs
-            case (          _, .optional(.some(let r),_)) : return r == lhs
             default                                       : return false
         }
     }
@@ -101,7 +97,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case .double(let d)      : return "double(\(d))"
             case .int(let i)         : return "int(\(i))"
             case .lazy(_, let r)     : return "lazy(() -> \(r)?)"
-            case .optional(_, let t) : return "\(t)()?"
+            case .nil(let t)         : return "\(t)?"
             case .string(let s)      : return "string(\(s))"
             case .evaluate           : return "evaluate(deferred)"
             case .error              : return "error(\(self.error!))"
@@ -110,16 +106,14 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     }
 
     // MARK: - Other
-    var isOptional: Bool { if case .optional = self { return true } else { return false } }
-    var isNil: Bool { if case .optional(nil, _) = self { return true } else { return false } }
+    var isNil: Bool { if case .nil = self { return true } else { return false } }
     var isLazy: Bool { if case .lazy = self { return true } else { return false } }
-
-    /// Flat mapping behavior - will never re-wrap .optional
-    var wrap: Self { isOptional ? self : .optional(self, baseType) }
-    var unwrap: Self? { if case .optional(let o, _) = self { return o } else { return self } }
     
     /// Nil if not errored, or errored function/reason
-    var error: String? { if case .error(let r, let f) = self { return "\(f): \(r)" } else { return nil } }
+    var error: String? {
+        guard case .error(let r, let f, let l) = self else { return nil }
+        return l.map { "Serialize Error in template \"\($0.0)\" - \($0.1):\($0.2)" } ?? "" + "\(f): \(r)"
+    }
     var isUnset: Bool { self == .unset }
     
     
@@ -139,8 +133,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
         }
         switch self {
             case .lazy               : state.formUnion(.variant)
-            case .optional(.none, _) : state.formUnion([.optional, .nil])
-            case .optional           : state.formUnion(.optional)
+            case .nil                : state.formUnion(.nil)
             case .unset              : state.formUnion(.variant)
             default: break
         }
@@ -170,8 +163,7 @@ internal struct LKDState: OptionSet {
     static let comparable = Self(rawValue: 1 << 1)
     static let collection = Self(rawValue: 1 << 2)
     static let variant = Self(rawValue: 1 << 3)
-    static let optional = Self(rawValue: 1 << 4)
-    static let `nil` = Self(rawValue: 1 << 5)
+    static let `nil` = Self(rawValue: 1 << 4)
 
     static let error: Self = Self(rawValue: 0)
     
@@ -183,5 +175,5 @@ internal struct LKDState: OptionSet {
     static let array: Self = [_array, collection]
     static let dictionary: Self = [_dictionary, collection]
     static let data: Self = [_data]
-    static let trueNil: Self = [_void, optional, `nil`]
+    static let trueNil: Self = [_void, `nil`]
 }

@@ -48,7 +48,7 @@ internal struct LKVarStack {
         var depth = stack.count - 1
         repeat {
             if let found = stack[depth].vars.match(variable) {
-                if found.celf == .dictionary {
+                if found.storedType == .dictionary {
                     stack[depth].vars.dropDescendents(of: variable) }
                 return
             }

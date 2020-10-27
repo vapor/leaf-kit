@@ -10,6 +10,7 @@ internal struct LKLexer {
         self.src = template
         self.state = .raw
         self.entities = LKConf.entities
+        self.lastSourceLocation = (template.state.name, 1, 1)
     }
 
     // MARK: - Internal
@@ -18,7 +19,7 @@ internal struct LKLexer {
     /// - Throws: `LeafError`
     /// - Returns: An array of fully built `LKTokens`, to then be parsed by `LKParser`
     mutating func lex() throws -> [LKToken] {
-        while let next = try nextToken() { lexed.append(next) }
+        while let next = try nextToken() { append(next) }
         return lexed
     }
 
@@ -46,6 +47,8 @@ internal struct LKLexer {
     private var src: LKRawTemplate
     /// Configured entitites
     private let entities: LeafEntities
+    
+    private var lastSourceLocation: SourceLocation
 
     /// Convenience for the current character to read
     private var current: Character? { src.peek() }
@@ -55,11 +58,11 @@ internal struct LKLexer {
     mutating private func pop() -> Character? { src.pop() }
 
     /// Convenience for an escaped tagIndicator token
-    private let escapedTagID: LKToken = .raw(Character.tagIndicator.description)
+    private var escapedTagID: LKToken.Container = .raw(Character.tagIndicator.description)
 
     // MARK: - Private - Actual implementation of Lexer
 
-    private mutating func nextToken() throws -> LKToken? {
+    private mutating func nextToken() throws -> LKToken.Container? {
         // if EOF, return nil - no more to read
         guard let first = current else { return nil }
 
@@ -70,7 +73,7 @@ internal struct LKLexer {
                              : return try lexNamedTag()
             case .raw        : return lexRaw()
             case .tag        : return lexAnonymousTag()
-            case .parameters : var part: LKToken?
+            case .parameters : var part: LKToken.Container?
                                repeat { part = try lexParameters() }
                                    while part == nil && current != nil
                                if let paramPart = part { return paramPart }
@@ -79,18 +82,21 @@ internal struct LKLexer {
         }
     }
 
-    private mutating func lexAnonymousTag() -> LKToken {
+    private mutating func lexAnonymousTag() -> LKToken.Container {
         state = .parameters
         depth = 0
         return .tag(nil)
     }
 
-    private mutating func lexNamedTag() throws -> LKToken {
+    private mutating func lexNamedTag() throws -> LKToken.Container {
         let id = src.readWhile { $0.isValidInIdentifier }
 
         /// If not a recognized identifier decay to raw and rewrite tagIndicator
-        guard entities.openers.contains(id) || entities.closers.contains(id) else {
-            lexed[offset] = escapedTagID
+        guard entities.openers.contains(id) ||
+              entities.closers.contains(id) ||
+              current == .leftParenthesis else {
+            lexed.removeLast()
+            append(escapedTagID)
             state = .raw;
             return .raw(id)
         }
@@ -111,7 +117,7 @@ internal struct LKLexer {
             case (false, true ) where entities.openers.contains(id)
                                 : if pop() != .colon {
                                     throw unknownError("Chained block missing `:`") }
-                                  lexed.append(.tag(id))
+                                  append(.tag(id))
                                   state = .raw
                                   return .blockMark
             /// End tag normal case
@@ -121,7 +127,7 @@ internal struct LKLexer {
     }
 
     /// Consume all data until hitting a `tagIndicator` that might open a tag/expression, escaping backslashed
-    private mutating func lexRaw() -> LKToken {
+    private mutating func lexRaw() -> LKToken.Container {
         var slice = ""
         scan:
         while let first = current {
@@ -141,7 +147,7 @@ internal struct LKLexer {
     }
 
     /// Consume `#`, change state to `.tag` or `.raw`, return appropriate token
-    private mutating func lexCheckTagIndicator() -> LKToken {
+    private mutating func lexCheckTagIndicator() -> LKToken.Container {
         pop()
         let valid = current == .leftParenthesis || current?.canStartIdentifier ?? false
         state = valid ? .tag : .raw
@@ -149,7 +155,7 @@ internal struct LKLexer {
     }
 
     /// Parameter lexing - very monolithic, would be nice to break this up.
-    private mutating func lexParameters() throws -> LKToken? {
+    private mutating func lexParameters() throws -> LKToken.Container? {
         /// Consume first character regardless of what it is
         let first = pop()!
 
@@ -166,13 +172,13 @@ internal struct LKLexer {
             case .rightParenthesis   : state = .raw
                                        let body = current == .colon
                                        if body { pop()
-                                                 lexed.append(.paramsEnd)
+                                                 append(.paramsEnd)
                                                  return .blockMark
                                        } else  { return .paramsEnd }
             case .comma              : return .paramDelimit
             case .colon where [.paramsStart,
                                .paramDelimit,
-                               .param(.operator(.subOpen))].contains(lexed[offset - 1])
+                               .param(.operator(.subOpen))].contains(lexed[offset - 1].token)
                                      : return .labelMark
             case .leftBracket where current == .rightBracket
                                      : pop()
@@ -235,7 +241,7 @@ internal struct LKLexer {
             if [.evaluate, .scopeMember, .scopeRoot].contains(op) {
                 if current!.isWhitespace {
                     throw unknownError("\(op) may not have trailing whitespace") }
-                if op == .scopeMember, case .whiteSpace(_) = lexed[offset] {
+                if op == .scopeMember, case .whiteSpace(_) = lexed[offset].token {
                     throw unknownError("\(op) may not have leading whitespace") }
             }
             return .param(.operator(op))
@@ -256,9 +262,9 @@ internal struct LKLexer {
             /// We must be immediately preceeded by a minus to flip the sign and only flip back if
             /// immediately preceeded by a const, tag or variable (which we assume will provide a
             /// numeric). Grammatical errors in the template (eg, keyword-numeric) may throw here
-            if case .param(let p) = lexed[offset],
+            if case .param(let p) = lexed[offset].token,
                case .operator(let op) = p, op == .minus {
-                switch lexed[offset - 1] {
+                switch lexed[offset - 1].token {
                     case .param(let p):
                         switch p {
                             case .literal,
@@ -311,14 +317,20 @@ internal struct LKLexer {
 
     /// Convenience for making nested `LeafError->LexerError.unknownError`
     private func unknownError(_ reason: String) -> LeafError {
-        err(.lexerError(.init(.unknownError(reason), src, lexed))) }
-    /// Convenience for making nested `LeafError->LexerError.invalidParameterToken`
+        err(.lexError(.init(.unknownError(reason), src, lexed))) }
+    /// Convenience for making nested `LeafError->LexError.invalidParameterToken`
     private func badToken(_ character: Character) -> LeafError {
-        err(.lexerError(.init(.invalidParameterToken(character), src, lexed))) }
+        err(.lexError(.init(.invalidParameterToken(character), src, lexed))) }
     /// Convenience for making nested `LeafError->LexerError.badOperator`
     private func badOperator(_ op: LeafOperator) -> LeafError {
-        err(.lexerError(.init(.invalidOperator(op), src, lexed))) }
+        err(.lexError(.init(.invalidOperator(op), src, lexed))) }
     /// Convenience for making nested `LeafError->LexerError.untermindatedStringLiteral`
     private var unterminatedString: LeafError {
-        err(.lexerError(.init(.unterminatedStringLiteral, src, lexed))) }
+        err(.lexError(.init(.unterminatedStringLiteral, src, lexed))) }
+    
+    private mutating func append(_ token: LKToken.Container) {
+        lexed.append(.init(token, lastSourceLocation))
+        lastSourceLocation = src.state
+    }
 }
+

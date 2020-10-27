@@ -82,7 +82,7 @@ internal enum LKDConverters {
     static let doubleMaps: [LKDType: DoubleMap] = [
         .double     : (is: .identity, via: { $0.leafData }),
 
-        .bool       : (is: .castable, via: { .bool([0.0, 1.0].contains($0) ? $0 == 1.0 : true) }),
+        .bool       : (is: .castable, via: { .bool($0 != 0.0) }),
         .string     : (is: .castable, via: { .string($0.description) }),
 
         .int        : (is: .coercible, via: { .int(Int(exactly: $0.rounded())) }),
@@ -96,7 +96,7 @@ internal enum LKDConverters {
     static let intMaps: [LKDType: IntMap] = [
         .int        : (is: .identity, via: { $0.leafData }),
 
-        .bool       : (is: .castable, via: { .bool([0, 1].contains($0) ? $0 == 1 : true) }),
+        .bool       : (is: .castable, via: { .bool($0 != 0) }),
         .double     : (is: .castable, via: { .double(Double($0)) }),
         .string     : (is: .castable, via: { .string($0.description) }),
 

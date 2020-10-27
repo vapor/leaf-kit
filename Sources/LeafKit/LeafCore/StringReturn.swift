@@ -3,11 +3,6 @@ internal extension LeafEntities {
         use(StrToStrMap.uppercased,  asMethod: "uppercased")
         use(StrToStrMap.lowercased,  asMethod: "lowercased")
         use(StrToStrMap.capitalized, asMethod: "capitalized")
-       // use(StrToStrMap.reversed, asMethod: "reversed")
-       // use(StrToStrMap.randomElement, asMethod: "randomElement")
-       // use(StrStrStrToStrMap.replace, asMethod: "replace")
-        
-       // use(StrToStrMap.escapeHTML, asFunctionAndMethod: "escapeHTML")
     }
 }
 

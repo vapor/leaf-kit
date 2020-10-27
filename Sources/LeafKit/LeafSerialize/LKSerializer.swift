@@ -197,6 +197,7 @@ internal final class LKSerializer {
                                 /// or if no definition but evaluate has a default value roll back one and serialize that
                                 } else if evaluate.defaultValue != nil { advance(by: -1) }
                                 continue serialize
+                            case .declare : __Unreachable("Declare rewrites to expression")
                         }
                     }
                     
@@ -414,7 +415,7 @@ private extension LKSerializer {
             if context.stack[depth].ids.contains(root) {
                 /// Value was already set and is a dictionary
                 if let original = context.stack[depth].vars.pointee[key],
-                   !original.errored, original.celf == .dictionary {
+                   !original.errored, original.storedType == .dictionary {
                     context.stack[depth].vars.dropDescendents(of: key)
                 }
                 context.stack[depth].vars.pointee[key] = value
@@ -448,7 +449,7 @@ private extension LKSerializer {
     
     @inline(__always) func append(_ data: LeafData) {
         if data.errored { error = err(.unknownError(data.error!)); return }
-        if data.celf == .void { stack[stackDepth].buffer.pointee.voidAction() }
+        if data.storedType == .void { stack[stackDepth].buffer.pointee.voidAction() }
         else { stack[stackDepth].buffer.pointee.append(data) }
     }
 }

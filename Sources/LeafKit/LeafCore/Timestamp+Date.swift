@@ -28,7 +28,7 @@ public struct LeafTimestamp: LeafFunction, DoubleReturn {
         guard let base = ReferenceBase(rawValue: params[1].string!) else {
             return .error("\(params[1].string!) is not a valid reference base; must be one of \(ReferenceBase.allCases.description)") }
         let offset = base.interval
-        if LKDTypeSet.numerics.contains(params[0].celf) {
+        if LKDTypeSet.numerics.contains(params[0].storedType) {
             return .double(Date(timeIntervalSinceReferenceDate: offset + params[0].double!)
                             .timeIntervalSinceReferenceDate) }
         guard let x = ReferenceBase(rawValue: params[0].string!) else { return ReferenceBase.fault(params[0].string!) }
@@ -72,7 +72,7 @@ public struct LeafDateFormatters {
             let timestamp = params[0]
             let zone = params[1].string!
             var interval: Double
-            if timestamp.celf == .string {
+            if timestamp.storedType == .string {
                 guard let t = LeafTimestamp.ReferenceBase(rawValue: timestamp.string!) else {
                     return LeafTimestamp.ReferenceBase.fault(timestamp.string!) }
                 interval = t.interval
@@ -185,7 +185,7 @@ internal extension LeafDateFormatters {
         var formatter = Self[key]
         
         var timestamp = params[0]
-        if timestamp.celf == .string {
+        if timestamp.storedType == .string {
             guard let t = LeafTimestamp.ReferenceBase(rawValue: timestamp.string!) else {
                 return LeafTimestamp.ReferenceBase.fault(timestamp.string!) }
             timestamp = .double(t.interval)

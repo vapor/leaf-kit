@@ -132,7 +132,7 @@ final class ParserTests: LeafTestClass {
         """
 
         let home = """
-        #export(title, "Welcome")
+        #export(title = "Welcome")
         #export(body):
             Hello, #(name)!
         #endexport
@@ -165,7 +165,7 @@ final class ParserTests: LeafTestClass {
 
         let headerAST = try parse(header, name: "header")
         var baseAST = try parse(base, name: "base")
-        var homeAST = try parse(home, name: "home")
+        var homeAST = try parse(home, name: "home", options: [.parseWarningThrows(false)])
 
         baseAST.inline(ast: headerAST)
         homeAST.inline(ast: baseAST)
@@ -175,26 +175,33 @@ final class ParserTests: LeafTestClass {
 
     func testCompileExtend() throws {
         let input = """
-        #define(title, "Welcome")
+        #define(title = "Welcome")
         #define(body):
             Hello, #(name)!
         #enddefine
         #inline("base")
+        #title()
+        #implictEval()
         """
 
         let expectation = """
-        0: define(title):
-        1: string(Welcome)
-        3: define(body):
-        4: scope(table: 1)
-           0: raw(LeafBuffer: 12B)
-           1: $:name
-           2: raw(LeafBuffer: 2B)
-        6: inline("base", leaf):
-        7: scope(undefined)
+         0: define(title):
+         1: string(Welcome)
+         3: define(body):
+         4: scope(table: 1)
+            0: raw(LeafBuffer: 12B)
+            1: $:name
+            2: raw(LeafBuffer: 2B)
+         6: inline("base", leaf):
+         7: scope(undefined)
+         9: evaluate(title):
+        10: scope(undefined)
+        12: evaluate(implictEval):
+        13: scope(undefined)
         """
 
-        try XCTAssertEqual(parse(input).terse, expectation)
+        let ast = try parse(input, options: [.parseWarningThrows(false)])
+        XCTAssertEqual(ast.terse, expectation)
     }
 
     func testScopingAndMethods() throws {
@@ -315,11 +322,10 @@ final class LexerTests: LeafTestClass {
         XCTAssertEqual(output, "raw(\"#\")\n")
     }
 
-    // deactivated because changing tagIndicator, for some reason, is causing a data race
     func testTagIndicator() throws {
         Character.tagIndicator = "🤖"
         let input = """
-        🤖export(title, "Welcome")
+        🤖let(title = "Welcome")
         🤖export(body):
             Hello, 🤖(name)!
         🤖endexport
@@ -327,15 +333,14 @@ final class LexerTests: LeafTestClass {
         """
 
         let expectation = """
-        0: export(title):
-        1: string(Welcome)
-        3: export(body):
-        4: scope(table: 1)
+        0: [let $:title string(Welcome)]
+        2: export(body):
+        3: scope(table: 1)
            0: raw(LeafBuffer: 12B)
            1: $:name
            2: raw(LeafBuffer: 2B)
-        6: extend("base", leaf):
-        7: scope(undefined)
+        5: extend("base", leaf):
+        6: scope(undefined)
         """
 
         try! XCTAssertEqual(parse(input).terse, expectation)
@@ -480,7 +485,7 @@ final class LeafKitTests: LeafTestClass {
     func testImportResolve() {
         let test = LeafTestFiles()
         test.files["/a.leaf"] = """
-        #export(value, "Hello")
+        #export(value = "Hello")
         #extend("b")
         """
         test.files["/b.leaf"] = """
@@ -490,7 +495,7 @@ final class LeafKitTests: LeafTestClass {
         let renderer = TestRenderer(sources: .singleSource(test))
 
         do {
-            let output = try renderer.render(path: "a").wait().string
+            let output = try renderer.render(path: "a", options: [.parseWarningThrows(false)]).wait().string
             XCTAssertEqual(output, "Hello")
         } catch {
             let e = error as! LeafError
@@ -640,11 +645,11 @@ final class LeafKitTests: LeafTestClass {
     func testImportParameter() throws {
         let test = LeafTestFiles()
         test.files["/base.leaf"] = """
-        #define(adminValue, admin)
+        #define(adminValue = admin)
         #inline("parameter")
         """
         test.files["/delegate.leaf"] = """
-        #define(delegated, false || bypass)
+        #define(delegated = false || bypass)
         #inline("parameter")
         """
         test.files["/parameter.leaf"] = """
@@ -985,7 +990,7 @@ final class LeafKitTests: LeafTestClass {
     func testElideRenderOptionChanges() throws {
         XCTAssertEqual(LeafRenderer.Option.Case.allCases.count,
                        LeafRenderer.Option.allCases.count)
-        XCTAssertEqual(LeafRenderer.Option.allCases.count, 6)
+        XCTAssertEqual(LeafRenderer.Option.allCases.count, 7)
         var options: LeafRenderer.Options = .globalSettings
         XCTAssertEqual(options._storage.count, 0)
         options.update(.timeout(1.0))

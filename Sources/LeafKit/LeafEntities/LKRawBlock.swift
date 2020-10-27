@@ -65,5 +65,7 @@ extension LKRawBlock {
     /// RawBlocks will never be called with evaluate
     public func evaluate(_ params: LeafCallValues) -> LeafData { .error(internal: "LKRawBlock called as function") }
     var recall: Bool { Self.recall }
+    
+    func getError(_ location: SourceLocation) -> LeafError? { error.map { err(.serializeError(Self.self, $0, location)) } }
 }
 
