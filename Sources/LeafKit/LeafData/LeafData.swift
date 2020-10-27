@@ -118,7 +118,8 @@ extension LeafData: ExpressibleByDictionaryLiteral,
                     ExpressibleByBooleanLiteral,
                     ExpressibleByArrayLiteral,
                     ExpressibleByFloatLiteral,
-                    ExpressibleByNilLiteral {
+                    ExpressibleByNilLiteral,
+                    ExpressibleByStringInterpolation {
     // MARK: Generic `LeafDataRepresentable` Initializer
     public init(_ leafData: LeafDataRepresentable) { self = leafData.leafData }
 
@@ -141,9 +142,15 @@ extension LeafData: ExpressibleByDictionaryLiteral,
     /// Creates a new `LeafData` from `[String: LeafData]`.
     public static func dictionary(_ value: [String: LeafData]?) -> Self {
         value.map { Self(.dictionary($0)) } ?? .nil(.dictionary) }
+    /// Creates a new `LeafData` from `[String: LeafDataRepresentable]`.
+    static func dictionary(_ value: [String: LeafDataRepresentable]?) -> Self {
+        dictionary(value?.mapValues { $0.leafData }) }
     /// Creates a new `LeafData` from `[LeafData]`.
     public static func array(_ value: [LeafData]?) -> Self {
         value.map { Self(.array($0)) } ?? .nil(.array) }
+    /// Creates a new `LeafData` from `[LeafDataRepresentable]`.
+    public static func array(_ value: [LeafDataRepresentable]?) -> Self {
+        array(value?.map {$0.leafData}) }
     /// Creates a new `LeafData` for `Optional<LeafData>`
     public static func `nil`(_ type: LeafDataType) -> Self {
         Self(.nil(type)) }
