@@ -212,7 +212,10 @@ private extension LeafRenderer {
     
     func _render(_ key: LeafASTKey, _ context: Context, _ options: Options?) -> ELF<ByteBuffer> {
         var context = context
-        if let options = options { context.options = options }
+        if let options = options {
+            if context.options == nil { context.options = options }
+            else { options._storage.forEach { context.options?._storage.update(with: $0) } }
+        }
         
         /// Short circuit for resolved blocking cache hits
         if cacheIsSync, context.caching.contains(.read),
