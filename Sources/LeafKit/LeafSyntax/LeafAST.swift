@@ -53,10 +53,10 @@ public struct LeafAST: Hashable {
 
     /// An opaque object used as a key for storing `LeafAST`s in hash tables (eg, caches). Not directly readable.
     public struct Key: Hashable {
+        public init(_ src: String, _ path: String) { self._key = "\(src):\(path)" }
+        public static func searchKey(_ name: String) -> Self { .init("$", name) }
+        
         let _key: String
-
-        init(_ src: String, _ path: String) { self._key = "\(src):\(path)" }
-        static func searchKey(_ name: String) -> Self { .init("$", name) }
 
         var _src: String { .init(_key.prefix(while: { $0 != ":"})) }
         var _name: String { .init(_key.split(separator: ":", maxSplits: 1)[1]) }
