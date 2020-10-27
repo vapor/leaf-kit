@@ -143,7 +143,7 @@ extension LeafData: ExpressibleByDictionaryLiteral,
     public static func dictionary(_ value: [String: LeafData]?) -> Self {
         value.map { Self(.dictionary($0)) } ?? .nil(.dictionary) }
     /// Creates a new `LeafData` from `[String: LeafDataRepresentable]`.
-    static func dictionary(_ value: [String: LeafDataRepresentable]?) -> Self {
+    public static func dictionary(_ value: [String: LeafDataRepresentable]?) -> Self {
         dictionary(value?.mapValues { $0.leafData }) }
     /// Creates a new `LeafData` from `[LeafData]`.
     public static func array(_ value: [LeafData]?) -> Self {
