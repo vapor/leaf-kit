@@ -72,11 +72,13 @@ public struct LeafDateFormatters {
             let timestamp = params[0]
             let zone = params[1].string!
             var interval: Double
-            if timestamp.storedType == .string {
+            
+            if timestamp.isNumeric { interval = timestamp.double! }
+            else {
                 guard let t = LeafTimestamp.ReferenceBase(rawValue: timestamp.string!) else {
                     return LeafTimestamp.ReferenceBase.fault(timestamp.string!) }
                 interval = t.interval
-            } else { interval = timestamp.storedType == .double ? timestamp.double! : Double(timestamp.int!) }
+            }
             
             var formatter = LeafDateFormatters[zone]
             if formatter == nil {
