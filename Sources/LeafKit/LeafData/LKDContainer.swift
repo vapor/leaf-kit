@@ -112,7 +112,7 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
     /// Nil if not errored, or errored function/reason
     var error: String? {
         guard case .error(let r, let f, let l) = self else { return nil }
-        return l.map { "Serialize Error in template \"\($0.0)\" - \($0.1):\($0.2)" } ?? "" + "\(f): \(r)"
+        return (l.map { "Serialize Error in template \"\($0.0)\" - \($0.1):\($0.2)" } ?? "") + "\(f): \(r)"
     }
     var isUnset: Bool { self == .unset }
     
