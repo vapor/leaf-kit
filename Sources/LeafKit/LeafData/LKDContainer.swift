@@ -132,10 +132,10 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case .void       : state = .void
         }
         switch self {
-            case .lazy               : state.formUnion(.variant)
-            case .nil                : state.formUnion(.nil)
-            case .unset              : state.formUnion(.variant)
-            default: break
+            case .lazy       : state.formUnion(.variant)
+            case .nil        : state.formUnion(.nil)
+            case .unset      : state.formUnion(.variant)
+            default          : break
         }
         return state
     }
