@@ -43,7 +43,8 @@ public final class LeafRenderer {
     /// Locally overrideable options for how LeafRenderer handles rendering
     public enum Option: Hashable, CaseIterable {
         /// Rendering timeout duration limit in seconds; must be at least 1ms
-        @LeafRuntimeGuard(condition: {$0 >= 0.001}) public static var timeout: Double = 0.050
+        @LeafRuntimeGuard(condition: {$0 >= 0.001})
+        public static var timeout: Double = 0.050
         
         /// If true, warnings during parse will throw errors.
         @LeafRuntimeGuard public static var parseWarningThrows: Bool = true
@@ -67,7 +68,8 @@ public final class LeafRenderer {
         
         /// If caching behavior allows auto-updating, the polling frequency dictates how many seconds
         /// can elapse before `LeafRenderer` checks the original source for changes
-        @LeafRuntimeGuard(condition: {$0.sign == .plus}) public static var pollingFrequency: Double = 10.0
+        @LeafRuntimeGuard(condition: {$0.sign == .plus})
+        public static var pollingFrequency: Double = 10.0
         
         case timeout(Double)
         case parseWarningThrows(Bool)

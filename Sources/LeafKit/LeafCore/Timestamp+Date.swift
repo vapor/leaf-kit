@@ -65,12 +65,14 @@ public struct LeafDateFormatters {
     public struct ISO8601: LeafFunction, StringReturn, Invariant {
         public static var callSignature: [LeafCallParameter] {[
             .init(types: [.int, .double, .string], defaultValue: .lazy(now, returns: .double)),
-            .string(labeled: "timeZone", defaultValue: defaultTZIdentifier.leafData)
+            .string(labeled: "timeZone", defaultValue: defaultTZIdentifier.leafData),
+            .bool(labeled: "fractionalSeconds", defaultValue: defaultFractionalSeconds.leafData)
         ]}
         
         public func evaluate(_ params: LeafCallValues) -> LeafData {
             let timestamp = params[0]
             let zone = params[1].string!
+            let fractional = params[2].bool!
             var interval: Double
             
             if timestamp.isNumeric { interval = timestamp.double! }
@@ -80,14 +82,14 @@ public struct LeafDateFormatters {
                 interval = t.interval
             }
             
-            var formatter = LeafDateFormatters[zone]
+            var formatter = LeafDateFormatters[zone, fractional]
             if formatter == nil {
                 guard let tZ = TimeZone(identifier: zone) else {
                     return .error("\(zone) is not a valid time zone identifier") }
                 formatter = ISO8601DateFormatter()
                 formatter!.timeZone = tZ
-                if defaultFractionalSeconds { formatter!.formatOptions.update(with: .withFractionalSeconds) }
-                LeafDateFormatters[zone] = formatter
+                if fractional { formatter!.formatOptions.update(with: .withFractionalSeconds) }
+                LeafDateFormatters[zone, fractional] = formatter
             }
             return .string(formatter!.string(from: base.addingTimeInterval(interval)))
         }
@@ -155,9 +157,9 @@ internal extension LeafTimestamp.ReferenceBase {
 }
 
 internal extension LeafDateFormatters {
-    static subscript(timezone: String) -> ISO8601DateFormatter? {
-        get { lock.readWithLock { iso8601[timezone] } }
-        set { lock.writeWithLock { iso8601[timezone] = newValue } }
+    static subscript(timezone: String, fractional: Bool) -> ISO8601DateFormatter? {
+        get { lock.readWithLock { iso8601[timezone + (fractional ? "T" : "F")] } }
+        set { lock.writeWithLock { iso8601[timezone + (fractional ? "T" : "F")] = newValue } }
     }
     
     static subscript(key: Key) -> DateFormatter? {
@@ -186,18 +188,21 @@ internal extension LeafDateFormatters {
         let key = Key(f, z, l)
         var formatter = Self[key]
         
-        var timestamp = params[0]
-        if timestamp.storedType == .string {
+        let timestamp = params[0]
+        let interval: Double
+        
+        if timestamp.isNumeric { interval = timestamp.double! }
+        else {
             guard let t = LeafTimestamp.ReferenceBase(rawValue: timestamp.string!) else {
                 return LeafTimestamp.ReferenceBase.fault(timestamp.string!) }
-            timestamp = .double(t.interval)
+            interval = t.interval
         }
         
         if formatter == nil {
             guard let zone = TimeZone(identifier: z) else {
                 return .error("\(z) is not a valid time zone identifier") }
-            if l != nil, !Locale.availableIdentifiers.contains(l!) {
-                return .error("\(l!) is not a known locale identifier") }
+            if let l = l, !Locale.availableIdentifiers.contains(l) {
+                return .error("\(l) is not a known locale identifier") }
             formatter = DateFormatter()
             formatter!.dateFormat = fixed ? f : DateFormatter.dateFormat(fromTemplate: f, options: 0, locale: Locale(identifier: l!))
             formatter!.timeZone = zone
@@ -205,6 +210,6 @@ internal extension LeafDateFormatters {
             Self[key] = formatter
         }
         
-        return .string(formatter!.string(from: base.addingTimeInterval(timestamp.double!)))
+        return .string(formatter!.string(from: base.addingTimeInterval(interval)))
     }
 }
