@@ -27,6 +27,8 @@ public final class LeafMemorySource: LeafSource {
         }
     }
     
+    public init() {}
+    
     public var keys: Set<String> { lock.readWithLock {.init(files.keys)} }
     
     private var lock: RWLock = .init()
