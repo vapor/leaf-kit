@@ -28,6 +28,9 @@ public struct LeafCallParameter: LKPrintable, Equatable {
     var short: String {
         "\(label != nil ? "\(label!): " : "")\(types.description)\(optional ? "?" : "")\(defaultValue != nil ? " = \(defaultValue!.short)" : "")"
     }
+    
+    var defaulted: Bool { defaultValue != nil }
+    var labeled: Bool { label != nil }
 }
 
 public extension LeafCallParameter {

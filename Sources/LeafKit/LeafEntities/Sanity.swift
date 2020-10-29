@@ -39,7 +39,7 @@ internal extension Array where Element == LeafCallParameter {
                         $0.offset < self.enumerated().first(where:
                             {$0.element.label != nil})?
                                 .offset ?? endIndex}),
-                     "All after first labeled parameter must also be labled")
+                     "All after first labeled parameter must also be labeled")
         precondition(self.enumerated().allSatisfy({
                         $0.element.defaultValue != nil ||
                         $0.offset < self.enumerated().first(where:
@@ -50,26 +50,41 @@ internal extension Array where Element == LeafCallParameter {
 
     /// Compare two signatures and return true if they can be confused
     func confusable(with: Self) -> Bool {
-        /// Exactly equal, always confusable
-        if self == with { return true }
-        /// Both fully defaulted (or empty), always confusable
-        let selfUndef = self.filter { $0.defaultValue == nil }
-        let withUndef = with.filter { $0.defaultValue == nil }
-        if selfUndef.isEmpty, withUndef.isEmpty { return true }
-        /// Unequal number of non-defaults always unambiguous
-        if self.count - selfUndef.count != with.count - withUndef.count { return false }
-        /// Both have equal, non-zero number of non-defaults
-        var index: Int = self.indices.first!
-        var a: LeafCallParameter { self[index] }
-        var b: LeafCallParameter { with[index] }
-        while index < selfUndef.count {
-            /// Not confusable if labels aren't the same
-            if a.label != b.label { return false }
-            /// ... or types at position don't intersect
-            if a.types.intersection(b.types).isEmpty { return false }
-            index += 1
+        if isEmpty && with.isEmpty { return true }
+        
+        var s = self
+        var w = with
+        if s.count < w.count { swap(&s, &w) }
+        
+        let map = s.indices.map { (s[$0], $0 < w.count ? w[$0] : nil) }
+        
+        var index = 0
+        var a: LeafCallParameter { map[index].0 }
+        var b: LeafCallParameter? { map[index].1 }
+
+        while index < map.count {
+            defer { index += 1 }
+            if let b = b {
+                /// If both defaulted, ambiguous
+                if a.defaulted && b.defaulted { return true }
+                /// One of the two is defaulted. As long as label is different, that's ok
+                if a.defaulted || b.defaulted { return a.label == b.label }
+                /// Neither is defaulted.
+                /// If the labels are not the same, it's unambiguous
+                if a.label != b.label { return false }
+                /// ... or if no shared types overlap.
+                if a.types.intersection(b.types).isEmpty { return false }
+            }
+            /// If shorter sig is out of params, a's defaulted state determines ambiguity
+            else { return a.defaulted }
         }
-        return true /// Confusable
+        /// If we've exhausted (equal number of params, it's ambiguous
+        return true
+    }
+    
+    /// If the signature can accept an empty call signature, whether because empty or fully defaulted
+    var emptyParamSig: Bool {
+        !filter { $0.defaultValue != nil }.isEmpty
     }
 }
 

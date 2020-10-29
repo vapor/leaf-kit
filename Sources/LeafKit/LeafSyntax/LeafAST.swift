@@ -291,7 +291,7 @@ internal extension LeafAST {
     
     /// Never autoUpdate if pollTime isn't set yet
     func autoUpdate(_ context: LKRContext) -> Bool {
-        (info.pollTime ?? .distantFuture) +-> Date() >= context.pollingFrequency
+        info.pollTime +-> Date() >= context.pollingFrequency
     }
 }
 
