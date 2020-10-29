@@ -401,8 +401,8 @@ final class LKParserTests: LeafTestClass {
     }
     
     func _testResumingSerialize() throws {
-        let testFiles = LeafTestFiles()
-        testFiles.files["/sample.leaf"] = """
+        let testFiles = LeafMemorySource()
+        testFiles["/sample.leaf"] = """
         hello, #(name)!
         #for(index in skills):
         #(skills[index])
@@ -489,9 +489,9 @@ final class LKParserTests: LeafTestClass {
     }
     
     func testDefineNesting() throws {
-        let test = LeafTestFiles()
+        let test = LeafMemorySource()
         let renderer = TestRenderer(sources: .singleSource(test))
-        test.files["/input.leaf"] = """
+        test["/input.leaf"] = """
         #define(block):
         <section>
             <input type="text" name="#(param.name)" value="#(param.value)">
@@ -501,7 +501,7 @@ final class LKParserTests: LeafTestClass {
         #evaluate(block)
         """
         
-        test.files["/define.leaf"] = """
+        test["/define.leaf"] = """
         #inline("input")
         #inline("input")
         """

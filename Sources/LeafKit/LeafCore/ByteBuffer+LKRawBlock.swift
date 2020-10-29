@@ -11,7 +11,6 @@ extension ByteBuffer: LKRawBlock {
                             encoding: String.Encoding) -> LKRawBlock {
         ByteBufferAllocator().buffer(capacity: Int(size)) }
 
-
     /// Always identity return and valid
     var serialized: (buffer: ByteBuffer, valid: Bool?) { (self, true) }
 

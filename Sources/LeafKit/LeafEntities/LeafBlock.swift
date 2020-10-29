@@ -108,5 +108,3 @@ public extension ChainedBlock {
     mutating func reEvaluateScope(_ variables: inout [String: LeafData]) -> EvalCount {
         __MajorBug("ChainedBlocks are only called once") }
 }
-
-

@@ -12,7 +12,7 @@ public struct LeafAST: Hashable {
     /// Convenience referrent name for the AST
     public let name: String
     /// A public view of the current state of the AST
-    public private(set) var info: LeafASTInfo
+    public internal(set) var info: LeafASTInfo
 
     // MARK: - Internal Stored Properties
     /// The AST scope tables
@@ -94,6 +94,7 @@ public struct LeafAST: Hashable {
         var includedASTs: Set<String> = []
         var _requiredVars: Set<LKVariable> = []
         var touch: Touch = .empty
+        var pollTime: Date
 
         // MARK: Computed Properties
         /// Whether the AST is fully resolved
@@ -149,15 +150,17 @@ internal extension LeafAST {
         self.requiredRaws = inlines.filter { $0.at == .distantFuture && !$0.process }
                                    .reduce(into: .init(), { $0.insert($1.inline.identifier) })
 
+        let now = Date()
         // Info properties (start same as actual AST, may modify from resolving
-        self.info = .init(parsed: Date(),
+        self.info = .init(parsed: now,
                           defines: defines.sorted(),
                           inlines: Set(inlines.map {$0.inline.identifier}).sorted(),
                           requiredASTs: requiredASTs,
                           requiredRaws: requiredRaws,
                           underestimatedSize: underestimatedSize,
                           stackDepths: stackDepths,
-                          _requiredVars: requiredVars)
+                          _requiredVars: requiredVars,
+                          pollTime: now)
     }
 
     /// Any required files, whether template or raw, required to fully resolve
@@ -284,6 +287,11 @@ internal extension LeafAST {
                - ASTS: [\(info.requiredASTs.joined(separator: ", "))]
                - Raws: [\(info.requiredRaws.joined(separator: ", "))]
         """
+    }
+    
+    /// Never autoUpdate if pollTime isn't set yet
+    func autoUpdate(_ context: LKRContext) -> Bool {
+        (info.pollTime ?? .distantFuture) +-> Date() >= context.pollingFrequency
     }
 }
 

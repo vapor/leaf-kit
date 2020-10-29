@@ -11,7 +11,6 @@ public protocol LeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData
 }
 
-
 /// `LeafContext` is entirely deprecated as a value passing object to the replacement to `LeafTag`.
 ///
 ///     LeafFunction or LeafMethod:

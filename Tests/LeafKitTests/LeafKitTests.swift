@@ -468,8 +468,8 @@ final class LeafKitTests: LeafTestClass {
         
         LeafConfiguration.entities.use(CustomTag(), asFunction: "custom")
         
-        let test = LeafTestFiles()
-        test.files["/foo.leaf"] = "Hello #custom(name)"
+        let test = LeafMemorySource()
+        test["/foo.leaf"] = "Hello #custom(name)"
         let renderer = TestRenderer(sources: .singleSource(test))
         
         var baseContext: LeafRenderer.Context = ["name": "vapor"]
@@ -483,12 +483,12 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testImportResolve() {
-        let test = LeafTestFiles()
-        test.files["/a.leaf"] = """
+        let test = LeafMemorySource()
+        test["/a.leaf"] = """
         #export(value = "Hello")
         #extend("b")
         """
-        test.files["/b.leaf"] = """
+        test["/b.leaf"] = """
         #import(value)
         """
 
@@ -526,9 +526,9 @@ final class LeafKitTests: LeafTestClass {
     func _testCacheSpeedLinear(templates: Int, iterations: Int) -> (Double, Double) {
         let threads = min(System.coreCount, 4)
         let group = MultiThreadedEventLoopGroup(numberOfThreads: threads)
-        let test = LeafTestFiles()
+        let test = LeafMemorySource()
 
-        for name in 1...templates { test.files["/\(name).leaf"] = "#Date(Timestamp() + \((-1000000...1000000).randomElement()!).0)" }
+        for name in 1...templates { test["/\(name).leaf"] = "#Date(Timestamp() + \((-1000000...1000000).randomElement()!).0)" }
 //        for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf\"" }
         let per = iterations / threads
         var left = iterations
@@ -589,13 +589,13 @@ final class LeafKitTests: LeafTestClass {
                                layer3: Int,
                                iterations: Int) -> (Double, Double) {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-        let test = LeafTestFiles()
+        let test = LeafMemorySource()
 
-        for name in 1...layer3 { test.files["/\(name)-3.leaf"] = "Template \(name)"}
-        for name in 1...layer2 { test.files["/\(name)-2.leaf"] = "Template \(name) -> #extend(\"\((name % layer3)+1)-3\")"}
-        for name in 1...layer1 { test.files["/\(name).leaf"] = "Template \(name) -> #extend(\"\(Int.random(in: 1...layer2))-2\") & #extend(\"\(Int.random(in: 1...layer2))-2\")" }
+        for name in 1...layer3 { test["/\(name)-3.leaf"] = "Template \(name)"}
+        for name in 1...layer2 { test["/\(name)-2.leaf"] = "Template \(name) -> #extend(\"\((name % layer3)+1)-3\")"}
+        for name in 1...layer1 { test["/\(name).leaf"] = "Template \(name) -> #extend(\"\(Int.random(in: 1...layer2))-2\") & #extend(\"\(Int.random(in: 1...layer2))-2\")" }
 
-        let allKeys: [String] = test.files.keys.map{ String($0.dropFirst().dropLast(5)) }.shuffled()
+        let allKeys: [String] = test.keys.map{ String($0.dropFirst().dropLast(5)) }.shuffled()
         var hitList = allKeys
         let totalTemplates = allKeys.count
         let ratio = iterations / allKeys.count
@@ -643,16 +643,16 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testImportParameter() throws {
-        let test = LeafTestFiles()
-        test.files["/base.leaf"] = """
+        let test = LeafMemorySource()
+        test["/base.leaf"] = """
         #define(adminValue = admin)
         #inline("parameter")
         """
-        test.files["/delegate.leaf"] = """
+        test["/delegate.leaf"] = """
         #define(delegated = false || bypass)
         #inline("parameter")
         """
-        test.files["/parameter.leaf"] = """
+        test["/parameter.leaf"] = """
         #if(evaluate(adminValue ?? false)):
             Hi Admin
         #elseif(evaluate(delegated ?? false)):
@@ -673,8 +673,8 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testDeepResolve() throws {
-        let test = LeafTestFiles()
-        test.files["/a.leaf"] = """
+        let test = LeafMemorySource()
+        test["/a.leaf"] = """
         #for(a in b):
         #if(false):
         Hi
@@ -688,7 +688,7 @@ final class LeafKitTests: LeafTestClass {
         #endif
         #endfor
         """
-        test.files["/b.leaf"] = """
+        test["/b.leaf"] = """
         #import(derp)
 
         """
@@ -739,12 +739,12 @@ final class LeafKitTests: LeafTestClass {
     }
 
     func testMultipleSources() throws {
-        let sourceOne = LeafTestFiles()
-        let sourceTwo = LeafTestFiles()
-        let hiddenSource = LeafTestFiles()
-        sourceOne.files["/a.leaf"] = "This file is in sourceOne"
-        sourceTwo.files["/b.leaf"] = "This file is in sourceTwo"
-        hiddenSource.files["/c.leaf"] = "This file is in hiddenSource"
+        let sourceOne = LeafMemorySource()
+        let sourceTwo = LeafMemorySource()
+        let hiddenSource = LeafMemorySource()
+        sourceOne["/a.leaf"] = "This file is in sourceOne"
+        sourceTwo["/b.leaf"] = "This file is in sourceTwo"
+        hiddenSource["/c.leaf"] = "This file is in hiddenSource"
 
         let multipleSources = LeafSources()
         try! multipleSources.register(using: sourceOne)
@@ -791,12 +791,13 @@ final class LeafKitTests: LeafTestClass {
         #inline("external")
         """
         
-        let testFiles = LeafTestFiles()
-        testFiles.files = ["/template.leaf": template,
-                           "/external.leaf": "#(variable)\n",
-                           "/uncachedraw.leaf": "#inline(\"excessiveraw.txt\", as: raw)",
-                           "/excessiveraw.txt": .init(repeating: ".",
-                                                      count: Int(LKROption.embeddedASTRawLimit) + 1)]
+        let testFiles = LeafMemorySource()
+        ["/template.leaf": template,
+         "/external.leaf": "#(variable)\n",
+         "/uncachedraw.leaf": "#inline(\"excessiveraw.txt\", as: raw)",
+         "/excessiveraw.txt": .init(repeating: ".",
+                                    count: Int(LKROption.embeddedASTRawLimit) + 1)]
+            .forEach { testFiles[$0.key] = $0.value }
         
         let expected = """
         #(variable)
@@ -922,8 +923,6 @@ final class LeafKitTests: LeafTestClass {
     func testContexts() throws {
         var aContext: LeafRenderer.Context = [:]
         let myAPI = _APIVersioning("myAPI", (0,0,1))
-        try aContext.register(object: myAPI, toScope: "api")
-        try aContext.register(generators: myAPI.extendedVariables, toScope: "api")
                 
         let template = """
         #if(!$api.isRelease && !override):#Error("This API is not vended publically")#endif
@@ -934,10 +933,14 @@ final class LeafKitTests: LeafTestClass {
         ["identifier": "myAPI", "isRelease": false, "version": ["major": 0, "minor": 0, "patch": 1]]
         Results!
         """
-        
+                
+        try aContext.register(object: myAPI, toScope: "api")
+        try aContext.register(generators: myAPI.extendedVariables, toScope: "api")
+                
         try XCTAssertThrowsError(render(template, aContext))
         
-        try aContext.setValue(at: "override", to: true)
+        aContext["override"] = true
+        
         let output = try render(template, aContext)
         XCTAssertEqual(output, expected)
         
@@ -990,7 +993,7 @@ final class LeafKitTests: LeafTestClass {
     func testElideRenderOptionChanges() throws {
         XCTAssertEqual(LeafRenderer.Option.Case.allCases.count,
                        LeafRenderer.Option.allCases.count)
-        XCTAssertEqual(LeafRenderer.Option.allCases.count, 7)
+        XCTAssertEqual(LeafRenderer.Option.allCases.count, 8)
         var options: LeafRenderer.Options = .globalSettings
         XCTAssertEqual(options._storage.count, 0)
         options.update(.timeout(1.0))
@@ -1001,8 +1004,8 @@ final class LeafKitTests: LeafTestClass {
     
     func testRenderOptions() throws {
         let expected = "Original Template"
-        let source = LeafTestFiles()
-        source.files["/template.leaf"] = expected
+        let source = LeafMemorySource()
+        source["/template.leaf"] = expected
         
         let renderer = LeafRenderer(cache: DefaultLeafCache(),
                                     sources: .singleSource(source),
@@ -1015,7 +1018,7 @@ final class LeafKitTests: LeafTestClass {
         }
         
         try XCTAssertEqual(render(), expected)
-        source.files["/template.leaf"] = "Updated Template"
+        source["/template.leaf"] = "Updated Template"
         try XCTAssertEqual(render(), expected)
         try XCTAssertEqual(render(bypass: true), "Updated Template")
     }
@@ -1029,9 +1032,9 @@ final class LeafKitTests: LeafTestClass {
     
     /// µ is 2byte with lower 0xB5 in UTF8, 1byte 0x9D in NeXT encoding
     func testEncoding() throws {
-        let files = LeafTestFiles()
-        files.files["/micro.leaf"] = "µ"
-        files.files["/tau.leaf"] = "τ"
+        let files = LeafMemorySource()
+        files["/micro.leaf"] = "µ"
+        files["/tau.leaf"] = "τ"
         let renderer = TestRenderer(sources: .singleSource(files))
         
         var utf8micro = try renderer.render(path: "micro", options: [.encoding(.utf8)]).wait()
@@ -1046,6 +1049,42 @@ final class LeafKitTests: LeafTestClass {
         try XCTAssertThrowsError(renderer.render(path: "tau", options: [.encoding(.nextstep)]).wait()) {
             XCTAssert(($0 as? LeafError)!.description.contains("`τ` is not encodable to `Western (NextStep)`"))
         }
+    }
+    
+    func testContextInfo() throws {
+        var aContext = LeafRenderer.Context()
+        
+        let one = ["key1": 1, "key2": 2]
+        let two = ["key3": false, "key4": true]
+        let three = ["key5": 5.0]
+        
+        try aContext.register(object: one, toScope: "scopeOne")
+        try aContext.register(object: two, toScope: "scopeOne")
+        try aContext.register(object: three, toScope: "scopeTwo")
+        
+        let scopes: Set<String> = .init(aContext.registeredContextScopes)
+        let objects: Set<String> = .init(aContext.registeredContextObjects
+                                            .map {"\($0.0): \(String(describing: type(of:$0.1)))"})
+        
+        XCTAssertEqual(scopes, ["context", "scopeOne", "scopeTwo"])
+        XCTAssertEqual(objects, ["scopeOne: Dictionary<String, Int>",
+                                 "scopeOne: Dictionary<String, Bool>",
+                                 "scopeTwo: Dictionary<String, Double>"])
+    }
+    
+    func testAutoUpdate() throws {
+        LKROption.pollingFrequency = 0.000_001
+        let files = LeafMemorySource()
+        let renderer = TestRenderer(sources: .singleSource(files))
+        
+        files["template"] = "Hi"
+        try XCTAssertEqual(renderer.render(path: "template").wait().string, "Hi")
+        
+        usleep(10)
+        
+        files["template"] = "Bye"
+        try XCTAssertEqual(renderer.render(path: "template").wait().string, "Bye")
+
     }
 }
 

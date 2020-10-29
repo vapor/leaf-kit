@@ -2,9 +2,7 @@ Leaf4 is a dynamic language templating engine for (and inspired by) Swift with a
 
 As the successor to Leaf3, it greatly expands the language's capabilities and introduces significant changes that are oriented towards: simplfying integration of Leaf into applications; broader use beyond web-templating; robust handling of compiling templates; and improved, more powerful, and safer extensibility of templates at runtime.
 
-[LeafKit](https://github.com/vapor/leaf-kit) is the core architecture of Leaf4; for the bindings of LeafKit to [Vapor](https://github.com/vapor/vapor) and Vapor-specific configuration, see [Leaf](https://github.com/vapor/leaf) - hereafter, **Leaf** is understood to refer to LeafKit/Leaf4. 
-
-
+[LeafKit](https://github.com/vapor/leaf-kit) is the core architecture of Leaf4; for the bindings of LeafKit to [Vapor](https://github.com/vapor/vapor) and Vapor-specific configuration, see [Leaf](https://github.com/vapor/leaf) - hereafter, **Leaf** is understood to refer to LeafKit/Leaf4.
 
 ## Architectural Summary
 
@@ -19,8 +17,6 @@ Leaf maintains a database of all named entities (**functions**, **methods**, **b
 Leaf templates themselves may **declare** variables, may **inline** other templates or raw files to construct hierarchical views, and may **define** anonymous blocks which can be **evaluated** at later times based on the state of the serializing process.
 
 LeafKit guarantees that a running application using it will present a consistent view of the configured language across all render calls to Leaf.
-
-
 
 ## Leaf Data Types
 
@@ -58,8 +54,6 @@ Effectively, all Leaf tags are implicitly optionally-chained.
 
 In the case of a function which takes a `String` parameter - should the provided parameter fail to be a concrete `String` or a type which can be implicitly coerced to a `String` at serializing time - the function itself will *not* be evaluated, and the resulting expression, function, or block will not be appended to the output stream.
 
-
-
 ## Leaf Identifiers and Keywords
 
 ------
@@ -72,8 +66,6 @@ Leaf is type-sensitive and has structural requirements for identifiers for varia
 The following keywords are protected in Leaf and may not be used as an identifier:
 
 `leaf, self, nil, var, let, true, false, yes, no, in, _`
-
-
 
 ## Leaf Parameters
 
@@ -92,8 +84,6 @@ All Leaf tags take zero or more parameters, which can consist of:
 * Comments (`# A Comment #`)
 
 Each type of parameter will be detailed later in this guide.
-
-
 
 ## Basic Syntaxes
 
@@ -188,8 +178,6 @@ Certain types of blocks may also be **chained**, in which case each chained bloc
 
 While Leaf templates cannot themselves declare functions, the language can be heavily extended with custom `LeafFunction/Method/Block`s when configuring LeafKit's integration in a Swift application. All but 4 core entities in Leaf4 are built using the publically-available interfaces for extending the language - control flow, variable scoping, and all manner of features can be safely integrated using Swift in a way that is designed to be safely extensible and still extremely performant.
 
-
-
 ## Leaf Contexts and Variables
 
 ------
@@ -255,8 +243,6 @@ When serializing, Leaf maintains an internal stack; variables can be redefined a
 #endif
 ```
 
-
-
 ## Leaf Operators
 
 ------
@@ -314,8 +300,6 @@ Leaf's parser is capable of wrapping complex expressions without parentheses for
 #(!x ^^ !z)                     <- equivalent to `(!x) ^^ (!z)`
 ```
 
-
-
 All operations, with the exception of the assignment operators below, may be used anywhere inside Leaf tags.
 
 * Assignment and compound assignment (on mutable operands only):
@@ -337,8 +321,6 @@ All operations, with the exception of the assignment operators below, may be use
 #(x)                 <- outputs the value of x to the output stream
 ```
 
-
-
 ## Leaf Comments
 
 ------
@@ -354,8 +336,6 @@ Comments may be made anywhere inside a Leaf tag by using the **tag indicator** (
 
 #(aVariable # ... and can also be used inside tags that produce values #)
 ```
-
-
 
 ## Metablocks
 
@@ -440,8 +420,6 @@ Result: #(array[array.count() - 1])
 
 > *NOTE*: Alteration of the output stream's raw state using metablocks is not yet enabled publicly. TBA.
 
-
-
 ## Core Entities
 
 ------
@@ -497,8 +475,6 @@ Provides both the index/key and value of the collection's item at that loop posi
 
 ```
 
-
-
 ### Type Casts and Identity
 
 ------
@@ -521,8 +497,6 @@ Type identity functions return the underlaying type representation of concrete t
 #type(of: Any?) -> String
 #(any.type()) -> String
 ```
-
-
 
 ### Erroring
 
@@ -555,8 +529,6 @@ Int.formatBytes(places: Int = 2) -> String
 formatBytes(Int, places: Int = 2) -> String
 ```
 
-
-
 ### Double Functions and Methods
 
 ------
@@ -578,8 +550,6 @@ Double.rounded(places: Int) -> Double
 Double.formatSeconds(places: Int = 2) -> String
 formatSeconds(Double, places: Int = 2) -> String
 ```
-
-
 
 ### String Functions and Methods
 
@@ -627,8 +597,6 @@ String.append(String)
 String.popLast() -> String?
 ```
 
-
-
 ### Array Functions and Methods
 
 ------
@@ -659,8 +627,6 @@ Array.contains(Any) -> Bool
 Array.append(Any)
 Array.popLast() -> Any?
 ```
-
-
 
 ### Dictionary Functions and Methods
 

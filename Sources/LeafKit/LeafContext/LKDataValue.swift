@@ -5,7 +5,10 @@
 /// back to `variable` as resolved ASTs will have used the pre-existing literal value.
 internal struct LKDataValue: LeafDataRepresentable {
     static func variable(_ value: LeafDataRepresentable) -> Self { .init(value) }
-    static func literal(_ value: LeafDataRepresentable) -> Self { .init(value, constant: true) }
+    static func literal(_ value: LeafDataRepresentable) -> Self { .init(value, true) }
+    
+    init(_ value: LeafDataRepresentable, _ literal: Bool = false) {
+        container = literal ? .literal(value.leafData) : .variable(value, nil) }
     
     var isVariable: Bool { container.isVariable }
     var leafData: LeafData { container.leafData }
@@ -26,11 +29,6 @@ internal struct LKDataValue: LeafDataRepresentable {
         container = .literal(flat.evaluate)
     }
     
-    mutating func update(storedValue: LeafDataRepresentable) throws {
-        guard isVariable else { throw err("Value is literal") }
-        container = .variable(storedValue, nil)
-    }
-    
     /// Update stored `LeafData` value for variable values
     mutating func refresh() {
         if case .variable(let t, _) = container { container = .variable(t, t.leafData) } }
@@ -48,15 +46,11 @@ internal struct LKDataValue: LeafDataRepresentable {
         var isVariable: Bool { if case .variable = self { return true } else { return false } }
         var leafData: LeafData {
             switch self {
-                case .variable(_, .some(let v)),
-                     .literal(let v)    : return v
+                case .variable(_, .some(let v)), .literal(let v) : return v
                 case .variable(_, .none) : return .error(internal: "Value was not refreshed")
             }
         }
     }
     
     private var container: Container
-    
-    private init(_ value: LeafDataRepresentable, constant: Bool = false) {
-        container = constant ? .literal(value.leafData) : .variable(value, nil) }
 }

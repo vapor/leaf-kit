@@ -6,6 +6,7 @@ public typealias SourceLocation = (name: String, line: Int, column: Int)
 /// Convenience wrapper around a `String` raw source to track line & column, pop, peek & scan.
 internal struct LKRawTemplate {
     // MARK: - Internal Only
+    let body: String
     var state: SourceLocation
     
     init(_ name: String, _ source: String) {
@@ -43,7 +44,6 @@ internal struct LKRawTemplate {
     }
 
     // MARK: - Private Only
-    private let body: String
     private var current: String.Index
 
     mutating private func readSliceWhile(_ check: (Character) -> Bool) -> String {

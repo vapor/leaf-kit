@@ -44,6 +44,3 @@ internal extension LKVarTable {
         keys.forEach { if $0.isDescendent(of: key) { self[$0] = nil } }
     }
 }
-
-
-

@@ -292,7 +292,6 @@ public struct ParseError: Error, CustomStringConvertible {
     public var description: String { localizedDescription }
 }
 
-
 // MARK: - Internal Conveniences
 
 @inline(__always)

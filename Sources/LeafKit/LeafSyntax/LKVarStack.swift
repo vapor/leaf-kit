@@ -7,20 +7,19 @@ internal struct LKVarStack {
     var context: LeafRenderer.Context
     var stack: [(ids: Set<String>, vars: LKVarTablePtr)]
     
+    /// Locate the `LKVariable` in the stack, returning `.error/.trueNil` per option if not found
     @inline(__always)
     mutating func match(_ variable: LKVariable) -> LKData {
-        var err: LKData { .error(internal: "No value for \(variable.terse) in context") }
-        let result = _match(variable)
-        return !context.missingVariableThrows ? result?.errored ?? true ? .trueNil : result!
-                                              : result ?? err
+        _match(variable) ?? .error(internal: "No value for \(variable.terse) in context")
     }
     
-    /// Locate the `LKVariable` in the stack, if possible - prefer `match` but useful in some situations
+    /// Locate the `LKVariable` in the stack, if possible - prefer `match` but useful in some situations to bypass erroring
     @inline(__always)
     mutating func _match(_ variable: LKVariable) -> LKData? {
+        func hit(_ v: LKVariable) -> LKData? { context.contexts[.scope(v.scope!)]?.match(v) }
         var err: LKData { .error(internal: "No value for \(variable.terse) in context") }
         
-        if variable.isScoped { return context.get(variable) }
+        if variable.isScoped { return hit(variable) }
         var depth = stack.count - 1
         while depth >= 0 {
             if let x = stack[depth].vars.match(variable) { return x }
@@ -29,8 +28,7 @@ internal struct LKVarStack {
         let atomic = variable.member!
         /// Already contextualized
         if stack[0].ids.contains(atomic) { return err }
-        let root = variable.ancestor.contextualized
-        if let found = context.get(root) {
+        if let found = hit(variable.ancestor.contextualized) {
             if found.errored { return found }
             stack[0].ids.insert(atomic)
             stack[0].vars.pointee[variable.ancestor] = found

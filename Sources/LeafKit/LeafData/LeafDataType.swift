@@ -32,7 +32,6 @@ public extension Set where Element == LeafDataType {
     static var data: Self { [.data] }
 }
 
-
 // MARK: - Internal Only
 extension LKDType: LKPrintable {
     internal var short: String {

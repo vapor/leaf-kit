@@ -8,8 +8,8 @@ import NIOConcurrencyHelpers
 final class GHLeafKitIssuesTest: LeafTestClass {
     /// https://github.com/vapor/leaf-kit/issues/33
     func testGH33() throws {
-        let test = LeafTestFiles()
-        test.files["/base.leaf"] = """
+        let test = LeafMemorySource()
+        test["/base.leaf"] = """
         <body>
             Directly inlined snippet
             #inline("partials/picture.svg")
@@ -17,14 +17,14 @@ final class GHLeafKitIssuesTest: LeafTestClass {
             #evaluate(body)
         </body>
         """
-        test.files["/page.leaf"] = """
+        test["/page.leaf"] = """
         #define(body):
         Snippet added through define/evaluate
         #inline("partials/picture.svg")
         #enddefine
         #inline("base")
         """
-        test.files["/partials/picture.svg"] = """
+        test["/partials/picture.svg"] = """
             <svg><path d="M0..."></svg>
         
         """
@@ -46,8 +46,8 @@ final class GHLeafKitIssuesTest: LeafTestClass {
 
     /// https://github.com/vapor/leaf-kit/issues/50
     func testGH50() throws {
-        let test = LeafTestFiles()
-        test.files["/a.leaf"] = """
+        let test = LeafMemorySource()
+        test["/a.leaf"] = """
         #export(body):
         #for(challenge in challenges):
         #extend("a/b-c-d")
@@ -55,8 +55,8 @@ final class GHLeafKitIssuesTest: LeafTestClass {
         #endexport
         #extend("a/b")
         """
-        test.files["/a/b.leaf"] = "#import(body)"
-        test.files["/a/b-c-d.leaf"] = "HI\n"
+        test["/a/b.leaf"] = "#import(body)"
+        test["/a/b-c-d.leaf"] = "HI\n"
 
         let expected = """
         HI

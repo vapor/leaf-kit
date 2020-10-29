@@ -30,7 +30,6 @@ internal extension Nonscoping {
                             _ params: [String]) throws -> Self { Self.init() }
 }
 
-
 /// `#for(value in collection):` or `#for((index, value) in collection):`
 struct ForLoop: CoreBlock {
     static var parseSignatures: ParseSignatures? {[

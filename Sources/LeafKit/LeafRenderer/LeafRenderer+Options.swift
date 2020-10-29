@@ -9,6 +9,7 @@ public extension LeafRenderer.Option {
         .grantUnsafeEntityAccess(Self.$grantUnsafeEntityAccess._unsafeValue),
         .encoding(Self.$encoding._unsafeValue),
         .caching(Self.$caching._unsafeValue),
+        .pollingFrequency(Self.$pollingFrequency._unsafeValue),
         .embeddedASTRawLimit(Self.$embeddedASTRawLimit._unsafeValue)
     ]}
     
@@ -27,6 +28,8 @@ public extension LeafRenderer.Options {
     
     init(arrayLiteral elements: LeafRenderer.Option...) { self.init(elements) }
     
+    
+    /// Unconditionally update the `Options` with the provided `option`
     @discardableResult
     mutating func update(_ option: LeafRenderer.Option) -> Bool {
         let result = option.valid
@@ -35,6 +38,7 @@ public extension LeafRenderer.Options {
         return true
     }
     
+    /// Unconditionally remove the `Options` with the provided `option`
     mutating func unset(_ option: LeafRenderer.Option.Case) {
         if let x = _storage.first(where: {$0.celf == option}) { _storage.remove(x) } }
 }
@@ -51,6 +55,7 @@ internal extension LeafRenderer.Option {
             case .encoding                : return .encoding
             case .caching                 : return .caching
             case .embeddedASTRawLimit     : return .embeddedASTRawLimit
+            case .pollingFrequency        : return .pollingFrequency
         }
     }
     
@@ -64,6 +69,7 @@ internal extension LeafRenderer.Option {
             case .encoding(let e)                : return Self.$encoding.validate(e)
             case .caching(let c)                 : return Self.$caching.validate(c)
             case .embeddedASTRawLimit(let l)     : return Self.$embeddedASTRawLimit.validate(l)
+            case .pollingFrequency(let d)        : return Self.$pollingFrequency.validate(d)
         }
     }
 }

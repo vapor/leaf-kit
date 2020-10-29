@@ -1,3 +1,4 @@
+import Foundation
 import NIOConcurrencyHelpers
 
 /// An opaque object holding named `LeafSource` adherants specifying a default search order.
@@ -61,7 +62,7 @@ public final class LeafSources {
     }
 
     // MARK: - Internal/Private Only
-    internal private(set) var sources: [String: LeafSource]
+    private(set) var sources: [String: LeafSource]
     private var order: [String]
     private var keys: Set<String>
     private let lock: Lock = .init()
@@ -69,9 +70,8 @@ public final class LeafSources {
     /// Locate a template from the sources; if a specific source is named, only try to read from it.
     /// Otherwise, use the specified search order. Key (and thus AST name) are "$:template" when no source
     /// was specified, or "source:template" when specified
-    internal func find(_ key: LeafASTKey,
-                       on eL: EventLoop) -> ELF<(key: String,
-                                                 buffer: ByteBuffer)> {
+    func file(_ key: LeafASTKey, on eL: EventLoop) -> ELF<(key: String,
+                                                           buffer: ByteBuffer)> {
         let source = key._src
         let template = key._name
         if source != "$", keys.contains(source) {
@@ -85,7 +85,20 @@ public final class LeafSources {
                               : "Invalid source \(source) specified"
         return fail(.illegalAccess(e), on: eL)
     }
-
+    
+    func timestamp(_ key: LeafASTKey, on eL: EventLoop) -> ELF<Date> {
+        let source = key._src
+        let template = key._name
+        if source != "$", keys.contains(source) {
+            return searchSources(template, [source], on: eL)
+        } else if source == "$", !order.isEmpty {
+            return searchSources(template, order, on: eL)
+        }
+        let e = source == "$" ? "No searchable sources exist"
+                              : "Invalid source \(source) specified"
+        return fail(.illegalAccess(e), on: eL)
+    }
+    
     private func searchSources(_ t: String,
                                _ s: [String],
                                on eL: EventLoop) -> ELF<(source: String,
@@ -98,7 +111,24 @@ public final class LeafSources {
         lock.unlock()
         
         return source.file(template: t, escape: true, on: eL)
-                     .map { buffer in (source: key, buffer: buffer) }
+                     .map { (source: key, buffer: $0) }
+                     .flatMapError { err in if let e = err as? LeafError,
+                                        case .illegalAccess = e.reason {
+                                            return fail(e, on: eL) }
+                                     return self.searchSources(t, rest, on: eL) }
+    }
+    
+    private func searchSources(_ t: String,
+                               _ s: [String],
+                               on eL: EventLoop) -> ELF<Date> {
+        if s.isEmpty { return fail(.noTemplateExists(t), on: eL) }
+        var rest = s
+        let key = rest.removeFirst()
+        lock.lock()
+        let source = sources[key]!
+        lock.unlock()
+        
+        return source.timestamp(template: t, on: eL)
                      .flatMapError { err in if let e = err as? LeafError,
                                         case .illegalAccess = e.reason {
                                             return fail(e, on: eL) }

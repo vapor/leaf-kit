@@ -42,7 +42,7 @@ extension Array: LKPrintable where Element == LeafCallParameter {
 }
 
 /// Tired of writing `distance(to: ...`
-infix operator +->
+infix operator +-> : AdditionPrecedence
 
 internal extension Date {
     /// Tired of writing `distance(to: ...`

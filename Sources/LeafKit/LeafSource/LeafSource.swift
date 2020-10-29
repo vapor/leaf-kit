@@ -1,3 +1,5 @@
+import Foundation
+
 /// Public protocol to adhere to in order to provide template source originators to `LeafRenderer`
 public protocol LeafSource {
     /// Given a path name, return an EventLoopFuture holding a ByteBuffer
@@ -11,4 +13,17 @@ public protocol LeafSource {
     func file(template: String,
               escape: Bool,
               on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer>
+        
+    /// Get the timestamp of last modification for the template, if known.
+    ///
+    /// Default implementation always returns `.distantPast`
+    func timestamp(template: String,
+                   on eventLoop: EventLoop) -> EventLoopFuture<Date>
+}
+
+public extension LeafSource {
+    func timestamp(template: String,
+                   on eventLoop: EventLoop) -> EventLoopFuture<Date> {
+        succeed(.distantPast, on: eventLoop)
+    }
 }

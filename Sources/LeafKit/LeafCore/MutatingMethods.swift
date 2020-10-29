@@ -21,7 +21,6 @@ internal struct MutatingStrStrMap: LeafMutatingMethod, StringStringParam, VoidRe
     private let f: (inout String, String) -> ()
 }
 
-
 /// Mutating (String) -> String
 internal struct MutatingStrToStrMap: LeafMutatingMethod, StringParam, StringReturn {
     func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LKData?, result: LKData) {
@@ -36,7 +35,6 @@ internal struct MutatingStrToStrMap: LeafMutatingMethod, StringParam, StringRetu
     private init(_ map: @escaping (inout String) -> String?) { f = map }
     private let f: (inout String) -> String?
 }
-
 
 /// Mutating (Array) -> Any
 internal struct MutatingArrayToAnyMap: LeafMutatingMethod, ArrayParam, AnyReturn {

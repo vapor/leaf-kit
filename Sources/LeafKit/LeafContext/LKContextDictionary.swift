@@ -12,7 +12,7 @@ internal struct LKContextDictionary {
     private(set) var frozen: Bool = false
     private var cached: LKVarTable = [:]
     
-    init(parent: LKVariable, literal: Bool = false) {
+    init(_ parent: LKVariable, _ literal: Bool = false) {
         self.parent = parent
         self.literal = literal
         self.allVariables = [parent]
@@ -43,19 +43,11 @@ internal struct LKContextDictionary {
         }
     }
     
-    /// With empty string, set entire object & all values to constant & freeze; with key string, set value to constant
+    /// With empty string, set entire object & all values to literal; with key string, set value to literal
     mutating func setLiteral(_ key: String? = nil) {
-        func setSpecific(_ key: String) { self[key]!.flatten() }
-        if let key = key { if values.keys.contains(key) { setSpecific(key) }; return }
+        if let key = key { return self[key]?.flatten() ?? () }
         for (key, val) in values where !val.cached { self[key]!.flatten() }
         literal = true
-    }
-    
-    /// Only updatable while not frozen
-    mutating func updateValue(key: String, to value: LeafDataRepresentable) {
-        guard !frozen && values.keys.contains(key) else { return }
-        if self[key]!.isVariable { try! self[key]!.update(storedValue: value) }
-        else { self[key] = .literal(value.leafData) }
     }
 
     /// Obtain `[LKVariable: LeafData]` for variable; freezes state of context as soon as accessed

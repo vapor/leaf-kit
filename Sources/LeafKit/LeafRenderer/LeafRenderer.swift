@@ -1,3 +1,5 @@
+import Foundation
+
 // MARK: Subject to change prior to 1.0.0 release
 
 // MARK: - `LeafRenderer` Summary
@@ -40,7 +42,7 @@ public final class LeafRenderer {
     // MARK: - LeafRenderer.Option
     /// Locally overrideable options for how LeafRenderer handles rendering
     public enum Option: Hashable, CaseIterable {
-        /// Rendering timeout duration limit in seconds; must be at least 1ms, clock timeout >= serialize timeout
+        /// Rendering timeout duration limit in seconds; must be at least 1ms
         @LeafRuntimeGuard(condition: {$0 >= 0.001}) public static var timeout: Double = 0.050
         
         /// If true, warnings during parse will throw errors.
@@ -63,6 +65,9 @@ public final class LeafRenderer {
         /// raw inline in the *cached* AST.
         @LeafRuntimeGuard public static var embeddedASTRawLimit: UInt32 = 4096
         
+        /// If caching behavior allows auto-updating, the polling frequency dictates how many seconds
+        /// can elapse before `LeafRenderer` checks the original source for changes
+        @LeafRuntimeGuard(condition: {$0.sign == .plus}) public static var pollingFrequency: Double = 10.0
         
         case timeout(Double)
         case parseWarningThrows(Bool)
@@ -71,8 +76,9 @@ public final class LeafRenderer {
         case encoding(String.Encoding)
         case caching(LeafCacheBehavior)
         case embeddedASTRawLimit(UInt32)
+        case pollingFrequency(Double)
         
-        public enum Case: UInt8, RawRepresentable, CaseIterable {
+        public enum Case: UInt16, RawRepresentable, CaseIterable {
             case timeout
             case parseWarningThrows
             case missingVariableThrows
@@ -80,31 +86,45 @@ public final class LeafRenderer {
             case encoding
             case caching
             case embeddedASTRawLimit
+            case pollingFrequency
         }
     }
     
     // MARK: - LeafRenderer.Options
-    /// Local options for overriding global settings; valus are only set if they actually override global settings
+    /// A set of configured options for overriding global settings
+    ///
+    /// Values are only set if they *actually* override global settings.
+    ///
     public struct Options: ExpressibleByArrayLiteral {
         var _storage: Set<Option>
     }
     
     // MARK: - LeafRenderer.Context
-    /// A wrapper object for storing all external model data that will be provided to `LeafRenderer`
+    /// A wrapper object for storing external model data that will be provided to `LeafRenderer`
     ///
     /// This is used as an intermediate object rather than immediately computed as arbitrary objects may
     /// have costly conversions to LeafData and may not need to occur for any particular, arbitrary template
     ///
-    /// All values may be freely updated at any point prior to LeafKit starting; constant values may no longer
-    /// be updated once LeafKit has started.
+    /// All values may be freely updated at any point prior to LeafKit starting; however, values can be set by
+    /// the user in a root context as *literal* values (ones that are fixed for the lifetime of the application).
+    /// Such values can not be overridden, or converted back to variable values, once LeafKit is running.
     ///
     /// Note that the context will be "frozen" in its state at the time it is passed to `LeafRenderer` and no
-    /// alterations in Swift will affect the state of the rendering of the template. *WARNING*
+    /// alterations in Swift will affect the state of the rendering of the template.
+    ///
+    /// `Context` objects may be stacked or overlaid to allow multiple state contexts to be merged prior
+    /// to rendering. If a context `isRootContext`, it can only be the lowest context in a flattened stack.
+    ///
+    /// Note that when objects are registered to a `Context`, rather than simply set as values, they may
+    /// have been set to disallow overlaying their values, or to allow creation of additional values in their
+    /// named scope, and attempts to overlay will fail.
+    ///
+    /// If a context has `options` set, overlaying will always favor the top-most configuration for options.
     public struct Context: ExpressibleByDictionaryLiteral {
         // MARK: LeafRenderer.Context.ObjectMode
         public struct ObjectMode: OptionSet {
-            public init(rawValue: UInt16) { self.rawValue = rawValue }
-            public var rawValue: UInt16
+            public init(rawValue: UInt8) { self.rawValue = rawValue }
+            public var rawValue: UInt8
             
             /// Register the provided object as an unsafe object
             public static var unsafe: Self = .init(rawValue: 1 << 0)
@@ -221,7 +241,8 @@ private extension LeafRenderer {
         if cacheIsSync, context.caching.contains(.read),
            let hit = blockingCache!.retrieve(key),
            hit.info.requiredASTs.isEmpty,
-           hit.info.touch.execAvg < Self.blockLimit {
+           hit.info.touch.execAvg < Self.blockLimit,
+           !hit.autoUpdate(context) {
             return syncSerialize(hit, context)
         }
         
@@ -236,7 +257,8 @@ private extension LeafRenderer {
                    via chain: [String] = []) -> ELF<LeafAST> {
         if ast.info.requiredASTs.isEmpty && ast.info.requiredRaws.isEmpty {
             /// Succeed immediately if the ast is cached and doesn't need any kind of resolution
-            if ast.cached || !context.caching.contains(.store) { return succeed(ast, on: eL) }
+            if ast.cached || context.caching.intersection([.store, .autoUpdate]).isEmpty {
+                return succeed(ast, on: eL) }
             var toCache = ast
             
             toCache.stripOversizeRaws(cacheLimit: context.embeddedASTRawLimit)
@@ -271,16 +293,31 @@ private extension LeafRenderer {
     func fetch(_ key: LeafASTKey,
                _ context: LeafRenderer.Context) -> ELF<LeafAST> {
         guard context.caching.contains(.read) else { return read(key, context) }
-        
+                
         /// Try to hit blocking cache LeafAST, otherwise hit async cache, then try if no cache hit - read a template
-        if cacheIsSync, let hit = blockingCache!.retrieve(key) { return succeed(hit, on: eL) }
+        if cacheIsSync, let hit = blockingCache!.retrieve(key),
+           !hit.autoUpdate(context) { return succeed(hit, on: eL) }
             
         return cache.retrieve(key, on: eL)
                     .flatMapThrowing { ast in
-                                       if let hit = ast { return hit }
-                                       else { throw err(.noValueForKey(""))} }
+                        if let hit = ast { return hit }
+                        else { throw err(.noValueForKey(""))} }
                     .flatMapError { e in self.read(key, context) }
-                                    
+                    .flatMap { $0.autoUpdate(context) ? self.poll($0, context)
+                                                      : succeed($0, on: self.eL) }
+    }
+    
+    func poll(_ ast: LeafAST,
+              _ context: LeafRenderer.Context) -> ELF<LeafAST> {
+        sources.timestamp(ast.key, on: eL).flatMap {
+            if ast.info.parsed < $0 { return self.read(ast.key, context) }
+            else {
+                var ast = ast
+                ast.info.pollTime = Date()
+                ast.cached = false
+                return succeed(ast, on: self.eL)
+            }
+        }
     }
 
     /// Read in an individual `LeafAST`
@@ -290,16 +327,15 @@ private extension LeafRenderer {
     func read(_ key: LeafASTKey,
               _ context: LeafRenderer.Context,
               _ escape: Bool = false) -> ELF<LeafAST> {
-        sources.find(key, on: eL)
-               .flatMapThrowing { (src, buf) in
-            let name = src
-            var buf = buf
+        sources.file(key, on: eL)
+               .flatMapThrowing {
+            var buf = $0.1
 
             guard let string = buf.readString(length: buf.readableBytes) else {
-                throw err(.unknownError("\(name) exists but was unreadable")) }
+                throw err(.unknownError("\($0.0) exists but was unreadable")) }
 
             // FIXME: Lex/Parse should fork to a threadpool
-            var lexer = LKLexer(LKRawTemplate(name, string))
+            var lexer = LKLexer(LKRawTemplate($0.0, string))
             let tokens = try lexer.lex()
             var parser = LKParser(key, tokens, context)
             return try parser.parse()
@@ -316,7 +352,7 @@ private extension LeafRenderer {
     }
     
     func readRaw(_ name: String, _ escape: Bool = false) -> ELF<(String, ByteBuffer)> {
-        sources.find(.searchKey(name), on: eL).map { (_, buffer) in (name, buffer) }
+        sources.file(.searchKey(name), on: eL).map { (_, buffer) in (name, buffer) }
     }
 
     /// Attempt to resolve a `LeafAST` - call only when ast has unresolved inlines

@@ -487,9 +487,9 @@ final class LeafTests: LeafTestClass {
     }
     
     func testVarPassing() throws {
-        let test = LeafTestFiles()
-        test.files["/a.leaf"] = "#(title)"
-        test.files["/b.leaf"] = "#let(title = \"Hello\")\n#inline(\"a\")"
+        let test = LeafMemorySource()
+        test["/a.leaf"] = "#(title)"
+        test["/b.leaf"] = "#let(title = \"Hello\")\n#inline(\"a\")"
         
         let renderer = TestRenderer(sources: .singleSource(test))
         

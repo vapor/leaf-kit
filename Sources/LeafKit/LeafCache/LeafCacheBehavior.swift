@@ -8,7 +8,7 @@ public struct LeafCacheBehavior: OptionSet, Hashable {
     /// - Always store compiled templates and/or further-resovled templates
     /// - Cache `raw` inlines up to the configured limit size
     public static let `default`: Self = [
-        .read, .store, .embedRawInlines, .limitRawInlines
+        .read, .store, .embedRawInlines, .limitRawInlines, .autoUpdate
     ]
     
     /// Avoid using caching entirely
@@ -29,4 +29,6 @@ public struct LeafCacheBehavior: OptionSet, Hashable {
     static let embedRawInlines: Self = .init(rawValue: 1 << 3)
     /// Limit the filesize of raws to associated limit, if `cacheRawInlines` is set. Controls nothing by itself.
     static let limitRawInlines: Self = .init(rawValue: 1 << 4)
+    
+    static let autoUpdate: Self = .init(rawValue: 1 << 5)
 }

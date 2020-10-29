@@ -160,9 +160,9 @@ internal struct LKParameter: LKSymbol {
         }
     }
 
+    var errored: Bool { error != nil }
     var error: String? {
-        if case .value(let v) = container { return v.error } else { return nil }
-    }
+        if case .value(let v) = container { return v.error } else { return nil } }
     
     // MARK: - Private Only
 
@@ -323,45 +323,57 @@ internal struct LKParameter: LKSymbol {
         }
 
         func evaluate(_ symbols: inout LKVarStack) -> LeafData {
+            func softError(_ result: LKData) -> LKData {
+                !result.errored ? result
+                                : symbols.context.missingVariableThrows ? result
+                                                                        : .trueNil }
+            
             switch self {
-                case .value(let v)              : return v.evaluate(&symbols)
-                case .variable(let v)           : return symbols.match(v)
-                case .expression(let e)         : return e.evaluate(&symbols)
+                case .value(let v)              : return softError(v.evaluate(&symbols))
+                case .variable(let v)           : return softError(symbols.match(v))
+                case .expression(let e)         : return softError(e.evaluate(&symbols))
                 case .tuple(let t)
-                        where t.isEvaluable     : return t.evaluate(&symbols)
+                        where t.isEvaluable     : return softError(t.evaluate(&symbols))
                 case .function(let n, let f as Evaluate, _, _, let l) :
                     let x = symbols.match(.define(f.identifier))
                     /// `Define` parameter was found - evaluate if non-value, and return
-                    if case .evaluate(let x) = x.container { return x.evaluate(&symbols) }
+                    if case .evaluate(let x) = x.container { return softError(x.evaluate(&symbols)) }
                     /// Or parameter was literal - return
                     else if !x.errored { return x.container.evaluate }
                     /// Or `Evaluate` had a default - evaluate and return that
-                    else if let x = f.defaultValue { return x.evaluate(&symbols) }
-                    return .error(internal: "\(f.identifier) is undefined and has no default value", n, l)
+                    else if let x = f.defaultValue { return softError(x.evaluate(&symbols)) }
+                    return softError(.error(internal: "\(f.identifier) is undefined and has no default value", n, l))
                 case .function(let n, var f, let p, let m, let l) :
-                    var params = p ?? .init()
-                    for i in params.values.indices where !params.values[i].isLiteral {
-                        let evaluated = params.values[i].evaluate(&symbols)
-                        if evaluated.errored { return evaluated }
-                        if evaluated.storedType == .void {
-                            return .error(internal: "\(params.values[i].description) returned void", n, l) }
-                        params.values[i] = .value(evaluated)
+                    var p = p ?? .init()
+                    /// Existing literal parameter is errored and we're throwing - return immediately
+                    if symbols.context.missingVariableThrows,
+                       let error = p.values.first(where: {$0.errored}) { return error.evaluate(&symbols) }
+                    /// Check all non-literal or errored params
+                    for i in p.values.indices where !p.values[i].isLiteral || p.values[i].errored {
+                        let eval = p.values[i].evaluate(&symbols)
+                        /// Return hard errors immediately if we're throwing
+                        if eval.errored && symbols.context.missingVariableThrows { return eval }
+                        /// If we have a concrete function and it doesn't take optional at this position, cascade void/error now
+                        if eval.storedType == .void && !(f?.sig[i].optional ?? true) {
+                            return eval.errored ? eval : .error(internal: "\(p.values[i].description) returned void", n, l) }
+                        /// Evaluation checks passed but value may be decayable error - convert to truenil
+                        p.values[i] = .value(!eval.errored ? eval : .trueNil)
                     }
                     if f == nil {
-                        let result = m != nil ? LKConf.entities.validateMethod(n, params, (m!) != nil)
-                                              : LKConf.entities.validateFunction(n, params)
+                        let result = m != nil ? LKConf.entities.validateMethod(n, p, (m!) != nil)
+                                              : LKConf.entities.validateFunction(n, p)
                         switch result {
                             case .success(let r) where r.count == 1:
                                 f = r.first!.0
-                                params = r.first!.1 ?? params
-                            case .failure(let e): return .error(internal: e.description, n, l)
+                                p = r.first!.1 ?? p
+                            case .failure(let e): return softError(.error(internal: e.description, n, l))
                             default:
-                                return .error(internal: "Dynamic call had too many matches at evaluation", n, l)
+                                return softError(.error(internal: "Dynamic call had too many matches at evaluation", n, l))
                         }
                     }
                     
-                    guard let call = LeafCallValues(f!.sig, params, &symbols) else {
-                        return .error(internal: "Couldn't validate parameter types for \(n)\(params.description)", n, l) }
+                    guard let call = LeafCallValues(f!.sig, p, &symbols) else {
+                        return softError(.error(internal: "Couldn't validate parameter types for \(n)\(p.description)", n, l)) }
                     if var unsafeF = f as? LeafUnsafeEntity {
                         unsafeF.unsafeObjects = symbols.context.unsafeObjects
                         f = (unsafeF as LeafFunction)
@@ -370,14 +382,13 @@ internal struct LKParameter: LKSymbol {
                         let x = f.mutatingEvaluate(call)
                         if let updated = x.0 { symbols.update(op, updated) }
                         return x.1
-                    } else { return f!.evaluate(call) }
+                    } else { return softError(f!.evaluate(call)) }
                 case .keyword(let k)
                         where k.isEvaluable     : let x = LKParameter.keyword(k, reduce: true)
-                                                  return x.container.evaluate(&symbols)
+                                                  return softError(x.container.evaluate(&symbols))
                 case .keyword, .operator,
                      .tuple                     : __MajorBug("Unevaluable \(self.short) should not exist")
             }
         }
-
     }
 }
