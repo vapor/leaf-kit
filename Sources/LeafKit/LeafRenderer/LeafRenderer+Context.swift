@@ -42,7 +42,7 @@ public extension LeafRenderer.Context {
         set {
             guard !scope.isEmpty && !key.isEmpty,
                   !blocked(in: scope).contains(key),
-                  let scope = try? validateScope(scope),
+                  let scope = try? getScopeKey(scope),
                   isUpdateable(scope, key) else { return }
             let literal = !(self[scope, key]?.isVariable ?? true)
             self[scope, key] = newValue != nil ? .init(newValue!, literal) : nil
