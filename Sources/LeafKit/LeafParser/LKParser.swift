@@ -407,7 +407,7 @@ internal struct LKParser {
                 }
                 
                 if let functions = entities.functions[identifier],
-                   !functions.compactMap({$0.sig.confusable(with: []) ? true : nil}).isEmpty {
+                   !functions.compactMap({ $0.sig.emptyParamSig ? $0 : nil }).isEmpty {
                     warn(.unknownError("Defined value for \(identifier) must be called with `evaluate(\(identifier))` - A function with signature \(identifier)() already exists")) }
                 
                 let definition = Define(identifier: identifier,
