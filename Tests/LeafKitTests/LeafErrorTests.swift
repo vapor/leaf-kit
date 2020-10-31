@@ -8,8 +8,8 @@ final class LeafErrorTests: MemoryRendererTestCase {
         files["/b.leaf"] = "#inline(\"c\")"
         files["/c.leaf"] = "#inline(\"a\")"
         
-        try AssertErrors(render("a"),
-                         contains: "`a` cyclically referenced in [a -> b -> c -> !a]")
+        try LKXCAssertErrors(render("a"),
+                             contains: "`a` cyclically referenced in [a -> b -> c -> !a]")
     }
 
     /// Verify that referecing a non-existent template will throw `LeafError.noTemplateExists`
@@ -17,6 +17,6 @@ final class LeafErrorTests: MemoryRendererTestCase {
         files["/a.leaf"] = "#inline(\"b\")"
         files["/b.leaf"] = "#inline(\"c\")"
         
-        try AssertErrors(render("a"), contains: "No template found for `c`")
+        try LKXCAssertErrors(render("a"), contains: "No template found for `c`")
     }
 }

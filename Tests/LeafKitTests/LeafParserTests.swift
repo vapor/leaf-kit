@@ -634,14 +634,14 @@ final class LeafParserTests: MemoryRendererTestCase {
         #(x)
         """
         
-        try AssertErrors(render("invalidConstant"), contains: "Can't mutate; `x` is constant")
+        try LKXCAssertErrors(render("invalidConstant"), contains: "Can't mutate; `x` is constant")
                                  
         files["invalidDeclare"] = """
         #(let x)
         #(x)
         """
         
-        try AssertErrors(render("invalidDeclare"), contains: "Variable `x` used before initialization")
+        try LKXCAssertErrors(render("invalidDeclare"), contains: "Variable `x` used before initialization")
                         
         files["overloadScopeVar"] = """
         #for(index in 10):
@@ -656,7 +656,7 @@ final class LeafParserTests: MemoryRendererTestCase {
         #(x)
         """
         
-        try AssertErrors(render("invalidScopeAssign"), contains: "Can't assign; `self.x` is constant")
+        try LKXCAssertErrors(render("invalidScopeAssign"), contains: "Can't assign; `self.x` is constant")
     }
 
     func testBufferWhitespaceStripping() throws {
@@ -678,7 +678,7 @@ final class LeafParserTests: MemoryRendererTestCase {
         #(x)
         """
         
-        try AssertErrors(render("template"), contains: "Assignment via subscripted access not yet supported")
+        try LKXCAssertErrors(render("template"), contains: "Assignment via subscripted access not yet supported")
     }
 }
 

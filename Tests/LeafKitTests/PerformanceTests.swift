@@ -148,9 +148,9 @@ final class NIOFilesTests: FullstackRendererTestCase {
         renderBuffer("../test").whenComplete {
             try? XCTAssertNoThrow($0.get()) }
         renderBuffer("../../test").whenComplete {
-            try? self.AssertErrors($0.get(), contains: "Attempted to escape sandbox") }
+            try? LKXCAssertErrors($0.get(), contains: "Attempted to escape sandbox") }
         renderBuffer(".test").whenComplete {
-            try? self.AssertErrors($0.get(), contains: "Attempted to access hidden file `.test`") }
+            try? LKXCAssertErrors($0.get(), contains: "Attempted to access hidden file `.test`") }
     }
 }
 
@@ -167,7 +167,7 @@ final class MultisourceTests: FullstackRendererTestCase {
         try sources.register(source: "sourceHidden", using: hidden, searchable: false)
         XCTAssert(sources.all == ["sourceHidden"])
         renderBuffer("a").whenComplete {
-            try? self.AssertErrors($0.get(), contains: "No searchable sources exist") }
+            try? LKXCAssertErrors($0.get(), contains: "No searchable sources exist") }
     }
     
     func testMultipleSources() throws {
@@ -183,7 +183,7 @@ final class MultisourceTests: FullstackRendererTestCase {
         renderBuffer("a").whenComplete { XCTAssert($0.contains("in sourceOne")) }
         renderBuffer("b").whenComplete { XCTAssert($0.contains("in sourceTwo")) }
         renderBuffer("c").whenComplete {
-            try? self.AssertErrors($0.get(), contains: "No template found") }
+            try? LKXCAssertErrors($0.get(), contains: "No template found") }
         renderBuffer("c", from: "sourceHidden").whenComplete { XCTAssert($0.contains("in sourceHidden")) }
     }
     

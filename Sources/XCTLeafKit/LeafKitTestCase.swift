@@ -46,21 +46,6 @@ open class LeafKitTestCase: XCTestCase {
         renderer.render(template: template, from: source, context: context, options: options)
     }
     
-    final public func AssertErrors<T>(_ expression: @autoclosure () throws -> T,
-                                      contains: @autoclosure () -> String,
-                                      _ message: @autoclosure () -> String = "",
-                                      file: StaticString = #file,
-                                      line: UInt = #line) {
-        do { _ = try expression(); XCTFail("Expression did not throw an error", file: file, line: line) }
-        catch {
-            let x = "Actual Error: `\(error.localizedDescription)`"
-            let y = message()
-            let z = contains()
-            XCTAssert(!z.isEmpty, "Empty substring will catch all errors", file: file, line: line)
-            XCTAssert(x.contains(z), y.isEmpty ? x : y, file: file, line: line)
-        }
-    }
-    
     private static var queue = DispatchQueue(label: "LeafKitTests")
 }
 

@@ -212,8 +212,8 @@ final class LeafKitTests: MemoryRendererTestCase {
               2: raw(LeafBuffer: 5B)
         """
         
-        try AssertErrors(parse(raw: template).terse == expected,
-                         contains: "1:1 - Raw switching blocks not yet supported")
+        try LKXCAssertErrors(parse(raw: template).terse == expected,
+                             contains: "1:1 - Raw switching blocks not yet supported")
     }
     
     func testContexts() throws {
@@ -234,7 +234,7 @@ final class LeafKitTests: MemoryRendererTestCase {
         Results!
         """
                 
-        try AssertErrors(render("template", aContext), contains: "[self.override] variable(s) missing")
+        try LKXCAssertErrors(render("template", aContext), contains: "[self.override] variable(s) missing")
         aContext["override"] = true
         try XCTAssertEqual(render("template", aContext), expected)
         myAPI.version.major = 1
@@ -328,8 +328,8 @@ final class LeafKitTests: MemoryRendererTestCase {
         buffer = try renderBuffer("tau", options: utf).wait()
         XCTAssertEqual(buffer.readBytes(length: 2)![1], 0x84)
         
-        try AssertErrors(render("tau", options: ns),
-                         contains: "`τ` is not encodable to `Western (NextStep)`")
+        try LKXCAssertErrors(render("tau", options: ns),
+                             contains: "`τ` is not encodable to `Western (NextStep)`")
     }
     
     func testContextInfo() throws {
