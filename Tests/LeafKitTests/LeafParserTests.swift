@@ -2,23 +2,240 @@ import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
 
-final class LKParserTests: LeafTestClass {
+final class LeafParserTests: MemoryRendererTestCase {
+    func testParsingNesting() throws {
+        let template = """
+        #if((name.first == "admin").lowercased() == "welcome"):
+        foo
+        #endif
+        """
+
+        let expectation = """
+        0: if([lowercased([$:name.first == string(admin)]) == string(welcome)]):
+        1: raw(LeafBuffer: 5B)
+        """
+
+        try XCTAssertEqual(parse(raw: template).terse, expectation)
+    }
+
+    func testComplex() throws {
+        let template = """
+        #if(foo):
+        foo
+        #else:
+        foo
+        #endif
+        """
+
+        let expectation = """
+        0: if($:foo):
+        1: raw(LeafBuffer: 5B)
+        2: else:
+        3: raw(LeafBuffer: 5B)
+        """
+
+        try XCTAssertEqual(parse(raw: template).terse, expectation)
+    }
+
+    func testCompiler() throws {
+        let template = """
+        #if(sayhello):
+            abc
+            #for(name in names):
+                hi, #(name)
+            #endfor
+            def
+        #else:
+            foo
+        #endif
+        """
+
+        let expectation = """
+        0: if($:sayhello):
+        1: scope(table: 1)
+           0: raw(LeafBuffer: 13B)
+           1: for($:names):
+           2: scope(table: 2)
+              0: raw(LeafBuffer: 13B)
+              1: $:name
+              2: raw(LeafBuffer: 5B)
+           3: raw(LeafBuffer: 9B)
+        2: else:
+        3: raw(LeafBuffer: 9B)
+        """
+
+        try XCTAssertEqual(parse(raw: template).terse, expectation)
+    }
+
+    func testUnresolvedAST() throws {
+        let template = """
+        #inline("header")
+        <title>#evaluate(title)</title>
+        #evaluate(body)
+        """
+
+        try XCTAssertFalse(parse(raw: template).requiredFiles.isEmpty, "Unresolved template")
+    }
+
+    func testInsertResolution() throws {
+        let header = """
+        <h1>Hi!</h1>
+        """
+        
+        let base = """
+        #inline("header")
+        <title>#evaluate(title)</title>
+        #inline("header")
+        """
+
+        let preinline = """
+        0: inline("header", leaf):
+        1: scope(undefined)
+        2: raw(LeafBuffer: 8B)
+        3: evaluate(title):
+        4: scope(undefined)
+        5: raw(LeafBuffer: 9B)
+        6: inline("header", leaf):
+        7: scope(undefined)
+        """
+
+        let expectation = """
+        0: inline("header", leaf):
+        1: raw(LeafBuffer: 12B)
+        2: raw(LeafBuffer: 8B)
+        3: evaluate(title):
+        4: scope(undefined)
+        5: raw(LeafBuffer: 9B)
+        6: inline("header", leaf):
+        7: raw(LeafBuffer: 12B)
+        """
+
+        var baseAST = try parse(raw: base, name: "base")
+        let headerAST = try parse(raw: header, name: "header")
+        
+        XCTAssertEqual(baseAST.terse, preinline)
+        baseAST.inline(ast: headerAST)
+        XCTAssertEqual(baseAST.terse, expectation)
+    }
+
+    func testDocumentResolveExtend() throws {
+        let header = """
+        <h1>#evaluate(header)</h1>
+        """
+
+        let base = """
+        #inline("header")
+        <title>#evaluate(title)</title>
+        #evaluate(body)
+        """
+
+        let home = """
+        #define(title = "Welcome")
+        #define(body):
+            Hello, #(name)!
+        #enddefine
+        #inline("base")
+        """
+
+        let expectation = """
+        0: define(title):
+        1: string(Welcome)
+        3: define(body):
+        4: scope(table: 1)
+           0: raw(LeafBuffer: 12B)
+           1: $:name
+           2: raw(LeafBuffer: 2B)
+        6: inline("base", leaf):
+        7: scope(table: 2)
+           0: inline("header", leaf):
+           1: scope(table: 3)
+              0: raw(LeafBuffer: 4B)
+              1: evaluate(header):
+              2: scope(undefined)
+              3: raw(LeafBuffer: 5B)
+           2: raw(LeafBuffer: 8B)
+           3: evaluate(title):
+           4: scope(undefined)
+           5: raw(LeafBuffer: 9B)
+           6: evaluate(body):
+           7: scope(undefined)
+        """
+
+        let headerAST = try parse(raw: header, name: "header")
+        var baseAST = try parse(raw: base, name: "base")
+        var homeAST = try parse(raw: home, name: "home", options: [.parseWarningThrows(false)])
+
+        baseAST.inline(ast: headerAST)
+        homeAST.inline(ast: baseAST)
+
+        XCTAssertEqual(homeAST.terse, expectation)
+    }
+
+    func testCompileExtend() throws {
+        let template = """
+        #define(title = "Welcome")
+        #define(body):
+            Hello, #(name)!
+        #enddefine
+        #inline("base")
+        #title()
+        #implictEval()
+        """
+
+        let expectation = """
+         0: define(title):
+         1: string(Welcome)
+         3: define(body):
+         4: scope(table: 1)
+            0: raw(LeafBuffer: 12B)
+            1: $:name
+            2: raw(LeafBuffer: 2B)
+         6: inline("base", leaf):
+         7: scope(undefined)
+         9: evaluate(title):
+        10: scope(undefined)
+        12: evaluate(implictEval):
+        13: scope(undefined)
+        """
+
+        let ast = try parse(raw: template, options: [.parseWarningThrows(false)])
+        XCTAssertEqual(ast.terse, expectation)
+    }
+
+    func testScopingAndMethods() throws {
+        let template = """
+        #(x + $x + $context.x + $server.x)
+        #($server.baseURL.hasPrefix("www") == true)
+        #(array[0] + dictionary["key"])
+        #($server.domain[$request.cname])
+        """
+
+        let expectation = """
+        0: [$:x + [$x + [$context:x + $server:x]]]
+        2: [hasPrefix($server:baseURL, string(www)) == bool(true)]
+        4: [[$:array [] int(0)] + [$:dictionary [] string(key)]]
+        6: [$server:domain [] $request:cname]
+        """
+
+        try XCTAssertEqual(parse(raw: template).terse, expectation)
+    }
+    
     func testParseAndInline() throws {
         let sampleTemplate = """
         #define(aBlock):
             Hello #(name)!
         #enddefine
 
-        #export(anotherBlock):
+        #define(anotherBlock):
             Hello #(name)!
-        #endexport
+        #enddefine
 
         #inline("template1")
         #inline("template2", as: leaf)
         #inline("file1", as: raw)
 
         #evaluate(aBlock)
-        #import(aBlock)
+        #evaluate(aBlock)
 
         #(name.hasPrefix("Mr"))
 
@@ -39,25 +256,20 @@ final class LKParserTests: LeafTestClass {
         #while($request.name.lowercased() == "aValue"): Maybe do something #endwhile
         """
 
-        let template2 = """
-        #evaluate(aBlock ?? "aBlock is not defined")
-        """
-
-        var firstAST = try parse(sampleTemplate, name: "sampleTemplate")
-        print(firstAST.formatted)
-
-        let secondAST = try parse(template2, name: "template2")
-        print(secondAST.formatted)
+        let template2 = #"#evaluate(aBlock ?? "aBlock is not defined")"#
 
         let file1 = ByteBufferAllocator().buffer(string: "An inlined raw file")
+        var firstAST = try parse(raw: sampleTemplate, name: "sampleTemplate")
+        let secondAST = try parse(raw: template2, name: "template2")
 
         firstAST.inline(ast: secondAST)
         firstAST.inline(raws: ["template2" : file1])
+        
         print(firstAST.formatted)
     }
     
     func testLooping() throws {
-        let sample = """
+        files["template"] = """
         #(var x = 10)
         #while(x > 0):
         #for(i in x):.#endfor
@@ -87,13 +299,11 @@ final class LKParserTests: LeafTestClass {
 
         """
 
-        try print(parse(sample).formatted)
-        let output = try render(sample)
-        XCTAssertEqual(output, expected)
+        try XCTAssertEqual(render("template"), expected)
     }
     
     func testSerialize() throws {
-        let sample = """
+        let template = """
         Count self:
             - #(self.count())
         Count "name":
@@ -169,87 +379,83 @@ final class LKParserTests: LeafTestClass {
         
         """
 
-        let context: [String: LeafData] = [
+        let context: LKRContext = [
             "name"  : "Mr. MagOO",
             "aDict" : ["one": 1, "two": 2.0, "three": ["five", "ten"]]
         ]
         
-        
-        let start = Date()
-        let sampleAST = try parse(sample)
-        let parsedTime = start +-> Date()
+        var timer = Stopwatch()
+        let sampleAST = try parse(raw: template)
+        let parsedTime = timer.lap()
 
-        print(sampleAST.formatted)
-        let serializer = LKSerializer(sampleAST, .init(context), LeafBuffer.self)
+        let serializer = LKSerializer(sampleAST, context, LeafBuffer.self)
         var block = LeafBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
         let result = serializer.serialize(&block)
         switch result {
             case .success(let duration):
+                print("    Parse: \(parsedTime)\nSerialize: \(duration.formatSeconds())")
                 XCTAssertEqual(block.contents, expected)
-                print("    Parse: " + parsedTime.formatSeconds())
-                print("Serialize: " + duration.formatSeconds())
-            case .failure(let error):
-                print(error.localizedDescription)
+            case .failure(let error): XCTFail(error.localizedDescription)
         }
     }
     
     func testEscaping() throws {
         LKConf.entities.use(StrToStrMap.escapeHTML, asFunctionAndMethod: "escapeHTML")
-        let sample = """
-        #(payload.escapeHTML())
-        """
+        
+        files["template"] = "#(payload.escapeHTML())"
+    
+        let context: LKRContext = [ "payload": """
+            <script>"Don't let me get out & do some serious damage"</script>
+            """]
+        
         let expected = """
         &lt;script&gt;&quot;Don&apos;t let me get out &amp; do some serious damage&quot;&lt;/script&gt;
         """
-        let context: [String: LeafData] = [
-            "payload"  : """
-            <script>"Don't let me get out & do some serious damage"</script>
-            """
-        ]
-        try XCTAssertEqual(render(name: "test", sample, .init(context)) , expected)
+        
+        try XCTAssertEqual(render("template", context) , expected)
     }
 
     func testVsComplex() throws {
         let loopCount = 10
-        let context: [String: LeafData] = [
+        let context: LKRContext = [
             "name"  : "vapor",
             "skills" : Array.init(repeating: ["bool": true.leafData, "string": "a;sldfkj".leafData,"int": 100.leafData], count: loopCount).leafData,
             "me": "LOGAN"
         ]
 
-        let sample = """
+        let template = """
         hello, #(name)!
         #for(index in skills):
         #(skills[index])
         #endfor
         """
-
-        var total = 0.0
+        
         var leafBuffer: ByteBuffer = ByteBufferAllocator().buffer(capacity: 0)
+        
+        var timer = Stopwatch()
+        
         for x in 1...10 {
-            var lap = Date()
-            var sampleParse = try! LKParser(.searchKey("s"), lex(sample))
-            let sampleAST = try! sampleParse.parse()
-            print("    Parse: " + (lap +-> Date()).formatSeconds())
-            lap = Date()
-            let serializer = LKSerializer(sampleAST, .init(context), LeafBuffer.self)
+            timer.lap()
+            let sampleAST = try parse(raw: template)
+            print("    Parse: \(timer.lap())")
+            let serializer = LKSerializer(sampleAST, context, LeafBuffer.self)
             var block = LeafBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
-            print("    Setup: " + (lap +-> Date()).formatSeconds())
+            print("    Setup: \(timer.lap()) ")
             let result = serializer.serialize(&block)
             switch result {
-                case .success(let duration) : print("Serialize: " + duration.formatSeconds())
-                                              total += duration
-                case .failure(let error)    : print(error.localizedDescription)
+                case .success: print("Serialize: \(timer.lap(accumulate: true))")
+                case .failure(let e): XCTFail(e.localizedDescription)
             }
             if x == 10 { leafBuffer.append(&block) }
         }
-
-        print("Average serialize duration: \((total / 10.0).formatSeconds())")
+        
+        print("Average serialize duration: \(timer.average)")
         print("Output size: \(leafBuffer.readableBytes.formatBytes())")
+        XCTAssert(true)
     }
 
     func testEvalAndComments() throws {
-        let sample = """
+        let template = """
         #define(block):
         Is #(self["me"] + " " + name)?: #($context.me == name)
         #enddefine
@@ -267,42 +473,40 @@ final class LKParserTests: LeafTestClass {
         No default: #evaluate(block)
         """
 
-        let context: [String: LeafData] = ["name": "Teague", "me": "Teague"]
+        let context: LKRContext = ["name": "Teague", "me": "Teague"]
         
-        let sampleAST = try parse(sample, options: [.parseWarningThrows(false)])
-        print(sampleAST.formatted)
-        let serializer = LKSerializer(sampleAST, .init(context), LeafBuffer.self)
+        let sampleAST = try parse(raw: template, options: [.parseWarningThrows(false)])
+        let serializer = LKSerializer(sampleAST, context, LeafBuffer.self)
         var block = LeafBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
 
         let result = serializer.serialize(&block)
         switch result {
-            case .success        : print(block.contents)
-            case .failure(let e) : print(e.localizedDescription)
+            case .success        : print(block.contents); XCTAssert(true)
+            case .failure(let e) : XCTFail(e.localizedDescription)
         }
     }
 
     func testNestedForAndTernary() throws {
-        let sample = """
+        let template = """
         #for(index in 10):
         #(index): #for((pos, char) in "Hey Teague"):#(pos != index ? char : "_")#endfor
         #endfor
         """
 
-        let sampleAST = try parse(sample)
-        print(sampleAST.formatted)
+        let sampleAST = try parse(raw: template)
         
         let serializer = LKSerializer(sampleAST, [:], LeafBuffer.self)
         var block = LeafBuffer.instantiate(size: sampleAST.underestimatedSize, encoding: .utf8)
 
         let result = serializer.serialize(&block)
         switch result {
-            case .success        : print(block.contents)
-            case .failure(let e) : print(e.localizedDescription)
+            case .success        : print(block.contents); XCTAssert(true)
+            case .failure(let e) : XCTFail(e.localizedDescription)
         }
     }
   
     func testAssignmentAndCollections() throws {
-        let input = """
+        let template = """
         #(var x)
         #(var y = 5 + 10)
         #(x = [])
@@ -332,7 +536,7 @@ final class LKParserTests: LeafTestClass {
         22: $context:x
         """
 
-        let parsedAST = try! parse(input)
+        let parsedAST = try parse(raw: template)
         XCTAssertEqual(parsedAST.terse, parseExpected)
         
         let serializeExpected = """
@@ -354,7 +558,7 @@ final class LKParserTests: LeafTestClass {
     }
     
     func testMutatingMethods() throws {
-        let input = """
+        let template = """
         #(var x = "t")
         #(x.append("dotclare"))
         #(var y = x)
@@ -374,7 +578,7 @@ final class LKParserTests: LeafTestClass {
            1: $:y
         """
 
-        let parsedAST = try parse(input)
+        let parsedAST = try parse(raw: template)
         XCTAssertEqual(parsedAST.terse, parseExpected)
         
         let serializeExpected = """
@@ -400,34 +604,8 @@ final class LKParserTests: LeafTestClass {
         }
     }
     
-    func _testResumingSerialize() throws {
-        let testFiles = LeafMemorySource()
-        testFiles["/sample.leaf"] = """
-        hello, #(name)!
-        #for(index in skills):
-        #(skills[index])
-        #endfor
-        """
-
-        let renderer = TestRenderer(sources: .singleSource(testFiles))
-        
-        let loopCount = 10_000
-        let context: [String: LeafData] = [
-            "name"  : "vapor",
-            "skills" : Array.init(repeating: ["bool": true.leafData, "string": "a;sldfkj".leafData,"int": 100.leafData], count: loopCount).leafData,
-            "me": "LOGAN"
-        ]
-        
-        _ = try renderer.render(path: "sample", context: .init(context)).always {
-            switch $0 {
-                case .failure(let e): XCTFail((e as! LeafError).localizedDescription)
-                case .success(let b): XCTAssertTrue(b.readableBytes == 0, "\(b.readableBytes.formatBytes())")
-            }
-        }.wait()
-    }
-    
     func testVarStyle() throws {
-        let scoped = """
+        files["scoped"] = """
         #(var x = 5)
         #(x)
         #if(x == 5):
@@ -440,99 +618,68 @@ final class LKParserTests: LeafTestClass {
         #(x)
         """
         
-        let x = try render(scoped)
-        XCTAssert(x.contains("String and more"))
-        XCTAssert(x.contains("5"))
+        try XCTAssert(render("scoped").contains("String and more"))
+        try XCTAssert(render("scoped").contains("5"))
         
-        let validConstant = """
+        files["validConstant"] = """
         #(let x)
         #(x = "A String")
         #(x)
         """
         
-        let y = try render(validConstant)
-        XCTAssert(y.contains("A String"))
+        try XCTAssert(render("validConstant").contains("A String"))
         
-        let invalidConstant = """
+        files["invalidConstant"] = """
         #(let x = "A String")
         #(x.append(" and more string"))
         #(x)
         """
         
-        do { try _ = render(invalidConstant); XCTFail("Should have thrown") }
-        catch { XCTAssert(error.localizedDescription.contains("Can't mutate; `x` is constant")) }
-        
-        let invalidConstantTwo = """
+        try AssertErrors(render("invalidConstant"), contains: "Can't mutate; `x` is constant")
+                                 
+        files["invalidDeclare"] = """
         #(let x)
         #(x)
         """
         
-        do { try _ = render(invalidConstantTwo); XCTFail("Should have thrown") }
-        catch { XCTAssert(error.localizedDescription.contains("Variable `x` used before initialization")) }
-        
-        let overloadScopeVariable = """
+        try AssertErrors(render("invalidDeclare"), contains: "Variable `x` used before initialization")
+                        
+        files["overloadScopeVar"] = """
         #for(index in 10):
         #(var i = index + 1)#(i)
         #endfor
         """
         
-        let z = try render(overloadScopeVariable)
-        XCTAssert(z.contains("10"))
+        try XCTAssert(render("overloadScopeVar").contains("10"))
         
-        let invalidScopeAssign = """
+        files["invalidScopeAssign"] = """
         #(self.x = 10)
         #(x)
         """
         
-        do { let x = try render(invalidScopeAssign); print(x); XCTFail("Should have thrown") }
-        catch { XCTAssert(error.localizedDescription.contains("Can't assign; `self.x` is constant")) }
+        try AssertErrors(render("invalidScopeAssign"), contains: "Can't assign; `self.x` is constant")
     }
-    
-    func testDefineNesting() throws {
-        let test = LeafMemorySource()
-        let renderer = TestRenderer(sources: .singleSource(test))
-        test["/input.leaf"] = """
-        #define(block):
-        <section>
-            <input type="text" name="#(param.name)" value="#(param.value)">
-        </section>
-        #enddefine
 
-        #evaluate(block)
-        """
-        
-        test["/define.leaf"] = """
-        #inline("input")
-        #inline("input")
-        """
-        
-        try _ = renderer.render(path: "define", options: [.missingVariableThrows(false)]).wait()
-    }
-    
     func testBufferWhitespaceStripping() throws {
-        let sample = """
+        files["template"] = """
         #(# A Comment #)
         #(let x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
         #for(num in x):
         #(num)
         #endfor
         """
-        
-        let expected = "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n"
-        try print(parse(sample).formatted)
-        try XCTAssertEqual(render(sample), expected)
+    
+        try XCTAssertEqual(render("template"), "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n")
     }
     
     func testSubscriptAssignment() throws {
-        let sample = """
+        files["template"] = """
         #var(x = [1])
         #(x[0] = 10)
         #(x)
         """
-                
-        try XCTAssertThrowsError(render(sample)) {
-            XCTAssert($0.localizedDescription.contains("Assignment via subscripted access not yet supported"))
-        }
+        
+        try AssertErrors(render("template"), contains: "Assignment via subscripted access not yet supported")
     }
 }
 

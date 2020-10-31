@@ -32,7 +32,6 @@ internal extension Character {
     static let newLine = "\n".first!
     static let quote = "\"".first!
     static let apostrophe = "'".first!
-    static let octothorpe = "#".first!
     static let backSlash = "\\".first!
     static let leftParenthesis = "(".first!
     static let rightParenthesis = ")".first!

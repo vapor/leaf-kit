@@ -5,11 +5,10 @@ import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
 
-final class GHLeafKitIssuesTest: LeafTestClass {
+final class GHLeafKitIssuesTest: MemoryRendererTestCase {
     /// https://github.com/vapor/leaf-kit/issues/33
     func testGH33() throws {
-        let test = LeafMemorySource()
-        test["/base.leaf"] = """
+        files["/base.leaf"] = """
         <body>
             Directly inlined snippet
             #inline("partials/picture.svg")
@@ -17,14 +16,16 @@ final class GHLeafKitIssuesTest: LeafTestClass {
             #evaluate(body)
         </body>
         """
-        test["/page.leaf"] = """
+        
+        files["/page.leaf"] = """
         #define(body):
         Snippet added through define/evaluate
         #inline("partials/picture.svg")
         #enddefine
         #inline("base")
         """
-        test["/partials/picture.svg"] = """
+        
+        files["/partials/picture.svg"] = """
             <svg><path d="M0..."></svg>
         
         """
@@ -39,24 +40,22 @@ final class GHLeafKitIssuesTest: LeafTestClass {
         </body>
         """
 
-        let renderer = TestRenderer(sources: .singleSource(test))
-        let page = try renderer.render(path: "page").wait()
-        XCTAssertEqual(page.string, expected)
+        try XCTAssertEqual(render("page"), expected)
     }
 
     /// https://github.com/vapor/leaf-kit/issues/50
     func testGH50() throws {
-        let test = LeafMemorySource()
-        test["/a.leaf"] = """
-        #export(body):
+        files["/a.leaf"] = """
+        #define(body):
         #for(challenge in challenges):
-        #extend("a/b-c-d")
+        #inline("a/b-c-d")
         #endfor
-        #endexport
-        #extend("a/b")
+        #enddefine
+        #inline("a/b")
         """
-        test["/a/b.leaf"] = "#import(body)"
-        test["/a/b-c-d.leaf"] = "HI\n"
+        
+        files["a/b"] = "#evaluate(body)"
+        files["a/b-c-d"] = "HI\n"
 
         let expected = """
         HI
@@ -65,8 +64,6 @@ final class GHLeafKitIssuesTest: LeafTestClass {
 
         """
 
-        let renderer = TestRenderer(sources: .singleSource(test))
-        let page = try renderer.render(path: "a", context: ["challenges":["","",""]]).wait()
-        XCTAssertEqual(page.terse, expected)
+        try XCTAssertEqual(render("a", ["challenges": ["","",""]]), expected)
     }
 }

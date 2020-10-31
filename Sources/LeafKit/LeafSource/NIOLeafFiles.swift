@@ -97,10 +97,10 @@ public extension NIOLeafFiles {
             /// If sandboxing is enforced and the path contains a potential escaping path, look harder
             if lim.contains(.toVisibleFiles), t.contains("/."),
                let hit = t.split(separator: "/").first(where: { $0.first == "."}) {
-                return fail(.illegalAccess("Attempted to access \(hit)"), on: eventLoop) }
+                return fail(.illegalAccess(String(hit), .toVisibleFiles), on: eventLoop) }
 
             if lim.contains(.toSandbox), !t.hasPrefix(sandBox + (!escape ? viewDir : "")) {
-                return fail(.illegalAccess("Attempted to escape sandbox: \(t)"), on: eventLoop) }
+                return fail(.illegalAccess(t, .toSandbox), on: eventLoop) }
         }
 
         return read(path: t, on: eventLoop)

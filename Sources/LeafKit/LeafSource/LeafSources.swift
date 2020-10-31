@@ -70,7 +70,7 @@ public final class LeafSources {
     /// Locate a template from the sources; if a specific source is named, only try to read from it.
     /// Otherwise, use the specified search order. Key (and thus AST name) are "$:template" when no source
     /// was specified, or "source:template" when specified
-    func file(_ key: LeafASTKey, on eL: EventLoop) -> ELF<(key: String,
+    func file(_ key: LeafAST.Key, on eL: EventLoop) -> ELF<(key: String,
                                                            buffer: ByteBuffer)> {
         let source = key._src
         let template = key._name
@@ -81,12 +81,10 @@ public final class LeafSources {
             return searchSources(template, order, on: eL)
                                 .map { ("\(source):\(template)", $0.buffer) }
         }
-        let e = source == "$" ? "No searchable sources exist"
-                              : "Invalid source \(source) specified"
-        return fail(.illegalAccess(e), on: eL)
+        return fail(source == "$" ? .noSources : .noSourceForKey(source), on: eL)
     }
     
-    func timestamp(_ key: LeafASTKey, on eL: EventLoop) -> ELF<Date> {
+    func timestamp(_ key: LeafAST.Key, on eL: EventLoop) -> ELF<Date> {
         let source = key._src
         let template = key._name
         if source != "$", keys.contains(source) {
@@ -94,9 +92,7 @@ public final class LeafSources {
         } else if source == "$", !order.isEmpty {
             return searchSources(template, order, on: eL)
         }
-        let e = source == "$" ? "No searchable sources exist"
-                              : "Invalid source \(source) specified"
-        return fail(.illegalAccess(e), on: eL)
+        return fail(source == "$" ? .noSources : .noSourceForKey(source), on: eL)
     }
     
     private func searchSources(_ t: String,
@@ -106,16 +102,12 @@ public final class LeafSources {
         if s.isEmpty { return fail(.noTemplateExists(t), on: eL) }
         var rest = s
         let key = rest.removeFirst()
-        lock.lock()
-        let source = sources[key]!
-        lock.unlock()
+        let source = lock.withLock { sources[key]! }
         
         return source.file(template: t, escape: true, on: eL)
                      .map { (source: key, buffer: $0) }
-                     .flatMapError { err in if let e = err as? LeafError,
-                                        case .illegalAccess = e.reason {
-                                            return fail(e, on: eL) }
-                                     return self.searchSources(t, rest, on: eL) }
+                     .flatMapError { $0.illegal ? fail($0.leafError!, on: eL)
+                                                : self.searchSources(t, rest, on: eL) }
     }
     
     private func searchSources(_ t: String,
@@ -124,14 +116,18 @@ public final class LeafSources {
         if s.isEmpty { return fail(.noTemplateExists(t), on: eL) }
         var rest = s
         let key = rest.removeFirst()
-        lock.lock()
-        let source = sources[key]!
-        lock.unlock()
+        let source = lock.withLock { sources[key]! }
         
         return source.timestamp(template: t, on: eL)
-                     .flatMapError { err in if let e = err as? LeafError,
-                                        case .illegalAccess = e.reason {
-                                            return fail(e, on: eL) }
-                                     return self.searchSources(t, rest, on: eL) }
+                     .flatMapError { $0.illegal ? fail($0.leafError!, on: eL)
+                                                : self.searchSources(t, rest, on: eL) }
+    }
+
+}
+
+private extension Error {
+    var illegal: Bool {
+        if case .illegalAccess = leafError?.reason { return true }
+        return false
     }
 }

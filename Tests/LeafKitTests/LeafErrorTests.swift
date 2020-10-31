@@ -4,31 +4,22 @@ import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
 
-final class LeafErrorTests: LeafTestClass {
+final class LeafErrorTests: MemoryRendererTestCase {
     /// Verify that cyclical references via #extend will throw `LeafError.cyclicalReference`
     func testCyclicalError() {
-        let test = LeafMemorySource()
-        test["/a.leaf"] = "#extend(\"b\")"
-        test["/b.leaf"] = "#extend(\"c\")"
-        test["/c.leaf"] = "#extend(\"a\")"
-        let expected = "a cyclically referenced in [a -> b -> c -> !a]"
-
-        do { _ = try TestRenderer(sources: .singleSource(test)).render(path: "a").wait()
-             XCTFail("Should have thrown LeafError.cyclicalReference") }
-        catch let error as LeafError { XCTAssert(error.localizedDescription.contains(expected)) }
-        catch { XCTFail("Should have thrown LeafError.cyclicalReference") }
+        files["/a.leaf"] = "#inline(\"b\")"
+        files["/b.leaf"] = "#inline(\"c\")"
+        files["/c.leaf"] = "#inline(\"a\")"
+        
+        try AssertErrors(render("a"),
+                         contains: "`a` cyclically referenced in [a -> b -> c -> !a]")
     }
 
     /// Verify that referecing a non-existent template will throw `LeafError.noTemplateExists`
     func testDependencyError() {
-        let test = LeafMemorySource()
-        test["/a.leaf"] = "#extend(\"b\")"
-        test["/b.leaf"] = "#extend(\"c\")"
-        let expected = "No template found for c"
-
-        do { _ = try TestRenderer(sources: .singleSource(test)).render(path: "a").wait()
-             XCTFail("Should have thrown LeafError.noTemplateExists") }
-        catch let error as LeafError { XCTAssert(error.localizedDescription.contains(expected)) }
-        catch { XCTFail("Should have thrown LeafError.noTemplateExists") }
+        files["/a.leaf"] = "#inline(\"b\")"
+        files["/b.leaf"] = "#inline(\"c\")"
+        
+        try AssertErrors(render("a"), contains: "No template found for `c`")
     }
 }

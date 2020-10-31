@@ -8,11 +8,11 @@ import Foundation
 public struct LeafAST: Hashable {
     // MARK: - Public Stored Properties
     /// Hashing key for the AST
-    public let key: LeafASTKey
+    public let key: LeafAST.Key
     /// Convenience referrent name for the AST
     public let name: String
     /// A public view of the current state of the AST
-    public internal(set) var info: LeafASTInfo
+    public internal(set) var info: LeafAST.Info
 
     // MARK: - Internal Stored Properties
     /// The AST scope tables
@@ -63,7 +63,7 @@ public struct LeafAST: Hashable {
     }
 
     /// An opaque object passed to a stored `LeafAST` via `LeafCache`
-    public struct Touch {
+    public struct Touch: Equatable {
         var count: UInt32
         var sizeAvg: UInt32
         var sizeMax: UInt32
@@ -295,7 +295,7 @@ internal extension LeafAST {
     }
 }
 
-internal extension LeafASTTouch {
+internal extension LeafAST.Touch {
     mutating func aggregate(values: Self) {
         sizeMax.maxAssign(values.sizeMax)
         execMax.maxAssign(values.execMax)

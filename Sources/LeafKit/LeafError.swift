@@ -18,8 +18,10 @@ public struct LeafError: LocalizedError, CustomStringConvertible {
     /// Possible cases of a LeafError.Reason, with applicable stored values where useful for the type
     public enum Reason {
         // MARK: Errors related to loading raw templates
+        case noSources
+        case noSourceForKey(String, invalid: Bool = false)
         /// Attempted to access a template blocked for security reasons
-        case illegalAccess(String)
+        case illegalAccess(String, NIOLeafFiles.Limit = .toVisibleFiles)
                 
         // MARK: Errors related to LeafCache access
         /// Attempt to modify cache entries when caching is globally disabled
@@ -88,20 +90,24 @@ public struct LeafError: LocalizedError, CustomStringConvertible {
     public var localizedDescription: String {
         var m = "\(file.split(separator: "/").last ?? "?").\(function):\(line)\n"
         switch reason {
-            case .illegalAccess(let r)        : m += r
+            case .illegalAccess(let f, let l) : m += l.contains(.toVisibleFiles) ? "Attempted to access hidden file "
+                                                                                 : "Attempted to escape sandbox "
+                                                m += "`\(f)`"
+            case .noSources                   : m += "No searchable sources exist"
+            case .noSourceForKey(let s,let b) : m += b ? "`\(s)` is invalid source key" : "No source `\(s)` exists"
             case .unknownError(let r)         : m += r
-            case .unsupportedFeature(let f)   : m += "\(f) not implemented"
+            case .unsupportedFeature(let f)   : m += "`\(f)` not implemented"
             case .cachingDisabled             : m += "Caching is globally disabled"
-            case .keyExists(let k)            : m += "Existing entry \(k)"
-            case .noValueForKey(let k)        : m += "No cache entry exists for \(k)"
-            case .noTemplateExists(let k)     : m += "No template found for \(k)"
+            case .keyExists(let k)            : m += "Existing entry `\(k)`"
+            case .noValueForKey(let k)        : m += "No cache entry exists for `\(k)`"
+            case .noTemplateExists(let k)     : m += "No template found for `\(k)`"
             case .unresolvedAST(let k, let d) : m += "\(k) has unresolved dependencies: \(d)"
             case .timeout(let d)              : m += "Exceeded timeout at \(d.formatSeconds())"
-            case .configurationError(let d)   : m += "Configuration error: \(d)"
-            case .missingRaw(let f)           : m += "Missing raw inline file \"\(f)\""
-            case .invalidIdentifier(let i)    : m += "\(i) is not a valid Leaf identifier"
+            case .configurationError(let d)   : m += "Configuration error: `\(d)`"
+            case .missingRaw(let f)           : m += "Missing raw inline file ``\(f)``"
+            case .invalidIdentifier(let i)    : m += "`\(i)` is not a valid Leaf identifier"
             case .cyclicalReference(let k, let c)
-                : m += "\(k) cyclically referenced in [\((c + ["!\(k)"]).joined(separator: " -> "))]"
+                : m += "`\(k)` cyclically referenced in [\((c + ["!\(k)"]).joined(separator: " -> "))]"
                 
             case .lexError(let e)             : m = "Lexing error\n\(e.description)"
             case .parseError(let e)           : m = "Parse \(e.description)"
@@ -206,7 +212,7 @@ public struct LexError: Error, CustomStringConvertible {
 public struct ParseError: Error, CustomStringConvertible {
     public enum Reason: Error, CustomStringConvertible {
         case noEntity(type: String, name: String)
-        case sameName(type: String, name: String, matches: [String])
+        case sameName(type: String, name: String, params: String, matches: [String])
         case mutatingMismatch(name: String)
         case cantClose(name: String, open: String?)
         case parameterError(name: String, reason: String)
@@ -252,8 +258,8 @@ public struct ParseError: Error, CustomStringConvertible {
                     return "\(name)(...) couldn't be parsed: \(reason)"
                 case .noEntity(let t, let name):
                     return "No \(t) named `\(name)` exists"
-                case .sameName(let t, let name, let matches):
-                    return "No exact match for \(t) \(name); \(matches.count) possible matches: \(matches.map { "\(name)\($0)" }.joined(separator: "\n"))"
+                case .sameName(let t, let name, let params, let matches):
+                    return "No exact match for \(t) \(name + params); \(matches.count) possible matches: \(matches.map { "\(name)\($0)" }.joined(separator: "\n"))"
             }
         }
     }
@@ -293,6 +299,10 @@ public struct ParseError: Error, CustomStringConvertible {
 }
 
 // MARK: - Internal Conveniences
+
+extension Error {
+    var leafError: LeafError? { self as? LeafError }
+}
 
 @inline(__always)
 func err(_ cause: LeafErrorCause,

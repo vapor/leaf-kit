@@ -4,10 +4,10 @@ import PackageDescription
 let package = Package(
     name: "leaf-kit",
     platforms: [
-       .macOS(.v10_15)
+        .macOS(.v10_15), .iOS(.v11)
     ],
     products: [
-        .library(name: "LeafKit", targets: ["LeafKit"])
+        .library(name: "LeafKit", targets: ["LeafKit"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.20.2"),

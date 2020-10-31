@@ -195,10 +195,10 @@ internal struct LKExpression: LKSymbol {
 
     /// Evaluate an infix expression
     private func evalInfix(_ lhs: LKData, _ op: LeafOperator, _ rhs: LKData) -> LKData {
-        if rhs.errored { return rhs }
-        if lhs.errored { return lhs }
+        if lhs.errored, ![.or, .xor, .unequal, .nilCoalesce].contains(op) { return lhs }
+        if rhs.errored, ![.or, .xor, .unequal].contains(op) { return rhs }
         switch op {
-            case .nilCoalesce    : return lhs.isNil ? rhs : lhs
+            case .nilCoalesce    : return lhs.errored || lhs.isNil ? rhs : lhs
             /// Equatable conformance passthrough
             case .equal          : return .bool(lhs == rhs)
             case .unequal        : return .bool(lhs != rhs)

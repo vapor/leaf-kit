@@ -12,8 +12,8 @@ public final class DefaultLeafCache {
     // MARK: - Stored Properties - Private Only
     private let locks: (cache: RWLock, touch: RWLock)
     /// NOTE: internal read-only purely for test access validation - not assured
-    private(set) var cache: [LeafASTKey: LeafAST]
-    private var touches: [LeafASTKey: LeafASTTouch]
+    private(set) var cache: [LeafAST.Key: LeafAST]
+    private var touches: [LeafAST.Key: LeafAST.Touch]
 }
 
 // MARK: - Public - LeafCache
@@ -22,7 +22,7 @@ extension DefaultLeafCache: LeafCache {
     
     public var isEmpty: Bool { locks.cache.readWithLock { cache.isEmpty } }
     
-    public var keys: Set<LeafASTKey> { .init(locks.cache.readWithLock { cache.keys }) }
+    public var keys: Set<LeafAST.Key> { .init(locks.cache.readWithLock { cache.keys }) }
 
     /// - Parameters:
     ///   - document: The `LeafAST` to store
@@ -44,7 +44,7 @@ extension DefaultLeafCache: LeafCache {
     ///   - key: Name of the `LeafAST`  to try to return
     ///   - loop: `EventLoop` to return futures on
     /// - Returns: `EventLoopFuture<LeafAST?>` holding the `LeafAST` or nil if no matching result
-    public func retrieve(_ key: LeafASTKey,
+    public func retrieve(_ key: LeafAST.Key,
                          on loop: EventLoop) -> EventLoopFuture<LeafAST?> {
         succeed(retrieve(key), on: loop)
     }
@@ -54,17 +54,17 @@ extension DefaultLeafCache: LeafCache {
     ///   - loop: `EventLoop` to return futures on
     /// - Returns: `EventLoopFuture<Bool?>` - If no document exists, returns nil. If removed,
     ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
-    public func remove(_ key: LeafASTKey,
+    public func remove(_ key: LeafAST.Key,
                        on loop: EventLoop) -> EventLoopFuture<Bool?> {
         return succeed(remove(key), on: loop) }
 
-    public func touch(_ key: LeafASTKey,
-                      with values: LeafASTTouch) {
+    public func touch(_ key: LeafAST.Key,
+                      with values: LeafAST.Touch) {
         locks.touch.writeWithLock { touches[key]?.aggregate(values: values) }
     }
     
-    public func info(for key: LeafASTKey,
-                     on loop: EventLoop) -> EventLoopFuture<LeafASTInfo?> {
+    public func info(for key: LeafAST.Key,
+                     on loop: EventLoop) -> EventLoopFuture<LeafAST.Info?> {
         succeed(info(for: key), on: loop)
     }
     
@@ -95,12 +95,13 @@ extension DefaultLeafCache: LKSynchronousCache {
     }
 
     /// Blocking file load behavior
-    func retrieve(_ key: LeafASTKey) -> LeafAST? {
+    func retrieve(_ key: LeafAST.Key) -> LeafAST? {
         return locks.cache.readWithLock {
             guard cache.keys.contains(key) else { return nil }
             locks.touch.writeWithLock {
                 if touches[key]!.count >= 128,
-                   let touch = touches.updateValue(.empty, forKey: key) {
+                   let touch = touches.updateValue(.empty, forKey: key),
+                   touch != .empty {
                     cache[key]!.touch(values: touch) }
             }
             return cache[key]
@@ -108,17 +109,18 @@ extension DefaultLeafCache: LKSynchronousCache {
     }
 
     /// Blocking file load behavior
-    func remove(_ key: LeafASTKey) -> Bool? {
+    func remove(_ key: LeafAST.Key) -> Bool? {
         if locks.touch.writeWithLock({ touches.removeValue(forKey: key) == nil }) { return nil }
         locks.cache.writeWithLock { _ = cache.removeValue(forKey: key) }
         return true
     }
     
-    func info(for key: LeafASTKey) -> LeafASTInfo? {
+    func info(for key: LeafAST.Key) -> LeafAST.Info? {
         locks.cache.readWithLock {
             guard cache.keys.contains(key) else { return nil }
             locks.touch.writeWithLock {
-                if let touch = touches.updateValue(.empty, forKey: key) {
+                if let touch = touches.updateValue(.empty, forKey: key),
+                   touch != .empty {
                     cache[key]!.touch(values: touch) }
             }
             return cache[key]!.info

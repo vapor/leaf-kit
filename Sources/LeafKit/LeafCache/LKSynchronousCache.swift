@@ -11,12 +11,12 @@ internal protocol LKSynchronousCache: LeafCache {
 
     /// - Parameter key: Name of the `LeafAST` to try to return
     /// - Returns: The requested `LeafAST` or nil if not found
-    func retrieve(_ key: LeafASTKey) -> LeafAST?
+    func retrieve(_ key: LeafAST.Key) -> LeafAST?
 
     /// - Parameter key: Name of the `LeafAST`  to try to purge from the cache
     /// - Returns: `Bool?` If removed,  returns true. If cache can't remove because of dependencies
     ///      (not yet possible), returns false. Nil if no such cached key exists.
-    func remove(_ key: LeafASTKey) -> Bool?
+    func remove(_ key: LeafAST.Key) -> Bool?
     
-    func info(for key: LeafASTKey) -> LeafASTInfo?
+    func info(for key: LeafAST.Key) -> LeafAST.Info?
 }

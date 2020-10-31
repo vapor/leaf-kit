@@ -52,7 +52,7 @@ internal extension Date {
 }
 
 internal extension String {
-    /// Validate that the String chunk is processable by Leaf - can be used on chunks.
+    /// Validate that the String chunk is processable by Leaf for a given LeafEntities config. Can be used on chunks.
     ///
     /// If return value is .success, holds true if the file is possibly Leaf parseable (has valid tags) or false if
     /// no tag marks of any kind exist in the string.

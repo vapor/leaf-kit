@@ -214,15 +214,15 @@ public extension LeafRenderer {
                 context: Context,
                 options: Options? = nil) -> EventLoopFuture<ByteBuffer> {
         if template.isEmpty { return fail(.noTemplateExists("No template name provided"), on: eL) }
-        if source.isEmpty { return fail(.noTemplateExists("No LeafSource key provided"), on: eL) }
+        if source.isEmpty { return fail(.noSourceForKey(source, invalid: true), on: eL) }
         if source != "$", source.first == "$" || source.contains(":") {
-            return fail(.illegalAccess("Invalid LeafSource key"), on: eL)
+            return fail(.noSourceForKey(source, invalid: true), on: eL)
         }
         return _render(.init(source, template), context, options)
     }
     
     func info(for template: String,
-              in source: String? = nil) -> EventLoopFuture<LeafASTInfo?> {
+              in source: String? = nil) -> EventLoopFuture<LeafAST.Info?> {
         cache.info(for: .init(source ?? "$", template), on: eL)
     }
 }
@@ -232,7 +232,7 @@ private extension LeafRenderer {
     // 10 ms limit for execution to act in a blocking fashion
     private static var blockLimit: Double { 0.010 }
     
-    func _render(_ key: LeafASTKey, _ context: Context, _ options: Options?) -> ELF<ByteBuffer> {
+    func _render(_ key: LeafAST.Key, _ context: Context, _ options: Options?) -> ELF<ByteBuffer> {
         var context = context
         if let options = options {
             if context.options == nil { context.options = options }
@@ -254,9 +254,7 @@ private extension LeafRenderer {
 
     /// Call with any state of ASTBox - will fork to various behaviors as required until finally returning a
     /// cached and serializable AST, if a failure hasn't bubbled out
-    func arbitrate(_ ast: LeafAST,
-                   _ context: LeafRenderer.Context,
-                   via chain: [String] = []) -> ELF<LeafAST> {
+    func arbitrate(_ ast: LeafAST, _ context: Context, via chain: [String] = []) -> ELF<LeafAST> {
         if ast.info.requiredASTs.isEmpty && ast.info.requiredRaws.isEmpty {
             /// Succeed immediately if the ast is cached and doesn't need any kind of resolution
             if ast.cached || context.caching.intersection([.store, .autoUpdate]).isEmpty {
@@ -292,8 +290,7 @@ private extension LeafRenderer {
     ///
     /// - If the AST can't be found (either from cache or reading), future errors
     /// - If found or read, return complete AST and a Bool signaling whether it was a cache hit or not
-    func fetch(_ key: LeafASTKey,
-               _ context: LeafRenderer.Context) -> ELF<LeafAST> {
+    func fetch(_ key: LeafAST.Key, _ context: Context) -> ELF<LeafAST> {
         guard context.caching.contains(.read) else { return read(key, context) }
                 
         /// Try to hit blocking cache LeafAST, otherwise hit async cache, then try if no cache hit - read a template
@@ -309,8 +306,7 @@ private extension LeafRenderer {
                                                       : succeed($0, on: self.eL) }
     }
     
-    func poll(_ ast: LeafAST,
-              _ context: LeafRenderer.Context) -> ELF<LeafAST> {
+    func poll(_ ast: LeafAST, _ context: Context) -> ELF<LeafAST> {
         sources.timestamp(ast.key, on: eL).flatMap {
             if ast.info.parsed < $0 { return self.read(ast.key, context) }
             else {
@@ -326,9 +322,7 @@ private extension LeafRenderer {
     ///
     /// If the configured `LeafSource` can't read a file, future will fail
     /// Otherwise, a complete (but not necessarily flat) `LeafAST` will be returned.
-    func read(_ key: LeafASTKey,
-              _ context: LeafRenderer.Context,
-              _ escape: Bool = false) -> ELF<LeafAST> {
+    func read(_ key: LeafAST.Key, _ context: Context, _ escape: Bool = false) -> ELF<LeafAST> {
         sources.file(key, on: eL)
                .flatMapThrowing {
             var buf = $0.1
@@ -344,8 +338,7 @@ private extension LeafRenderer {
         }
     }
     
-    func arbitrateRaws(_ ast: LeafAST,
-                       _ context: LeafRenderer.Context) -> ELF<LeafAST> {
+    func arbitrateRaws(_ ast: LeafAST, _ context: Context) -> ELF<LeafAST> {
         let fetches = ast.info.requiredRaws.map { self.readRaw($0) }
         return ELF.reduce(into: ast, fetches, on: eL) {
                     $0.inline(name: $1.0, raw: $1.1,
@@ -358,9 +351,7 @@ private extension LeafRenderer {
     }
 
     /// Attempt to resolve a `LeafAST` - call only when ast has unresolved inlines
-    func resolve(_ ast: LeafAST,
-                 _ context: LeafRenderer.Context,
-                 _ chain: [String] = []) -> ELF<LeafAST> {
+    func resolve(_ ast: LeafAST, _ context: Context, _ chain: [String] = []) -> ELF<LeafAST> {
         let fetches = ast.info.requiredASTs.map {
             self.fetch(.searchKey($0), context)
                 .flatMap { self.arbitrate($0, context, via: chain) } }
@@ -370,8 +361,7 @@ private extension LeafRenderer {
     }
 
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
-    func syncSerialize(_ ast: LeafAST,
-                       _ context: Context) -> ELF<ByteBuffer> {
+    func syncSerialize(_ ast: LeafAST, _ context: Context) -> ELF<ByteBuffer> {
         var needed = Set<LKVariable>(ast.info._requiredVars
                                         .map {$0.isDefine ? $0 : !$0.isScoped ? $0.contextualized : $0})
         needed.subtract(context.allVariables)
@@ -393,13 +383,5 @@ private extension LeafRenderer {
                     cache.touch(serializer.ast.key, with: .atomic(time: t, size: block.byteCount)) }
                 return succeed(block.serialized.buffer, on: eL)
         }
-    }
-    
-    /// Checks that the string body provided is processable (has a valid tagMark), or nil if undeterminable.
-    static func _isProcessable(_ body: String) -> Bool? {
-        var lexer = LKLexer(LKRawTemplate("", body))
-        guard let tokens = try? lexer.lex() else { return nil }
-        /// If no token is tagMark, all must be raw.
-        return tokens.allSatisfy { $0.isTagMark == false }
     }
 }

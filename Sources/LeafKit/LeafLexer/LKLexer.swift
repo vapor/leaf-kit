@@ -10,6 +10,7 @@ internal struct LKLexer {
         self.src = template
         self.state = .raw
         self.entities = LKConf.entities
+        self.tagMark = LKConf.tagIndicator
         self.lastSourceLocation = (template.state.name, 1, 1)
     }
 
@@ -57,8 +58,9 @@ internal struct LKLexer {
     @discardableResult
     mutating private func pop() -> Character? { src.pop() }
 
+    private var tagMark: Character
     /// Convenience for an escaped tagIndicator token
-    private var escapedTagID: LKToken.Container = .raw(Character.tagIndicator.description)
+    private var escapedTagMark: LKToken.Container { .raw(tagMark.description) }
 
     // MARK: - Private - Actual implementation of Lexer
 
@@ -67,7 +69,7 @@ internal struct LKLexer {
         guard let first = current else { return nil }
 
         switch state {
-            case .raw where first == .tagIndicator
+            case .raw where first == tagMark
                              : return lexCheckTagIndicator()
             case .tag where first.canStartIdentifier
                              : return try lexNamedTag()
@@ -96,7 +98,7 @@ internal struct LKLexer {
               entities.closers.contains(id) ||
               current == .leftParenthesis else {
             lexed.removeLast()
-            append(escapedTagID)
+            append(escapedTagMark)
             state = .raw;
             return .raw(id)
         }
@@ -133,14 +135,14 @@ internal struct LKLexer {
         while let first = current {
             let peek = src.peek(aheadBy: 1) ?? .backSlash /// Magic - \ can't be an ID start
             switch first {
-                case .tagIndicator where peek.canStartIdentifier || peek == .leftParenthesis
+                case tagMark where peek.canStartIdentifier || peek == .leftParenthesis
                         : break scan
-                case .backSlash where peek == .tagIndicator
+                case .backSlash where peek == tagMark
                         : pop()
                           fallthrough
-                case .tagIndicator, .backSlash
+                case tagMark, .backSlash
                         : slice.append(src.pop()!)
-                default : slice += src.readWhileNot([.tagIndicator, .backSlash])
+                default : slice += src.readWhileNot([tagMark, .backSlash])
             }
         }
         return .raw(slice)
@@ -151,7 +153,7 @@ internal struct LKLexer {
         pop()
         let valid = current == .leftParenthesis || current?.canStartIdentifier ?? false
         state = valid ? .tag : .raw
-        return valid ? .tagMark : escapedTagID
+        return valid ? .tagMark : escapedTagMark
     }
 
     /// Parameter lexing - very monolithic, would be nice to break this up.
@@ -200,12 +202,12 @@ internal struct LKLexer {
                 }
                 if pop() != .quote { throw unterminatedString }
                 return .param(.literal(.string(accumulate)))
-            case .tagIndicator       : /// A comment - silently discard
-                var x = src.readWhileNot([.tagIndicator])
+            case tagMark       : /// A comment - silently discard
+                var x = src.readWhileNot([tagMark])
                 while x.last == .backSlash {
                     /// Read until hitting an unescaped tagIndicator
-                    if current == .tagIndicator { pop() }
-                    if current != nil { x = src.readWhileNot([.tagIndicator]) }
+                    if current == tagMark { pop() }
+                    if current != nil { x = src.readWhileNot([tagMark]) }
                 }
                 if current == nil { throw unknownError("Template ended in open comment") }
                 pop()

@@ -4,116 +4,13 @@ import Foundation
 @testable import LeafKit
 
 /// Assorted multi-purpose helper pieces for LeafKit tests
-
-/// Inherit from `LeafTestClass` rather than XCTestCase to avoid "Already running" assertions from other tests
-internal class LeafTestClass: XCTestCase {
-    override func setUp() {
-        LKConf.__VERYUNSAFEReset()
-        LKConf.entities = .leaf4Core
-        LKConf.entities.registerLeaf4Transitional()
-        LKROption.pollingFrequency = .infinity
-    }
-}
-
-// MARK: - Helper Functions
-
-/// Directly run a String "template" through `LKLexer`
-/// - Parameter str: Raw String holding Leaf template source data
-/// - Returns: A lexed array of LKTokens
-internal func lex(_ str: String, name: String = "default") throws -> [LKToken] {
-    var lexer = LKLexer(LKRawTemplate(name, str))
-    return try lexer.lex()
-}
-
-/// Directly run a String "template" through `LKLexer` and `LeafParser`
-/// - Parameter str: Raw String holding Leaf template source data
-/// - Returns: A lexed and parsed array of Syntax
-internal func parse(_ str: String, name: String = "default", options: LeafRenderer.Options? = nil) throws -> LeafAST {
-    var lexer = LKLexer(LKRawTemplate(name, str))
-    let tokens = try lexer.lex()
-    var context: LeafRenderer.Context = [:]
-    options.map { context.options = $0 }
-    var parser = LKParser(.searchKey(name), tokens, context)
-    let syntax = try parser.parse()
-
-    return syntax
-}
-
-/// Directly run a String "template" through full render chain
-/// - Parameter template: Raw String holding Leaf template source data
-/// - Parameter context: LeafData context
-/// - Returns: A fully rendered view
-internal func render(name: String = "test-render",
-                     _ template: String,
-                     _ context: LeafRenderer.Context = [:],
-                     options: LeafRenderer.Options = []) throws -> String {
-    var lexer = LKLexer(LKRawTemplate(name, template))
-    let tokens = try lexer.lex()
-    var parser = LKParser(.searchKey(name), tokens)
-    let ast = try parser.parse()
-    var block = LeafBuffer.instantiate(size: ast.underestimatedSize, encoding: context.encoding)
-    var context = context
-    context.options = options
-    let serializer = LKSerializer(ast, context, LeafBuffer.self)
-    switch serializer.serialize(&block) {
-        case .success        : return block.contents
-        case .failure(let e) : throw e
-    }
-}
-
-// MARK: - Helper Structs and Classes
-
-/// Helper wrapping` LeafRenderer` to preconfigure for simplicity & allow eliding context
-internal class TestRenderer {
-    var r: LeafRenderer
-    private let lock: Lock
-    private var counter: Int
-    private static var configured = false
-    private var timer: Date = .distantPast
-
-    init(cache: LeafCache = DefaultLeafCache(),
-         sources: LeafSources = .singleSource(LeafMemorySource()),
-         eventLoop: EventLoop = EmbeddedEventLoop(),
-         tasks: Int = 1) {
-        self.r = .init(cache: cache,
-                       sources: sources,
-                       eventLoop: eventLoop)
-        lock = .init()
-        counter = tasks
-    }
-
-    func render(source: String? = nil,
-                path: String,
-                context: LeafRenderer.Context = [:],
-                options: LeafRenderer.Options? = nil) -> EventLoopFuture<ByteBuffer> {
-        if timer == .distantPast { timer = Date() }
-        return r.render(template: path, from: source != nil ? source! : "$", context: context, options: options)
-    }
-
-    var queued: Int { lock.withLock { counter } }
-    var isDone: Bool { lock.withLock { counter <= 0 } ? true : false }
-    func finishTask() { lock.withLock { counter -= 1 } }
-    var lap: Double { let lap = timer +-> Date(); timer = Date(); return lap }
-}
-
 // MARK: - Helper Extensions
 
-internal extension ByteBuffer {
-    var string: String { String(decoding: readableBytesView, as: UTF8.self) }
-    var terse: String {
-        var result = String(decoding: readableBytesView, as: UTF8.self)
-        var index = result.indices.index(after: result.indices.startIndex)
-        while index < result.indices.endIndex {
-            if result[index] == .newLine,
-               result[index] == result[result.indices.index(before: index)] {
-                result.remove(at: index) }
-            else { index = result.indices.index(after: index) }
-        }
-        return result
-    }
+extension String {
+    var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
 }
 
-internal extension Array where Element == LKToken {
+extension Array where Element == LKToken {
     var string: String {
         compactMap { if case .whiteSpace(_) = $0.token { return nil }
                      else if $0.token == .raw("\n") { return nil }
@@ -123,27 +20,20 @@ internal extension Array where Element == LKToken {
 // MARK: - Helper Variables
 
 /// Automatic path discovery for the Templates folder in this package
-internal var templateFolder: String { projectTestFolder + "Templates/" }
-internal var projectTestFolder: String { "/\(#file.split(separator: "/").dropLast().joined(separator: "/"))/"}
+var templateFolder: String { projectTestFolder + "Templates/" }
+var projectTestFolder: String { "/\(#file.split(separator: "/").dropLast().joined(separator: "/"))/"}
 
 // MARK: - Internal Tests
 
 /// Test printing descriptions of Syntax objects
-final class PrintTests: LeafTestClass {
+final class PrintTests: MemoryRendererTestCase {
     func testRaw() throws {
-        let template = "hello, raw text"
-        let expectation = "0: raw(LeafBuffer: 15B)"
-
-        let v = try parse(template)
-        XCTAssertEqual(v.terse, expectation)
+        try XCTAssertEqual(parse(raw: "hello, raw text").terse,
+                           "0: raw(LeafBuffer: 15B)")
     }
 
     func testPassthrough() throws {
-        let template = "#(foo)"
-        let expectation = "0: $:foo"
-
-        let v = try parse(template)
-        XCTAssertEqual(v.terse, expectation)
+        try XCTAssertEqual(parse(raw: "#(foo)").terse, "0: $:foo")
     }
 
     func testLoop() throws {
@@ -152,6 +42,7 @@ final class PrintTests: LeafTestClass {
             hello, #(name).
         #endfor
         """
+        
         let expectation = """
         0: for($:names):
         1: scope(table: 1)
@@ -159,9 +50,8 @@ final class PrintTests: LeafTestClass {
            1: $:name
            2: raw(LeafBuffer: 2B)
         """
-
-        let v = try parse(template)
-        XCTAssertEqual(v.terse, expectation)
+        
+        try XCTAssertEqual(parse(raw: template).terse, expectation)
     }
 
     func testConditional() throws {
@@ -174,6 +64,7 @@ final class PrintTests: LeafTestClass {
             no stuff
         #endif
         """
+        
         let expectation = """
         0: if($:foo):
         1: raw(LeafBuffer: 16B)
@@ -182,41 +73,41 @@ final class PrintTests: LeafTestClass {
         4: else:
         5: raw(LeafBuffer: 14B)
         """
-
-        let v = try parse(template)
-        XCTAssertEqual(v.terse, expectation)
+        
+        try XCTAssertEqual(parse(raw: template).terse, expectation)
     }
 
     func testImport() throws {
-        let template = "#import(someimport)"
+        let template = "#evaluate(someimport)"
         let expectation = """
-        0: import(someimport):
+        0: evaluate(someimport):
         1: scope(undefined)
         """
-
-        let v = try parse(template)
-        XCTAssertEqual(v.terse, expectation)
+        
+        try XCTAssertEqual(parse(raw: template).terse, expectation)
     }
 
     func testExtendAndExport() throws {
+        LKROption.missingVariableThrows = false
+        LKROption.parseWarningThrows = false
+        
         let template = """
-        #export(title = "Welcome")
-        #export(body):
+        #define(title = "Welcome")
+        #define(body):
             hello there
-        #endexport
-        #extend("base")
+        #enddefine
+        #inline("base")
         """
         let expectation = """
-        0: export(title):
+        0: define(title):
         1: string(Welcome)
-        3: export(body):
+        3: define(body):
         4: raw(LeafBuffer: 17B)
-        6: extend("base", leaf):
+        6: inline("base", leaf):
         7: scope(undefined)
         """
-
-        let v = try parse(template, options: [.parseWarningThrows(false)])
-        XCTAssertEqual(v.terse, expectation)
+        
+        try XCTAssertEqual(parse(raw: template).terse, expectation)
     }
     
     func testValidateStringAsLeaf() throws {
@@ -235,4 +126,43 @@ final class PrintTests: LeafTestClass {
             XCTAssertEqual(tests[i].0.isLeafProcessable(.leaf4Core), tests[i].1)
         }
     }
+}
+
+struct Stopwatch {
+    var total: String { _total.formatSeconds() }
+    var average: String { (_total / Double(_laps)).formatSeconds() }
+    
+    mutating func start() { _laps = 0; _total = 0.0; _lap = Date() }
+    
+    @discardableResult
+    mutating func lap(accumulate: Bool = false) -> String {
+        let x = _lap
+        _lap = Date()
+        if accumulate { _laps += 1; _total += x +-> _lap }
+        return (x +-> _lap).formatSeconds() }
+    
+    private(set) var _total = 0.0
+    private var _lap: Date = Date()
+    private var _laps: Int = 0
+}
+
+// MARK: For `testContexts()`
+class _APIVersioning: LeafContextPublisher {
+    init(_ a: String, _ b: (Int, Int, Int)) { self.identifier = a; self.version = b }
+    
+    let identifier: String
+    var version: (major: Int, minor: Int, patch: Int)
+
+    lazy private(set) var leafVariables: [String: LeafDataGenerator] = [
+        "identifier" : .immediate(identifier),
+        "version"    : .lazy(["major": self.version.major,
+                              "minor": self.version.minor,
+                              "patch": self.version.patch])
+    ]
+}
+
+extension _APIVersioning {
+    var extendedVariables: [String: LeafDataGenerator] {[
+        "isRelease": .lazy(self.version.major > 0)
+    ]}
 }

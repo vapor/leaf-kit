@@ -15,23 +15,16 @@ public extension LeafRenderer.Context {
     init(dictionaryLiteral elements: (String, LeafData)...) {
         self = .init(.init(uniqueKeysWithValues: elements)) }
     
-    /// Failable initialize from `Encodable`objects
-    init?(encodable: [String: Encodable], isRoot: Bool = false) {
-        let context = try? encodable.mapValues { e -> LeafDataRepresentable in
-            let encoder = LKEncoder()
-            try e.encode(to: encoder)
-            return encoder
-        }
-        guard context != nil else { return nil }
-        self.init(context!, isRoot: isRoot)
+    /// Initialize a context from `Encodable`objects
+    init(encodable: [String: Encodable], isRoot: Bool = false) {
+        self.init(encodable.mapValues { $0.encodeToLeafData() }, isRoot: isRoot)
     }
     
     /// Failable intialize `self` scope from `Encodable` object that returns a keyed container
     init?(encodable asSelf: Encodable, isRoot: Bool = false) {
-        let encoder = LKEncoder()
-        guard (try? asSelf.encode(to: encoder)) != nil,
-              let dict = encoder.root?.leafData.dictionary else { return nil }
-        self.init(dict, isRoot: isRoot)
+        guard case .dictionary(let d) = asSelf.encodeToLeafData().container else {
+            return nil }
+        self.init(d, isRoot: isRoot)
     }
     
     static var defaultContextScope: String { LKVariable.selfScope }

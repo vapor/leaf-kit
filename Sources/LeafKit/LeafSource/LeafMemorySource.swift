@@ -31,6 +31,8 @@ public final class LeafMemorySource: LeafSource {
     
     public var keys: Set<String> { lock.readWithLock {.init(files.keys)} }
     
+    public func dropAll() { lock.writeWithLock { files.removeAll(keepingCapacity: true) } }
+    
     private var lock: RWLock = .init()
     private var files: [String: (Date, LKRawTemplate)] = [:]
 

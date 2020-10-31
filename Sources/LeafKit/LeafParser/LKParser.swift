@@ -4,16 +4,16 @@ import NIO
 internal struct LKParser {
     // MARK: - Internal Only
 
-    let key: LeafASTKey
+    let key: LeafAST.Key
     var error: LeafError? = nil
     var warnings: [ParseError] = []
     var lastTag: SourceLocation
     var currentLocation: SourceLocation { offset < tokens.count ? tokens[offset].source : (key._name, 0, 0) }
 
-    init(_ key: LeafASTKey,
+    init(_ key: LeafAST.Key,
          _ tokens: [LKToken],
-         _ context: LeafRenderer.Context = .init([:])) {
-        self.entities = LKConf.entities
+         _ context: LKRContext = .emptyContext()) {
+        self.entities = LKConf.$entities._unsafeValue
         self.key = key
         self.tokens = tokens
         self.rawStack = [entities.raw.instantiate(size: 0, encoding: context.encoding)]
@@ -381,7 +381,7 @@ internal struct LKParser {
         if isBlock { pop() }
         switch meta.form {
             case .define:
-                guard tuple?.count == 1 else { return bool(.unknownError("#\(name) \(Define.warning)")) }
+                guard tuple?.count == 1 else { return bool(.unknownError("#\(name) \(Define.warning)"), lastTag) }
                 
                 let identifier: String
                 let value: LKParameter
@@ -398,7 +398,7 @@ internal struct LKParser {
                               e.rhs?.isValued == true else { fallthrough }
                         if isBlock {
                             isBlock = false
-                            warn(.unknownError("#\(name)(identifier = value): is ambiguous; assumed not to be a block"))
+                            warn(.unknownError("#\(name)(identifier = value): is ambiguous; assumed not to be a block"), lastTag)
                         }
                         identifier = v.member!
                         value = e.rhs!
@@ -408,7 +408,7 @@ internal struct LKParser {
                 
                 if let functions = entities.functions[identifier],
                    !functions.compactMap({ $0.sig.emptyParamSig ? $0 : nil }).isEmpty {
-                    warn(.unknownError("Defined value for \(identifier) must be called with `evaluate(\(identifier))` - A function with signature \(identifier)() already exists")) }
+                    warn(.unknownError("Defined value for \(identifier) must be called with `evaluate(\(identifier))` - A function with signature \(identifier)() already exists"), lastTag) }
                 
                 let definition = Define(identifier: identifier,
                                         param: isBlock ? nil : value,
@@ -424,7 +424,7 @@ internal struct LKParser {
                     openBlock(name, definition, nil)
                 } else {
                     if value.isLiteral {
-                        warn(.unknownError("Definition for `\(identifier)` is a literal value - declaring as a variable may be preferred"))
+                        warn(.unknownError("Definition for `\(identifier)` is a literal value - declaring as a variable may be preferred"), lastTag)
                     }
                     scopes[currentScope].append(.block(name, definition, nil))
                     scopes[currentScope].append(.passthrough(definition.param!))
@@ -443,17 +443,17 @@ internal struct LKParser {
             case .inline:
                 guard let tuple = tuple, (1...2).contains(tuple.count),
                       case .string(let file) = tuple[0]?.data?.container
-                else { return bool(.unknownError("#\(name) \(Inline.literalWarning)")) }
+                else { return bool(.unknownError("#\(name) \(Inline.literalWarning)"), lastTag) }
                 var process = false
                 var raw: String? = nil
                 if tuple.count == 2 {
                     guard tuple.labels["as"] == 1, let behavior = tuple[1]?.container
-                    else { return bool(.unknownError("#\(name) \(Inline.warning)")) }
+                    else { return bool(.unknownError("#\(name) \(Inline.warning)"), lastTag) }
                     if case .keyword(.leaf) = behavior { process = true }
                     else if case .variable(let v) = behavior, v.isAtomic,
                             entities.rawFactories[v.member!] != nil {
                         raw = v.member
-                    } else { return bool(.unknownError("#\(name) \(Inline.warning)")) }
+                    } else { return bool(.unknownError("#\(name) \(Inline.warning)"), lastTag) }
                 } else { process = true }
                 let inline = Inline(file: file,
                                     process: process,
@@ -468,7 +468,7 @@ internal struct LKParser {
                 scopes[currentScope].append(.scope(nil))
                 if isBlock { appendRaw(":") }
             case .rawSwitch:
-                return bool(.unknownError("Raw switching blocks not yet supported"))
+                return bool(.unknownError("Raw switching blocks not yet supported"), lastTag)
 //                guard tuple?.isEmpty ?? true else { return bool(err("Using #\(name)() with parameters is not yet supported")) }
 //                if isBlock {
 //                    /// When enabled, type will be picked from parameter & params will be passed
@@ -476,7 +476,7 @@ internal struct LKParser {
 //                    return openBlock(name, RawSwitch(type(of: rawStack.last!), .init()), nil)
 //                }
             case .declare:
-                guard tuple?.count == 1 else { return bool(.unknownError("#\(name) \(Declare.warning)")) }
+                guard tuple?.count == 1 else { return bool(.unknownError("#\(name) \(Declare.warning)"), lastTag) }
                 
                 var identifier: LKVariable
                 let value: LKParameter
@@ -490,7 +490,7 @@ internal struct LKParser {
                               e.rhs?.isValued == true else { fallthrough }
                         identifier = v
                         value = e.rhs!
-                    default: return bool(.unknownError("#\(name) \(Declare.warning)"))
+                    default: return bool(.unknownError("#\(name) \(Declare.warning)"), lastTag)
                 }
                 
                 if name == "let" { identifier.state.formUnion(.constant) }

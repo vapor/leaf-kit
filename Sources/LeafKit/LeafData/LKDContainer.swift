@@ -100,8 +100,23 @@ internal indirect enum LKDContainer: Equatable, LKPrintable {
             case .nil(let t)         : return "\(t)?"
             case .string(let s)      : return "string(\(s))"
             case .evaluate           : return "evaluate(deferred)"
-            case .error              : return "error(\(self.error!))"
+            case .error              : return "error(\(error!))"
             case .unset              : return "unset"
+        }
+    }
+    var terse: String {
+        switch self {
+            case .array(let a)       : return "array(\(a.count))"
+            case .bool(let b)        : return b.description
+            case .data(let d)        : return "data(\(d.count.formatBytes())"
+            case .dictionary(let d)  : return "dictionary(\(d.count))"
+            case .double(let d)      : return d.description
+            case .int(let i)         : return i.description
+            case .lazy(_, let r)     : return "\(r.short.capitalized)"
+            case .nil(let t)         : return "\(t)?"
+            case .string(let s)      : return "\"\(s)\""
+            case .error              : return error!
+            default                  : return "()"
         }
     }
 

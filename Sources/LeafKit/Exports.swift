@@ -1,24 +1,21 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
 @_exported import NIO
 
-// MARK: - Public Type Shorthands
+// MARK: Public Type Shorthands
 
-// MARK: - LeafAST
-public typealias LeafASTKey = LeafAST.Key
-public typealias LeafASTInfo = LeafAST.Info
-public typealias LeafASTTouch = LeafAST.Touch
+// Can't alias until deprecated version totally removed
+//public typealias LeafContext = LeafRenderer.Context
+public typealias LeafOptions = LeafRenderer.Options
+public typealias LeafOption = LeafRenderer.Option
 
-// MARK: - LeafBlock, *Raw
+
 public typealias ParseSignatures = [String: [LeafParseParameter]]
 
 // MARK: - Static Conveniences
 
 /// Public helper identities
 public extension Character {
-    /// Global setting of `tagIndicator` for LeafKit - by default, `#`
-    internal(set) static var tagIndicator: Character = .octothorpe
+    static var tagIndicator: Self { LKConf.tagIndicator }
+    static var octothorpe: Self { "#".first! }
 }
 
 public extension String {

@@ -68,7 +68,10 @@ extension Date: LeafDataRepresentable {
     public static var leafDataType: LeafDataType? { .double }
     /// `Date` conversion is reliant on the configured `LeafTimestamp.referenceBase`
     public var leafData: LeafData {
-        .double(timeIntervalSince(Date(timeIntervalSinceReferenceDate: LeafTimestamp.referenceBase.interval))) }
+        .double(
+            self +-> Date(timeIntervalSinceReferenceDate: LeafTimestamp.referenceBase.interval)
+//            timeIntervalSince(Date(timeIntervalSinceReferenceDate: LeafTimestamp.referenceBase.interval))
+        ) }
 }
 
 extension Set: LeafDataRepresentable where Element: LeafDataRepresentable {

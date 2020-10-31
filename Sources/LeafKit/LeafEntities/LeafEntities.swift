@@ -26,13 +26,11 @@ public final class LeafEntities {
         self.methods = [:]
         self.types = [:]
     }
+    
+    static let leaf4Core: LeafEntities = ._leaf4Core
 }
 
 public extension LeafEntities {
-    // MARK: Static Computed Properties
-    
-    static var leaf4Core: LeafEntities { ._leaf4Core }
-        
     // MARK: Entity Registration Methods
     
     /// Register a Block factory
@@ -150,7 +148,7 @@ public extension LeafEntities {
     }
     
     /// Register optional entities prior to starting LeafKit
-    func regiterExtendedEntities() {
+    func registerExtendedEntities() {
         //use(IntIntToIntMap._min      , asFunction: "min")
         //use(IntIntToIntMap._max      , asFunction: "max")
         //use(DoubleDoubleToDoubleMap._min, asFunction: "min")
@@ -159,8 +157,8 @@ public extension LeafEntities {
         //use(StrToStrMap.randomElement, asMethod: "randomElement")
         //use(StrStrStrToStrMap.replace, asMethod: "replace")
         //use(StrToStrMap.escapeHTML, asFunctionAndMethod: "escapeHTML")
-        //use(DoubleFormatterMap.seconds, asFunctionAndMethod: "formatSeconds")
-        //use(IntFormatterMap.bytes, asFunctionAndMethod: "formatBytes")
+        use(DoubleFormatterMap.seconds, asFunctionAndMethod: "formatSeconds")
+        use(IntFormatterMap.bytes, asFunctionAndMethod: "formatBytes")
     }
 }
 
@@ -233,7 +231,7 @@ internal extension LeafEntities {
             { valid.append((function, tuple.isEmpty ? nil : tuple)) } else { continue }
         }
         if !valid.isEmpty { return .success(valid) }
-        return .failure(.sameName(type: "function", name: name, matches: functions.map {$0.sig.short} ))
+        return .failure(.sameName(type: "function", name: name, params: (params ?? .init()).description, matches: functions.map {$0.sig.short} ))
     }
     
     func validateMethod(_ name: String,
@@ -250,7 +248,7 @@ internal extension LeafEntities {
         }
         if valid.isEmpty {
             return .failure(mutatingMismatch ? .mutatingMismatch(name: name)
-            : .sameName(type: "function", name: name, matches: methods.map {$0.sig.short} ) )
+                                : .sameName(type: "function", name: name, params: (params ?? .init()).description, matches: methods.map {$0.sig.short} ) )
         }
         return .success(valid)
     }

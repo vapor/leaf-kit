@@ -22,7 +22,7 @@ public struct LeafConfiguration {
     // MARK: - Internal Only
 
     /// WARNING: Reset global "started" flag - only for testing use
-    public static func __VERYUNSAFEReset() {
+    static func __VERYUNSAFEReset() {
         #if DEBUG
         started = false
         #else
@@ -36,7 +36,7 @@ public struct LeafConfiguration {
         return started
     }
     
-    /// Convenience flag for global write-once
+    /// Flag for global write lock after LeafKit has started
     static var started = false
 }
 

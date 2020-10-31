@@ -1,38 +1,31 @@
 import XCTest
 @testable import LeafKit
 
-final class SerializerTests: LeafTestClass {
-    func testComplex() {
+final class LeafSerializerTests: MemoryRendererTestCase {
+    func testComplex() throws {
+        let skill: LeafData = .dictionary(["bool": true, "string": "a;sldfkj", "int": 100])
+        let context: LKRContext = ["name": "vapor", "skills": .array(.init(repeating: skill, count: 10)), "me": "LOGAN"]
 
-        let name = LeafData(.string("vapor"))
-        let me = LeafData(.string("LOGAN"))
-        let skills = Array.init(repeating: ["bool": true.leafData, "string": "a;sldfkj".leafData,"int": 100.leafData], count: 10).leafData
-        let context = ["name": name, "skills": skills, "me": me]
-
-        let input = """
+        files["template"] = """
         hello, #(name)!
         #for(skill in skills):
         #(skill)
         #endfor
         """
 
-        var total = 0.0
+        var timer = Stopwatch()
 
         for _ in 1...10 {
-            var lap = Date()
-            print("    Parse: " + (lap +-> Date()).formatSeconds())
-            lap = Date()
-            let _ = try! render(name: "sample", input, .init(context))
-            let duration = lap +-> Date()
-            print("Serialize: " + duration.formatSeconds())
-            total += duration
+            print("    Parse: \(timer.lap())")
+            try render("template", context)
+            print("Serialize: \(timer.lap(accumulate: true))")
         }
 
-        print("Average serialize duration: \((total / 10.0).formatSeconds())")
+        print("Average serialize duration: \(timer.average)")
     }
 
     func testNestedKeyPathLoop() throws {
-        let input = """
+        files["template"] = """
         #for(person in people):
         hello #(person.name)
         #for(skill in person.skills):
@@ -41,23 +34,38 @@ final class SerializerTests: LeafTestClass {
         #endfor
         """
 
-        let people = LeafData(.array([
-            LeafData(.dictionary([
+        let people: LeafData = .array([
+            .dictionary([
                 "name": "LOGAN",
-                "skills": LeafData(.array([
-                    "running",
-                    "walking"
-                ]))
-            ]))
-        ]))
+                "skills": .array(["running", "walking"])
+            ])
+        ])
 
-        let result = try render(name: "test", input, ["people": people])
-
-        XCTAssertEqual(result, """
+        try XCTAssertEqual(render("template", ["people": people]), """
         hello LOGAN
         you're pretty good at running
         you're pretty good at walking
         
         """)
+    }
+        
+    func _testResumingSerialize() throws {
+        /// Not valid test currently
+        files["template"] = """
+        hello, #(name)!
+        #for(index in skills):
+        #(skills[index])
+        #endfor
+        """
+        
+        let item: LeafData = .dictionary(["bool": true, "string": "a;sldfkj", "int": 100])
+        let context: LKRContext = [
+            "name"  : "vapor",
+            "skills" : .array(.init(repeating: item, count: 10_000)),
+            "me": "LOGAN"
+        ]
+        
+        let buffer = try renderBuffer("sample", context).wait()
+        XCTAssert(buffer.readableBytes == 0, buffer.readableBytes.formatBytes())
     }
 }
