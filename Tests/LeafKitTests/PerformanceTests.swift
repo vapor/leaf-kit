@@ -1,7 +1,6 @@
-import XCTest
-import NIOConcurrencyHelpers
-import Foundation
+@testable import XCTLeafKit
 @testable import LeafKit
+import Foundation
 
 final class CachePerformanceTests: FullstackRendererTestCase {
     override var threads: Int { max(System.coreCount, 1) }

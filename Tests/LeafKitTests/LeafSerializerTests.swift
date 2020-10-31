@@ -1,4 +1,4 @@
-import XCTest
+@testable import XCTLeafKit
 @testable import LeafKit
 
 final class LeafSerializerTests: MemoryRendererTestCase {

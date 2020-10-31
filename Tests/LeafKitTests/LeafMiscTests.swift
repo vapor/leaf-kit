@@ -1,5 +1,5 @@
+@testable import XCTLeafKit
 @testable import LeafKit
-import XCTest
 
 final class LeafMiscTests: MemoryRendererTestCase {
     /// currently not supported.. discussion ongoing

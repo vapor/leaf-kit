@@ -1,4 +1,4 @@
-import XCTest
+@testable import LeafKit
 import Dispatch
 
 open class LeafKitTestCase: XCTestCase {
@@ -39,7 +39,7 @@ open class LeafKitTestCase: XCTestCase {
     }
     
     @discardableResult
-    public func renderBuffer(_ template: String,
+    open func renderBuffer(_ template: String,
                              from source: String = "$",
                              _ context: LeafRenderer.Context = .emptyContext(),
                              options: LeafRenderer.Options = []) -> EventLoopFuture<ByteBuffer> {
@@ -94,7 +94,7 @@ private extension LeafKitTestCase {
     func _primeLeaf() { if !LKConf.isRunning { LKConf.entities = .leaf4Core } }
     
     static func _resetLeaf() {
-        #if DEBUG
+        #if DEBUG && canImport(XCTest)
         LeafConfiguration.started = false
         #else
         fatalError("DO NOT USE IN NON-DEBUG BUILDS")

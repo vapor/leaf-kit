@@ -1,3 +1,5 @@
+@testable import LeafKit
+
 /// Always uses in-memory file source and clears files/cache before tests.
 ///
 /// Disallows changing the renderer setup and source

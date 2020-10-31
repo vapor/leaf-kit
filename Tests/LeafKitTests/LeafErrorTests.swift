@@ -1,8 +1,5 @@
 /// Place all tests related to verifying that errors ARE thrown here
-
-import XCTest
-import NIOConcurrencyHelpers
-@testable import LeafKit
+@testable import XCTLeafKit
 
 final class LeafErrorTests: MemoryRendererTestCase {
     /// Verify that cyclical references via #extend will throw `LeafError.cyclicalReference`

@@ -1,9 +1,7 @@
 /// Place all tests here originating from https://github.com/vapor/leaf here
 /// Suffix test name with issue # (eg, `testGH33()`)
 
-import XCTest
-import NIOConcurrencyHelpers
-@testable import LeafKit
+@testable import XCTLeafKit
 
 final class GHLeafIssuesTest: MemoryRendererTestCase {
     /// https://github.com/vapor/leaf/issues/96

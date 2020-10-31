@@ -4,10 +4,10 @@ import PackageDescription
 let package = Package(
     name: "leaf-kit",
     platforms: [
-        .macOS(.v10_15), .iOS(.v11)
+        .macOS(.v10_15)
     ],
     products: [
-        .library(name: "LeafKit", targets: ["LeafKit"]),
+        .library(name: "LeafKit", targets: ["LeafKit"])
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.20.2"),
@@ -17,8 +17,11 @@ let package = Package(
             .product(name: "NIO", package: "swift-nio"),
             .product(name: "NIOFoundationCompat", package: "swift-nio")
         ]),
-        .testTarget(name: "LeafKitTests", dependencies: [
-            .target(name: "LeafKit"),
+        .target(name: "XCTLeafKit", dependencies: [
+            .target(name: "LeafKit")
         ]),
+        .testTarget(name: "LeafKitTests", dependencies: [
+            .target(name: "XCTLeafKit")
+        ])
     ]
 )

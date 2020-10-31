@@ -1,4 +1,5 @@
-import XCTest
+@testable import LeafKit
+import NIOConcurrencyHelpers
 
 /// Always uses MultiThreadedEventLoopGroup, thus `render` is unavailable, only `renderBuffer`
 ///
@@ -54,19 +55,19 @@ open class FullstackRendererTestCase: LeafKitTestCase {
         var isDone: Bool { tasks == 0 }
     }
     
-    private var lock: RWLock = .init()
+    private var lock: Lock = .init()
     private var started = false
     private var _next: Int = -1
     private var renderers: [Renderer] = []
 }
 
 private extension FullstackRendererTestCase {
-    var isDone: Bool { lock.readWithLock { renderers.allSatisfy { $0.isDone } } }
-    var toGo: UInt32? { isDone ? nil : UInt32(lock.readWithLock { renderers.reduce(into: 0, { $0 += $1.tasks }) }) }
-    func complete(_ which: Int) { lock.writeWithLock { renderers[which].tasks -= 1 } }
+    var isDone: Bool { lock.withLock { renderers.allSatisfy { $0.isDone } } }
+    var toGo: UInt32? { isDone ? nil : UInt32(lock.withLock { renderers.reduce(into: 0, { $0 += $1.tasks }) }) }
+    func complete(_ which: Int) { lock.withLockVoid { renderers[which].tasks -= 1 } }
     
     var next: Int {
-        lock.writeWithLock {
+        lock.withLock {
             if !started { primeRenderers() }
             _next = (_next + 1) % renderers.count
             renderers[_next].tasks += 1

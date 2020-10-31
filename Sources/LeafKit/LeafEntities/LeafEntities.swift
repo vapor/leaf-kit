@@ -27,7 +27,7 @@ public final class LeafEntities {
         self.types = [:]
     }
     
-    public static let leaf4Core: LeafEntities = ._leaf4Core
+    public static var leaf4Core: LeafEntities { ._leaf4Core }
 }
 
 public extension LeafEntities {

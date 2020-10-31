@@ -7,7 +7,6 @@
 public typealias LeafOptions = LeafRenderer.Options
 public typealias LeafOption = LeafRenderer.Option
 
-
 public typealias ParseSignatures = [String: [LeafParseParameter]]
 
 // MARK: - Static Conveniences

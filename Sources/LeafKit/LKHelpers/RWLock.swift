@@ -24,7 +24,7 @@ import Glibc
 /// of lock is safe to use with `libpthread`-based threading models, such as the
 /// one used by NIO.
 internal final class RWLock {
-    fileprivate let rwlock: UnsafeMutablePointer<pthread_rwlock_t> =
+    private let rwlock: UnsafeMutablePointer<pthread_rwlock_t> =
         UnsafeMutablePointer.allocate(capacity: 1)
 
     /// Create a new lock.

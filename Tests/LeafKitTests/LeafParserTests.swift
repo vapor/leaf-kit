@@ -1,5 +1,4 @@
-import XCTest
-import NIOConcurrencyHelpers
+@testable import XCTLeafKit
 @testable import LeafKit
 
 final class LeafParserTests: MemoryRendererTestCase {
