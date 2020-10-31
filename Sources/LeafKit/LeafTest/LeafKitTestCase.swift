@@ -94,7 +94,11 @@ private extension LeafKitTestCase {
     func _primeLeaf() { if !LKConf.isRunning { LKConf.entities = .leaf4Core } }
     
     static func _resetLeaf() {
-        LeafConfiguration.__VERYUNSAFEReset()
+        #if DEBUG
+        started = false
+        #else
+        fatalError("DO NOT USE IN NON-DEBUG BUILDS")
+        #endif
         
         LeafConfiguration.tagIndicator = .octothorpe
         LeafConfiguration.entities = .leaf4Core

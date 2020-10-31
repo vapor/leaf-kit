@@ -20,15 +20,6 @@ public struct LeafConfiguration {
     public static var isRunning: Bool { started }
 
     // MARK: - Internal Only
-
-    /// WARNING: Reset global "started" flag - only for testing use
-    static func __VERYUNSAFEReset() {
-        #if DEBUG
-        started = false
-        #else
-        fatalError("DO NOT USE IN NON-DEBUG BUILDS")
-        #endif
-    }
     
     /// Convenience for getting running state of LeafKit that will assert with a fault message for soft-failing things
     static func running(fault message: String) -> Bool {
