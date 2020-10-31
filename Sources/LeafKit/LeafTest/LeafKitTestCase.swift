@@ -49,7 +49,7 @@ open class LeafKitTestCase: XCTestCase {
     final public func AssertErrors<T>(_ expression: @autoclosure () throws -> T,
                                       contains: @autoclosure () -> String,
                                       _ message: @autoclosure () -> String = "",
-                                      file: StaticString = #filePath,
+                                      file: StaticString = #file,
                                       line: UInt = #line) {
         do { _ = try expression(); XCTFail("Expression did not throw an error", file: file, line: line) }
         catch {

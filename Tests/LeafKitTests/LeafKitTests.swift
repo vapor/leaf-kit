@@ -365,6 +365,5 @@ final class LeafKitTests: MemoryRendererTestCase {
         
         files["template"] = "Bye"
         try XCTAssertEqual(render("template"), "Bye")
-
     }
 }
