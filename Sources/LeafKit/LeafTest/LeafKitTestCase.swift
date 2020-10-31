@@ -95,7 +95,7 @@ private extension LeafKitTestCase {
     
     static func _resetLeaf() {
         #if DEBUG
-        started = false
+        LeafConfiguration.started = false
         #else
         fatalError("DO NOT USE IN NON-DEBUG BUILDS")
         #endif
