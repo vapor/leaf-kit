@@ -1,43 +1,31 @@
-import XCTest
+@testable import XCTLeafKit
 @testable import LeafKit
 
-final class SerializerTests: XCTestCase {
+final class LeafSerializerTests: MemoryRendererTestCase {
     func testComplex() throws {
-        let input = """
+        let skill: LeafData = .dictionary(["bool": true, "string": "a;sldfkj", "int": 100])
+        let context: LKRContext = ["name": "vapor", "skills": .array(.init(repeating: skill, count: 10)), "me": "LOGAN"]
+
+        files["template"] = """
         hello, #(name)!
         #for(skill in skills):
-        you're pretty good at #(skill)
+        #(skill)
         #endfor
-
-        #if(false): don't show
-        #elseif(true):
-        it works!
-        #endif
-
-        #if(lowercased(me) == "logan"):
-        expression resolution worked!!
-        #endif
         """
 
-        let syntax = try! parse(input)
-        let name = LeafData(.string("vapor"))
+        var timer = Stopwatch()
 
-        let me = LeafData(.string("LOGAN"))
-        let running = LeafData(.string("running"))
-        let walking = LeafData(.string("walking"))
-        let skills = LeafData(.array([running, walking]))
-        var serializer = LeafSerializer(ast: syntax, context: ["name": name, "skills": skills, "me": me])
-        var serialized = try serializer.serialize()
-        let str = serialized.readString(length: serialized.readableBytes) ?? "<err>"
-        print(str)
-        print()
-//        let syntax = try! altParse(input)
-//        let output = syntax.map { $0.description } .joined(separator: "\n")
-//        XCTAssertEqual(output, expectation)
+        for _ in 1...10 {
+            print("    Parse: \(timer.lap())")
+            try render("template", context)
+            print("Serialize: \(timer.lap(accumulate: true))")
+        }
+
+        print("Average serialize duration: \(timer.average)")
     }
 
     func testNestedKeyPathLoop() throws {
-        let input = """
+        files["template"] = """
         #for(person in people):
         hello #(person.name)
         #for(skill in person.skills):
@@ -46,56 +34,38 @@ final class SerializerTests: XCTestCase {
         #endfor
         """
 
-        let syntax = try! parse(input)
-        let people = LeafData(.array([
-            LeafData(.dictionary([
+        let people: LeafData = .array([
+            .dictionary([
                 "name": "LOGAN",
-                "skills": LeafData(.array([
-                    "running",
-                    "walking"
-                ]))
-            ]))
-        ]))
+                "skills": .array(["running", "walking"])
+            ])
+        ])
 
-        var serializer = LeafSerializer(ast: syntax, context: ["people": people])
-        var serialized = try serializer.serialize()
-        let str = (serialized.readString(length: serialized.readableBytes) ?? "<err>")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        XCTAssertEqual(str, """
+        try XCTAssertEqual(render("template", ["people": people]), """
         hello LOGAN
-
         you're pretty good at running
-
         you're pretty good at walking
+        
         """)
     }
-
-    func testInvalidNestedKeyPathLoop() throws {
-        let input = """
-        #for(person in people):
-        hello #(person.name)
-        #for(skill in person.profile.skills):
-        you're pretty good at #(skill)
-        #endfor
+        
+    func _testResumingSerialize() throws {
+        /// Not valid test currently
+        files["template"] = """
+        hello, #(name)!
+        #for(index in skills):
+        #(skills[index])
         #endfor
         """
-
-        let syntax = try! parse(input)
-        let people = LeafData(.array([
-            LeafData(.dictionary([
-                "name": "LOGAN",
-                "skills": LeafData(.array([
-                    "running",
-                    "walking"
-                ]))
-            ]))
-        ]))
-
-        var serializer = LeafSerializer(ast: syntax, context: ["people": people])
-
-        XCTAssertThrowsError(try serializer.serialize()) { error in
-            XCTAssertEqual("\(error)", "expected dictionary at key: person.profile")
-        }
+        
+        let item: LeafData = .dictionary(["bool": true, "string": "a;sldfkj", "int": 100])
+        let context: LKRContext = [
+            "name"  : "vapor",
+            "skills" : .array(.init(repeating: item, count: 10_000)),
+            "me": "LOGAN"
+        ]
+        
+        let buffer = try renderBuffer("sample", context).wait()
+        XCTAssert(buffer.readableBytes == 0, buffer.readableBytes.formatBytes())
     }
 }

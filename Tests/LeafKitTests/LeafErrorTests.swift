@@ -1,48 +1,22 @@
 /// Place all tests related to verifying that errors ARE thrown here
+@testable import XCTLeafKit
 
-import XCTest
-import NIOConcurrencyHelpers
-@testable import LeafKit
-
-final class LeafErrorTests: XCTestCase {
-
+final class LeafErrorTests: MemoryRendererTestCase {
     /// Verify that cyclical references via #extend will throw `LeafError.cyclicalReference`
     func testCyclicalError() {
-        var test = TestFiles()
-        test.files["/a.leaf"] = "#extend(\"b\")"
-        test.files["/b.leaf"] = "#extend(\"c\")"
-        test.files["/c.leaf"] = "#extend(\"a\")"
-
-        do {
-            _ = try TestRenderer(sources: .singleSource(test)).render(path: "a").wait()
-            XCTFail("Should have thrown LeafError.cyclicalReference")
-        } catch let error as LeafError {
-            switch error.reason {
-                case .cyclicalReference(let name, let cycle):
-                    XCTAssertEqual([name: cycle], ["a": ["a","b","c","a"]])
-                default: XCTFail("Wrong error: \(error.localizedDescription)")
-            }
-        } catch {
-            XCTFail("Wrong error: \(error.localizedDescription)")
-        }
+        files["/a.leaf"] = "#inline(\"b\")"
+        files["/b.leaf"] = "#inline(\"c\")"
+        files["/c.leaf"] = "#inline(\"a\")"
+        
+        try LKXCAssertErrors(render("a"),
+                             contains: "`a` cyclically referenced in [a -> b -> c -> !a]")
     }
-    
-    /// Verify taht referecing a non-existent template will throw `LeafError.noTemplateExists`
-    func testDependencyError() {
-        var test = TestFiles()
-        test.files["/a.leaf"] = "#extend(\"b\")"
-        test.files["/b.leaf"] = "#extend(\"c\")"
 
-        do {
-            _ = try TestRenderer(sources: .singleSource(test)).render(path: "a").wait()
-            XCTFail("Should have thrown LeafError.noTemplateExists")
-        } catch let error as LeafError {
-            switch error.reason {
-                case .noTemplateExists(let name): XCTAssertEqual(name,"c")
-                default: XCTFail("Wrong error: \(error.localizedDescription)")
-            }
-        } catch {
-            XCTFail("Wrong error: \(error.localizedDescription)")
-        }
+    /// Verify that referecing a non-existent template will throw `LeafError.noTemplateExists`
+    func testDependencyError() {
+        files["/a.leaf"] = "#inline(\"b\")"
+        files["/b.leaf"] = "#inline(\"c\")"
+        
+        try LKXCAssertErrors(render("a"), contains: "No template found for `c`")
     }
 }

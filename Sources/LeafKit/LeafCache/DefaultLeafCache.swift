@@ -1,91 +1,129 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
-
 import NIOConcurrencyHelpers
 
-public final class DefaultLeafCache: SynchronousLeafCache {
-    // MARK: - Public - `LeafCache` Protocol Conformance
-    
-    /// Global setting for enabling or disabling the cache
-    public var isEnabled: Bool = true
-    /// Current count of cached documents
-    public var count: Int { self.lock.withLock { cache.count } }
-    
+/// The default implementation of `LeafCache`
+public final class DefaultLeafCache {
     /// Initializer
     public init() {
-        self.lock = .init()
+        self.locks = (.init(), .init())
         self.cache = [:]
+        self.touches = [:]
     }
+    
+    // MARK: - Stored Properties - Private Only
+    private let locks: (cache: RWLock, touch: RWLock)
+    /// NOTE: internal read-only purely for test access validation - not assured
+    private(set) var cache: [LeafAST.Key: LeafAST]
+    private var touches: [LeafAST.Key: LeafAST.Touch]
+}
+
+// MARK: - Public - LeafCache
+extension DefaultLeafCache: LeafCache {
+    public var count: Int { locks.cache.readWithLock { cache.count } }
+    
+    public var isEmpty: Bool { locks.cache.readWithLock { cache.isEmpty } }
+    
+    public var keys: Set<LeafAST.Key> { .init(locks.cache.readWithLock { cache.keys }) }
 
     /// - Parameters:
     ///   - document: The `LeafAST` to store
     ///   - loop: `EventLoop` to return futures on
     ///   - replace: If a document with the same name is already cached, whether to replace or not.
     /// - Returns: The document provided as an identity return
-    public func insert(
-        _ document: LeafAST,
-        on loop: EventLoop,
-        replace: Bool = false
-    ) -> EventLoopFuture<LeafAST> {
-        // future fails if caching is enabled
-        guard isEnabled else { return loop.makeSucceededFuture(document) }
-
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        // return an error if replace is false and the document name is already in cache
-        switch (self.cache.keys.contains(document.name),replace) {
-            case (true, false): return loop.makeFailedFuture(LeafError(.keyExists(document.name)))
-            default: self.cache[document.name] = document
+    ///
+    /// Use `LeafAST.key` as the
+    public func insert(_ document: LeafAST,
+                       on loop: EventLoop,
+                       replace: Bool = false) -> EventLoopFuture<LeafAST> {
+        switch insert(document, replace: replace) {
+            case .success(let ast): return succeed(ast, on: loop)
+            case .failure(let err): return fail(err, on: loop)
         }
-        return loop.makeSucceededFuture(document)
     }
-    
+
     /// - Parameters:
-    ///   - documentName: Name of the `LeafAST`  to try to return
+    ///   - key: Name of the `LeafAST`  to try to return
     ///   - loop: `EventLoop` to return futures on
     /// - Returns: `EventLoopFuture<LeafAST?>` holding the `LeafAST` or nil if no matching result
-    public func retrieve(
-        documentName: String,
-        on loop: EventLoop
-    ) -> EventLoopFuture<LeafAST?> {
-        guard isEnabled == true else { return loop.makeSucceededFuture(nil) }
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return loop.makeSucceededFuture(self.cache[documentName])
+    public func retrieve(_ key: LeafAST.Key,
+                         on loop: EventLoop) -> EventLoopFuture<LeafAST?> {
+        succeed(retrieve(key), on: loop)
     }
 
     /// - Parameters:
-    ///   - documentName: Name of the `LeafAST`  to try to purge from the cache
+    ///   - key: Name of the `LeafAST`  to try to purge from the cache
     ///   - loop: `EventLoop` to return futures on
     /// - Returns: `EventLoopFuture<Bool?>` - If no document exists, returns nil. If removed,
     ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
-    public func remove(
-        _ documentName: String,
-        on loop: EventLoop
-    ) -> EventLoopFuture<Bool?> {
-        guard isEnabled == true else { return loop.makeFailedFuture(LeafError(.cachingDisabled)) }
+    public func remove(_ key: LeafAST.Key,
+                       on loop: EventLoop) -> EventLoopFuture<Bool?> {
+        return succeed(remove(key), on: loop) }
 
-        self.lock.lock()
-        defer { self.lock.unlock() }
-
-        guard self.cache[documentName] != nil else { return loop.makeSucceededFuture(nil) }
-        self.cache[documentName] = nil
-        return loop.makeSucceededFuture(true)
+    public func touch(_ key: LeafAST.Key,
+                      with values: LeafAST.Touch) {
+        locks.touch.writeWithLock { touches[key]?.aggregate(values: values) }
     }
     
-    // MARK: - Internal Only
+    public func info(for key: LeafAST.Key,
+                     on loop: EventLoop) -> EventLoopFuture<LeafAST.Info?> {
+        succeed(info(for: key), on: loop)
+    }
     
-    internal let lock: Lock
-    internal var cache: [String: LeafAST]
-    
+    public func dropAll() {
+        locks.cache.writeWithLock {
+            locks.touch.writeWithLock {
+                cache.removeAll()
+                touches.removeAll()
+            }
+        }
+    }
+}
+
+// MARK: - Internal - LKSynchronousCache
+extension DefaultLeafCache: LKSynchronousCache {
     /// Blocking file load behavior
-    internal func retrieve(documentName: String) throws -> LeafAST? {
-        guard isEnabled == true else { throw LeafError(.cachingDisabled) }
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        let result = self.cache[documentName]
-        guard result != nil else { throw LeafError(.noValueForKey(documentName)) }
-        return result
+    func insert(_ document: LeafAST, replace: Bool) -> Result<LeafAST, LeafError> {
+        /// Blind failure if caching is disabled
+        var e: Bool = false
+        locks.cache.writeWithLock {
+            if replace || !cache.keys.contains(document.key) {
+                cache[document.key] = document
+                locks.touch.writeWithLock { touches[document.key] = .empty }
+            } else { e = true }
+        }
+        guard !e else { return .failure(err(.keyExists(document.name))) }
+        return .success(document)
+    }
+
+    /// Blocking file load behavior
+    func retrieve(_ key: LeafAST.Key) -> LeafAST? {
+        return locks.cache.readWithLock {
+            guard cache.keys.contains(key) else { return nil }
+            locks.touch.writeWithLock {
+                if touches[key]!.count >= 128,
+                   let touch = touches.updateValue(.empty, forKey: key),
+                   touch != .empty {
+                    cache[key]!.touch(values: touch) }
+            }
+            return cache[key]
+        }
+    }
+
+    /// Blocking file load behavior
+    func remove(_ key: LeafAST.Key) -> Bool? {
+        if locks.touch.writeWithLock({ touches.removeValue(forKey: key) == nil }) { return nil }
+        locks.cache.writeWithLock { _ = cache.removeValue(forKey: key) }
+        return true
+    }
+    
+    func info(for key: LeafAST.Key) -> LeafAST.Info? {
+        locks.cache.readWithLock {
+            guard cache.keys.contains(key) else { return nil }
+            locks.touch.writeWithLock {
+                if let touch = touches.updateValue(.empty, forKey: key),
+                   touch != .empty {
+                    cache[key]!.touch(values: touch) }
+            }
+            return cache[key]!.info
+        }
     }
 }
