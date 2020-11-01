@@ -597,6 +597,7 @@ internal struct LKParser {
             var a = a
             /// If an invariant function with all literal params, and not a mutating or unsafe object, evaluate immediately
             if case .function(_, .some(let f), let t, _, _) = a.container,
+               f.invariant,
                f as? LKMetaBlock == nil,
                f as? LeafMutatingMethod == nil,
                f as? LeafUnsafeEntity == nil,
