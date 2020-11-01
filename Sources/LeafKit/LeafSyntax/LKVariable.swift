@@ -9,7 +9,6 @@ internal struct LKVariable: LKSymbol, Hashable, Equatable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(flat)
         hasher.combine(isDefine)
-        hasher.combine(isCoalesced)
     }
     
     static func ==(lhs: Self, rhs: Self) -> Bool { lhs.hashValue == rhs.hashValue }

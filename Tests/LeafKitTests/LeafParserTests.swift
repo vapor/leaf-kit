@@ -702,9 +702,11 @@ final class LeafParserTests: MemoryRendererTestCase {
     }
     
     func testNestedLet() throws {
-        files["A"] = "#let(x = 1)#inline(\"B\")"
+        files["A1"] = "#let(x = 1)#inline(\"B\")"
+        files["A2"] = "#let(x = nil)#inline(\"B\")"
         files["B"] = "#let(x = x ?? 2)#(x)"
-        try print(render("A"))
+        try XCTAssertEqual(render("A1"), "1")
+        try XCTAssertEqual(render("A2"), "2")
     }
 }
 
