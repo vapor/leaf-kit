@@ -124,7 +124,7 @@ internal extension LeafCallParameter {
         /// If only one type, return coerced value as long as it doesn't coerce to .trueNil (and for .bool always true)
         if types.count == 1 {
             let coerced = value.coerce(to: types.first!)
-            return coerced != .trueNil ? coerced : types.first! == .bool ? .bool(true) : .none
+            return !coerced.isTrueNil ? coerced : types.first! == .bool ? .bool(true) : .none
         }
         /// Otherwise assume function will handle coercion itself as long as one potential match exists
         return types.first(where: {value.isCoercible(to: $0)}) != nil ? value : .none

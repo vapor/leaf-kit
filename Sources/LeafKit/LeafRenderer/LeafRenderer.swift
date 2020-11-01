@@ -255,6 +255,7 @@ private extension LeafRenderer {
     /// Call with any state of ASTBox - will fork to various behaviors as required until finally returning a
     /// cached and serializable AST, if a failure hasn't bubbled out
     func arbitrate(_ ast: LeafAST, _ context: Context, via chain: [String] = []) -> ELF<LeafAST> {
+        if let error = ast.error { return fail(error, on: eL) }
         if ast.info.requiredASTs.isEmpty && ast.info.requiredRaws.isEmpty {
             /// Succeed immediately if the ast is cached and doesn't need any kind of resolution
             if ast.cached || context.caching.intersection([.store, .autoUpdate]).isEmpty {
@@ -356,21 +357,19 @@ private extension LeafRenderer {
             self.fetch(.searchKey($0), context)
                 .flatMap { self.arbitrate($0, context, via: chain) } }
 
-        return ELF.reduce(into: ast, fetches, on: eL) { $0.inline(ast: $1) }
+        return ELF.reduce(into: ast, fetches, on: eL) { if !$0.errored { $0.inline(ast: $1) } }
                   .flatMap { self.arbitrate($0, context) }
     }
 
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
     func syncSerialize(_ ast: LeafAST, _ context: Context) -> ELF<ByteBuffer> {
-        var needed = Set<LKVariable>(ast.info._requiredVars
-                                        .map {$0.isDefine ? $0 : !$0.isScoped ? $0.contextualized : $0})
-        needed.subtract(context.allVariables)
-        needed.subtract(needed.compactMap {$0.isCoalesced ? $0 : nil})
-        needed.subtract(needed.compactMap {context.allVariables.contains($0.contextualized) ? $0 : nil})
-        
-        let shouldThrow = needed.isEmpty ? false : context.missingVariableThrows
-        
-        if shouldThrow { return fail(err("[\(needed.map {$0.terse}.joined(separator: ", "))] variable(s) missing"), on: eL) }
+        if var needed = ast.info._requiredVars.unsatisfied(by: context) {
+            /// If missing variables don't throw, remove them, but leave any define references
+            if !context.missingVariableThrows { needed = needed.filter { $0.isDefine } }
+            if !needed.isEmpty {
+                return fail(err("[\(needed.map {$0.terse}.joined(separator: ", "))] variable(s) missing"), on: eL)
+            }
+        }
         
         var block = LKConf.entities.raw.instantiate(size: ast.info.underestimatedSize,
                                                     encoding: context.encoding)

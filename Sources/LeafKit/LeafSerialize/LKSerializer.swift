@@ -124,7 +124,7 @@ internal final class LKSerializer {
                         case .failure(let err): return .failure(err)
                     }
                 case .passthrough(.expression(let exp)):
-                    if let x = exp.declaresVariable {
+                    if let x = exp.declaresVariable, x.set == nil {
                         buffer.pointee.voidAction()
                         if !allocated {
                             allocated = true
