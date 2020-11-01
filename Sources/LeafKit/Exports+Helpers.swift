@@ -3,7 +3,7 @@
 // MARK: Public Type Shorthands
 
 // Can't alias until deprecated version totally removed
-//public typealias LeafContext = LeafRenderer.Context
+public typealias LeafContext = LeafRenderer.Context
 public typealias LeafOptions = LeafRenderer.Options
 public typealias LeafOption = LeafRenderer.Option
 
