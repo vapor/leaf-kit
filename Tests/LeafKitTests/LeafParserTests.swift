@@ -680,5 +680,10 @@ final class LeafParserTests: MemoryRendererTestCase {
         
         try LKXCAssertErrors(render("template"), contains: "Assignment via subscripted access not yet supported")
     }
+    
+    func testInvariantFunc() throws {
+        try XCTAssertEqual(parse(raw: "#(Timestamp())").terse,
+                           "0: Timestamp(string(now), string(referenceDate))")
+    }
 }
 
