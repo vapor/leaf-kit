@@ -3,7 +3,7 @@ public struct LeafCallParameter: LKPrintable, Equatable {
     let label: String?
     let types: Set<LeafDataType>
     let optional: Bool
-    let defaultValue: LeafData?
+    let defaultValue: Optional<LeafData>
 
     /// Direct equivalency to a Swift parameter - see examples below
     ///
@@ -15,7 +15,7 @@ public struct LeafCallParameter: LKPrintable, Equatable {
     public init(label: String? = nil,
                 types: Set<LeafDataType>,
                 optional: Bool = false,
-                defaultValue: LeafData? = nil) {
+                defaultValue: Optional<LeafData> = .none) {
         self.label = label
         self.types = types
         self.optional = optional
@@ -26,10 +26,10 @@ public struct LeafCallParameter: LKPrintable, Equatable {
     /// `(value(1), isValid: bool(true), ...)`
     public var description: String { short }
     var short: String {
-        "\(label ?? "_"): \(types.map {$0.short.capitalized}.sorted(by: <).joined(separator: "|"))\(optional ? "?" : "")\(defaultValue != nil ? " = \(defaultValue!.container.terse)" : "")"
+        "\(label ?? "_"): \(types.map {$0.short.capitalized}.sorted(by: <).joined(separator: "|"))\(optional ? "?" : "")\(defaulted ? " = \(defaultValue!.container.terse)" : "")"
     }
     
-    var defaulted: Bool { defaultValue != nil }
+    var defaulted: Bool { defaultValue != .none }
     var labeled: Bool { label != nil }
 }
 
@@ -74,19 +74,19 @@ public extension LeafCallParameter {
     static var dictionary: Self { .type(.dictionary) }
     
     /// string-only with conveniences for various options
-    static func string(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+    static func string(labeled: String?, optional: Bool = false, defaultValue: Optional<LeafData> = .none) -> Self {
         .init(label: labeled, types: .string, optional: optional, defaultValue: defaultValue) }
     
     /// double-only with conveniences for various options
-    static func double(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+    static func double(labeled: String?, optional: Bool = false, defaultValue: Optional<LeafData> = .none) -> Self {
         .init(label: labeled, types: .double, optional: optional, defaultValue: defaultValue) }
     
     /// int-only with conveniences for various options
-    static func int(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+    static func int(labeled: String?, optional: Bool = false, defaultValue: Optional<LeafData> = .none) -> Self {
         .init(label: labeled, types: .int, optional: optional, defaultValue: defaultValue) }
     
     /// bool-only with conveniences for various options
-    static func bool(labeled: String?, optional: Bool = false, defaultValue: LeafData? = nil) -> Self {
+    static func bool(labeled: String?, optional: Bool = false, defaultValue: Optional<LeafData> = .none) -> Self {
         .init(label: labeled, types: .bool, optional: optional, defaultValue: defaultValue) }
 }
 
@@ -106,9 +106,9 @@ internal extension LeafCallParameter {
     }
     
     /// Return the parameter value if it's valid, coerce if possible, nil if not an interpretable match.
-    func match(_ value: LeafData) -> LeafData? {
+    func match(_ value: LeafData) -> Optional<LeafData> {
         /// 1:1 expected match, valid as long as expectation isn't non-optional with optional value
-        if types.contains(value.storedType) { return !value.isNil || optional ? value : nil }
+        if types.contains(value.storedType) { return !value.isNil || optional ? value : .none }
         /// If value is still nil but no match...
         if value.isNil {
             /// trueNil param
@@ -116,17 +116,17 @@ internal extension LeafCallParameter {
                                   /// param accepts optional, coerce nil type to an expected type
                 return optional ? .init(.nil(types.first!))
                                   /// or if it takes bool, coerce to a false boolean or fail
-                                : types.contains(.bool) ? .bool(false) : nil
+                                : types.contains(.bool) ? .bool(false) : .none
             }
             /// Remaining nil values are failures
-            return nil
+            return .none
         }
         /// If only one type, return coerced value as long as it doesn't coerce to .trueNil (and for .bool always true)
         if types.count == 1 {
             let coerced = value.coerce(to: types.first!)
-            return coerced != .trueNil ? coerced : types.first! == .bool ? .bool(true) : nil
+            return coerced != .trueNil ? coerced : types.first! == .bool ? .bool(true) : .none
         }
         /// Otherwise assume function will handle coercion itself as long as one potential match exists
-        return types.first(where: {value.isCoercible(to: $0)}) != nil ? value : nil
+        return types.first(where: {value.isCoercible(to: $0)}) != nil ? value : .none
     }
 }

@@ -28,7 +28,7 @@ public extension LeafCallValues {
 
 internal extension LeafCallValues {
     /// Generate fulfilled LeafData call values from symbols in incoming tuple
-    init?(_ sig:[LeafCallParameter],
+    init?(_ sig: [LeafCallParameter],
           _ tuple: LKTuple?,
           _ symbols: inout LKVarStack) {
         if tuple == nil && !sig.isEmpty { return nil }

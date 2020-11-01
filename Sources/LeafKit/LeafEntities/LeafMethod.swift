@@ -18,7 +18,7 @@ public protocol LeafNonMutatingMethod: LeafMethod {}
 /// A `LeafMethod` that may potentially mutate its first parameter value.
 public protocol LeafMutatingMethod: LeafMethod {
     /// Return non-nil for `mutate` to the value the operand should now hold, or nil if it has not changed. Always return `result`
-    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LeafData?, result: LeafData)
+    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: Optional<LeafData>, result: LeafData)
 }
 
 public extension LeafMutatingMethod {

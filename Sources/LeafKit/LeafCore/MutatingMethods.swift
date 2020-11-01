@@ -23,11 +23,11 @@ internal struct MutatingStrStrMap: LeafMutatingMethod, StringStringParam, VoidRe
 
 /// Mutating (String) -> String
 internal struct MutatingStrToStrMap: LeafMutatingMethod, StringParam, StringReturn {
-    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LKData?, result: LKData) {
+    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: Optional<LeafData>, result: LKData) {
         let cache = params[0].string!
         var operand = cache
         let result = f(&operand)
-        return (operand != cache ? operand.leafData : nil, .string(result))
+        return (operand != cache ? operand.leafData : .none, .string(result))
     }
     
     static let popLast: Self = .init({ $0.popLast().map{String($0)} })
@@ -38,29 +38,29 @@ internal struct MutatingStrToStrMap: LeafMutatingMethod, StringParam, StringRetu
 
 /// Mutating (Array) -> Any
 internal struct MutatingArrayToAnyMap: LeafMutatingMethod, ArrayParam, AnyReturn {
-    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LKData?, result: LKData) {
+    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: Optional<LeafData>, result: LKData) {
         let cache = params[0].array!
         var operand = cache
         let result = f(&operand)
-        return (operand != cache ? .array(operand) : nil,
+        return (operand != cache ? .array(operand) : .none,
                 result != nil ? result! : .trueNil)
     }
     
     static let popLast: Self = .init({$0.popLast()})
     
-    private init(_ map: @escaping (inout [LeafData]) -> LeafData?) { f = map }
-    private let f: (inout [LeafData]) -> LeafData?
+    private init(_ map: @escaping (inout [LeafData]) -> Optional<LeafData>) { f = map }
+    private let f: (inout [LeafData]) -> Optional<LeafData>
 }
 
 /// Mutating (Array, Any)
 internal struct MutatingArrayAnyMap: LeafMutatingMethod, VoidReturn {
     static var callSignature: [LeafCallParameter] { [.array, .any] }
     
-    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: LKData?, result: LKData) {
+    func mutatingEvaluate(_ params: LeafCallValues) -> (mutate: Optional<LeafData>, result: LKData) {
         let cache = params[0].array!
         var operand = cache
         f(&operand, params[1])
-        return (operand != cache ? .array(operand) : nil, .trueNil)
+        return (operand != cache ? .array(operand) : .none, .trueNil)
     }
     
     static let append: Self = .init({$0.append($1)})

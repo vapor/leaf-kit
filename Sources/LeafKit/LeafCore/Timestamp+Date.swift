@@ -191,6 +191,8 @@ internal extension LeafDateFormatters {
         let timestamp = params[0]
         let interval: Double
         
+        print(params.values.description)
+        
         if timestamp.isNumeric { interval = timestamp.double! }
         else {
             guard let t = LeafTimestamp.ReferenceBase(rawValue: timestamp.string!) else {

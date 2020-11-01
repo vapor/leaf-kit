@@ -8,7 +8,7 @@ internal struct LKDataValue: LeafDataRepresentable {
     static func literal(_ value: LeafDataRepresentable) -> Self { .init(value, true) }
     
     init(_ value: LeafDataRepresentable, _ literal: Bool = false) {
-        container = literal ? .literal(value.leafData) : .variable(value, nil) }
+        container = literal ? .literal(value.leafData) : .variable(value, .none) }
     
     var isVariable: Bool { container.isVariable }
     var leafData: LeafData { container.leafData }
@@ -35,13 +35,13 @@ internal struct LKDataValue: LeafDataRepresentable {
         
     /// Uncache stored `LeafData` value for variable values
     mutating func uncache() {
-        if case .variable(let t, .some) = container { container = .variable(t, nil) } }
+        if case .variable(let t, .some) = container { container = .variable(t, .none) } }
     
     // MARK: - Private Only
     
     private enum Container: LeafDataRepresentable {
         case literal(LeafData)
-        case variable(LeafDataRepresentable, LeafData?)
+        case variable(LeafDataRepresentable, Optional<LeafData>)
         
         var isVariable: Bool { if case .variable = self { return true } else { return false } }
         var leafData: LeafData {

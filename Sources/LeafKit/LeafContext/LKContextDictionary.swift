@@ -55,19 +55,19 @@ internal struct LKContextDictionary {
     /// If a specific variable, flatten result if necessary and return that element
     /// If the parent variable, return a dictionary data elelement for the entire scope, and cached copies of
     /// individually referenced objects
-    mutating func match(_ key: LKVariable) -> LeafData? {
+    mutating func match(_ key: LKVariable) -> Optional<LeafData> {
         if let hit = cached[key] { return hit }
         
         if key.isPathed {
             let root = key.ancestor
-            if !allVariables.contains(root) || match(root) == nil { return nil }
+            if !allVariables.contains(root) || match(root) == nil { return .none }
             return cached.match(key)
         }
-        else if !allVariables.contains(key) { return nil }
+        else if !allVariables.contains(key) { return .none }
         
         frozen = true
         
-        let value: LeafData?
+        let value: Optional<LeafData>
         if key == parent {
             for (key, value) in values where !value.cached { values[key]!.flatten() }
             value = .dictionary(values.mapValues {$0.leafData})
