@@ -190,7 +190,7 @@ internal struct LKParameter: LKSymbol {
                 invariant = v.container.isLazy ? v.invariant : true
                 isLiteral = invariant && !v.errored
             case .variable(let v):
-                symbols = [v]
+                symbols = v.symbols
                 resolved = false
                 invariant = true
             case .expression(let e):
@@ -245,6 +245,8 @@ internal struct LKParameter: LKSymbol {
                 case .tuple(let t) where t.collection
                                                   : return "\(t.labels.isEmpty ? "array" : "dictionary")\(short)"
                 case .tuple                       : return "tuple\(short)"
+                case .function(_,.some(let f as Evaluate),_,_,_):
+                    return "`\(f.identifier)()"
                 case .function(let f,_,let p,_,_) : return "\(f)\(p?.description ?? "()")"
             }
         }

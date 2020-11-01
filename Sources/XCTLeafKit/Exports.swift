@@ -9,7 +9,7 @@ public func LKXCAssertErrors<T>(_ expression: @autoclosure () throws -> T,
                                 line: UInt = #line) {
     do { _ = try expression(); XCTFail("Expression did not throw an error", file: file, line: line) }
     catch {
-        let x = "Actual Error: `\(error.localizedDescription)`"
+        let x = "Actual Error:\n\(error.localizedDescription)"
         let y = message()
         let z = contains()
         XCTAssert(!z.isEmpty, "Empty substring will catch all errors", file: file, line: line)

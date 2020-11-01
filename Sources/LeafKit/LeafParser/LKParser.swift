@@ -361,7 +361,7 @@ internal struct LKParser {
                 if let match = createdVars.match(v) {
                     if match.1 == false {
                         return `nil`(.unknownError("#\(f)() explicitly does not exist and cannot be provided")) }
-                    if match.0.state.contains(.blockDefine) && nested {
+                    if match.0.isBlockDefine && nested {
                         return `nil`(.unknownError("#\(f)() is a block define - cannot use as parameter")) }
                 } else {
                     /// Block eval usage can take both forms unconditionally but nested use requires non-block definition

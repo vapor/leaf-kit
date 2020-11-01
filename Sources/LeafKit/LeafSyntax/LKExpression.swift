@@ -104,13 +104,17 @@ internal struct LKExpression: LKSymbol {
     /// Generate a `LKExpression` if possible. Guards for expressibility unless "custom" is true
     private init?(_ params: LKParams) {
         // .assignment/.calculation is failable, .custom does not check
-        guard let form = Self.expressible(params) else { return nil }
-        let storage = params
+        guard var form = Self.expressible(params) else { return nil }
+        var params = params
         // Rewrite prefix minus special case into rhs * -1
-        if let unary = form.op, unary == .unaryPrefix,
-           let op = params[0].operator, op == .minus {
-            self = .init(.init(arrayLiteral: params[1], .operator(.multiply), .value(.int(-1))), (.calculation, .infix))
-        } else { self = .init(.init(storage), form) }
+        if let unary = form.op, unary == .unaryPrefix, params[0].operator == .minus {
+            form = (.calculation, .infix)
+            params = [params[1], .operator(.multiply), .value(.int(-1))]
+        } else if params[1].operator == .nilCoalesce, case .variable(var v) = params[0].container {
+            v.state.formUnion(.coalesced)
+            params[0] = .variable(v)
+        }
+        self = .init(.init(params), form)
     }
 
     /// Generate a custom `LKExpression` if possible.
@@ -145,12 +149,9 @@ internal struct LKExpression: LKSymbol {
     private mutating func setStates() {
         resolved = storage.allSatisfy { $0.resolved }
         invariant = storage.allSatisfy {$0.invariant}
-        // Restate variable as coalesced if operator is ??
-        if storage[1].operator == .nilCoalesce {
-            symbols.formUnion(rhs?.symbols ?? [])
-            symbols.formUnion(lhs?.symbols.map { x in var x = x; x.state.formUnion(.coalesced); return x } ?? [])
-        //} else if let value = declaresVariable?.set { symbols.formUnion(value.symbols) }
-        } else { storage.forEach { symbols.formUnion($0.symbols) } }
+        if storage[1].operator == .nilCoalesce { symbols = rhs!.symbols }
+        else if let declaredValue = declaresVariable?.set { symbols = declaredValue.symbols }
+        else { storage.forEach { symbols.formUnion($0.symbols) } }
         
     }
 
@@ -170,7 +171,9 @@ internal struct LKExpression: LKSymbol {
         }
         // Ignore special case of prefix minus here
         if op.mathematical || op.logical { return (.calculation, opForm) }
-        else if [.subScript, .nilCoalesce].contains(op) { return (.calculation, .infix) }
+        else if [.subScript, .nilCoalesce].contains(op) {
+            return (.calculation, .infix)
+        }
         else { return (.assignment, opForm) }
     }
 
