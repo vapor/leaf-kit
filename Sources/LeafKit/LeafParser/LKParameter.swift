@@ -371,7 +371,6 @@ internal struct LKParameter: LKSymbol {
                                 return softError(.error(internal: "Dynamic call had too many matches at evaluation", n, l))
                         }
                     }
-                    
                     guard let call = LeafCallValues(f!.sig, p, &symbols) else {
                         return softError(.error(internal: "Couldn't validate parameter types for \(n)\(p.description)", n, l)) }
                     if var unsafeF = f as? LeafUnsafeEntity {
