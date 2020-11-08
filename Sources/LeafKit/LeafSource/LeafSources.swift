@@ -1,4 +1,7 @@
-import Foundation
+// MARK: Subject to change prior to 1.0.0 release
+// MARK: -
+
+
 import NIOConcurrencyHelpers
 
 /// An opaque object holding named `LeafSource` adherants specifying a default search order.
@@ -14,25 +17,16 @@ import NIOConcurrencyHelpers
 public final class LeafSources {
     // MARK: - Public
     
-    /// Default filesystem directory for file-based `LeafSource` adherents provided by LeafKit, if not
-    /// explicitly set when instantiating a `LeafSource`
-    @LeafRuntimeGuard public static var rootDirectory: String = "/"
-    
-    /// Default file extension used for implicit location of templates when no extension is provided
-    @LeafRuntimeGuard(condition: {!$0.contains(".")})
-    public static var defaultExtension: String = "leaf"
-
     /// All available `LeafSource`s of templates
-    public var all: Set<String> { lock.withLock { keys } }
+    public var all: Set<String> { lock.withLock { .init(self.sources.keys) } }
     /// Configured default implicit search order of `LeafSource`'s
     public var searchOrder: [String] { lock.withLock { order } }
-
+    
     public init() {
-        self.keys = []
-        self.order = []
         self.sources = [:]
+        self.order = []
     }
-
+    
     /// Register a `LeafSource` as `key`
     /// - Parameters:
     ///   - key: Name for the source; at most one may be registered without a name
@@ -42,16 +36,13 @@ public final class LeafSources {
     public func register(source key: String = "default",
                          using source: LeafSource,
                          searchable: Bool = true) throws {
-        precondition(key.first != "$", "Source name may not start with `$`")
-        precondition(!key.contains(":"), "Source name may not contain `:`")
-        precondition(!keys.contains(key), "Can't replace source at \(key)")
-        lock.withLock {
-            keys.insert(key)
+        try lock.withLock {
+            guard !sources.keys.contains(key) else { throw "Can't replace source at \(key)" }
             sources[key] = source
             if searchable { order.append(key) }
         }
     }
-
+    
     /// Convenience for initializing a `LeafSources` object with a single `LeafSource`
     /// - Parameter source: A fully configured `LeafSource`
     /// - Returns: Configured `LeafSource` instance
@@ -60,74 +51,51 @@ public final class LeafSources {
         try! sources.register(using: source)
         return sources
     }
-
-    // MARK: - Internal/Private Only
-    private(set) var sources: [String: LeafSource]
+    
+    // MARK: - Internal Only
+    internal private(set) var sources: [String: LeafSource]
     private var order: [String]
-    private var keys: Set<String>
     private let lock: Lock = .init()
-
-    /// Locate a template from the sources; if a specific source is named, only try to read from it.
-    /// Otherwise, use the specified search order. Key (and thus AST name) are "$:template" when no source
-    /// was specified, or "source:template" when specified
-    func file(_ key: LeafAST.Key, on eL: EventLoop) -> ELF<(key: String,
-                                                           buffer: ByteBuffer)> {
-        let source = key._src
-        let template = key._name
-        if source != "$", keys.contains(source) {
-            return searchSources(template, [source], on: eL)
-                                .map { ("\(source):\(template)", $0.buffer) }
-        } else if source == "$", !order.isEmpty {
-            return searchSources(template, order, on: eL)
-                                .map { ("\(source):\(template)", $0.buffer) }
-        }
-        return fail(source == "$" ? .noSources : .noSourceForKey(source), on: eL)
-    }
     
-    func timestamp(_ key: LeafAST.Key, on eL: EventLoop) -> ELF<Date> {
-        let source = key._src
-        let template = key._name
-        if source != "$", keys.contains(source) {
-            return searchSources(template, [source], on: eL)
-        } else if source == "$", !order.isEmpty {
-            return searchSources(template, order, on: eL)
-        }
-        return fail(source == "$" ? .noSources : .noSourceForKey(source), on: eL)
-    }
-    
-    private func searchSources(_ t: String,
-                               _ s: [String],
-                               on eL: EventLoop) -> ELF<(source: String,
-                                                         buffer: ByteBuffer)> {
-        if s.isEmpty { return fail(.noTemplateExists(t), on: eL) }
-        var rest = s
-        let key = rest.removeFirst()
-        let source = lock.withLock { sources[key]! }
+    /// Locate a template from the sources; if a specific source is named, only try to read from it. Otherwise, use the specified search order
+    internal func find(template: String, in source: String? = nil, on eventLoop: EventLoop) throws -> EventLoopFuture<(String, ByteBuffer)> {
+        var keys: [String]
         
-        return source.file(template: t, escape: true, on: eL)
-                     .map { (source: key, buffer: $0) }
-                     .flatMapError { $0.illegal ? fail($0.leafError!, on: eL)
-                                                : self.searchSources(t, rest, on: eL) }
+        switch source {
+            case .none: keys = searchOrder
+            case .some(let source):
+                if all.contains(source) { keys = [source] }
+                else { throw LeafError(.illegalAccess("Invalid source \(source) specified")) }
+        }
+        guard !keys.isEmpty else { throw LeafError(.illegalAccess("No searchable sources exist")) }
+        
+        return searchSources(t: template, on: eventLoop, s: keys)
     }
     
-    private func searchSources(_ t: String,
-                               _ s: [String],
-                               on eL: EventLoop) -> ELF<Date> {
-        if s.isEmpty { return fail(.noTemplateExists(t), on: eL) }
-        var rest = s
-        let key = rest.removeFirst()
-        let source = lock.withLock { sources[key]! }
+    private func searchSources(t: String, on eL: EventLoop, s: [String]) -> EventLoopFuture<(String, ByteBuffer)> {
+        guard !s.isEmpty else { return eL.makeFailedFuture(LeafError(.noTemplateExists(t))) }
+        var more = s
+        let key = more.removeFirst()
+        lock.lock()
+            let source = sources[key]!
+        lock.unlock()
         
-        return source.timestamp(template: t, on: eL)
-                     .flatMapError { $0.illegal ? fail($0.leafError!, on: eL)
-                                                : self.searchSources(t, rest, on: eL) }
-    }
-
-}
-
-private extension Error {
-    var illegal: Bool {
-        if case .illegalAccess = leafError?.reason { return true }
-        return false
+        do {
+            let file = try source.file(template: t, escape: true, on: eL)
+            // Hit the file - return the combined tuple
+            return eL.makeSucceededFuture(key).and(file).flatMapError { _ in
+                // Or move onto the next one if this source can't get the file
+                return self.searchSources(t: t, on: eL, s: more)
+            }
+        }
+        catch {
+            // If the throwing error is illegal access, fail immediately
+            if let e = error as? LeafError,
+               case .illegalAccess(_) = e.reason { return eL.makeFailedFuture(e) }
+            else {
+                // Or move onto the next one
+                return searchSources(t: t, on: eL, s: more)
+            }
+        }
     }
 }

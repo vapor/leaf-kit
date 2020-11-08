@@ -3,72 +3,110 @@
 
 import Foundation
 
-/// `LeafConfiguration` provides global storage of properites that must be consistent across
-/// `LeafKit` while running. Alter the global configuration of LeafKit by setting the static properties
-/// of the structure prior to calling `LeafRenderer.render()`; any changes subsequently will be ignored.
+/// General configuration of Leaf
+/// - Sets the default View directory where templates will be looked for
+/// - Guards setting the global tagIndicator (default `#`).
 public struct LeafConfiguration {
-    // MARK: - Global-Only Options
-    /// The character used to signal tag processing
-    @LeafRuntimeGuard public static var tagIndicator: Character = .octothorpe
-        
-    /// Entities (functions, blocks, raw blocks, types) the LeafKit engine recognizes
-    @LeafRuntimeGuard public static var entities: LeafEntities = .leaf4Core
-        
-    // MARK: - State
     
-    /// Convenience to check state of LeafKit
-    public static var isRunning: Bool { started }
+    /// Initialize Leaf with the default tagIndicator `#`
+    /// - Parameter rootDirectory: Default directory where templates will be found
+    public init(rootDirectory: String) {
+        self.init(rootDirectory: rootDirectory, tagIndicator: .octothorpe)
+    }
+    
+    /// Initialize Leaf with a specific tagIndicator
+    /// - Parameter rootDirectory: Default directory where templates will be found
+    /// - Parameter tagIndicator: Unique tagIndicator - may only be set once.
+    public init(rootDirectory: String, tagIndicator: Character) {
+        if !Self.started {
+            Character.tagIndicator = tagIndicator
+            Self.started = true
+        }
+        self._rootDirectory = rootDirectory
+    }
+    
+    public var rootDirectory: String {
+        mutating get { accessed = true; return _rootDirectory }
+        set { _rootDirectory = newValue }
+    }
 
-    // MARK: - Internal Only
-    
-    /// Convenience for getting running state of LeafKit that will assert with a fault message for soft-failing things
-    static func running(fault message: String) -> Bool {
-        assert(!started, "\(message) after LeafRenderer has instantiated")
-        return started
+    public static var encoding: String.Encoding {
+        get { _encoding }
+        set { if !Self.running { _encoding = newValue } }
     }
     
-    /// Flag for global write lock after LeafKit has started
-    static var started = false
-}
-
-/// `LeafRuntimeGuard` secures a value against being changed once a `LeafRenderer` is active
-///
-/// Attempts to change the value secured by the runtime guard will assert in debug to warn against
-/// programmatic changes to a value that needs to be consistent across the running state of LeafKit.
-/// Such attempts to change will silently fail in production builds.
-@propertyWrapper public struct LeafRuntimeGuard<T> {
-    public var wrappedValue: T {
-        get { _unsafeValue }
-        set { if !LKConf.running(fault: "Cannot configure \(object)") {
-                    assert(condition(newValue), "\(object) failed conditional check")
-                    _unsafeValue = newValue } }
+    public static var boolFormatter: (Bool) -> String {
+        get { _boolFormatter }
+        set { if !Self.running { _boolFormatter = newValue } }
     }
     
-    public var projectedValue: Self { self }
-    
-    
-    /// `condition` may be used to provide an asserting validation closure that will assert if false
-    /// when setting; *WILL FATAL IF FAILING AT INITIAL SETTING TIME*
-    public init(wrappedValue: T,
-                module: String = #file,
-                component: String = #function,
-                condition: @escaping (T) -> Bool = {_ in true}) {
-        precondition(condition(wrappedValue), "\(wrappedValue) failed conditional check")
-        let module = String(module.split(separator: "/").last?.split(separator: ".").first ?? "")
-        self.object = module.isEmpty ? component : "\(module).\(component)"
-        self.condition = condition
-        self._unsafeValue = wrappedValue
+    public static var intFormatter: (Int) -> String {
+        get { _intFormatter }
+        set { if !Self.running { _intFormatter = newValue } }
     }
     
-    /// T/F evaluation of condition, and if T is Hashable, nil if the values are the same
-    internal func validate(_ other: T) -> Bool? {
-        if let a = other as? AnyHashable,
-           let b = _unsafeValue as? AnyHashable,
-           a == b { return nil }
-        return condition(other)
+    public static var doubleFormatter: (Double) -> String {
+        get { _doubleFormatter }
+        set { if !Self.running { _doubleFormatter = newValue } }
     }
     
-    internal var _unsafeValue: T
-    internal let condition: (T) -> Bool
-    private let object: String
+    public static var nilFormatter: () -> String {
+        get { _nilFormatter }
+        set { if !Self.running { _nilFormatter = newValue } }
+    }
+    
+    public static var voidFormatter: () -> String {
+        get { _voidFormatter }
+        set { if !Self.running { _voidFormatter = newValue } }
+    }
+    
+    public static var stringFormatter: (String) -> String {
+        get { _stringFormatter }
+        set { if !Self.running { _stringFormatter = newValue } }
+    }
+    
+    public static var arrayFormatter: ([String]) -> String {
+        get { _arrayFormatter }
+        set { if !Self.running { _arrayFormatter = newValue } }
+    }
+    
+    public static var dictFormatter: ([String: String]) -> String {
+        get { _dictFormatter }
+        set { if !Self.running { _dictFormatter = newValue } }
+    }
+    
+    public static var dataFormatter: (Data) -> String? {
+        get { _dataFormatter }
+        set { if !Self.running { _dataFormatter = newValue } }
+    }
+    
+    // MARK: - Internal/Private Only
+    internal var _rootDirectory: String {
+        willSet { assert(!accessed, "Changing property after LeafConfiguration has been read has no effect") }
+    }
+    
+    internal static var _encoding: String.Encoding = .utf8
+    internal static var _boolFormatter: (Bool) -> String = { $0.description }
+    internal static var _intFormatter: (Int) -> String = { $0.description }
+    internal static var _doubleFormatter: (Double) -> String = { $0.description }
+    internal static var _nilFormatter: () -> String = { "" }
+    internal static var _voidFormatter: () -> String = { "" }
+    internal static var _stringFormatter: (String) -> String = { $0 }
+    internal static var _arrayFormatter: ([String]) -> String =
+        { "[\($0.map {"\"\($0)\""}.joined(separator: ", "))]" }
+    internal static var _dictFormatter: ([String: String]) -> String =
+        { "[\($0.map { "\($0): \"\($1)\"" }.joined(separator: ", "))]" }
+    internal static var _dataFormatter: (Data) -> String? =
+        { String(data: $0, encoding: Self._encoding) }
+    
+    
+    /// Convenience flag for global write-once
+    private static var started = false
+    private static var running: Bool {
+        assert(!Self.started, "LeafKit can only be configured prior to instantiating any LeafRenderer")
+        return Self.started
+    }
+    
+    /// Convenience flag for local lock-after-access
+    private var accessed = false
 }

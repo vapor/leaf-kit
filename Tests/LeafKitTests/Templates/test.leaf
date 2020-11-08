@@ -1,15 +1,1 @@
-Set start time#(let start = Timestamp())
-Bytes: #((500).formatBytes())
-Kilobytes: #((5_000).formatBytes())
-Megabytes: #((5_000_000).formatBytes())
-Gigabytes: #((5_000_000_000).formatBytes())
-unixEpoch: #Timestamp("unixEpoch")
-unixEpoch rebased: #Timestamp("unixEpoch", since: "unixEpoch")
-Formatted "referenceDate": #Date("referenceDate")
-Formatted "referenceDate": #Date("referenceDate", timeZone: "Europe/Athens")
-Fixed "unixEpoch": #Date(timeStamp: "unixEpoch",
-                         fixedFormat: "MM.dd.yyyy HH:mm",
-                         timeZone: "US/Eastern") EST
-Localized "unixEpoch": #Date(timeStamp: Timestamp("unixEpoch") + 2_500_000,
-                             localizedFormat: "MMddyyyy",
-                             locale: "en")
+Leaf Template
