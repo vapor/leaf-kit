@@ -680,33 +680,5 @@ final class LeafParserTests: MemoryRendererTestCase {
         
         try LKXCAssertErrors(render("template"), contains: "Assignment via subscripted access not yet supported")
     }
-    
-    func testInvariantFunc() throws {
-        try XCTAssertEqual(parse(raw: "#(Timestamp())").terse,
-                           "0: Timestamp(string(now), string(referenceDate))")
-    }
-    
-    func testIndirectEvalWarning() throws {
-        files["A"] = "A: #(content()))"
-        files["B"] = "B: #inline(\"A\")"
-        files["C"] = "C: #inline(\"B\")"
-        files["D"] = """
-        #define(content): Block can't be param define #enddefine
-        #inline("A")
-        """
-        
-        try LKXCAssertErrors(render("A"), contains: "[content()] variable(s) missing")
-        try LKXCAssertErrors(render("B"), contains: "[content()] variable(s) missing")
-        try LKXCAssertErrors(render("C"), contains: "[content()] variable(s) missing")
-        try LKXCAssertErrors(render("D"), contains: "`A` requires parameter semantics for `content()`")
-    }
-    
-    func testNestedLet() throws {
-        files["A1"] = "#let(x = 1)#inline(\"B\")"
-        files["A2"] = "#let(x = nil)#inline(\"B\")"
-        files["B"] = "#let(x = x ?? 2)#(x)"
-        try XCTAssertEqual(render("A1"), "1")
-        try XCTAssertEqual(render("A2"), "2")
-    }
 }
 

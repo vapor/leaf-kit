@@ -342,7 +342,7 @@ final class LeafMiscTests: MemoryRendererTestCase {
                                         ["nilVariable": .string(nil)],
                                         options: [.missingVariableThrows(true)])) {
             XCTAssert(($0 as! LeafError).description
-                        .contains("[nonExistantVariable] variable(s) missing"),
+                        .contains("[self.nonExistantVariable] variable(s) missing"),
                       $0.localizedDescription)
         }
     }

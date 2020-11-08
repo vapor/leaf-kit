@@ -47,8 +47,6 @@ public struct LeafError: LocalizedError, CustomStringConvertible {
         /// Attempt to render an AST with cyclical external references
         /// - Provide template name & ordered array of template names that causes the cycle path
         case cyclicalReference(String, [String])
-        
-        case defineMismatch(a: String, b: String, define: String)
 
         // MARK: Wrapped Errors related to Lexing or Parsing
         /// Errors due to malformed template syntax or grammar
@@ -104,11 +102,6 @@ public struct LeafError: LocalizedError, CustomStringConvertible {
             case .noValueForKey(let k)        : m += "No cache entry exists for `\(k)`"
             case .noTemplateExists(let k)     : m += "No template found for `\(k)`"
             case .unresolvedAST(let k, let d) : m += "\(k) has unresolved dependencies: \(d)"
-            case .defineMismatch(let a, let b, let d)
-                                              : m += """
-                Resolution failure:
-                `\(a)` defines `\(d)()` as a block, but `\(b)` requires parameter semantics for `\(d)()` in usage.
-                """
             case .timeout(let d)              : m += "Exceeded timeout at \(d.formatSeconds())"
             case .configurationError(let d)   : m += "Configuration error: `\(d)`"
             case .missingRaw(let f)           : m += "Missing raw inline file ``\(f)``"
