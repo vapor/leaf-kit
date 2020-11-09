@@ -545,9 +545,9 @@ final class LeafKitTests: XCTestCase {
             eventLoop: group.next()
         )
 
-        var buffer = try! renderer.render(path: "test").wait()
-        let string = buffer.readString(length: buffer.readableBytes)!
-        print(string)
+//        var buffer = try! renderer.render(path: "test").wait()
+//        let string = buffer.readString(length: buffer.readableBytes)!
+//        print(string)
 
         try threadPool.syncShutdownGracefully()
         try group.syncShutdownGracefully()
