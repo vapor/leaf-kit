@@ -1,5 +1,4 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
+import NIO
 
 /// Public protocol to adhere to in order to provide template source originators to `LeafRenderer`
 public protocol LeafSource {

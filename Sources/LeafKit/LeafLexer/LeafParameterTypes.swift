@@ -1,5 +1,3 @@
-// MARK: Subject to change prior to 1.0.0 release
-
 // MARK: - `Parameter` Token Type
 
 // FIXME: Can't be internal because of `Syntax`

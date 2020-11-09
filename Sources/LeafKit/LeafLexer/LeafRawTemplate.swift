@@ -1,6 +1,3 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
 // TODO: Make `LeafSource` return this instead of `ByteBuffer` via extension
 internal struct LeafRawTemplate {
     // MARK: - Internal Only

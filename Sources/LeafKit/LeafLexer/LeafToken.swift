@@ -1,6 +1,3 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
 // MARK: `LeafToken` Summary
 
 /// `LeafToken` represents the first stage of parsing Leaf templates - a raw file/bytestream `String`

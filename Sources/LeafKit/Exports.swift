@@ -1,11 +1,8 @@
 /// Various helper identities for convenience
 extension Character {
-    // MARK: - Leaf-Kit specific static identities (Public)
-    
-    /// Global setting of `tagIndicator` for Leaf-Kit - by default, `#`
-    public internal(set) static var tagIndicator: Character = .octothorpe
-    
+
     // MARK: - LeafToken specific identities (Internal)
+    static var tagIndicator: Character = .octothorpe
     
     var isValidInTagName: Bool {
         return self.isLowercaseLetter

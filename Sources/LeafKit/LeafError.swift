@@ -1,6 +1,3 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
 // MARK: `LeafError` Summary
 
 /// `LeafError` reports errors during the template rendering process, wrapping more specific
