@@ -10,6 +10,7 @@ public var defaultTags: [String: LeafTag] = [
     "capitalized": Capitalized(),
     "contains": Contains(),
     "date": DateTag(),
+    "count": Count()
 ]
 
 struct Lowercased: LeafTag {
@@ -71,5 +72,18 @@ struct DateTag: LeafTag {
 
         let dateAsString = formatter.string(from: date)
         return LeafData.string(dateAsString)
+    }
+}
+
+struct Count: LeafTag {
+    func render(_ ctx: LeafContext) throws -> LeafData {
+        try ctx.requireParameterCount(1)
+        if let array = ctx.parameters[0].array {
+            return LeafData.int(array.count)
+        } else if let dictionary = ctx.parameters[0].dictionary {
+            return LeafData.int(dictionary.count)
+        } else {
+            throw "Unable to convert count parameter to LeafData collection"
+        }
     }
 }
