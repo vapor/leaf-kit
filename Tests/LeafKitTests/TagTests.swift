@@ -74,7 +74,7 @@ class TagTests: XCTestCase {
         """
 
         let expected = """
-        The date is 2020-11-09T14:30:00Z
+        The date is 2020-11-09T14:30:00
         """
         try XCTAssertEqual(render(template, ["now": 1604932200]), expected)
     }
