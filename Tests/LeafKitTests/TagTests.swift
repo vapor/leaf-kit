@@ -61,7 +61,9 @@ class TagTests: XCTestCase {
         """
 
         let expected = """
-        Tanner is in the core team!
+
+            Tanner is in the core team!
+
         """
         try XCTAssertEqual(render(template, ["core": ["Tanner", "Logan", "Gwynne", "Siemen", "Tim"]]), expected)
     }
