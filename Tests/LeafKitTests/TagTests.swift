@@ -21,4 +21,15 @@ class TagTests: XCTestCase {
         """
         try XCTAssertEqual(render(template, ["name": "TIM"]), expected)
     }
+
+    func testCount() throws {
+        let template = """
+        There are #count(people) people
+        """
+
+        let expected = """
+        There are 5 people
+        """
+        try XCTAssertEqual(render(template, ["people": ["Tanner", "Logan", "Gwynne", "Siemen", "Tim"]]), expected)
+    }
 }
