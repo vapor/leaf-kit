@@ -281,46 +281,11 @@ final class LexerTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
 
-    /*
-     // TODO:
-
-     #("#")
-     #()
-     "#("\")#(name)" == '\logan'
-     "\#(name)" == '#(name)'
-     */
     func testEscaping() throws {
         // input is really '\#' w/ escaping
         let input = "\\#"
         let output = try lex(input).string
         XCTAssertEqual(output, "raw(\"#\")\n")
-    }
-
-    // deactivated because changing tagIndicator, for some reason, is causing a data race
-    func _testTagIndicator() throws {
-        Character.tagIndicator = "🤖"
-        let input = """
-        🤖extend("base"):
-            🤖export("title", "Welcome")
-            🤖export("body"):
-                Hello, 🤖(name)!
-            🤖endexport
-        🤖endextend
-        """
-
-        let expectation = """
-        extend("base"):
-          export("body"):
-            raw("\\n        Hello, ")
-            variable(name)
-            raw("!\\n    ")
-          export("title"):
-            raw("Welcome")
-        """
-
-        let output = try! parse(input).string
-        XCTAssertEqual(output, expectation)
-        Character.tagIndicator = .octothorpe
     }
 
     func testParameters() throws {

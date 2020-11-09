@@ -207,8 +207,7 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, [:]), expected)
     }
 
-    // TODO: Reimplement #count
-    func _testCount() throws {
+    func testCount() throws {
         let template = """
         count: #count(array)
         """
@@ -218,19 +217,7 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["array": ["","","",""]]), expected)
     }
 
-    // TODO: Are set/get totally deprecated?
-    func _testNestedSet() throws {
-        let template = """
-        #if(a){#set("title"){A}}title: #get(title)
-        """
-        let expected = """
-        title: A
-        """
-        try XCTAssertEqual(render(template, ["a": true]), expected)
-    }
-
-    // TODO: Reimplement #date
-    func _testDateFormat() throws {
+    func testDateFormat() throws {
         let template = """
         Date: #date(foo, "yyyy-MM-dd")
         """
@@ -281,37 +268,6 @@ final class LeafTests: XCTestCase {
 //        let data = try TemplateDataEncoder().testEncode(context)
 //        try XCTAssertEqual(render(template, data), expected)
 //    }
-
-    // TODO: WHY is whitespace not allowed here?!?
-    func _testInvalidForSyntax() throws {
-        let data: [String: LeafData] = ["names": LeafData(arrayLiteral: "foo")]
-        do {
-            _ = try render("#for( name in names):Hi#endfor", data)
-            XCTFail("Whitespace not allowed here")
-        } catch {
-            XCTAssert("\(error)".contains("space not allowed"))
-        }
-
-        do {
-            _ = try render("#for(name in names ):Hi#endfor", data)
-            XCTFail("Whitespace not allowed here")
-        } catch {
-            XCTAssert("\(error)".contains("space not allowed"))
-        }
-
-        do {
-            _ = try render("#for( name in names ):Hi#endfor", data)
-            XCTFail("Whitespace not allowed here")
-        } catch {
-            XCTAssert("\(error)".contains("space not allowed"))
-        }
-
-        do {
-            _ = try render("#for(name in names):Hi#endfor", data)
-        } catch {
-            XCTFail("\(error)")
-        }
-    }
 
     func testLoopIndices() throws {
         let template = """
