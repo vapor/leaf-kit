@@ -22,6 +22,26 @@ class TagTests: XCTestCase {
         try XCTAssertEqual(render(template, ["name": "TIM"]), expected)
     }
 
+    func testUppercaseTag() throws {
+        let template = """
+        #uppercased(name)
+        """
+        let expected = """
+        TIM
+        """
+        try XCTAssertEqual(render(template, ["name": "Tim"]), expected)
+    }
+
+    func testCapitalisedTag() throws {
+        let template = """
+        #capitalized(name)
+        """
+        let expected = """
+        Tim
+        """
+        try XCTAssertEqual(render(template, ["name": "tim"]), expected)
+    }
+
     func testCount() throws {
         let template = """
         There are #count(people) people
