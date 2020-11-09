@@ -4,7 +4,7 @@ import XCTest
 final class LeafTests: XCTestCase {
 
     // currently not supported.. discussion ongoing
-    func _testInterpolated() throws {
+    func testInterpolated() throws {
         let template = """
         <p>#("foo: #(foo)")</p>
         """
@@ -12,7 +12,7 @@ final class LeafTests: XCTestCase {
     }
 
     // conversation ongoing
-    func _testCommentSugar() throws {
+    func testCommentSugar() throws {
         let template = """
         #("foo")
         #// this is a comment!
@@ -31,7 +31,7 @@ final class LeafTests: XCTestCase {
     }
 
     // conversation ongoing
-    func _testHashtag() throws {
+    func testHashtag() throws {
         let template = """
         #("hi") #thisIsNotATag...
         """
@@ -229,45 +229,47 @@ final class LeafTests: XCTestCase {
 
     }
 
-//    func testEmptyForLoop() throws {
-//        let template = """
-//        #for(category in categories) {
-//            <a class=“dropdown-item” href=“#”>#(category.name)</a>
-//        }
-//        """
-//        let expected = """
-//        """
-//
-//        struct Category: Encodable {
-//            var name: String
-//        }
-//
-//        struct Context: Encodable {
-//            var categories: [Category]
-//        }
-//
-//        let context = Context(categories: [])
+    func testEmptyForLoop() throws {
+        let template = """
+        #for(category in categories) {
+            <a class=“dropdown-item” href=“#”>#(category.name)</a>
+        }
+        """
+        let expected = """
+        """
+
+        struct Category: Encodable {
+            var name: String
+        }
+
+        struct Context: Encodable {
+            var categories: [Category]
+        }
+
+        let context = Context(categories: [])
 //        let data = try TemplateDataEncoder().testEncode(context)
 //        try XCTAssertEqual(render(template, data), expected)
-//
-//    }
-//
-//    func testKeyEqual() throws {
-//        let template = """
-//        #if(title == "foo") {it's foo} else {not foo}
-//        """
-//        let expected = """
-//        it's foo
-//        """
-//
-//        struct Stuff: Encodable {
-//            var title: String
-//        }
-//
-//        let context = Stuff(title: "foo")
+        try XCTAssertEqual(render(template, [:]), expected)
+
+    }
+
+    func testKeyEqual() throws {
+        let template = """
+        #if(title == "foo") {it's foo} else {not foo}
+        """
+        let expected = """
+        it's foo
+        """
+
+        struct Stuff: Encodable {
+            var title: String
+        }
+
+        let context = Stuff(title: "foo")
 //        let data = try TemplateDataEncoder().testEncode(context)
 //        try XCTAssertEqual(render(template, data), expected)
-//    }
+        try XCTAssertEqual(render(template, [:]), expected)
+    }
 
     func testLoopIndices() throws {
         let template = """
