@@ -37,9 +37,6 @@ public struct LeafError: Error {
         // MARK: Wrapped Errors related to Lexing or Parsing
         /// Errors due to malformed template syntax or grammar
         case lexerError(LexerError)
-        /// Errors due to malformed template syntax or grammar
-        // FIXME: Implement a specific ParserError type
-        // case parserError(ParserError)
         
         // MARK: Errors lacking specificity
         /// Errors from protocol adherents that do not support newer features
@@ -167,7 +164,3 @@ public struct LexerError: Error {
         return "\"\(name)\": \(reason) - \(line):\(column)"
     }
 }
-
-// MARK: - `ParserError` Summary (Wrapped by LeafError)
-// FIXME: Implement a specific ParserError type
-/// `ParserError` reports errors during the stage.

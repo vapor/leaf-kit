@@ -459,8 +459,6 @@ fileprivate enum _ConverterMap {
             ($0 as? Double).map { Int(exactly: $0.rounded()) }?.map { .int($0) } ?? .trueNil
         }),
         
-        // FIXME: Questionable coercion possibilities - Currently disabled
-        
                                           // Transform with array indices as keys
         Converter(.array      , .dictionary , is: .ambiguous, via: {
             ($0 as? [LeafData]).map {
