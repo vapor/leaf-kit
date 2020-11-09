@@ -1,9 +1,5 @@
 // MARK: - `Parameter` Token Type
 
-// FIXME: Can't be internal because of `Syntax`
-/// - Does `stringLiteral` need to exist - should `Constant` have a `String` case or should
-///   `Constant` be renamed `Numeric` for clarity?
-
 /// An associated value enum holding data, objects or values usable as parameters to a `.tag`
 public enum Parameter: Equatable, CustomStringConvertible {
     case stringLiteral(String)

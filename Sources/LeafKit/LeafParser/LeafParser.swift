@@ -125,7 +125,6 @@ internal struct LeafParser {
     }
 
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
-    // FIXME: This is a blind parsing of `.tagBodyIndicator`
     // ------
     // A tag MAY NOT expect any body given a certain number of parameters, and this will blindly
     // consume colons in that event when it's not inteded; eg `#(variable):` CANNOT expect a body
