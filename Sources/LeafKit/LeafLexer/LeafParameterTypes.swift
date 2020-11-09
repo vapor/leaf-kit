@@ -156,10 +156,6 @@ public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterab
 }
 
 /// An integer or double constant value parameter (eg `1_000`, `-42.0`)
-///
-/// #TODO
-/// - This is somewhat confusingly named. Possibly would be better to rename as `Numeric`, since
-///   `stringLiteral` *IS* a constant type, or else `stringLiteral` should be moved into this.
 public enum Constant: CustomStringConvertible, Equatable {
     case int(Int)
     case double(Double)

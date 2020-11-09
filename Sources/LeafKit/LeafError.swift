@@ -3,8 +3,6 @@
 /// `LeafError` reports errors during the template rendering process, wrapping more specific
 /// errors if necessary during Lexing and Parsing stages.
 ///
-/// #TODO
-/// - Implement a ParserError subtype
 public struct LeafError: Error {
     /// Possible cases of a LeafError.Reason, with applicable stored values where useful for the type
     public enum Reason {

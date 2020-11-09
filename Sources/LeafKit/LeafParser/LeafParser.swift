@@ -207,7 +207,6 @@ internal struct LeafParser {
                     switch p {
                         case .tag(let name):
                             guard peek() == .parametersStart else { throw "tags in parameter list MUST declare parameter list" }
-                            // TODO: remove recursion, in parameters only not so bad
                             let params = try readParameters()
                             // parameter tags not permitted to have bodies
                             group.append(.tag(.init(name: name, params: params, body: nil)))
@@ -317,7 +316,6 @@ internal struct LeafParser {
                                 default:
                                     throw "unsupported parameter \(p)"
                             }
-                            // todo: can prevent some duplication here
                         case .expression(let e):
                             return .expression(e)
                         case .tag(let t):
