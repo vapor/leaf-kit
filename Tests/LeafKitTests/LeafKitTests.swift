@@ -173,23 +173,6 @@ final class ParserTests: XCTestCase {
 }
 
 final class LexerTests: XCTestCase {
-    func _testExtenasdfd() throws {
-        /// 'base.leaf
-//        let base = """
-//        <title>#import(title)</title>
-//        #import(body)
-//        """
-//
-        /// `home.leaf`
-        let home = """
-        #if(if(foo):bar#endif == "bar", "value")
-        """
-
-        _ = try lex(home).description
-        //        XCTAssertEqual(output, expectation)
-        print("")
-    }
-
     func testParamNesting() throws {
         let input = """
         #if(lowercase(first(name == "admin")) == "welcome"):
@@ -475,6 +458,7 @@ final class LeafKitTests: XCTestCase {
         //        print("View:")
         //        print(string)
         //        print()
+        #warning("Fix")
     }
 
     func testParserasdf() throws {
@@ -534,6 +518,7 @@ final class LeafKitTests: XCTestCase {
         //        print("View:")
         //        print(string)
         //        print()
+        #warning("Fix")
     }
 
     func testNestedEcho() throws {
@@ -549,7 +534,7 @@ final class LeafKitTests: XCTestCase {
         XCTAssertEqual(view.string, "Todo: Leaf!")
     }
 
-    func _testRenderer() throws {
+    func testRenderer() throws {
         let threadPool = NIOThreadPool(numberOfThreads: 1)
         threadPool.start()
         let fileio = NonBlockingFileIO(threadPool: threadPool)
@@ -566,6 +551,7 @@ final class LeafKitTests: XCTestCase {
 
         try threadPool.syncShutdownGracefully()
         try group.syncShutdownGracefully()
+        #warning("Fix")
     }
 
     func testRendererContext() throws {
@@ -591,9 +577,6 @@ final class LeafKitTests: XCTestCase {
 
         XCTAssertEqual(view.string, "Hello barvapor")
     }
-
-// MARK: testCyclicalError() - moved to LeafErrorTests.swift
-// MARK: testDependencyError() - moved to LeafErrorTests.swift
 
     func testImportResolve() {
         var test = TestFiles()
