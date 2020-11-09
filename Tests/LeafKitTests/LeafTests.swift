@@ -3,14 +3,6 @@ import XCTest
 
 final class LeafTests: XCTestCase {
 
-    // currently not supported.. discussion ongoing
-    func testInterpolated() throws {
-        let template = """
-        <p>#("foo: #(foo)")</p>
-        """
-        try XCTAssertEqual(render(template, ["foo": "bar"]), "<p>foo: bar</p>")
-    }
-
     // conversation ongoing
     func testCommentSugar() throws {
         let template = """
@@ -231,9 +223,9 @@ final class LeafTests: XCTestCase {
 
     func testEmptyForLoop() throws {
         let template = """
-        #for(category in categories) {
+        #for(category in categories):
             <a class=“dropdown-item” href=“#”>#(category.name)</a>
-        }
+        #endfor
         """
         let expected = """
         """
@@ -245,17 +237,14 @@ final class LeafTests: XCTestCase {
         struct Context: Encodable {
             var categories: [Category]
         }
-
-        let context = Context(categories: [])
-//        let data = try TemplateDataEncoder().testEncode(context)
-//        try XCTAssertEqual(render(template, data), expected)
-        try XCTAssertEqual(render(template, [:]), expected)
+        
+        try XCTAssertEqual(render(template, ["categories": []]), expected)
 
     }
 
     func testKeyEqual() throws {
         let template = """
-        #if(title == "foo") {it's foo} else {not foo}
+        #if(title == "foo"):it's foo#else:not foo#endif
         """
         let expected = """
         it's foo
@@ -265,10 +254,7 @@ final class LeafTests: XCTestCase {
             var title: String
         }
 
-        let context = Stuff(title: "foo")
-//        let data = try TemplateDataEncoder().testEncode(context)
-//        try XCTAssertEqual(render(template, data), expected)
-        try XCTAssertEqual(render(template, [:]), expected)
+        try XCTAssertEqual(render(template, ["title": "foo"]), expected)
     }
 
     func testLoopIndices() throws {
