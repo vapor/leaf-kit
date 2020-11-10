@@ -7,12 +7,19 @@ final class LeafTests: XCTestCase {
     func testCommentSugar() throws {
         let template = """
         #("foo")
-        #comment:
-            this is a comment!
-        #endcomment
+        #// this is a comment!
         bar
         """
-        try XCTAssertEqual(render(template), "foo\n\nbar")
+
+//        let multilineTemplate = """
+//        #("foo")
+//        #comment:
+//            this is a comment!
+//        #endcomment
+//        bar
+//        """
+        try XCTAssertEqual(render(template), "foo\nbar")
+//        try XCTAssertEqual(render(multilineTemplate), "foo\n\nbar")
     }
 
     // conversation ongoing

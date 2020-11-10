@@ -124,7 +124,7 @@ internal struct LeafLexer {
         src.pop()
         // if tag indicator is followed by an invalid token, assume that it is unrelated to leaf
         let current = src.peek()
-        if let current = current, current.isValidInTagName || current == .leftParenthesis {
+        if let current = current, current.isValidInTagName || current == .leftParenthesis || current == .forwardSlash {
             state = .tag
             return .tagIndicator
         } else {
@@ -169,6 +169,19 @@ internal struct LeafLexer {
             case .space:
                 let read = src.readWhile { $0 == .space }
                 return .whitespace(length: read.count + 1)
+            case .forwardSlash:
+                guard src.peek() == .forwardSlash else {
+                    throw LexerError(.unterminatedCommentParameterToken, src: src, lexed: lexed)
+                }
+                // Remove next /
+                src.pop()
+                // Read comment to end of line
+                _ = src.readWhile { $0 != .newLine }
+                // Consume end of line
+                src.pop()
+                // Reset state to raw to read the rest of the file
+                state = .raw
+                return .comment
             default: break
         }
 
