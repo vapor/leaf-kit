@@ -115,8 +115,6 @@ public struct LexerError: Error {
         case invalidParameterToken(Character)
         /// A string was opened but never terminated by end of file
         case unterminatedStringLiteral
-        /// A comment was started but not finished
-        case unterminatedCommentParameterToken
         /// Use in place of fatalError to indicate extreme issue
         case unknownError(String)
     }

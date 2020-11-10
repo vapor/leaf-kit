@@ -42,9 +42,6 @@ internal enum LeafToken: CustomStringConvertible, Equatable  {
     /// `)` -  Indicates the end of a tag's parameters
     case parametersEnd
 
-    /// `/` Indicates the start of a comment
-    case comment
-
     /// To be removed if possible - avoid using
     case stringLiteral(String)
     /// To be removed if possible - avoid using
@@ -69,8 +66,6 @@ internal enum LeafToken: CustomStringConvertible, Equatable  {
                 return "parameterDelimiter"
             case .parameter(let param):
                 return "param(\(param))"
-            case .comment:
-                return "comment"
             case .stringLiteral(let string):
                 return "stringLiteral(\(string.debugDescription))"
             case .whitespace(let length):

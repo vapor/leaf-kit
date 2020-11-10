@@ -57,8 +57,6 @@ internal struct LeafParser {
                     finished.append(syntax)
                 }
             }
-        case .comment:
-            return
         case .raw:
             let r = try collectRaw()
             if var last = awaitingBody.last {
@@ -146,7 +144,6 @@ internal struct LeafParser {
         // .tagBodyIndicator - ready to read body
         // .parametersStart - start parameters
         // .tagIndicator - a new tag started
-        // .comment - a comment
         switch next {
             // MARK: no param, no body case should be re-evaluated?
             // we require that tags have parameter notation INSIDE parameters even when they're
@@ -175,12 +172,6 @@ internal struct LeafParser {
                     }
                 }
                 return TagDeclaration(name: name, parameters: params, expectsBody: expectsBody)
-            case .comment:
-                guard peek() == .comment else {
-                    throw "expected comment for comment declaration"
-                }
-                pop()
-                return TagDeclaration(name: "comment", parameters: nil, expectsBody: false)
             default:
                 throw "found unexpected token " + next.description
         }
