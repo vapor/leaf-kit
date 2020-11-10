@@ -77,7 +77,7 @@ final class GHLeafIssuesTest: XCTestCase {
             let template = """
             <html>
             <head>
-            <title></title>#// Translate all copy!!!!!
+            <title></title>#comment: Translate all copy!!!!! #endcomment
             <style>
             """
             let expected = """
@@ -96,13 +96,16 @@ final class GHLeafIssuesTest: XCTestCase {
             <html>
             <head>
             <title></title>
-            #// Translate all copy!!!!!
+            #comment:
+            Translate all copy!!!!!
+            #endcomment
             <style>
             """
             let expected = """
             <html>
             <head>
             <title></title>
+
             <style>
             """
             try XCTAssertEqual(render(template, ["a": "a"]), expected)
