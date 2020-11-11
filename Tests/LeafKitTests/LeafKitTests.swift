@@ -1,6 +1,7 @@
 import XCTest
 import NIOConcurrencyHelpers
 @testable import LeafKit
+import NIO
 
 final class ParserTests: XCTestCase {
     func testParsingNesting() throws {
@@ -172,23 +173,6 @@ final class ParserTests: XCTestCase {
 }
 
 final class LexerTests: XCTestCase {
-    func _testExtenasdfd() throws {
-        /// 'base.leaf
-//        let base = """
-//        <title>#import(title)</title>
-//        #import(body)
-//        """
-//
-        /// `home.leaf`
-        let home = """
-        #if(if(foo):bar#endif == "bar", "value")
-        """
-
-        _ = try lex(home).description
-        //        XCTAssertEqual(output, expectation)
-        print("")
-    }
-
     func testParamNesting() throws {
         let input = """
         #if(lowercase(first(name == "admin")) == "welcome"):
@@ -280,46 +264,11 @@ final class LexerTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
 
-    /*
-     // TODO:
-
-     #("#")
-     #()
-     "#("\")#(name)" == '\logan'
-     "\#(name)" == '#(name)'
-     */
     func testEscaping() throws {
         // input is really '\#' w/ escaping
         let input = "\\#"
         let output = try lex(input).string
         XCTAssertEqual(output, "raw(\"#\")\n")
-    }
-
-    // deactivated because changing tagIndicator, for some reason, is causing a data race
-    func _testTagIndicator() throws {
-        Character.tagIndicator = "🤖"
-        let input = """
-        🤖extend("base"):
-            🤖export("title", "Welcome")
-            🤖export("body"):
-                Hello, 🤖(name)!
-            🤖endexport
-        🤖endextend
-        """
-
-        let expectation = """
-        extend("base"):
-          export("body"):
-            raw("\\n        Hello, ")
-            variable(name)
-            raw("!\\n    ")
-          export("title"):
-            raw("Welcome")
-        """
-
-        let output = try! parse(input).string
-        XCTAssertEqual(output, expectation)
-        Character.tagIndicator = .octothorpe
     }
 
     func testParameters() throws {
@@ -429,147 +378,6 @@ final class LexerTests: XCTestCase {
 }
 
 final class LeafKitTests: XCTestCase {
-    func testParser() throws {
-        let template = """
-        Hello #(name)!
-
-        Hello #get(name)!
-
-        #set(name):
-            Hello #get(name)
-        #endset!
-
-        #if(a):b#endif
-
-        #if(foo):
-        123
-        #elseif(bar):
-        456
-        #else:
-        789
-        #endif
-
-        #import("title")
-
-        #import("body")
-
-        #extend("base"):
-            #export("title", "Welcome")
-            #export("body"):
-                Hello, #(name)!
-            #endexport
-        #endextend
-
-        #parent:
-            #if(somebs):
-                #for(boo in far):
-                    ya, ok, some stuff is here ;)
-                #endfor
-            #endif
-        #endparent
-
-        More stuff here!
-        """
-
-//        let template = """
-//        #if(foo):
-//        123
-//        #elseif(bar):
-//        456
-//        #else:
-//        789
-//        #endif
-//        """
-
-        var lexer = LeafLexer(name: "test-parser", template: template)
-        let tokens = try lexer.lex()
-        print()
-        print("Tokens:")
-        tokens.forEach { print($0) }
-        print()
-
-//        var parser = _LeafParser(tokens: tokens)
-//        let ast = try! parser.altParse().map { $0.description } .joined(separator: "\n")
-        let rawAlt = try! parse(template)
-        print("AST")
-        rawAlt.forEach { print($0) }
-        print()
-        _ = rawAlt.description
-//        print("AST:")
-//        ast.forEach { print($0) }
-        print("")
-        //
-        //        var serializer = LeafSerializer(ast: ast, context: [
-        //            "name": "Tanner",
-        //            "a": true,
-        //            "bar": true
-        //        ])
-        //        var view = try serializer.serialize()
-        //        let string = view.readString(length: view.readableBytes)!
-        //        print("View:")
-        //        print(string)
-        //        print()
-    }
-
-    func testParserasdf() throws {
-        let template = """
-        Hello #(name)!
-
-        Hello #get(name)!
-
-        #set(name):
-            Hello #get(name)
-        #endset!
-
-        #if(a):b#endif
-
-        #if(foo):
-        123
-        #elseif(bar):
-        456
-        #else:
-        789
-        #endif
-
-        #import("title")
-
-        #import("body")
-
-        #extend("base"):
-            #export("title", "Welcome")
-            #export("body"):
-                Hello, #(name)!
-            #endexport
-        #endextend
-
-        More stuff here!
-        """
-
-        var lexer = LeafLexer(name: "test-parseasdf", template: template)
-        let tokens = try! lexer.lex()
-        print()
-        print("Tokens:")
-        tokens.forEach { print($0) }
-        print()
-
-        var parser = LeafParser(name: "test-parseasdf", tokens: tokens)
-        let ast = try! parser.parse()
-        print("AST:")
-        ast.forEach { print($0) }
-        print()
-        //
-        //        var serializer = LeafSerializer(ast: ast, context: [
-        //            "name": "Tanner",
-        //            "a": true,
-        //            "bar": true
-        //        ])
-        //        var view = try serializer.serialize()
-        //        let string = view.readString(length: view.readableBytes)!
-        //        print("View:")
-        //        print(string)
-        //        print()
-    }
-
     func testNestedEcho() throws {
         let input = """
         Todo: #(todo.title)
@@ -581,25 +389,6 @@ final class LeafKitTests: XCTestCase {
         var serializer = LeafSerializer(ast: ast, context: ["todo": ["title": "Leaf!"]])
         let view = try serializer.serialize()
         XCTAssertEqual(view.string, "Todo: Leaf!")
-    }
-
-    func _testRenderer() throws {
-        let threadPool = NIOThreadPool(numberOfThreads: 1)
-        threadPool.start()
-        let fileio = NonBlockingFileIO(threadPool: threadPool)
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        let renderer = TestRenderer(
-            configuration: .init(rootDirectory: templateFolder),
-            sources: .singleSource(NIOLeafFiles(fileio: fileio)),
-            eventLoop: group.next()
-        )
-
-        var buffer = try! renderer.render(path: "test").wait()
-        let string = buffer.readString(length: buffer.readableBytes)!
-        print(string)
-
-        try threadPool.syncShutdownGracefully()
-        try group.syncShutdownGracefully()
     }
 
     func testRendererContext() throws {
@@ -625,9 +414,6 @@ final class LeafKitTests: XCTestCase {
 
         XCTAssertEqual(view.string, "Hello barvapor")
     }
-
-// MARK: testCyclicalError() - moved to LeafErrorTests.swift
-// MARK: testDependencyError() - moved to LeafErrorTests.swift
 
     func testImportResolve() {
         var test = TestFiles()

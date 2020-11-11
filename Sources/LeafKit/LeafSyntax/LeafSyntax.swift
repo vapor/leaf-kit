@@ -1,3 +1,5 @@
+import NIO
+
 public indirect enum Syntax {
     // MARK: .raw - Makeable, Entirely Readable
     case raw(ByteBuffer)

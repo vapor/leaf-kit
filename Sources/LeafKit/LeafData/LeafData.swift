@@ -1,6 +1,4 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
+import NIO
 import Foundation
 
 /// `LeafData` is a "pseudo-protocol" wrapping the physically storable Swift data types
@@ -460,8 +458,6 @@ fileprivate enum _ConverterMap {
         Converter(.double     , .int        , is: .coercible, via: {
             ($0 as? Double).map { Int(exactly: $0.rounded()) }?.map { .int($0) } ?? .trueNil
         }),
-        
-        // FIXME: Questionable coercion possibilities - Currently disabled
         
                                           // Transform with array indices as keys
         Converter(.array      , .dictionary , is: .ambiguous, via: {

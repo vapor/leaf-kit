@@ -1,5 +1,6 @@
 import XCTest
 import NIOConcurrencyHelpers
+import NIO
 @testable import LeafKit
 
 /// Assorted multi-purpose helper pieces for LeafKit tests

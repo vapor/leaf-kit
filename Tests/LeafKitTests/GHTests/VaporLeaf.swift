@@ -70,39 +70,14 @@ final class GHLeafIssuesTest: XCTestCase {
             try XCTAssertEqual(render(template, ["a": "a"]), expected)
         }
     }
-}
-
-/// Archived tests no longer applicable
-final class GHLeafIssuesTestArchive: XCTestCase {
 
     // https://github.com/vapor/leaf/issues/127
-    // TODO: This commenting style is not used anymore but needs a replacement
-    func _testGH127Inline() throws {
+    func testGH127Inline() throws {
         do {
             let template = """
             <html>
             <head>
-            <title></title>#// Translate all copy!!!!!
-            <style>
-            """
-            let expected = """
-            <html>
-            <head>
-            <title></title>
-            <style>
-            """
-            try XCTAssertEqual(render(template, ["a": "a"]), expected)
-        }
-    }
-    
-    // TODO: This commenting style is not used anymore but needs a replacement
-    func _testGH127SingleLine() throws {
-        do {
-            let template = """
-            <html>
-            <head>
-            <title></title>
-            #// Translate all copy!!!!!
+            <title></title>#comment: Translate all copy!!!!! #endcomment
             <style>
             """
             let expected = """

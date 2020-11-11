@@ -1,6 +1,3 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
 // MARK: `LeafLexer` Summary
 
 /// `LeafLexer` is an opaque structure that wraps the lexing logic of Leaf-Kit.
@@ -28,7 +25,6 @@ internal struct LeafLexer {
     /// - Throws: `LexerError`
     /// - Returns: An array of fully built `LeafTokens`, to then be parsed by `LeafParser`
     mutating func lex() throws -> [LeafToken] {
-        // FIXME: Adjust to keep lexing if `try` throws a recoverable LexerError
         while let next = try self.nextToken() {
             lexed.append(next)
             offset += 1

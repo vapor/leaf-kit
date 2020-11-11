@@ -1,6 +1,3 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
 // MARK: `LeafToken` Summary
 
 /// `LeafToken` represents the first stage of parsing Leaf templates - a raw file/bytestream `String`
@@ -24,8 +21,6 @@
 /// - `.stringLiteral`: Does not appear to be used anywhere?
 /// - `.whitespace`: Only generated when not at top-level, and unclear why maintaining it is useful
 ///
-/// # TODO
-/// - LeafTokens would ideally also store the range of their location in the original source template
 
 internal enum LeafToken: CustomStringConvertible, Equatable  {
     /// Holds a variable-length string of data that will be passed through with no processing

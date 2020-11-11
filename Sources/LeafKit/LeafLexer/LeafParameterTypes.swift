@@ -1,10 +1,4 @@
-// MARK: Subject to change prior to 1.0.0 release
-
 // MARK: - `Parameter` Token Type
-
-// FIXME: Can't be internal because of `Syntax`
-/// - Does `stringLiteral` need to exist - should `Constant` have a `String` case or should
-///   `Constant` be renamed `Numeric` for clarity?
 
 /// An associated value enum holding data, objects or values usable as parameters to a `.tag`
 public enum Parameter: Equatable, CustomStringConvertible {
@@ -158,10 +152,6 @@ public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterab
 }
 
 /// An integer or double constant value parameter (eg `1_000`, `-42.0`)
-///
-/// #TODO
-/// - This is somewhat confusingly named. Possibly would be better to rename as `Numeric`, since
-///   `stringLiteral` *IS* a constant type, or else `stringLiteral` should be moved into this.
 public enum Constant: CustomStringConvertible, Equatable {
     case int(Int)
     case double(Double)

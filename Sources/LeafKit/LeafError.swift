@@ -1,13 +1,8 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
-
 // MARK: `LeafError` Summary
 
 /// `LeafError` reports errors during the template rendering process, wrapping more specific
 /// errors if necessary during Lexing and Parsing stages.
 ///
-/// #TODO
-/// - Implement a ParserError subtype
 public struct LeafError: Error {
     /// Possible cases of a LeafError.Reason, with applicable stored values where useful for the type
     public enum Reason {
@@ -40,9 +35,6 @@ public struct LeafError: Error {
         // MARK: Wrapped Errors related to Lexing or Parsing
         /// Errors due to malformed template syntax or grammar
         case lexerError(LexerError)
-        /// Errors due to malformed template syntax or grammar
-        // FIXME: Implement a specific ParserError type
-        // case parserError(ParserError)
         
         // MARK: Errors lacking specificity
         /// Errors from protocol adherents that do not support newer features
@@ -170,7 +162,3 @@ public struct LexerError: Error {
         return "\"\(name)\": \(reason) - \(line):\(column)"
     }
 }
-
-// MARK: - `ParserError` Summary (Wrapped by LeafError)
-// FIXME: Implement a specific ParserError type
-/// `ParserError` reports errors during the stage.

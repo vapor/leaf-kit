@@ -1,7 +1,5 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
+import NIO
 
-// FIXME: Can't be internal because of `Syntax`
 public indirect enum ParameterDeclaration: CustomStringConvertible {
     case parameter(Parameter)
     case expression([ParameterDeclaration])

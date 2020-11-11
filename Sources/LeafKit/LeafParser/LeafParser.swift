@@ -1,5 +1,4 @@
-// MARK: Subject to change prior to 1.0.0 release
-// MARK: -
+import NIO
 
 extension String: Error {}
 
@@ -126,7 +125,6 @@ internal struct LeafParser {
     }
 
     // once a tag has started, it is terminated by `.raw`, `.parameters`, or `.tagBodyIndicator`
-    // FIXME: This is a blind parsing of `.tagBodyIndicator`
     // ------
     // A tag MAY NOT expect any body given a certain number of parameters, and this will blindly
     // consume colons in that event when it's not inteded; eg `#(variable):` CANNOT expect a body
@@ -208,7 +206,6 @@ internal struct LeafParser {
                     switch p {
                         case .tag(let name):
                             guard peek() == .parametersStart else { throw "tags in parameter list MUST declare parameter list" }
-                            // TODO: remove recursion, in parameters only not so bad
                             let params = try readParameters()
                             // parameter tags not permitted to have bodies
                             group.append(.tag(.init(name: name, params: params, body: nil)))
@@ -318,7 +315,6 @@ internal struct LeafParser {
                                 default:
                                     throw "unsupported parameter \(p)"
                             }
-                            // todo: can prevent some duplication here
                         case .expression(let e):
                             return .expression(e)
                         case .tag(let t):

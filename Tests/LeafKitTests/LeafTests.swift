@@ -3,34 +3,19 @@ import XCTest
 
 final class LeafTests: XCTestCase {
 
-    // currently not supported.. discussion ongoing
-    func _testInterpolated() throws {
-        let template = """
-        <p>#("foo: #(foo)")</p>
-        """
-        try XCTAssertEqual(render(template, ["foo": "bar"]), "<p>foo: bar</p>")
-    }
-
     // conversation ongoing
-    func _testCommentSugar() throws {
+    func testCommentSugar() throws {
         let template = """
         #("foo")
-        #// this is a comment!
-        bar
-        """
-
-        let multilineTemplate = """
-        #("foo")
-        #/*
+        #comment:
             this is a comment!
-        */
+        #endcomment
         bar
         """
-        try XCTAssertEqual(render(template), "foo\nbar")
-        try XCTAssertEqual(render(multilineTemplate), "foo\n\nbar")
+        try XCTAssertEqual(render(template), "foo\n\nbar")
     }
 
-    // conversation ongoing
+    // TODO - add in future release
     func _testHashtag() throws {
         let template = """
         #("hi") #thisIsNotATag...
@@ -207,8 +192,7 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, [:]), expected)
     }
 
-    // TODO: Reimplement #count
-    func _testCount() throws {
+    func testCount() throws {
         let template = """
         count: #count(array)
         """
@@ -218,19 +202,7 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["array": ["","","",""]]), expected)
     }
 
-    // TODO: Are set/get totally deprecated?
-    func _testNestedSet() throws {
-        let template = """
-        #if(a){#set("title"){A}}title: #get(title)
-        """
-        let expected = """
-        title: A
-        """
-        try XCTAssertEqual(render(template, ["a": true]), expected)
-    }
-
-    // TODO: Reimplement #date
-    func _testDateFormat() throws {
+    func testDateFormat() throws {
         let template = """
         Date: #date(foo, "yyyy-MM-dd")
         """
@@ -242,75 +214,40 @@ final class LeafTests: XCTestCase {
 
     }
 
-//    func testEmptyForLoop() throws {
-//        let template = """
-//        #for(category in categories) {
-//            <a class=“dropdown-item” href=“#”>#(category.name)</a>
-//        }
-//        """
-//        let expected = """
-//        """
-//
-//        struct Category: Encodable {
-//            var name: String
-//        }
-//
-//        struct Context: Encodable {
-//            var categories: [Category]
-//        }
-//
-//        let context = Context(categories: [])
-//        let data = try TemplateDataEncoder().testEncode(context)
-//        try XCTAssertEqual(render(template, data), expected)
-//
-//    }
-//
-//    func testKeyEqual() throws {
-//        let template = """
-//        #if(title == "foo") {it's foo} else {not foo}
-//        """
-//        let expected = """
-//        it's foo
-//        """
-//
-//        struct Stuff: Encodable {
-//            var title: String
-//        }
-//
-//        let context = Stuff(title: "foo")
-//        let data = try TemplateDataEncoder().testEncode(context)
-//        try XCTAssertEqual(render(template, data), expected)
-//    }
+    func testEmptyForLoop() throws {
+        let template = """
+        #for(category in categories):
+            <a class=“dropdown-item” href=“#”>#(category.name)</a>
+        #endfor
+        """
+        let expected = """
+        """
 
-    // TODO: WHY is whitespace not allowed here?!?
-    func _testInvalidForSyntax() throws {
-        let data: [String: LeafData] = ["names": LeafData(arrayLiteral: "foo")]
-        do {
-            _ = try render("#for( name in names):Hi#endfor", data)
-            XCTFail("Whitespace not allowed here")
-        } catch {
-            XCTAssert("\(error)".contains("space not allowed"))
+        struct Category: Encodable {
+            var name: String
         }
 
-        do {
-            _ = try render("#for(name in names ):Hi#endfor", data)
-            XCTFail("Whitespace not allowed here")
-        } catch {
-            XCTAssert("\(error)".contains("space not allowed"))
+        struct Context: Encodable {
+            var categories: [Category]
+        }
+        
+        try XCTAssertEqual(render(template, ["categories": []]), expected)
+
+    }
+
+    func testKeyEqual() throws {
+        let template = """
+        #if(title == "foo"):it's foo#else:not foo#endif
+        """
+        let expected = """
+        it's foo
+        """
+
+        struct Stuff: Encodable {
+            var title: String
         }
 
-        do {
-            _ = try render("#for( name in names ):Hi#endfor", data)
-            XCTFail("Whitespace not allowed here")
-        } catch {
-            XCTAssert("\(error)".contains("space not allowed"))
-        }
-
-        do {
-            _ = try render("#for(name in names):Hi#endfor", data)
-        } catch {
-            XCTFail("\(error)")
-        }
+        try XCTAssertEqual(render(template, ["title": "foo"]), expected)
     }
 
     func testLoopIndices() throws {
