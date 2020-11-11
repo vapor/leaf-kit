@@ -89,26 +89,4 @@ final class GHLeafIssuesTest: XCTestCase {
             try XCTAssertEqual(render(template, ["a": "a"]), expected)
         }
     }
-
-    func testGH127SingleLine() throws {
-        do {
-            let template = """
-            <html>
-            <head>
-            <title></title>
-            #comment:
-            Translate all copy!!!!!
-            #endcomment
-            <style>
-            """
-            let expected = """
-            <html>
-            <head>
-            <title></title>
-
-            <style>
-            """
-            try XCTAssertEqual(render(template, ["a": "a"]), expected)
-        }
-    }
 }
