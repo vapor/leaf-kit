@@ -124,7 +124,7 @@ public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterab
     
     internal static let precedenceMap: [(check: ((LeafOperator) -> Bool), infixed: Bool)] = [
         (check: { $0 == .not }, infixed: false), // unaryNot
-        (check: { $0 == .multiply || $0 == .divide }, infixed: true), // Mult/Div
+        (check: { $0 == .multiply || $0 == .divide || $0 == .modulo }, infixed: true), // Mult/Div/Mod
         (check: { $0 == .plus || $0 == .minus }, infixed: true), // Plus/Minus
         (check: { $0 == .greater || $0 == .greaterOrEqual }, infixed: true), // >, >=
         (check: { $0 == .lesser || $0 == .lesserOrEqual }, infixed: true), // <, <=
@@ -146,7 +146,7 @@ public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterab
                            lesserOrEqual, and, or, plus, minus, divide,
                            multiply, modulo, assignment, nilCoalesce,
                            scopeMember, subOpen],
-        "unavailable"   : [modulo, assignment, nilCoalesce, evaluate, scopeRoot,
+        "unavailable"   : [assignment, nilCoalesce, evaluate, scopeRoot,
                            scopeMember, subOpen, subClose]
     ]
 }

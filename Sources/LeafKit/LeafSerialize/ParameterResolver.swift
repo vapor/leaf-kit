@@ -180,9 +180,10 @@ internal struct ParameterResolver {
                 return try multiply(lhs: lhs, rhs: rhs)
             case .divide:
                 return try divide(lhs: lhs, rhs: rhs)
+            case .modulo:
+                return try modulo(lhs: lhs, rhs: rhs)
             case .assignment: throw "Future feature"
             case .nilCoalesce: throw "Future feature"
-            case .modulo: throw "Future feature"
             case .evaluate: throw "Future feature"
             case .scopeRoot: throw "Future feature"
             case .scopeMember: throw "Future feature"
@@ -303,7 +304,30 @@ internal struct ParameterResolver {
                 let l = load()
                 return try divide(lhs: l, rhs: rhs)
             case .data, .array, .string, .dictionary, .bool:
-                throw "unable to multiply this type `\(lhs)`"
+                throw "unable to divide this type `\(lhs)`"
+        }
+    }
+    
+    private func modulo(lhs: LeafData, rhs: LeafData) throws -> LeafData {
+        switch lhs.storage {
+            case .optional(_, _): throw "Optional unwrapping not possible yet"
+            case .int(let i):
+                // if either is double, be double
+                if case .double(let d) = rhs.storage {
+                    let product = Double(i).truncatingRemainder(dividingBy: d)
+                    return .double(product)
+                } else {
+                    let rhs = rhs.int ?? 0
+                    return .int(i % rhs)
+                }
+            case .double(let d):
+                let rhs = rhs.double ?? 0
+                return .double(d.truncatingRemainder(dividingBy: rhs))
+            case .lazy(let load, _, _):
+                let l = load()
+                return try modulo(lhs: l, rhs: rhs)
+            case .data, .array, .string, .dictionary, .bool:
+                throw "unable to apply modulo on this type `\(lhs)`"
         }
     }
 
