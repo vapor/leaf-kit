@@ -73,4 +73,24 @@ final class GHLeafKitIssuesTest: XCTestCase {
         let page = try! TestRenderer(sources: .singleSource(test)).render(path: "a", context: ["challenges":["","",""]]).wait()
             XCTAssertEqual(page.string, expected)
     }
+    
+    /// https://github.com/vapor/leaf-kit/issues/87
+    func testGH87() {
+        do {
+            let template = """
+            #if(2 % 2 == 0):hi#endif #if(0 == 4 % 2):there#endif
+            """
+            let expected = "hi there"
+            try XCTAssertEqual(render(template, ["a": "a"]), expected)
+        }
+        
+        // test with double values
+        do {
+            let template = """
+            #if(5.0 % 2.0 == 1.0):hi#endif #if(4.0 % 2.0 == 0.0):there#endif
+            """
+            let expected = "hi there"
+            try XCTAssertEqual(render(template, ["a": "a"]), expected)
+        }
+    }
 }

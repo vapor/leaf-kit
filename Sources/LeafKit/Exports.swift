@@ -35,6 +35,7 @@ extension Character {
                  .minus,
                  .star,
                  .forwardSlash,
+                 .percent,
                  .equals,
                  .exclamation,
                  .lessThan,
@@ -101,6 +102,7 @@ extension Character {
     static let minus = "-".first!
     static let star = "*".first!
     static let forwardSlash = "/".first!
+    static let percent = "%".first!
     static let equals = "=".first!
     static let exclamation = "!".first!
     static let lessThan = "<".first!
