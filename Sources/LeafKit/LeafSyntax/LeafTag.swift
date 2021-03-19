@@ -10,7 +10,8 @@ public var defaultTags: [String: LeafTag] = [
     "capitalized": Capitalized(),
     "contains": Contains(),
     "date": DateTag(),
-    "count": Count()
+    "count": Count(),
+    "comment": Comment()
 ]
 
 struct Lowercased: LeafTag {
@@ -85,5 +86,11 @@ struct Count: LeafTag {
         } else {
             throw "Unable to convert count parameter to LeafData collection"
         }
+    }
+}
+
+struct Comment: LeafTag {
+    func render(_ ctx: LeafContext) throws -> LeafData {
+        LeafData.trueNil
     }
 }

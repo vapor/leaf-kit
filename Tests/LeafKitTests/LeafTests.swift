@@ -15,8 +15,7 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template), "foo\n\nbar")
     }
 
-    // TODO - add in future release
-    func _testHashtag() throws {
+    func testHashtag() throws {
         let template = """
         #("hi") #thisIsNotATag...
         """
