@@ -76,7 +76,7 @@ internal struct LeafSerializer {
             body: tag.body,
             userInfo: self.userInfo
         )
-        let leafData = try self.tags[tag.name]?.render(sub) ?? LeafData.trueNil
+        let leafData = try self.tags[tag.name]?.render(sub) ?? LeafData("#\(tag.name)")
         try? leafData.serialize(buffer: &self.buffer)
     }
 
