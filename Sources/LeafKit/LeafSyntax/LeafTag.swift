@@ -1,10 +1,15 @@
 import Foundation
 
+/// Create custom tags by conforming to this protocol and registering them.
 public protocol LeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData
 }
 
+/// Tags conforming to this protocol do not get their contents HTML-escaped.
+public protocol UnsafeUnescapedLeafTag: LeafTag {}
+
 public var defaultTags: [String: LeafTag] = [
+    "unsafeHTML": UnsafeHTML(),
     "lowercased": Lowercased(),
     "uppercased": Uppercased(),
     "capitalized": Capitalized(),
@@ -13,6 +18,15 @@ public var defaultTags: [String: LeafTag] = [
     "count": Count(),
     "comment": Comment()
 ]
+
+struct UnsafeHTML: UnsafeUnescapedLeafTag {
+    func render(_ ctx: LeafContext) throws -> LeafData {
+        guard let str = ctx.parameters.first?.string else {
+            throw "unable to unsafe unexpected data"
+        }
+        return .init(.string(str))
+    }
+}
 
 struct Lowercased: LeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData {

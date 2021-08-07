@@ -274,6 +274,15 @@ public struct LeafData: CustomStringConvertible,
             default: return nil
         }
     }
+
+    /// Return a HTML-escaped version of this data if it can be converted to a string.
+    internal func htmlEscaped() -> LeafData {
+        guard let string = string else {
+            return self
+        }
+
+        return string.htmlEscaped().leafData
+    }
 }
 
 // MARK: - Data Converter Static Mapping
