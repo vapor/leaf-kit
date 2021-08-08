@@ -77,17 +77,17 @@ internal struct LeafSerializer {
             userInfo: self.userInfo
         )
 
-        guard let tag = self.tags[tag.name] else {
+        guard let foundTag = self.tags[tag.name] else {
             try? LeafData("#\(tag.name)").serialize(buffer: &self.buffer)
             return
         }
 
         let leafData: LeafData
 
-        if tag is UnsafeUnescapedLeafTag {
-            leafData = try tag.render(sub)
+        if foundTag is UnsafeUnescapedLeafTag {
+            leafData = try foundTag.render(sub)
         } else {
-            leafData = try tag.render(sub).htmlEscaped()
+            leafData = try foundTag.render(sub).htmlEscaped()
         }
 
         try? leafData.serialize(buffer: &self.buffer)
