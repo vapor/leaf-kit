@@ -7,7 +7,9 @@ internal struct LeafSerializer {
         ast: [Syntax],
         context data: [String: LeafData],
         tags: [String: LeafTag] = defaultTags,
-        userInfo: [AnyHashable: Any] = [:]
+        userInfo: [AnyHashable: Any] = [:],
+        ignoreUnfoundImports: Bool
+        
     ) {
         self.ast = ast
         self.offset = 0
@@ -15,6 +17,7 @@ internal struct LeafSerializer {
         self.data = data
         self.tags = tags
         self.userInfo = userInfo
+        self.ignoreUnfoundImports = ignoreUnfoundImports
     }
     
     mutating func serialize() throws -> ByteBuffer {
@@ -34,6 +37,7 @@ internal struct LeafSerializer {
     private var data: [String: LeafData]
     private let tags: [String: LeafTag]
     private let userInfo: [AnyHashable: Any]
+    private let ignoreUnfoundImports: Bool
 
     private mutating func serialize(_ syntax: Syntax) throws {
         switch syntax {
@@ -42,8 +46,12 @@ internal struct LeafSerializer {
             case .conditional(let c):  try serialize(c)
             case .loop(let loop):      try serialize(loop)
             case .expression(let exp): try serialize(expression: exp)
-            case .import, .extend, .export:
+            case .extend, .export:
                 throw "\(syntax) should have been resolved BEFORE serialization"
+            case .import:
+                if (!self.ignoreUnfoundImports) {
+                    throw "\(syntax) should have been resolved BEFORE serialization"
+                }
         }
     }
 
@@ -130,7 +138,8 @@ internal struct LeafSerializer {
                 ast: loop.body,
                 context: innerContext,
                 tags: self.tags,
-                userInfo: self.userInfo
+                userInfo: self.userInfo,
+                ignoreUnfoundImports: self.ignoreUnfoundImports
             )
             var loopBody = try serializer.serialize()
             self.buffer.writeBuffer(&loopBody)

@@ -115,7 +115,8 @@ public final class LeafRenderer {
             ast: doc.ast,
             context: context,
             tags: self.tags,
-            userInfo: self.userInfo
+            userInfo: self.userInfo,
+            ignoreUnfoundImports: self.configuration._ignoreUnfoundImports
         )
         return try serializer.serialize()
     }

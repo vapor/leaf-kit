@@ -23,7 +23,7 @@ final class SerializerTests: XCTestCase {
             ]))
         ]))
 
-        var serializer = LeafSerializer(ast: syntax, context: ["people": people])
+        var serializer = LeafSerializer(ast: syntax, context: ["people": people], ignoreUnfoundImports: false)
         var serialized = try serializer.serialize()
         let str = (serialized.readString(length: serialized.readableBytes) ?? "<err>")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,7 +58,7 @@ final class SerializerTests: XCTestCase {
             ]))
         ]))
 
-        var serializer = LeafSerializer(ast: syntax, context: ["people": people])
+        var serializer = LeafSerializer(ast: syntax, context: ["people": people], ignoreUnfoundImports: false)
 
         XCTAssertThrowsError(try serializer.serialize()) { error in
             XCTAssertEqual("\(error)", "expected dictionary at key: person.profile")
