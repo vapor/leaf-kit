@@ -52,7 +52,7 @@ internal struct LeafSerializer {
         guard resolved.count == 1, let leafData = resolved.first else {
             throw "expressions should resolve to single value"
         }
-        try? leafData.serialize(buffer: &self.buffer)
+        try? leafData.htmlEscaped().serialize(buffer: &self.buffer)
     }
 
     private mutating func serialize(body: [Syntax]) throws {
@@ -76,11 +76,23 @@ internal struct LeafSerializer {
             body: tag.body,
             userInfo: self.userInfo
         )
-        let leafData = try self.tags[tag.name]?.render(sub) ?? LeafData.trueNil
+
+        guard let foundTag = self.tags[tag.name] else {
+            try? LeafData("#\(tag.name)").serialize(buffer: &self.buffer)
+            return
+        }
+
+        let leafData: LeafData
+
+        if foundTag is UnsafeUnescapedLeafTag {
+            leafData = try foundTag.render(sub)
+        } else {
+            leafData = try foundTag.render(sub).htmlEscaped()
+        }
+
         try? leafData.serialize(buffer: &self.buffer)
     }
 
- 
 
     private mutating func serialize(_ loop: Syntax.Loop) throws {
         let finalData: [String: LeafData]
