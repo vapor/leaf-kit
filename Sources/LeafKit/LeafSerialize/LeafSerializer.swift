@@ -46,12 +46,14 @@ internal struct LeafSerializer {
             case .conditional(let c):  try serialize(c)
             case .loop(let loop):      try serialize(loop)
             case .expression(let exp): try serialize(expression: exp)
+            case .import:
+                if (self.ignoreUnfoundImports) {
+                    break
+                } else {
+                    fallthrough
+                }
             case .extend, .export:
                 throw "\(syntax) should have been resolved BEFORE serialization"
-            case .import:
-                if (!self.ignoreUnfoundImports) {
-                    throw "\(syntax) should have been resolved BEFORE serialization"
-                }
         }
     }
 
