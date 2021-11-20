@@ -93,4 +93,34 @@ final class GHLeafKitIssuesTest: XCTestCase {
             try XCTAssertEqual(render(template, ["a": "a"]), expected)
         }
     }
+    
+    /// https://github.com/vapor/leaf-kit/issues/84
+    func testGH84() {
+        var test = TestFiles()
+        test.files["/base.leaf"] = """
+        <body>
+            Unfound import test:#import("body")
+        </body>
+        """
+        test.files["/page.leaf"] = """
+        #extend("base"):
+        #endextend
+        """
+
+        let expected = """
+        <body>
+            Unfound import test:
+        </body>
+        """
+
+        // Page renders as expected. Unresolved import is ignored.
+        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "page").wait()
+        XCTAssertEqual(page.string, expected)
+        
+        // Page rendering throws expected error
+        let config = LeafConfiguration(rootDirectory: "/", tagIndicator: Character.tagIndicator, ignoreUnfoundImports: false)
+        XCTAssertThrowsError(try TestRenderer(configuration: config, sources: .singleSource(test)).render(path: "page").wait()) { error in
+            XCTAssertEqual("\(error)", "import(\"body\") should have been resolved BEFORE serialization")
+        }
+    }
 }

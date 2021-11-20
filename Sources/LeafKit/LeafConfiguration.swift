@@ -5,26 +5,40 @@ import Foundation
 /// - Guards setting the global tagIndicator (default `#`).
 public struct LeafConfiguration {
     
-    /// Initialize Leaf with the default tagIndicator `#`
+    /// Initialize Leaf with the default tagIndicator `#` and unfound imports throwing an exception
     /// - Parameter rootDirectory: Default directory where templates will be found
     public init(rootDirectory: String) {
-        self.init(rootDirectory: rootDirectory, tagIndicator: .octothorpe)
+        self.init(rootDirectory: rootDirectory, tagIndicator: .octothorpe, ignoreUnfoundImports: true)
     }
     
     /// Initialize Leaf with a specific tagIndicator
     /// - Parameter rootDirectory: Default directory where templates will be found
     /// - Parameter tagIndicator: Unique tagIndicator - may only be set once.
     public init(rootDirectory: String, tagIndicator: Character) {
+        self.init(rootDirectory: rootDirectory, tagIndicator: tagIndicator, ignoreUnfoundImports: true)
+    }
+    
+    /// Initialize Leaf with a specific tagIndicator and custom behaviour for unfound imports
+    /// - Parameter rootDirectory: Default directory where templates will be found
+    /// - Parameter tagIndicator: Unique tagIndicator - may only be set once.
+    /// - Parameter ignoreUnfoundImports: Ignore unfound imports - may only be set once.
+    public init(rootDirectory: String, tagIndicator: Character, ignoreUnfoundImports: Bool) {
         if !Self.started {
             Character.tagIndicator = tagIndicator
             Self.started = true
         }
         self._rootDirectory = rootDirectory
+        self._ignoreUnfoundImports = ignoreUnfoundImports
     }
     
     public var rootDirectory: String {
         mutating get { accessed = true; return _rootDirectory }
         set { _rootDirectory = newValue }
+    }
+    
+    public var ignoreUnfoundImports: Bool {
+        mutating get { accessed = true; return _ignoreUnfoundImports }
+        set { _ignoreUnfoundImports = newValue }
     }
 
     public static var encoding: String.Encoding {
@@ -79,6 +93,10 @@ public struct LeafConfiguration {
     
     // MARK: - Internal/Private Only
     internal var _rootDirectory: String {
+        willSet { assert(!accessed, "Changing property after LeafConfiguration has been read has no effect") }
+    }
+    
+    internal var _ignoreUnfoundImports: Bool {
         willSet { assert(!accessed, "Changing property after LeafConfiguration has been read has no effect") }
     }
     
