@@ -80,6 +80,10 @@ public final class LeafRenderer {
         }
     }
     
+    public func render(path: String, context: [String: LeafData]) async throws -> ByteBuffer {
+        try await render(path: path, context: context).get()
+    }
+    
     
     // MARK: - Internal Only
     /// Temporary testing interface
