@@ -47,15 +47,15 @@ public enum Parameter: Equatable, CustomStringConvertible {
 public enum LeafKeyword: String, Equatable {
     // MARK: Public - Cases
     
-    //               Eval -> Bool / Other
-    //            -----------------------
-    case `in`,    //
-         `true`,  //   X       T
-         `false`, //   X       F
-         `self`,  //   X             X
-         `nil`,   //   X       F     X
-         `yes`,   //   X       T
-         `no`     //   X       F
+    //                      Eval -> Bool / Other
+    //                   -----------------------
+    case `in`,           //
+         `true`,         //   X       T
+         `false`,        //   X       F
+         this = "self",  //   X             X
+         `nil`,          //   X       F     X
+         `yes`,          //   X       T
+         `no`            //   X       F
 
     // MARK: Internal Only
     
@@ -64,12 +64,17 @@ public enum LeafKeyword: String, Equatable {
     internal var isBooleanValued: Bool { [.true, .false, .nil, .yes, .no].contains(self) }
     // Value or value-indicating returns
     internal var `nil`: Bool { self == .nil }
-    internal var identity: Bool { self == .`self` }
+    internal var identity: Bool { self == .this }
     internal var bool: Bool? {
         guard isBooleanValued else { return nil }
         return [.true, .yes].contains(self)
     }
 }
+
+extension LeafKeyword {
+     @available(*, deprecated, message: "Use .this instead")
+     static var `self`: Self { this }
+ }
 
 // MARK: - Operator Symbols
 

@@ -67,7 +67,7 @@ internal struct ParameterResolver {
                 return data[keyPath: v] ?? .trueNil
             case .keyword(let k):
                 switch k {
-                    case .self: return .init(.dictionary(data))
+                    case .this: return .init(.dictionary(data))
                     case .nil: return .trueNil
                     case .true, .yes: return .init(.bool(true))
                     case .false, .no: return .init(.bool(false))
