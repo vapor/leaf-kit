@@ -2,28 +2,19 @@ name: test
 on:
 - pull_request
 jobs:
-  leaf-kit_xenial:
-    container: 
-      image: vapor/swift:5.2-xenial
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v1
-    - run: swift test --enable-test-discovery --sanitize=thread
-  leaf-kit_bionic:
-    container: 
-      image: vapor/swift:5.2-bionic
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v1
-    - run: swift test --enable-test-discovery --sanitize=thread
+  unit-tests:
+     uses: vapor/ci/.github/workflows/run-unit-tests.yml@reusable-workflows
+     with:
+       with_coverage: false
+       with_tsan: true
   leaf:
     container: 
-      image: vapor/swift:5.2
+      image: swift:5.6-focal
     runs-on: ubuntu-latest
     steps:
     - run: git clone -b main https://github.com/vapor/leaf.git
       working-directory: ./
     - run: swift package edit leaf-kit --revision ${{ github.sha }}
       working-directory: ./leaf
-    - run: swift test --enable-test-discovery --sanitize=thread
+    - run: swift test --sanitize=thread
       working-directory: ./leaf
