@@ -13,11 +13,20 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.2.0"),
     ],
     targets: [
-        .target(name: "LeafKit", dependencies: [
-            .product(name: "NIO", package: "swift-nio"),
-        ]),
-        .testTarget(name: "LeafKitTests", dependencies: [
-            .target(name: "LeafKit"),
-        ]),
+        .target(
+            name: "LeafKit",
+            dependencies: [
+                .product(name: "NIO", package: "swift-nio"),
+            ]
+        ),
+        .testTarget(
+            name: "LeafKitTests",
+            dependencies: [
+                .target(name: "LeafKit"),
+            ],
+            resources: [
+                .copy("Templates")
+            ]
+        ),
     ]
 )

@@ -64,4 +64,31 @@ final class SerializerTests: XCTestCase {
             XCTAssertEqual("\(error)", "expected dictionary at key: person.profile")
         }
     }
+    
+    func testDictionary() throws {
+        let input = """
+        #for(unit in units):
+        ProductType: #(unit.productType)
+        Units: #(unit.units)
+        #endfor
+        """
+
+        let syntax = try! parse(input)
+        let units = LeafData(.dictionary([
+            UUID().uuidString: LeafData(.dictionary([
+                "productType": "Commercial",
+                "units": 2
+            ]))
+        ]))
+
+        var serializer = LeafSerializer(ast: syntax, context: ["units": units], ignoreUnfoundImports: false)
+        var serialized = try serializer.serialize()
+        let str = (serialized.readString(length: serialized.readableBytes) ?? "<err>")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(str, """
+        ProductType: Commercial
+        Units: 2
+        """)
+
+    }
 }

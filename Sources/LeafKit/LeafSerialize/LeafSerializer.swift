@@ -124,27 +124,50 @@ internal struct LeafSerializer {
             finalData = data
         }
 
-        guard let array = finalData[String(pathComponents.last!)]?.array else {
-            throw "expected array at key: \(loop.array)"
-        }
+        if let dictionary = finalData[String(pathComponents.last!)]?.dictionary {
+            let keys = dictionary.keys.sorted() // make array
+            for (idx, key) in keys.enumerated() {
+                var innerContext = self.data
+                let item = dictionary[key]!
 
-        for (idx, item) in array.enumerated() {
-            var innerContext = self.data
+                innerContext["isFirst"] = .bool(idx == keys.startIndex)
+                innerContext["isLast"] = .bool(idx == keys.index(before: keys.endIndex))
+                innerContext["index"] = .int(idx)
+                innerContext["key"] = .string(key)
 
-            innerContext["isFirst"] = .bool(idx == array.startIndex)
-            innerContext["isLast"] = .bool(idx == array.index(before: array.endIndex))
-            innerContext["index"] = .int(idx)
-            innerContext[loop.item] = item
+                innerContext[loop.item] = item
 
-            var serializer = LeafSerializer(
-                ast: loop.body,
-                context: innerContext,
-                tags: self.tags,
-                userInfo: self.userInfo,
-                ignoreUnfoundImports: self.ignoreUnfoundImports
-            )
-            var loopBody = try serializer.serialize()
-            self.buffer.writeBuffer(&loopBody)
+                var serializer = LeafSerializer(
+                    ast: loop.body,
+                    context: innerContext,
+                    tags: self.tags,
+                    userInfo: self.userInfo,
+                    ignoreUnfoundImports: self.ignoreUnfoundImports
+                )
+                var loopBody = try serializer.serialize()
+                self.buffer.writeBuffer(&loopBody)
+            }
+        } else if let array = finalData[String(pathComponents.last!)]?.array {
+            for (idx, item) in array.enumerated() {
+                var innerContext = self.data
+
+                innerContext["isFirst"] = .bool(idx == array.startIndex)
+                innerContext["isLast"] = .bool(idx == array.index(before: array.endIndex))
+                innerContext["index"] = .int(idx)
+                innerContext[loop.item] = item
+
+                var serializer = LeafSerializer(
+                    ast: loop.body,
+                    context: innerContext,
+                    tags: self.tags,
+                    userInfo: self.userInfo,
+                    ignoreUnfoundImports: self.ignoreUnfoundImports
+                )
+                var loopBody = try serializer.serialize()
+                self.buffer.writeBuffer(&loopBody)
+            }
+        } else {
+            throw "expected array or dictionary at key: \(loop.array)"
         }
     }
 
