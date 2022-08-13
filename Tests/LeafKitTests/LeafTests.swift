@@ -224,6 +224,34 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["parent": ["child": "Elizabeth"]]), expected)
     }
 
+    func testExtendWithSugar() throws {
+        let header = """
+        <h1>#(child)</h1>
+        """
+
+        let base = """
+        #extend("header", parent)
+        """
+
+        let expected = """
+        <h1>Elizabeth</h1>
+        """
+
+        let headerAST = try LeafAST(name: "header", ast: parse(header))
+        let baseAST = try LeafAST(name: "base", ast: parse(base))
+
+        let baseResolved = LeafAST(from: baseAST, referencing: ["header": headerAST])
+
+        var serializer = LeafSerializer(
+            ast: baseResolved.ast,
+            ignoreUnfoundImports: false
+        )
+        let view = try serializer.serialize(context: ["parent": ["child": "Elizabeth"]])
+        let str = view.getString(at: view.readerIndex, length: view.readableBytes) ?? ""
+
+        XCTAssertEqual(str, expected)
+    }
+
     func testEmptyForLoop() throws {
         let template = """
         #for(category in categories):

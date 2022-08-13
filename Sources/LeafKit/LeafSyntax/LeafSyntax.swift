@@ -183,11 +183,18 @@ extension Syntax {
     public struct Extend: BodiedSyntax {
         public let key: String
         public private(set) var exports: [String: Export]
+        public private(set) var context: [ParameterDeclaration]?
         private var externalsSet: Set<String>
         private var importSet: Set<String>
 
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
-            guard params.count == 1 else { throw "extend only supports single param \(params)" }
+            guard params.count == 1 || params.count == 2 else { throw "extend only supports one or two parameters \(params)" }
+            if params.count == 2 {
+                guard let context = With.extract(params: Array(params[1...])) else {
+                    throw "#extend's context requires a single expression"
+                }
+                self.context = context
+            }
             guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
             self.key = s
@@ -288,7 +295,11 @@ extension Syntax {
 
         func print(depth: Int) -> String {
             var print = indent(depth)
-            print += "extend(" + key.debugDescription + ")"
+            if let context = self.context {
+                print += "extend(" + key.debugDescription + "," + context.debugDescription + ")"
+            } else {
+                print += "extend(" + key.debugDescription + ")"
+            }
             if !exports.isEmpty {
                 print += ":\n" + exports.sorted { $0.key < $1.key } .map { $0.1.print(depth: depth + 1) } .joined(separator: "\n")
             }
