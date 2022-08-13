@@ -386,8 +386,8 @@ final class LeafKitTests: XCTestCase {
         let tokens = try lexer.lex()
         var parser = LeafParser(name: "nested-echo", tokens: tokens)
         let ast = try parser.parse()
-        var serializer = LeafSerializer(ast: ast, context: ["todo": ["title": "Leaf!"]], ignoreUnfoundImports: false)
-        let view = try serializer.serialize()
+        var serializer = LeafSerializer(ast: ast, ignoreUnfoundImports: false)
+        let view = try serializer.serialize(context: ["todo": ["title": "Leaf!"]])
         XCTAssertEqual(view.string, "Todo: Leaf!")
     }
 

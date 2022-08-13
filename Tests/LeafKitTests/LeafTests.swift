@@ -213,6 +213,17 @@ final class LeafTests: XCTestCase {
 
     }
 
+    func testWith() throws {
+        let template = """
+        #with(parent):#(child)#endwith
+        """
+        let expected = """
+        Elizabeth
+        """
+
+        try XCTAssertEqual(render(template, ["parent": ["child": "Elizabeth"]]), expected)
+    }
+
     func testEmptyForLoop() throws {
         let template = """
         #for(category in categories):
