@@ -8,21 +8,21 @@ import NIOConcurrencyHelpers
 final class GHLeafKitIssuesTest: XCTestCase {
     
     /// https://github.com/vapor/leaf-kit/issues/33
-    func testGH33() {
+    func testGH33() throws {
         var test = TestFiles()
         test.files["/base.leaf"] = """
         <body>
             Directly extended snippet
-            #extend("partials/picture.svg"):#endextend
+            #extend("partials/picture.svg")
             #import("body")
         </body>
         """
         test.files["/page.leaf"] = """
         #extend("base"):
             #export("body"):
-            Snippet added through export/import
-            #extend("partials/picture.svg"):#endextend
-        #endexport
+                Snippet added through export/import
+                #extend("partials/picture.svg")
+            #endexport
         #endextend
         """
         test.files["/partials/picture.svg"] = """
@@ -34,19 +34,19 @@ final class GHLeafKitIssuesTest: XCTestCase {
             Directly extended snippet
             <svg><path d="M0..."></svg>
             
-            Snippet added through export/import
-            <svg><path d="M0..."></svg>
-
+                Snippet added through export/import
+                <svg><path d="M0..."></svg>
+            
         </body>
         """
 
-        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "page").wait()
+        let page = try TestRenderer(sources: .singleSource(test)).render(path: "page").wait()
         XCTAssertEqual(page.string, expected)
     }
     
     
     /// https://github.com/vapor/leaf-kit/issues/50
-    func testGH50() {
+    func testGH50() throws {
         var test = TestFiles()
         test.files["/a.leaf"] = """
         #extend("a/b"):
@@ -70,32 +70,21 @@ final class GHLeafKitIssuesTest: XCTestCase {
 
         """
 
-        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "a", context: ["challenges":["","",""]]).wait()
+        let page = try TestRenderer(sources: .singleSource(test)).render(path: "a", context: ["challenges":["","",""]]).wait()
             XCTAssertEqual(page.string, expected)
     }
     
     /// https://github.com/vapor/leaf-kit/issues/87
-    func testGH87() {
-        do {
-            let template = """
-            #if(2 % 2 == 0):hi#endif #if(0 == 4 % 2):there#endif
-            """
-            let expected = "hi there"
-            try XCTAssertEqual(render(template, ["a": "a"]), expected)
-        }
-        
-        // test with double values
-        do {
-            let template = """
-            #if(5.0 % 2.0 == 1.0):hi#endif #if(4.0 % 2.0 == 0.0):there#endif
-            """
-            let expected = "hi there"
-            try XCTAssertEqual(render(template, ["a": "a"]), expected)
-        }
+    func testGH87() throws {
+        let template = """
+        #if((2 % 2) == 0):hi#endif #if(0 == (4 % 2)):there#endif
+        """
+        let expected = "hi there"
+        try XCTAssertEqual(render(template, ["a": "a"]), expected)
     }
     
     /// https://github.com/vapor/leaf-kit/issues/84
-    func testGH84() {
+    func testGH84() throws {
         var test = TestFiles()
         test.files["/base.leaf"] = """
         <body>
@@ -114,13 +103,14 @@ final class GHLeafKitIssuesTest: XCTestCase {
         """
 
         // Page renders as expected. Unresolved import is ignored.
-        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "page").wait()
+        let config1 = LeafConfiguration(rootDirectory: "/", tagIndicator: Character.tagIndicator, ignoreUnfoundImports: true)
+        let page = try TestRenderer(configuration: config1, sources: .singleSource(test)).render(path: "page").wait()
         XCTAssertEqual(page.string, expected)
         
         // Page rendering throws expected error
-        let config = LeafConfiguration(rootDirectory: "/", tagIndicator: Character.tagIndicator, ignoreUnfoundImports: false)
-        XCTAssertThrowsError(try TestRenderer(configuration: config, sources: .singleSource(test)).render(path: "page").wait()) { error in
-            XCTAssertEqual("\(error)", "import(\"body\") should have been resolved BEFORE serialization")
+        let config2 = LeafConfiguration(rootDirectory: "/", tagIndicator: Character.tagIndicator, ignoreUnfoundImports: false)
+        XCTAssertThrowsError(try TestRenderer(configuration: config2, sources: .singleSource(test)).render(path: "page").wait()) { error in
+            XCTAssertEqual((error as! LeafError).reason, .importNotFound(name: "body"))
         }
     }
 }

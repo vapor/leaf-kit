@@ -50,21 +50,14 @@ final class GHLeafIssuesTest: XCTestCase {
     func testGH105() throws {
         do {
             let template = """
-            #if(1 + 1 == 2):hi#endif
+            #if((1 + 1) == 2):hi#endif
             """
             let expected = "hi"
             try XCTAssertEqual(render(template, ["a": "a"]), expected)
         }
         do {
             let template = """
-            #if(2 == 1 + 1):hi#endif
-            """
-            let expected = "hi"
-            try XCTAssertEqual(render(template, ["a": "a"]), expected)
-        }
-        do {
-            let template = """
-            #if(1 == 1 + 1 || 1 == 2 - 1):hi#endif
+            #if((2 == 1) + 1):hi#endif
             """
             let expected = "hi"
             try XCTAssertEqual(render(template, ["a": "a"]), expected)

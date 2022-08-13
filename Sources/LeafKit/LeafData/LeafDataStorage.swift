@@ -146,7 +146,7 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
                  .dictionary(_) : data = try serialize()!.data(using: encoding)
             case .data(let d)   : data = d
         }
-        guard let validData = data else { throw "Serialization Error" }
+        guard let validData = data else { throw LeafError(.serializationError) }
         buffer.writeBytes(validData)
     }
     

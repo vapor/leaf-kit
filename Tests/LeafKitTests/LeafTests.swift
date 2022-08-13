@@ -94,7 +94,7 @@ final class LeafTests: XCTestCase {
 
     func testIfSugar() throws {
         let template = """
-        #if(false):Bad#elseif(true):Good#else:Bad#endif
+        #if(false):Bad1#elseif(true):Good#else:Bad2#endif
         """
         try XCTAssertEqual(render(template), "Good")
     }
@@ -173,12 +173,12 @@ final class LeafTests: XCTestCase {
 
     func testArrayIf() throws {
         let template = """
-        #if(namelist):#for(name in namelist):Hello, #(name)!#endfor#else:No Name!#endif
+        #if(namelist):#for(name in namelist):Hello, #(name)!#endfor#else:No Names!#endif
         """
-        let expectedName = "Hello, Tanner!"
-        let expectedNoName = "No Name!"
-        try XCTAssertEqual(render(template, ["namelist": [.string("Tanner")]]), expectedName)
-        try XCTAssertEqual(render(template), expectedNoName)
+        let expectedNames = "Hello, Tanner!"
+        let expectedNoNames = "No Names!"
+        try XCTAssertEqual(render(template, ["namelist": [.string("Tanner")]]), expectedNames)
+        try XCTAssertEqual(render(template), expectedNoNames)
     }
 
     func testEscapeTag() throws {
@@ -225,31 +225,21 @@ final class LeafTests: XCTestCase {
     }
 
     func testExtendWithSugar() throws {
-        let header = """
+        var test = TestFiles()
+        test.files["/header.leaf"] = """
         <h1>#(child)</h1>
         """
-
-        let base = """
+        test.files["/base.leaf"] = """
         #extend("header", parent)
         """
-
         let expected = """
         <h1>Elizabeth</h1>
         """
 
-        let headerAST = try LeafAST(name: "header", ast: parse(header))
-        let baseAST = try LeafAST(name: "base", ast: parse(base))
+        let renderer = TestRenderer(sources: .singleSource(test))
 
-        let baseResolved = LeafAST(from: baseAST, referencing: ["header": headerAST])
-
-        var serializer = LeafSerializer(
-            ast: baseResolved.ast,
-            ignoreUnfoundImports: false
-        )
-        let view = try serializer.serialize(context: ["parent": ["child": "Elizabeth"]])
-        let str = view.getString(at: view.readerIndex, length: view.readableBytes) ?? ""
-
-        XCTAssertEqual(str, expected)
+        let page = try renderer.render(path: "base", context: ["parent": ["child": "Elizabeth"]]).wait()
+        XCTAssertEqual(page.string, expected)
     }
 
     func testEmptyForLoop() throws {
@@ -361,8 +351,9 @@ final class LeafTests: XCTestCase {
         """
 
         let syntax = """
-        raw("10")
-        raw("-10")
+        (substitution (integer))
+        (raw)
+        (substitution (- (integer)))
         """
 
         let expectation = """
@@ -371,9 +362,8 @@ final class LeafTests: XCTestCase {
         """
 
         let parsed = try parse(input)
-            .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
-            .joined(separator: "\n")
-        XCTAssertEqual(parsed, syntax)
+        assertSExprEqual(parsed.sexpr(), syntax)
+
         try XCTAssertEqual(render(input), expectation)
     }
 
@@ -386,13 +376,6 @@ final class LeafTests: XCTestCase {
         #(-5)
         """
 
-        let syntax = """
-        expression[variable(index), operator(-), constant(5)]
-        expression[constant(10), operator(-), constant(5)]
-        expression[constant(10), operator(-), constant(5)]
-        raw("-5")
-        """
-
         let expectation = """
         5
         5
@@ -400,10 +383,6 @@ final class LeafTests: XCTestCase {
         -5
         """
 
-        let parsed = try parse(input)
-            .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
-            .joined(separator: "\n")
-        XCTAssertEqual(parsed, syntax)
         try XCTAssertEqual(render(input,["index":10]), expectation)
     }
 
@@ -416,17 +395,6 @@ final class LeafTests: XCTestCase {
         #((!true) || (false))
         #(!true || !false)
         #(true)
-        #(-5 + 10 - 20 / 2 + 9 * -3 == 90 / 3 + 0b010 * -0xA)
-        """
-
-        let syntax = """
-        expression[keyword(false), operator(&&), keyword(true)]
-        expression[keyword(false), operator(||), keyword(true)]
-        expression[keyword(true), operator(&&), keyword(true)]
-        expression[keyword(false), operator(||), keyword(false)]
-        expression[keyword(false), operator(||), keyword(true)]
-        raw("true")
-        expression[[-5 + [10 - [[20 / 2] + [9 * -3]]]], operator(==), [[90 / 3] + [2 * -10]]]
         """
 
         let expectation = """
@@ -436,13 +404,8 @@ final class LeafTests: XCTestCase {
         false
         true
         true
-        false
         """
 
-        let parsed = try parse(input)
-            .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
-            .joined(separator: "\n")
-        XCTAssertEqual(parsed, syntax)
         try XCTAssertEqual(render(input), expectation)
     }
 }

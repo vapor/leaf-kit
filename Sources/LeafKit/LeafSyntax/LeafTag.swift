@@ -20,6 +20,9 @@ public var defaultTags: [String: LeafTag] = [
     "dumpContext": DumpContext()
 ]
 
+extension String: Error {
+}
+
 struct UnsafeHTML: UnsafeUnescapedLeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData {
         guard let str = ctx.parameters.first?.string else {
