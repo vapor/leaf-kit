@@ -113,12 +113,11 @@ public final class LeafRenderer {
 
         var serializer = LeafSerializer(
             ast: doc.ast,
-            context: context,
             tags: self.tags,
             userInfo: self.userInfo,
             ignoreUnfoundImports: self.configuration._ignoreUnfoundImports
         )
-        return try serializer.serialize()
+        return try serializer.serialize(context: context)
     }
 
     // MARK: `expand()` obviated

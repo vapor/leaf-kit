@@ -333,6 +333,8 @@ internal struct LeafParser {
                     return try .export(.init(params, body: body))
                 case "extend":
                     return try .extend(.init(params, body: body))
+                case "with":
+                    return try .with(.init(params, body: body))
                 case "import":
                     guard body.isEmpty else { throw "import does not accept a body" }
                     return try .import(.init(params))

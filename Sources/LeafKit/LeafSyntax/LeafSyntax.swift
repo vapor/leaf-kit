@@ -8,6 +8,8 @@ public indirect enum Syntax {
     case expression([ParameterDeclaration])
     // MARK: .custom - Unmakeable, Semi-Readable
     case custom(CustomTagDeclaration)
+    // MARK: .with - Makeable, Entirely Readable
+    case with(With)
 
     // MARK: .conditional - Makeable, Entirely Readable
     case conditional(Conditional)
@@ -181,11 +183,18 @@ extension Syntax {
     public struct Extend: BodiedSyntax {
         public let key: String
         public private(set) var exports: [String: Export]
+        public private(set) var context: [ParameterDeclaration]?
         private var externalsSet: Set<String>
         private var importSet: Set<String>
 
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
-            guard params.count == 1 else { throw "extend only supports single param \(params)" }
+            guard params.count == 1 || params.count == 2 else { throw "extend only supports one or two parameters \(params)" }
+            if params.count == 2 {
+                guard let context = With.extract(params: Array(params[1...])) else {
+                    throw "#extend's context requires a single expression"
+                }
+                self.context = context
+            }
             guard case .parameter(let p) = params[0] else { throw "extend expected parameter type, got \(params[0])" }
             guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
             self.key = s
@@ -286,7 +295,11 @@ extension Syntax {
 
         func print(depth: Int) -> String {
             var print = indent(depth)
-            print += "extend(" + key.debugDescription + ")"
+            if let context = self.context {
+                print += "extend(" + key.debugDescription + "," + context.debugDescription + ")"
+            } else {
+                print += "extend(" + key.debugDescription + ")"
+            }
             if !exports.isEmpty {
                 print += ":\n" + exports.sorted { $0.key < $1.key } .map { $0.1.print(depth: depth + 1) } .joined(separator: "\n")
             }
@@ -451,6 +464,70 @@ extension Syntax {
         }
     }
 
+    public struct With: BodiedSyntax {
+        public internal(set) var body: [Syntax]
+        public internal(set) var context: [ParameterDeclaration]
+
+        private var externalsSet: Set<String>
+        private var importSet: Set<String>
+
+        func externals() -> Set<String> {
+            self.externalsSet
+        }
+
+        func imports() -> Set<String> {
+            self.importSet
+        }
+
+        func inlineRefs(_ externals: [String : LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+            guard !externalsSet.isEmpty || !importSet.isEmpty else { return [.with(self)] }
+            return [.with(.init(context: context, body: body.inlineRefs(externals, imports)))]
+        }
+
+        internal init(context: [ParameterDeclaration], body: [Syntax]) {
+            self.context = context
+            self.body = body
+            self.externalsSet = body.externals()
+            self.importSet = body.imports()
+        }
+
+        static internal func extract(params: [ParameterDeclaration]) -> [ParameterDeclaration]? {
+            if
+                params.count == 1,
+                case .expression(let list) = params[0] {
+                    return list
+                }
+
+            if
+                params.count == 1,
+                case .parameter = params[0] {
+                    return params
+                }
+
+            return nil
+        }
+
+        public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
+            Swift.print(params)
+            guard let params = With.extract(params: params) else {
+                throw "with statements expect a single expression"
+            }
+
+            guard !body.isEmpty else { throw "with statements require a body" }
+            self.body = body
+            self.context = params
+            self.externalsSet = body.externals()
+            self.importSet = body.imports()
+        }
+
+        func print(depth: Int) -> String {
+            var print = indent(depth)
+            print += "with(\(context)):\n"
+            print += body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+            return print
+        }
+    }
+
     public struct Loop: BodiedSyntax {
         /// the key to use when accessing items
         public let item: String
@@ -575,6 +652,7 @@ extension Syntax: CustomStringConvertible {
             case .import(let imp):     return imp.print(depth: depth)
             case .extend(let ext):     return ext.print(depth: depth)
             case .export(let export):  return export.print(depth: depth)
+            case .with(let with):      return with.print(depth: depth)
             case .raw(var bB):
                 let string = bB.readString(length: bB.readableBytes) ?? ""
                 return indent(depth) + "raw(\(string.debugDescription))"
