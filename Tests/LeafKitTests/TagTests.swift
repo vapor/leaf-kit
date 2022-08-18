@@ -177,13 +177,13 @@ class TagTests: XCTestCase {
     }
 
     func testDumpContext() throws {
-        let data: [String: LeafData] = ["value": 12345, "nested": ["message": "foo"]]
+        let data: [String: LeafData] = ["value": 12345]
         let template = """
-        dumpContext should output debug description #dumpContext()
+        dumpContext should output debug description #dumpContext
         """
 
         let expected = """
-        dumpContext should output debug description [value: "12345", nested: "[message: "foo"]"]
+        dumpContext should output debug description [value: "12345"]
         """
 
         try XCTAssertEqual(render(template, data), expected)
