@@ -16,7 +16,8 @@ public var defaultTags: [String: LeafTag] = [
     "contains": Contains(),
     "date": DateTag(),
     "count": Count(),
-    "comment": Comment()
+    "comment": Comment(),
+    "dumpContext": DumpContext()
 ]
 
 struct UnsafeHTML: UnsafeUnescapedLeafTag {
@@ -106,5 +107,12 @@ struct Count: LeafTag {
 struct Comment: LeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData {
         LeafData.trueNil
+    }
+}
+
+struct DumpContext: LeafTag {
+    func render(_ ctx: LeafContext) throws -> LeafData {
+        try ctx.requireParameterCount(0)
+        return LeafData(.dictionary(ctx.data))
     }
 }
