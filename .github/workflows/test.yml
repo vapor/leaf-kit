@@ -16,5 +16,5 @@ jobs:
       working-directory: ./
     - run: swift package edit leaf-kit --revision ${{ github.sha }}
       working-directory: ./leaf
-    - run: swift test --sanitize=thread
+    - run: EXPORT SWIFT_DETERMINISTIC_HASHING=true; swift test --sanitize=thread
       working-directory: ./leaf
