@@ -154,5 +154,17 @@ func evaluateExpression(
             throw LeafError(.typeError(shouldHaveBeen: .dictionary, got: val.concreteType ?? .void))
         }
         return dict[String(field)] ?? .trueNil
+    case .arrayLiteral(let items):
+        return .array(try items.map { try eval($0) })
+    case .dictionaryLiteral(let pairs):
+        return .dictionary(Dictionary(try pairs.map { data -> (String, LeafData) in
+            let (key, val) = data
+            let keyData = try eval(key)
+            let valData = try eval(val)
+            guard let str = keyData.coerce(to: .string).string else {
+                throw LeafError(.typeError(shouldHaveBeen: .string, got: keyData.concreteType ?? .void))
+            }
+            return (str, valData)
+        }, uniquingKeysWith: { $1 }))
     }
 }

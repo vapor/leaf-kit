@@ -131,6 +131,9 @@ public class LeafScanner {
         case decimal(base: Int, digits: Substring)
         case leftParen
         case rightParen
+        case leftBracket
+        case rightBracket
+        case colon
         case comma
         case `operator`(Operator)
         case identifier(Substring)
@@ -153,6 +156,12 @@ public class LeafScanner {
                 return ".rightParen"
             case .comma:
                 return ".comma"
+            case .leftBracket:
+                return ".leftBracket"
+            case .rightBracket:
+                return ".rightBracket"
+            case .colon:
+                return ".colon"
             case .stringLiteral(let substr):
                 return ".stringLiteral(\(substr.debugDescription))"
             case .boolean(let val):
@@ -429,6 +438,12 @@ public class LeafScanner {
                 return map(((.init(from: pos, to: self.pos)), .boolean(false)))
             }
             return map((.init(from: pos, to: self.pos), .identifier(ident)))
+        case "[":
+            return map((nextAndSpan(1), .leftBracket))
+        case "]":
+            return map((nextAndSpan(1), .rightBracket))
+        case ":":
+            return map((nextAndSpan(1), .colon))
         case "!" where peekCharacter == "=":
             return map((nextAndSpan(2), .operator(.unequal)))
         case "!":

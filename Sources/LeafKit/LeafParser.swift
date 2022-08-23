@@ -375,6 +375,74 @@ public class LeafParser {
             let expr = try parseExpression(minimumPrecedence: 1)
             try expect(token: .expression(.rightParen), while: "parsing parenthesized expression")
             return expr
+        case .leftBracket: // array or dictionary
+            try consume()
+            // empty array
+            if let (endSpan, tok) = try peek(), tok == .expression(.rightBracket) {
+                try consume()
+                return .init(.arrayLiteral([]), span: combine(span, endSpan))
+            }
+            // empty dictionary
+            if let (_, tok) = try peek(), tok == .expression(.colon) {
+                try consume()
+                let (endSpan, tok) = try expectExpression(while: "parsing end bracket of dictionary literal")
+                guard tok == .rightBracket else {
+                    throw error(.expectedGot(expected: .expression(.rightBracket), got: .expression(tok), while: "parsing end bracket of dictionary literal"), endSpan)
+                }
+                return .init(.dictionaryLiteral([]), span: combine(span, endSpan))
+            }
+            // parse the first element
+            let firstElement = try parseExpression(minimumPrecedence: 0)
+            // now, whether the next token is a comma or a colon determines if we're parsing an array or dictionary
+            let (signifierSpan, signifier) = try expectPeekExpression(while: "parsing array or dictionary literal")
+            if signifier == .comma { // parse an n-item array where n >= 2
+
+                var items: [Expression] = [firstElement]
+                repeat {
+                    try expect(token: .expression(.comma), while: "in the middle of parsing parameters")
+                    items.append(try parseExpression(minimumPrecedence: 0))
+                } while try peek()?.1 == .expression(.comma)
+
+                guard let (endSpan, token) = try read() else {
+                    throw error(.earlyEOF(wasExpecting: "closing bracket for array"), .eof)
+                }
+                guard case .expression(.rightBracket) = token else {
+                    throw error(.expectedGot(expected: .expression(.rightBracket), got: token, while: "looking for closing bracket of array"), endSpan)
+                }
+
+                return .init(.arrayLiteral(items), span: combine(span, endSpan))
+
+            } else if signifier == .rightBracket { // parse a single-item array
+                try consume()
+                return .init(.arrayLiteral([firstElement]), span: combine(span, signifierSpan))
+            } else if signifier == .colon { // parse an n-item dictionary where n >= 1
+                try consume()
+
+                // parse the first element manually before hitting the loop
+                let firstValue = try parseExpression(minimumPrecedence: 0)
+
+                var pairs: [(Expression, Expression)] = [(firstElement, firstValue)]
+
+                while try peek()?.1 == .expression(.comma) {
+                    try consume() // eat comma
+                    let key = try parseExpression(minimumPrecedence: 0)
+                    _ = try expect(token: .expression(.colon), while: "parsing dictionary item")
+                    let value = try parseExpression(minimumPrecedence: 0)
+                    pairs.append((key, value))
+                }
+
+                guard let (endSpan, token) = try read() else {
+                    throw error(.earlyEOF(wasExpecting: "closing bracket for dictionary"), .eof)
+                }
+                guard case .expression(.rightBracket) = token else {
+                    throw error(.expectedGot(expected: .expression(.rightBracket), got: token, while: "looking for closing bracket of dictionary"), endSpan)
+                }
+
+                return .init(.dictionaryLiteral(pairs), span: combine(span, endSpan))
+            } else {
+                let expected: [LeafScanner.Token] = [.expression(.comma), .expression(.rightBracket), .expression(.colon)]
+                throw error(.expectedOneOfGot(expected: expected, got: .expression(signifier), while: "parsing array or dictionary literal"), combine(span, signifierSpan))
+            }
         case .operator(let op) where op.data.kind.prefix:
             try consume()
             let expr = try parseAtom()
@@ -404,7 +472,7 @@ public class LeafParser {
         case .boolean(let val):
             try consume()
             return .init(.boolean(val), span: span)
-        case .comma, .rightParen:
+        case .comma, .rightParen, .rightBracket, .colon:
             try consume()
             throw error(.unexpected(token: .expression(expr), while: "parsing expression atom"), span)
         }
@@ -789,6 +857,11 @@ public struct Expression: SExprRepresentable {
             return #"(\#(op.rawValue) \#(rhs.sexpr()))"#
         case .binary(let lhs, let op, let rhs):
             return #"(\#(op.rawValue) \#(lhs.sexpr()) \#(rhs.sexpr()))"#
+        case .arrayLiteral(let items):
+            return #"(array_literal \#(items.sexpr()))"#
+        case .dictionaryLiteral(let pairs):
+            let inner = pairs.map { "(\($0.0.sexpr()) \($0.1.sexpr()))" }.joined(separator: " ")
+            return #"(dictionary_literal \#(inner))"#
         }
     }
 
@@ -802,6 +875,8 @@ public struct Expression: SExprRepresentable {
         case tagApplication(name: Substring, params: [Expression])
         case unary(LeafScanner.Operator, Expression)
         case binary(Expression, LeafScanner.Operator, Expression)
+        case arrayLiteral([Expression])
+        case dictionaryLiteral([(Expression, Expression)])
     }
 }
 

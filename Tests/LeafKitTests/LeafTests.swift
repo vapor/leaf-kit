@@ -367,6 +367,56 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(input), expectation)
     }
 
+    // Validate parsing and evaluation of array literals
+    func testArrayLiterals() throws {
+        let input = """
+        #for(item in []):#(item)#endfor
+        #for(item in [1]):#(item)#endfor
+        #for(item in ["hi"]):#(item)#endfor
+        #for(item in [1, "hi"]):#(item)#endfor
+        """
+
+        let syntax = """
+        (for (array_literal) (substitution(variable))) (raw)
+        (for (array_literal (integer)) (substitution(variable))) (raw)
+        (for (array_literal(string)) (substitution(variable))) (raw)
+        (for (array_literal(integer) (string)) (substitution(variable)))
+        """
+
+        let expectation = """
+
+        1
+        hi
+        1hi
+        """
+
+        let parsed = try parse(input)
+        assertSExprEqual(parsed.sexpr(), syntax)
+
+        try XCTAssertEqual(render(input), expectation)
+    }
+
+    // Validate parsing and evaluation of dictionary literals
+    func testDictionaryLiterals() throws {
+        let input = """
+        #with(["hi": "world"]):#(hi)#endwith
+        """
+
+        let syntax = """
+        (with (dictionary_literal ((string)(string)))
+            (substitution(variable)))
+        """
+
+        let expectation = """
+        world
+        """
+
+        let parsed = try parse(input)
+        assertSExprEqual(parsed.sexpr(), syntax)
+
+        try XCTAssertEqual(render(input), expectation)
+    }
+
     // Validate parse resolution of evaluable expressions
     func testComplexParameters() throws {
         let input = """
