@@ -114,26 +114,46 @@ internal struct LeafSerializer {
 
     private mutating func serialize(_ loop: Statement.ForLoop, context data: [String: LeafData]) throws {
         let evalled = try evaluate(loop.inValue, context: data)
-        guard let elements = evalled.array else {
-            throw LeafError(.typeError(shouldHaveBeen: .array, got: evalled.concreteType!))
-        }
+        if let array = evalled.array {
+            for (idx, item) in array.enumerated() {
+                var innerContext = data
 
-        for (idx, item) in elements.enumerated() {
-            var innerContext = data
+                innerContext["isFirst"] = .bool(idx == array.startIndex)
+                innerContext["isLast"] = .bool(idx == array.index(before: array.endIndex))
+                innerContext[loop.indexName.map { String($0) } ?? "index"] = .int(idx)
+                innerContext[String(loop.name)] = item
 
-            innerContext["isFirst"] = .bool(idx == elements.startIndex)
-            innerContext["isLast"] = .bool(idx == elements.index(before: elements.endIndex))
-            innerContext["index"] = .int(idx)
-            innerContext[String(loop.name)] = item
+                var serializer = LeafSerializer(
+                    ast: loop.body,
+                    tags: self.tags,
+                    userInfo: self.userInfo,
+                    ignoreUnfoundImports: self.ignoreUnfoundImports
+                )
+                var loopBody = try serializer.serialize(context: innerContext)
+                self.buffer.writeBuffer(&loopBody)
+            }
+        } else if let dict = evalled.dictionary {
+            for idx in dict.indices {
+                let item = dict[idx]
 
-            var serializer = LeafSerializer(
-                ast: loop.body,
-                tags: self.tags,
-                userInfo: self.userInfo,
-                ignoreUnfoundImports: self.ignoreUnfoundImports
-            )
-            var loopBody = try serializer.serialize(context: innerContext)
-            self.buffer.writeBuffer(&loopBody)
+                var innerContext = data
+
+                innerContext["isFirst"] = .bool(idx == dict.startIndex)
+                innerContext["isLast"] = .bool(dict.index(after: idx) == dict.endIndex)
+                innerContext[loop.indexName.map { String($0) } ?? "index"] = .string(item.key)
+                innerContext[String(loop.name)] = item.value
+
+                var serializer = LeafSerializer(
+                    ast: loop.body,
+                    tags: self.tags,
+                    userInfo: self.userInfo,
+                    ignoreUnfoundImports: self.ignoreUnfoundImports
+                )
+                var loopBody = try serializer.serialize(context: innerContext)
+                self.buffer.writeBuffer(&loopBody)
+            }
+        } else {
+            throw LeafError(.expectedIterable(got: evalled.concreteType!))
         }
     }
 }

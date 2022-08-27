@@ -242,6 +242,20 @@ final class LeafTests: XCTestCase {
         XCTAssertEqual(page.string, expected)
     }
 
+    func testDictionaryForLoop() throws {
+        try XCTAssertEqual(render("""
+        #for(key, value in ["orwell": "1984"]):literally #(value) by george #(key)#endfor
+        """), """
+        literally 1984 by george orwell
+        """)
+
+        try XCTAssertEqual(render("""
+        #for(key, value in ["orwell": "1984", "jorjor": "1984"]):#(value)#endfor
+        """), """
+        19841984
+        """)
+    }
+
     func testEmptyForLoop() throws {
         let template = """
         #for(category in categories):

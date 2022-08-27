@@ -57,6 +57,9 @@ public struct LeafError: Error {
         /// A typeError specialised for Double | Int
         case expectedNumeric(got: LeafData.NaturalType)
 
+        /// A typeError specialised for non-iterable things
+        case expectedIterable(got: LeafData.NaturalType)
+
         /// A typeError specialised for binary operators of (T, T) -> T
         case badOperation(on: LeafData.NaturalType, what: String)
 
@@ -124,6 +127,8 @@ public struct LeafError: Error {
                 return "Type error: I was expecting \(shouldHaveBeen), but I got \(got) instead"
             case .badOperation(let on, let what):
                 return "Type error: \(on) cannot do \(what)"
+            case .expectedIterable(let got):
+                return "Type error: I was something that I could iterate over (like an array or dictionary), but I got \(got) instead"
             case .expectedNumeric(let got):
                 return "Type error: I was expecting a numeric type, but I got \(got) instead"
             case .badParameterCount(let tag, let expected, let got):

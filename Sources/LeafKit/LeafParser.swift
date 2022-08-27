@@ -98,13 +98,15 @@ public class LeafParser {
         return (span, inner)
     }
 
-    private func expect(oneOf expects: [LeafScanner.Token], while doing: String) throws {
+    @discardableResult
+    private func expect(oneOf expects: [LeafScanner.Token], while doing: String) throws -> (LeafScanner.Span, LeafScanner.Token) {
         guard let (span, token) = try read() else {
             throw error(.earlyEOF(wasExpecting: "one of " + expects.map { $0.description }.joined(separator: ", ")), .eof)
         }
         guard expects.contains(token) else {
             throw error(.expectedOneOfGot(expected: expects, got: token, while: doing), span)
         }
+        return (span, token)
     }
 
     /// expects that you've just parsed the ``.bodyStart``
@@ -271,13 +273,26 @@ public class LeafParser {
                 return .init(.with(.init(context: expr, body: statements)), span: combine(span, endSpan))
             case "for":
                 try expect(token: .enterExpression, while: "looking for start of for loop")
-                let (_, varName) = try parseIdent(while: "looking for foreach loop variable")
-                try expect(token: .expression(.identifier("in")), while: "looking for 'in' keyword in foreach loop")
+                let (_, firstName) = try parseIdent(while: "looking for foreach loop variable")
+                let (_, tok) = try expect(oneOf: [.expression(.identifier("in")), .expression(.comma)], while: "looking for 'in' keyword or comma in foreach loop")
+                let secondName: Substring?
+                switch tok {
+                case .expression(.identifier("in")):
+                    secondName = nil
+                case .expression(.comma):
+                    let (_, second) = try parseIdent(while: "looking for foreach loop variable")
+                    try expect(token: .expression(.identifier("in")), while: "looking for 'in' keyword in foreach loop")
+                    secondName = second
+                default:
+                    throw LeafError(.internalError(what: "for loop parsing shouldn't have gotten to where it's trying to discriminate between something that isn't 'in' or ','"))
+                }
                 let expr = try parseExpression(minimumPrecedence: 0)
                 try expect(token: .exitExpression, while: "looking for closing parenthesis of foreach loop header")
                 try expect(token: .bodyStart, while: "looking for start of for loop body")
                 let (endSpan, statements) = try parseTagBody(name: tag)
-                return .init(.forLoop(.init(name: varName, inValue: expr, body: statements)), span: combine(span, endSpan))
+                let contentName = secondName ?? firstName
+                let indexName = secondName != nil ? firstName : nil
+                return .init(.forLoop(.init(name: contentName, indexName: indexName, inValue: expr, body: statements)), span: combine(span, endSpan))
             case "import":
                 let (endSpan, params) = try parseEnterExitParams()
                 guard params.count == 1 else {
@@ -745,6 +760,7 @@ public struct Statement: SExprRepresentable, Substitutable {
 
     public struct ForLoop: SExprRepresentable, Substitutable {
         public let name: Substring
+        public let indexName: Substring?
         public let inValue: Expression
         public let body: [Statement]
 
@@ -752,10 +768,10 @@ public struct Statement: SExprRepresentable, Substitutable {
             self.body.unsubstitutedExtends()
         }
         public func substituteImport(name: String, with statement: Statement) -> Statement.ForLoop {
-            .init(name: self.name, inValue: inValue, body: body.substituteImport(name: name, with: statement))
+            .init(name: self.name, indexName: self.indexName, inValue: inValue, body: body.substituteImport(name: name, with: statement))
         }
         public func substituteExtend(name: String, with statement: ([Statement.Export]) -> Statement) -> Statement.ForLoop {
-            .init(name: self.name, inValue: inValue, body: body.substituteExtend(name: name, with: statement))
+            .init(name: self.name, indexName: self.indexName, inValue: inValue, body: body.substituteExtend(name: name, with: statement))
         }
         public func sexpr() -> String {
             return #"(for \#(inValue.sexpr()) \#(body.sexpr()))"#
