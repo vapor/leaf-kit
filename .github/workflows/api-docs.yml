@@ -6,7 +6,7 @@ on:
 
 jobs:
   build-and-deploy:
-     uses: vapor/api-docs/.github/workflows/build-and-deploy-docs-workflow.yml@68a8e1272af3e2a8dbf20bcadf86bab141afe9c2
+     uses: vapor/api-docs/.github/workflows/build-and-deploy-docs-workflow.yml@0cbc64399b577c6f3e26784dd234a00225a540dc
      secrets: inherit
      with:
        package_name: leaf-kit
