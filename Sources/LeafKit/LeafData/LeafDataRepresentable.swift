@@ -11,6 +11,9 @@ public protocol LeafDataRepresentable {
 extension String: LeafDataRepresentable {
     public var leafData: LeafData { .string(self) }
 }
+extension Substring: LeafDataRepresentable {
+    public var leafData: LeafData { .string(String(self)) }
+}
 
 extension FixedWidthInteger {
     public var leafData: LeafData {

@@ -5,7 +5,7 @@
 ///
 public struct LeafError: Error {
     /// Possible cases of a LeafError.Reason, with applicable stored values where useful for the type
-    public enum Reason {
+    public enum Reason: Equatable {
         // MARK: Errors related to loading raw templates
         /// Attempted to access a template blocked for security reasons
         case illegalAccess(String)
@@ -34,13 +34,46 @@ public struct LeafError: Error {
 
         // MARK: Wrapped Errors related to Lexing or Parsing
         /// Errors due to malformed template syntax or grammar
-        case lexerError(LexerError)
+        case lexerError(LeafScannerError)
         
         // MARK: Errors lacking specificity
         /// Errors from protocol adherents that do not support newer features
         case unsupportedFeature(String)
         /// Errors only when no existing error reason is adequately clear
         case unknownError(String)
+
+        /// Errors when something goes wrong internally
+        case internalError(what: String)
+
+        /// Errors when an import is not found
+        case importNotFound(name: String)
+
+        /// Errors when a tag is not found
+        case tagNotFound(name: String)
+
+        /// Errors when one type was expected, but another was obtained
+        case typeError(shouldHaveBeen: LeafData.NaturalType, got: LeafData.NaturalType)
+
+        /// A typeError specialised for Double | Int
+        case expectedNumeric(got: LeafData.NaturalType)
+
+        /// A typeError specialised for non-iterable things
+        case expectedIterable(got: LeafData.NaturalType)
+
+        /// A typeError specialised for binary operators of (T, T) -> T
+        case badOperation(on: LeafData.NaturalType, what: String)
+
+        /// Errors when a tag receives a bad parameter count
+        case badParameterCount(tag: String, expected: Int, got: Int)
+
+        /// Errors when a tag receives a body, but doesn't want one
+        case extraneousBody(tag: String)
+
+        /// Errors when a tag doesn't receive a body, but wants one
+        case missingBody(tag: String)
+
+        /// Serialization error
+        case serializationError
     }
     
     /// Source file name causing error
@@ -84,7 +117,29 @@ public struct LeafError: Error {
                 return "\(src) - \(key) cyclically referenced in [\(chain.joined(separator: " -> "))]"
             case .lexerError(let e):
                 return "Lexing error - \(e.localizedDescription)"
-        }
+            case .importNotFound(let name):
+                return "Import \(name) was not found"
+            case .internalError(let what):
+                return "Something in Leaf broke: \(what)\nPlease report this to https://github.com/vapor/leaf-kit"
+            case .tagNotFound(let name):
+                return "Tag \(name) was not found"
+            case .typeError(let shouldHaveBeen, let got):
+                return "Type error: I was expecting \(shouldHaveBeen), but I got \(got) instead"
+            case .badOperation(let on, let what):
+                return "Type error: \(on) cannot do \(what)"
+            case .expectedIterable(let got):
+                return "Type error: I was something that I could iterate over (like an array or dictionary), but I got \(got) instead"
+            case .expectedNumeric(let got):
+                return "Type error: I was expecting a numeric type, but I got \(got) instead"
+            case .badParameterCount(let tag, let expected, let got):
+                return "Type error: \(tag) was expecting \(expected) parameters, but got \(got) parameters instead"
+            case .extraneousBody(let tag):
+                return "Type error: \(tag) wasn't expecting a body, but got one"
+            case .missingBody(let tag):
+                return "Type error: \(tag) was expecting a body, but didn't get one"
+            case .serializationError:
+                return "Serialization error"
+            }
     }
     
     /// Create a `LeafError` - only `reason` typically used as source locations are auto-grabbed
@@ -100,65 +155,5 @@ public struct LeafError: Error {
         self.line = line
         self.column = column
         self.reason = reason
-    }
-}
-
-// MARK: - `LexerError` Summary (Wrapped by LeafError)
-
-/// `LexerError` reports errors during the stage.
-public struct LexerError: Error {
-    // MARK: - Public
-    
-    public enum Reason {
-        // MARK: Errors occuring during Lexing
-        /// A character not usable in parameters is present when Lexer is not expecting it
-        case invalidParameterToken(Character)
-        /// A string was opened but never terminated by end of file
-        case unterminatedStringLiteral
-        /// Use in place of fatalError to indicate extreme issue
-        case unknownError(String)
-    }
-    
-    /// Template source file line where error occured
-    public let line: Int
-    /// Template source column where error occured
-    public let column: Int
-    /// Name of template error occured in
-    public let name: String
-    /// Stated reason for error
-    public let reason: Reason
-    
-    // MARK: - Internal Only
-    
-    /// State of tokens already processed by Lexer prior to error
-    internal let lexed: [LeafToken]
-    /// Flag to true if lexing error is something that may be recoverable during parsing;
-    /// EG, `"#anhtmlanchor"` may lex as a tag name but fail to tokenize to tag because it isn't
-    /// followed by a left paren. Parser may be able to recover by decaying it to `.raw`.
-    internal let recoverable: Bool
-    
-    /// Create a `LexerError`
-    /// - Parameters:
-    ///   - reason: The specific reason for the error
-    ///   - src: File being lexed
-    ///   - lexed: `LeafTokens` already lexed prior to error
-    ///   - recoverable: Flag to say whether the error can potentially be recovered during Parse
-    internal init(
-        _ reason: Reason,
-        src: LeafRawTemplate,
-        lexed: [LeafToken] = [],
-        recoverable: Bool = false
-    ) {
-        self.line = src.line
-        self.column = src.column
-        self.reason = reason
-        self.lexed = lexed
-        self.name = src.name
-        self.recoverable = recoverable
-    }
-    
-    /// Convenience description of source file name, error reason, and location in file of error source
-    var localizedDescription: String {
-        return "\"\(name)\": \(reason) - \(line):\(column)"
     }
 }

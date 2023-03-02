@@ -259,6 +259,9 @@ public struct LeafData: CustomStringConvertible,
     /// Try to convert one concrete object to a second type.
     internal func convert(to output: NaturalType, _ level: DataConvertible = .castable) -> LeafData {
         guard celf != output else  { return self }
+        if self.isNil && output == .bool {
+            return .bool(false)
+        }
         if case .lazy(let f,_,_) = self.storage { return f().convert(to: output, level) }
         guard let input = storage.unwrap,
               let conversion = _ConverterMap.symbols.get(input.concreteType!, output),
@@ -373,7 +376,7 @@ fileprivate enum _ConverterMap {
         }),
                                         //  String == "true" || "false"
         Converter(.string  , .bool         , is: .castable, via: {
-            ($0 as? String).map { Bool($0) }?.map { .bool($0) } ?? .trueNil
+            ($0 as? String).map { Bool($0) }?.map { .bool($0) } ?? (($0 as? String).map { .bool(!$0.isEmpty) } ?? .trueNil)
         }),
                                         // True = 1; False = 0
         Converter(.bool    , .double       , is: .castable, via: {
@@ -415,9 +418,9 @@ fileprivate enum _ConverterMap {
         
         // MARK: - .coercible (One-direction defined conversion)
 
-                                          // Array.isEmpty == truthiness
+                                          // !Array.isEmpty == truthiness
         Converter(.array      , .bool       , is: .coercible, via: {
-            ($0 as? [LeafData]).map { $0.isEmpty }.map { .bool($0) } ?? .trueNil
+            ($0 as? [LeafData]).map { .bool(!$0.isEmpty) } ?? .trueNil
         }),
                                           // Data.isEmpty == truthiness
         Converter(.data       , .bool       , is: .coercible, via: {

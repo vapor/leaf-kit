@@ -3,392 +3,13 @@ import NIOConcurrencyHelpers
 @testable import LeafKit
 import NIO
 
-final class ParserTests: XCTestCase {
-    func testParsingNesting() throws {
-        let input = """
-        #if(lowercase(first(name == "admin")) == "welcome"):
-        foo
-        #endif
-        """
-
-        let expectation = """
-        conditional:
-          if([lowercase(first([name == "admin"])) == "welcome"]):
-            raw("\\nfoo\\n")
-        """
-
-        let output = try parse(input).string
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testComplex() throws {
-        let input = """
-        #if(foo):
-        foo
-        #else:
-        foo
-        #endif
-        """
-
-        let expectation = """
-        conditional:
-          if(variable(foo)):
-            raw("\\nfoo\\n")
-          else:
-            raw("\\nfoo\\n")
-        """
-
-        let output = try parse(input).string
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testCompiler() throws {
-        let input = """
-        #if(sayhello):
-            abc
-            #for(name in names):
-                hi, #(name)
-            #endfor
-            def
-        #else:
-            foo
-        #endif
-        """
-
-        let expectation = """
-        conditional:
-          if(variable(sayhello)):
-            raw("\\n    abc\\n    ")
-            for(name in names):
-              raw("\\n        hi, ")
-              expression[variable(name)]
-              raw("\\n    ")
-            raw("\\n    def\\n")
-          else:
-            raw("\\n    foo\\n")
-        """
-
-        let output = try parse(input).string
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testUnresolvedAST() throws {
-        let base = """
-        #extend("header")
-        <title>#import("title")</title>
-        #import("body")
-        """
-
-        let syntax = try! parse(base)
-        let ast = LeafAST(name: "base", ast: syntax)
-        XCTAssertFalse(ast.unresolvedRefs.count == 0, "Unresolved template")
-    }
-
-    func testInsertResolution() throws {
-        let header = """
-        <h1>Hi!</h1>
-        """
-        let base = """
-        #extend("header")
-        <title>#import("title")</title>
-        #import("body")
-        """
-
-        let baseAST = try LeafAST(name: "base", ast: parse(base))
-        let headerAST = try LeafAST(name: "header", ast: parse(header))
-        let baseResolvedAST = LeafAST(from: baseAST, referencing: ["header": headerAST])
-
-        let output = baseResolvedAST.ast.string
-
-        let expectation = """
-        raw("<h1>Hi!</h1>\\n<title>")
-        import("title")
-        raw("</title>\\n")
-        import("body")
-        """
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testDocumentResolveExtend() throws {
-        let header = """
-        <h1>#import("header")</h1>
-        """
-
-        let base = """
-        #extend("header")
-        <title>#import("title")</title>
-        #import("body")
-        """
-
-        let home = """
-        #extend("base"):
-            #export("title", "Welcome")
-            #export("body"):
-                Hello, #(name)!
-            #endexport
-        #endextend
-        """
-
-        let headerAST = try LeafAST(name: "header", ast: parse(header))
-        let baseAST = try LeafAST(name: "base", ast: parse(base))
-        let homeAST = try LeafAST(name: "home", ast: parse(home))
-
-        let baseResolved = LeafAST(from: baseAST, referencing: ["header": headerAST])
-        let homeResolved = LeafAST(from: homeAST, referencing: ["base": baseResolved])
-
-        let output = homeResolved.ast.string
-        let expectation = """
-        raw("<h1>")
-        import("header")
-        raw("</h1>\\n<title>Welcome</title>\\n\\n        Hello, ")
-        expression[variable(name)]
-        raw("!\\n    ")
-        """
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testCompileExtend() throws {
-        let input = """
-        #extend("base"):
-            #export("title", "Welcome")
-            #export("body"):
-                Hello, #(name)!
-            #endexport
-        #endextend
-        """
-
-        let expectation = """
-        extend("base"):
-          export("body"):
-            raw("\\n        Hello, ")
-            expression[variable(name)]
-            raw("!\\n    ")
-          export("title"):
-            expression[stringLiteral("Welcome")]
-        """
-
-        let output = try parse(input).string
-        XCTAssertEqual(output, expectation)
-    }
-}
-
-final class LexerTests: XCTestCase {
-    func testParamNesting() throws {
-        let input = """
-        #if(lowercase(first(name == "admin")) == "welcome"):
-        foo
-        #endif
-        """
-
-        let expectation = """
-        tagIndicator
-        tag(name: "if")
-        parametersStart
-        param(tag("lowercase"))
-        parametersStart
-        param(tag("first"))
-        parametersStart
-        param(variable(name))
-        param(operator(==))
-        param(stringLiteral("admin"))
-        parametersEnd
-        parametersEnd
-        param(operator(==))
-        param(stringLiteral("welcome"))
-        parametersEnd
-        tagBodyIndicator
-        raw("\\nfoo\\n")
-        tagIndicator
-        tag(name: "endif")
-
-        """
-
-        let output = try lex(input).string
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testConstant() throws {
-        let input = "<h1>#(42)</h1>"
-        let expectation = """
-        raw("<h1>")
-        tagIndicator
-        tag(name: "")
-        parametersStart
-        param(constant(42))
-        parametersEnd
-        raw("</h1>")
-
-        """
-
-        let output = try lex(input).string
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testNoWhitespace() throws {
-        let input1 = "#if(!one||!two)"
-        let input2 = "#if(!one || !two)"
-        let input3 = "#if(! one||! two)"
-        let input4 = "#if(! one || ! two)"
-
-        let output1 = try lex(input1).string
-        let output2 = try lex(input2).string
-        let output3 = try lex(input3).string
-        let output4 = try lex(input4).string
-        XCTAssertEqual(output1, output2)
-        XCTAssertEqual(output2, output3)
-        XCTAssertEqual(output3, output4)
-    }
-
-    // Base2/8/10/16 lexing for Int constants, Base10/16 for Double
-    func testNonDecimals() throws {
-        let input = "#(0b0101010 0o052 42 0_042 0x02A 0b0101010.0 0o052.0 42.0 0_042.0 0x02A.0)"
-        let expectation = """
-        tagIndicator
-        tag(name: "")
-        parametersStart
-        param(constant(42))
-        param(constant(42))
-        param(constant(42))
-        param(constant(42))
-        param(constant(42))
-        param(variable(0b0101010.0))
-        param(variable(0o052.0))
-        param(constant(42.0))
-        param(constant(42.0))
-        param(constant(42.0))
-        parametersEnd
-
-        """
-
-        let output = try lex(input).string
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testEscaping() throws {
-        // input is really '\#' w/ escaping
-        let input = "\\#"
-        let output = try lex(input).string
-        XCTAssertEqual(output, "raw(\"#\")\n")
-    }
-
-    func testParameters() throws {
-        let input = "#(foo == 40, and, \"literal\", and, foo_bar)"
-        let expectation = """
-        tagIndicator
-        tag(name: "")
-        parametersStart
-        param(variable(foo))
-        param(operator(==))
-        param(constant(40))
-        parameterDelimiter
-        param(variable(and))
-        parameterDelimiter
-        param(stringLiteral("literal"))
-        parameterDelimiter
-        param(variable(and))
-        parameterDelimiter
-        param(variable(foo_bar))
-        parametersEnd
-
-        """
-        let output = try lex(input).string
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testTags() throws {
-        let input = """
-        #tag
-        #tag:
-        #endtag
-        #tag()
-        #tag():
-        #tag(foo)
-        #tag(foo):
-        """
-        let expectation = """
-        tagIndicator
-        tag(name: "tag")
-        raw("\\n")
-        tagIndicator
-        tag(name: "tag")
-        tagBodyIndicator
-        raw("\\n")
-        tagIndicator
-        tag(name: "endtag")
-        raw("\\n")
-        tagIndicator
-        tag(name: "tag")
-        parametersStart
-        parametersEnd
-        raw("\\n")
-        tagIndicator
-        tag(name: "tag")
-        parametersStart
-        parametersEnd
-        tagBodyIndicator
-        raw("\\n")
-        tagIndicator
-        tag(name: "tag")
-        parametersStart
-        param(variable(foo))
-        parametersEnd
-        raw("\\n")
-        tagIndicator
-        tag(name: "tag")
-        parametersStart
-        param(variable(foo))
-        parametersEnd
-        tagBodyIndicator
-
-        """
-
-        let output = try lex(input).string
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testNestedEcho() throws {
-        let input = """
-        #(todo)
-        #(todo.title)
-        #(todo.user.name.first)
-        """
-        let expectation = """
-        tagIndicator
-        tag(name: "")
-        parametersStart
-        param(variable(todo))
-        parametersEnd
-        raw("\\n")
-        tagIndicator
-        tag(name: "")
-        parametersStart
-        param(variable(todo.title))
-        parametersEnd
-        raw("\\n")
-        tagIndicator
-        tag(name: "")
-        parametersStart
-        param(variable(todo.user.name.first))
-        parametersEnd
-
-        """
-        let output = try lex(input).string
-        XCTAssertEqual(output, expectation)
-    }
-}
-
 final class LeafKitTests: XCTestCase {
     func testNestedEcho() throws {
         let input = """
         Todo: #(todo.title)
         """
-        var lexer = LeafLexer(name: "nested-echo", template: input)
-        let tokens = try lexer.lex()
-        var parser = LeafParser(name: "nested-echo", tokens: tokens)
-        let ast = try parser.parse()
-        var serializer = LeafSerializer(ast: ast, ignoreUnfoundImports: false)
-        let view = try serializer.serialize(context: ["todo": ["title": "Leaf!"]])
-        XCTAssertEqual(view.string, "Todo: Leaf!")
+        let rendered = try render(name: "nested-echo", input, ["todo": ["title": "Leaf!"]])
+        XCTAssertEqual(rendered, "Todo: Leaf!")
     }
 
     func testRendererContext() throws {
@@ -453,13 +74,16 @@ final class LeafKitTests: XCTestCase {
             eventLoop: group.next()
         )
 
+        var tasks: [EventLoopFuture<ByteBuffer>] = []
         for iteration in 1...iterations {
             let template = String((iteration % templates) + 1)
-            renderer.render(path: template).whenComplete { _ in renderer.finishTask() }
+            tasks.append(renderer.render(path: template))
         }
 
-        while !renderer.isDone { usleep(10) }
-        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, templates) }
+        let combine = EventLoopFuture<[ByteBuffer]>.reduce(into: [], tasks, on: group.next(), { arr, val in arr.append(val) })
+        _ = try! combine.wait()
+
+        XCTAssertEqual(renderer.r.cache.count, templates)
     }
 
     func testCacheSpeedRandom() {
@@ -487,50 +111,21 @@ final class LeafKitTests: XCTestCase {
             eventLoop: group.next()
         )
 
+        var tasks: [EventLoopFuture<ByteBuffer>] = []
         for x in (0..<iterations).reversed() {
             let template: String
             if x / ratio < hitList.count { template = hitList.removeFirst() }
             else { template = allKeys[Int.random(in: 0 ..< totalTemplates)] }
-            renderer.render(path: template).whenComplete { _ in renderer.finishTask() }
+            tasks.append(renderer.render(path: template))
         }
 
-        while !renderer.isDone { usleep(10) }
-        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, layer1+layer2+layer3) }
+        let combine = EventLoopFuture<[ByteBuffer]>.reduce(into: [], tasks, on: group.next(), { arr, val in arr.append(val) })
+        _ = try! combine.wait()
+
+        XCTAssertEqual(renderer.r.cache.count, layer1+layer2+layer3)
     }
 
-    func testImportParameter() throws {
-        var test = TestFiles()
-        test.files["/base.leaf"] = """
-        #extend("parameter"):
-            #export("admin", admin)
-        #endextend
-        """
-        test.files["/delegate.leaf"] = """
-        #extend("parameter"):
-            #export("delegated", false || bypass)
-        #endextend
-        """
-        test.files["/parameter.leaf"] = """
-        #if(import("admin")):
-            Hi Admin
-        #elseif(import("delegated")):
-            Also an admin
-        #else:
-            No Access
-        #endif
-        """
-
-        let renderer = TestRenderer(sources: .singleSource(test))
-        
-        let normalPage = try renderer.render(path: "base", context: ["admin": false]).wait()
-        let adminPage = try renderer.render(path: "base", context: ["admin": true]).wait()
-        let delegatePage = try renderer.render(path: "delegate", context: ["bypass": true]).wait()
-        XCTAssertEqual(normalPage.string.trimmingCharacters(in: .whitespacesAndNewlines), "No Access")
-        XCTAssertEqual(adminPage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Hi Admin")
-        XCTAssertEqual(delegatePage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Also an admin")
-    }
-    
-    func testDeepResolve() {
+    func testDeepResolve() throws {
         var test = TestFiles()
         test.files["/a.leaf"] = """
         #for(a in b):#if(false):Hi#elseif(true && false):Hi#else:#extend("b"):#export("derp"):DEEP RESOLUTION #(a)#endexport#endextend#endif#endfor
@@ -549,7 +144,7 @@ final class LeafKitTests: XCTestCase {
 
         let renderer = TestRenderer(sources: .singleSource(test))
 
-        let page = try! renderer.render(path: "a", context: ["b":["1","2","3"]]).wait()
+        let page = try renderer.render(path: "a", context: ["b":["1","2","3"]]).wait()
             XCTAssertEqual(page.string, expected)
     }
     
@@ -567,25 +162,27 @@ final class LeafKitTests: XCTestCase {
                                                 viewDirectory: templateFolder + "SubTemplates/")),
             eventLoop: group.next()
         )
-        
-        renderer.render(path: "test").whenComplete { _ in renderer.finishTask() }
-        renderer.render(path: "../test").whenComplete { _ in renderer.finishTask() }
-        renderer.render(path: "../../test").whenComplete { result in
-            renderer.finishTask()
+
+        var tasks: [EventLoopFuture<ByteBuffer>] = []
+        tasks.append(renderer.render(path: "test"))
+        tasks.append(renderer.render(path: "../test"))
+        let escape = renderer.render(path: "../../test")
+        escape.whenComplete { result in
             if case .failure(let e) = result, let err = e as? LeafError {
                 XCTAssert(err.localizedDescription.contains("Attempted to escape sandbox"))
             } else { XCTFail() }
         }
-        renderer.render(path: ".test").whenComplete { result in
-            renderer.finishTask()
+        tasks.append(escape)
+        let badAccess = renderer.render(path: ".test")
+        tasks.append(badAccess)
+        badAccess.whenComplete { result in
             if case .failure(let e) = result, let err = e as? LeafError {
                 XCTAssert(err.localizedDescription.contains("Attempted to access .test"))
             } else { XCTFail() }
         }
         
-        while !renderer.isDone { usleep(10) }
-        try group.syncShutdownGracefully()
-        try threadPool.syncShutdownGracefully()
+        let combine = EventLoopFuture<[ByteBuffer]>.reduce(into: [], tasks, on: group.next(), { arr, val in arr.append(val) })
+        _ = try? combine.wait()
     }
     
     func testMultipleSources() throws {
@@ -597,12 +194,12 @@ final class LeafKitTests: XCTestCase {
         hiddenSource.files["/c.leaf"] = "This file is in hiddenSource"
         
         let multipleSources = LeafSources()
-        try! multipleSources.register(using: sourceOne)
-        try! multipleSources.register(source: "sourceTwo", using: sourceTwo)
-        try! multipleSources.register(source: "hiddenSource", using: hiddenSource, searchable: false)
+        try multipleSources.register(using: sourceOne)
+        try multipleSources.register(source: "sourceTwo", using: sourceTwo)
+        try multipleSources.register(source: "hiddenSource", using: hiddenSource, searchable: false)
         
         let unsearchableSources = LeafSources()
-        try! unsearchableSources.register(source: "unreachable", using: sourceOne, searchable: false)
+        try unsearchableSources.register(source: "unreachable", using: sourceOne, searchable: false)
         
         let goodRenderer = TestRenderer(sources: multipleSources)
         let emptyRenderer = TestRenderer(sources: unsearchableSources)

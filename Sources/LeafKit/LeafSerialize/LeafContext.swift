@@ -1,15 +1,18 @@
 public struct LeafContext {
+    public let tag: String
     public let parameters: [LeafData]
     public let data: [String: LeafData]
-    public let body: [Syntax]?
+    public let body: [Statement]?
     public let userInfo: [AnyHashable: Any]
 
     init(
+        tag: String,
         parameters: [LeafData],
         data: [String: LeafData],
-        body: [Syntax]?,
+        body: [Statement]?,
         userInfo: [AnyHashable: Any]
     ) throws {
+        self.tag = tag
         self.parameters = parameters
         self.data = data
         self.body = body
@@ -19,14 +22,14 @@ public struct LeafContext {
     /// Throws an error if the parameter count does not equal the supplied number `n`.
     public func requireParameterCount(_ n: Int) throws {
         guard parameters.count == n else {
-            throw "Invalid parameter count: \(parameters.count)/\(n)"
+            throw LeafError(.badParameterCount(tag: tag, expected: n, got: parameters.count))
         }
     }
 
     /// Throws an error if this tag does not include a body.
-    public func requireBody() throws -> [Syntax] {
+    public func requireBody() throws -> [Statement] {
         guard let body = body else {
-            throw "Missing body"
+            throw LeafError(.missingBody(tag: tag))
         }
 
         return body
@@ -35,7 +38,7 @@ public struct LeafContext {
     /// Throws an error if this tag includes a body.
     public func requireNoBody() throws {
         guard body == nil else {
-            throw "Extraneous body"
+            throw LeafError(.extraneousBody(tag: tag))
         }
     }
 }

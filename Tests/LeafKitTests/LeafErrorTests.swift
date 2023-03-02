@@ -19,7 +19,7 @@ final class LeafErrorTests: XCTestCase {
         } catch let error as LeafError {
             switch error.reason {
                 case .cyclicalReference(let name, let cycle):
-                    XCTAssertEqual([name: cycle], ["a": ["a","b","c","a"]])
+                    XCTAssertEqual([name: cycle], ["b": ["b", "c", "a"]])
                 default: XCTFail("Wrong error: \(error.localizedDescription)")
             }
         } catch {
