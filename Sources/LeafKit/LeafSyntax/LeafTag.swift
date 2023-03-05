@@ -14,6 +14,7 @@ public var defaultTags: [String: LeafTag] = [
     "uppercased": Uppercased(),
     "capitalized": Capitalized(),
     "contains": Contains(),
+    "isEmpty": IsEmpty(),
     "date": DateTag(),
     "count": Count(),
     "comment": Comment(),
@@ -64,6 +65,15 @@ struct Contains: LeafTag {
         }
         let result = collection.contains(ctx.parameters[1])
         return .init(.bool(result))
+    }
+}
+
+struct IsEmpty: LeafTag {
+    func render(_ ctx: LeafContext) throws -> LeafData {
+        guard let str = ctx.parameters.first?.string else {
+            throw "unable to check for empty value unexpected data"
+        }
+        return .init(.bool(str.isEmpty))
     }
 }
 
