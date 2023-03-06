@@ -533,6 +533,8 @@ extension Syntax {
         public let item: String
         /// the key to use to access the array
         public let array: String
+        /// the key to use when accessing the current index
+        public let index: String
 
         /// the body of the looop
         public internal(set) var body: [Syntax]
@@ -542,20 +544,39 @@ extension Syntax {
 
         /// initialize a new loop
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
-            guard
-                params.count == 1,
-                case .expression(let list) = params[0],
-                list.count == 3,
-                case .parameter(let left) = list[0],
-                case .variable(let item) = left,
-                case .parameter(let `in`) = list[1],
-                case .keyword(let k) = `in`,
-                k == .in,
-                case .parameter(let right) = list[2],
-                case .variable(let array) = right
-                else { throw "for loops expect single expression, 'name in names'" }
-            self.item = item
-            self.array = array
+            if params.count == 1 {
+                guard
+                    case .expression(let list) = params[0],
+                    list.count == 3,
+                    case .parameter(let left) = list[0],
+                    case .variable(let item) = left,
+                    case .parameter(let `in`) = list[1],
+                    case .keyword(let k) = `in`,
+                    k == .in,
+                    case .parameter(let right) = list[2],
+                    case .variable(let array) = right
+                    else { throw "for loops expect one of the following expressions: 'name in names' or 'name, nameIndex in names'" }
+                self.item = item
+                self.array = array
+                self.index = "index"
+            } else {
+                guard
+                    params.count == 2,
+                    case .parameter(.variable(let item)) = params[0],
+                    case .expression(let list) = params[1],
+                    list.count == 3,
+                    case .parameter(let left) = list[0],
+                    case .variable(let index) = left,
+                    case .parameter(let `in`) = list[1],
+                    case .keyword(let k) = `in`,
+                    k == .in,
+                    case .parameter(let right) = list[2],
+                    case .variable(let array) = right
+                else { throw "for loops expect one of the following expressions: 'name in names' or 'name, nameIndex in names'" }
+                self.item = item
+                self.array = array
+                self.index = index
+            }
 
             guard !body.isEmpty else { throw "for loops require a body" }
             self.body = body
@@ -563,9 +584,10 @@ extension Syntax {
             self.importSet = body.imports()
         }
         
-        internal init(item: String, array: String, body: [Syntax]) {
+        internal init(item: String, array: String, index: String, body: [Syntax]) {
             self.item = item
             self.array = array
+            self.index = index
             self.body = body
             self.externalsSet = body.externals()
             self.importSet = body.imports()
@@ -581,12 +603,12 @@ extension Syntax {
 
         func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
             guard !externalsSet.isEmpty || !importSet.isEmpty else { return [.loop(self)] }
-            return [.loop(.init(item: item, array: array, body: body.inlineRefs(externals, imports)))]
+            return [.loop(.init(item: item, array: array, index: index, body: body.inlineRefs(externals, imports)))]
         }
         
         func print(depth: Int) -> String {
             var print = indent(depth)
-            print += "for(" + item + " in " + array + "):\n"
+            print += "for(" + item + (index == "index" ? "" : ", \(index)") + " in " + array + "):\n"
             print += body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             return print
         }

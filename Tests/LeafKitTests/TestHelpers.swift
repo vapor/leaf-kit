@@ -196,6 +196,27 @@ final class PrintTests: XCTestCase {
         XCTAssertEqual(output, expectation)
     }
 
+    func testLoopCustomIndex() throws {
+        let template = """
+        #for(name, nin in names):
+            #(nin): hello, #(name).
+        #endfor
+        """
+        let expectation = """
+        for(name, nin in names):
+          raw("\\n    ")
+          expression[variable(nin)]
+          raw(": hello, ")
+          expression[variable(name)]
+          raw(".\\n")
+        """
+
+        let v = try parse(template).first!
+        guard case .loop(let test) = v else { throw "nope" }
+        let output = test.print(depth: 0)
+        XCTAssertEqual(output, expectation)
+    }
+
     func testConditional() throws {
         let template = """
         #if(foo):

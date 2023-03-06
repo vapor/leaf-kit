@@ -328,6 +328,34 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["arrays": data]), expected)
     }
 
+    func testNestedLoopCustomIndices() throws {
+        let template = """
+        #for(array, aIndex in arrays):#for(element, eIndex in array):
+        (#(aIndex), #(eIndex)): #(element)#endfor#endfor
+        """
+
+        let expected = """
+
+        (0, 0): zero
+        (0, 1): one
+        (0, 2): two
+        (1, 0): a
+        (1, 1): b
+        (1, 2): c
+        (2, 0): red fish
+        (2, 1): blue fish
+        (2, 2): green fish
+        """
+
+        let data = LeafData.array([
+            LeafData.array(["zero", "one", "two"]),
+            LeafData.array(["a", "b", "c"]),
+            LeafData.array(["red fish", "blue fish", "green fish"])
+        ])
+
+        try XCTAssertEqual(render(template, ["arrays": data]), expected)
+    }
+
     // It would be nice if a pre-render phase could catch things like calling
     // tags that would normally ALWAYS throw in serializing (eg, calling index
     // when not in a loop) so that warnings can be provided and AST can be minimized.
