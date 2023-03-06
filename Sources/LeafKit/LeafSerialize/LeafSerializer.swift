@@ -141,7 +141,7 @@ internal struct LeafSerializer {
 
             innerContext["isFirst"] = .bool(idx == array.startIndex)
             innerContext["isLast"] = .bool(idx == array.index(before: array.endIndex))
-            innerContext["index"] = .int(idx)
+            innerContext[loop.index] = .int(idx)
             innerContext[loop.item] = item
 
             var serializer = LeafSerializer(
