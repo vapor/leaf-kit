@@ -330,8 +330,8 @@ final class LeafTests: XCTestCase {
 
     func testNestedLoopCustomIndices() throws {
         let template = """
-        #for(array, aIndex in arrays):#for(element, eIndex in array):
-        (#(aIndex), #(eIndex)): #(element)#endfor#endfor
+        #for(i, array in arrays):#for(j, element in array):
+        (#(i), #(j)): #(element)#endfor#endfor
         """
 
         let expected = """

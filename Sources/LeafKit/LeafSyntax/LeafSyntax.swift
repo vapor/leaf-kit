@@ -562,11 +562,11 @@ extension Syntax {
             } else {
                 guard
                     params.count == 2,
-                    case .parameter(.variable(let item)) = params[0],
+                    case .parameter(.variable(let index)) = params[0],
                     case .expression(let list) = params[1],
                     list.count == 3,
                     case .parameter(let left) = list[0],
-                    case .variable(let index) = left,
+                    case .variable(let item) = left,
                     case .parameter(let `in`) = list[1],
                     case .keyword(let k) = `in`,
                     k == .in,
@@ -608,7 +608,7 @@ extension Syntax {
         
         func print(depth: Int) -> String {
             var print = indent(depth)
-            print += "for(" + item + (index == "index" ? "" : ", \(index)") + " in " + array + "):\n"
+            print += "for(" + (index == "index" ? "" : "\(index), ") + item + " in " + array + "):\n"
             print += body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             return print
         }

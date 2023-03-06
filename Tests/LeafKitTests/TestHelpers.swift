@@ -198,14 +198,14 @@ final class PrintTests: XCTestCase {
 
     func testLoopCustomIndex() throws {
         let template = """
-        #for(name, nin in names):
-            #(nin): hello, #(name).
+        #for(i, name in names):
+            #(i): hello, #(name).
         #endfor
         """
         let expectation = """
-        for(name, nin in names):
+        for(i, name in names):
           raw("\\n    ")
-          expression[variable(nin)]
+          expression[variable(i)]
           raw(": hello, ")
           expression[variable(name)]
           raw(".\\n")
