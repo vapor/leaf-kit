@@ -132,6 +132,23 @@ class TagTests: XCTestCase {
         """
         try XCTAssertEqual(render(template, ["emptyString": ""]), expected)
     }
+    
+    func testIsEmptyFalseCase() throws {
+        let template = """
+        #if(isEmpty(nonEmptyString)):
+            This is an empty string.
+        #else:
+            This is not an empty string.
+        #endif
+        """
+
+        let expected = """
+
+            This is not an empty string.
+
+        """
+        try XCTAssertEqual(render(template, ["nonEmptyString": "I'm not empty."]), expected)
+    }
 
     func testContainsTagWithHTML() throws {
         let template = """
