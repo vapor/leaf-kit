@@ -555,7 +555,7 @@ extension Syntax {
                     k == .in,
                     case .parameter(let right) = list[2],
                     case .variable(let array) = right
-                    else { throw "for loops expect one of the following expressions: 'name in names' or 'name, nameIndex in names'" }
+                    else { throw "for loops expect one of the following expressions: 'name in names' or 'nameIndex, name in names'" }
                 self.item = item
                 self.array = array
                 self.index = "index"
