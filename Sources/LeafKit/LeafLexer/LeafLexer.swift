@@ -160,7 +160,7 @@ internal struct LeafLexer {
             case .comma:
                 return .parameterDelimiter
             case .quote:
-                let read = src.readWhile { $0 != .quote && $0 != .newLine }
+                let read = readWithEscapingQuotes(src: &src)
                 guard src.peek() == .quote else {
                     throw LexerError(.unterminatedStringLiteral, src: src, lexed: lexed)
                 }
@@ -267,6 +267,16 @@ internal struct LeafLexer {
             return .parameter(.tag(name: name))
         } else {
             return .parameter(.variable(name: name))
+        }
+    }
+
+    private func readWithEscapingQuotes(src: inout LeafRawTemplate) -> String {
+        let read = src.readWhile { $0 != .quote && $0 != .newLine }
+        if read.last == "$" && src.peek() == .quote {
+            src.pop()
+            return read.dropLast() + "\"" + readWithEscapingQuotes(src: &src)
+        } else {
+            return read
         }
     }
 }
