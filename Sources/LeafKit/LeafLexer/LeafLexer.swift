@@ -272,7 +272,7 @@ internal struct LeafLexer {
 
     private func readWithEscapingQuotes(src: inout LeafRawTemplate) -> String {
         let read = src.readWhile { $0 != .quote && $0 != .newLine }
-        if read.last == "$" && src.peek() == .quote {
+        if read.last == .dollarSign && src.peek() == .quote {
             src.pop()
             return read.dropLast() + "\"" + readWithEscapingQuotes(src: &src)
         } else {
