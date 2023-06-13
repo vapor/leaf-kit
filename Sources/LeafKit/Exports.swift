@@ -110,5 +110,4 @@ extension Character {
     static let ampersand = "&".first!
     static let vertical = "|".first!
     static let underscore = "_".first!
-    static let dollarSign = "$".first!
 }

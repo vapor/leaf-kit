@@ -193,7 +193,7 @@ final class LeafTests: XCTestCase {
 
     func testEscapingQuote() throws {
         let template = """
-        #("foo $"bar$"")
+        #("foo \\"bar\\"")
         """
         let expected = """
         foo "bar"
