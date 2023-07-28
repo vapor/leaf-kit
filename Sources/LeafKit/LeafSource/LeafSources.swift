@@ -75,9 +75,7 @@ public final class LeafSources: @unchecked Sendable {
         guard !s.isEmpty else { return eL.makeFailedFuture(LeafError(.noTemplateExists(t))) }
         var _more = s
         let key = _more.removeFirst()
-        lock.lock()
-        let source = sources[key]!
-        lock.unlock()
+        let source = self.lock.withLock { sources[key]! }
         let more = _more
 
         do {
