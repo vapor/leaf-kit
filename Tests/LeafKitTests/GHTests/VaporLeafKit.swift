@@ -118,7 +118,7 @@ final class GHLeafKitIssuesTest: XCTestCase {
         XCTAssertEqual(page.string, expected)
         
         // Page rendering throws expected error
-        let config = LeafConfiguration(rootDirectory: "/", tagIndicator: Character.tagIndicator, ignoreUnfoundImports: false)
+        let config = LeafConfiguration(rootDirectory: "/", tagIndicator: Character.tagIndicator.withLockedValue { $0 }, ignoreUnfoundImports: false)
         XCTAssertThrowsError(try TestRenderer(configuration: config, sources: .singleSource(test)).render(path: "page").wait()) { error in
             XCTAssertEqual("\(error)", "import(\"body\") should have been resolved BEFORE serialization")
         }

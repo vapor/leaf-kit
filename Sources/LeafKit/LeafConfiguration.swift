@@ -1,4 +1,5 @@
 import Foundation
+import NIOConcurrencyHelpers
 
 /// General configuration of Leaf
 /// - Sets the default View directory where templates will be looked for
@@ -23,9 +24,9 @@ public struct LeafConfiguration: Sendable {
     /// - Parameter tagIndicator: Unique tagIndicator - may only be set once.
     /// - Parameter ignoreUnfoundImports: Ignore unfound imports - may only be set once.
     public init(rootDirectory: String, tagIndicator: Character, ignoreUnfoundImports: Bool) {
-        if !Self.started.value {
-            Character.tagIndicator = tagIndicator
-            Self.started.value = true
+        if !Self.started.withLockedValue({ $0 }) {
+            Character.tagIndicator.withLockedValue { $0 = tagIndicator }
+            Self.started.withLockedValue { $0 = true }
         }
         self._rootDirectory = rootDirectory
         self._ignoreUnfoundImports = ignoreUnfoundImports
@@ -42,53 +43,53 @@ public struct LeafConfiguration: Sendable {
     }
 
     public static var encoding: String.Encoding {
-        get { _encoding.value }
-        set { if !Self.running { _encoding.value = newValue } }
+        get { _encoding.withLockedValue { $0 } }
+        set { if !Self.running { _encoding.withLockedValue { $0 = newValue } } }
     }
     
     public static var boolFormatter: (Bool) -> String {
-        get { _boolFormatter.value }
-        set { if !Self.running { _boolFormatter.value = newValue } }
+        get { _boolFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _boolFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var intFormatter: (Int) -> String {
-        get { _intFormatter.value }
-        set { if !Self.running { _intFormatter.value = newValue } }
+        get { _intFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _intFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var doubleFormatter: (Double) -> String {
-        get { _doubleFormatter.value }
-        set { if !Self.running { _doubleFormatter.value = newValue } }
+        get { _doubleFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _doubleFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var nilFormatter: () -> String {
-        get { _nilFormatter.value }
-        set { if !Self.running { _nilFormatter.value = newValue } }
+        get { _nilFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _nilFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var voidFormatter: () -> String {
-        get { _voidFormatter.value }
-        set { if !Self.running { _voidFormatter.value = newValue } }
+        get { _voidFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _voidFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var stringFormatter: (String) -> String {
-        get { _stringFormatter.value }
-        set { if !Self.running { _stringFormatter.value = newValue } }
+        get { _stringFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _stringFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var arrayFormatter: ([String]) -> String {
-        get { _arrayFormatter.value }
-        set { if !Self.running { _arrayFormatter.value = newValue } }
+        get { _arrayFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _arrayFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var dictFormatter: ([String: String]) -> String {
-        get { _dictFormatter.value }
-        set { if !Self.running { _dictFormatter.value = newValue } }
+        get { _dictFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _dictFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var dataFormatter: (Data) -> String? {
-        get { _dataFormatter.value }
-        set { if !Self.running { _dataFormatter.value = newValue } }
+        get { _dataFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _dataFormatter.withLockedValue { $0 = newValue } } }
     }
     
     // MARK: - Internal/Private Only
@@ -100,28 +101,28 @@ public struct LeafConfiguration: Sendable {
         willSet { assert(!accessed, "Changing property after LeafConfiguration has been read has no effect") }
     }
 
-    internal static let _encoding = SendableBox<String.Encoding>(.utf8)
-    internal static let _boolFormatter = SendableBox<(Bool) -> String>({ $0.description })
-    internal static let _intFormatter = SendableBox<(Int) -> String>({ $0.description })
-    internal static let _doubleFormatter = SendableBox<(Double) -> String>({ $0.description })
-    internal static let _nilFormatter = SendableBox<(() -> String)>({ "" })
-    internal static let _voidFormatter = SendableBox<(() -> String)>({ "" })
-    internal static let _stringFormatter = SendableBox<((String) -> String)>({ $0 })
-    internal static let _arrayFormatter = SendableBox<(([String]) -> String)>(
+    internal static let _encoding = NIOLockedValueBox<String.Encoding>(.utf8)
+    internal static let _boolFormatter = NIOLockedValueBox<(Bool) -> String>({ $0.description })
+    internal static let _intFormatter = NIOLockedValueBox<(Int) -> String>({ $0.description })
+    internal static let _doubleFormatter = NIOLockedValueBox<(Double) -> String>({ $0.description })
+    internal static let _nilFormatter = NIOLockedValueBox<(() -> String)>({ "" })
+    internal static let _voidFormatter = NIOLockedValueBox<(() -> String)>({ "" })
+    internal static let _stringFormatter = NIOLockedValueBox<((String) -> String)>({ $0 })
+    internal static let _arrayFormatter = NIOLockedValueBox<(([String]) -> String)>(
         { "[\($0.map {"\"\($0)\""}.joined(separator: ", "))]" }
     )
-    internal static let _dictFormatter = SendableBox<(([String: String]) -> String)>(
+    internal static let _dictFormatter = NIOLockedValueBox<(([String: String]) -> String)>(
         { "[\($0.map { "\($0): \"\($1)\"" }.joined(separator: ", "))]" }
     )
-    internal static let _dataFormatter = SendableBox<((Data) -> String?)>(
-        { String(data: $0, encoding: Self._encoding.value) }
+    internal static let _dataFormatter = NIOLockedValueBox<((Data) -> String?)>(
+        { String(data: $0, encoding: Self._encoding.withLockedValue { $0 }) }
     )
     
     /// Convenience flag for global write-once
-    private static let started = SendableBox(false)
+    private static let started = NIOLockedValueBox(false)
     private static var running: Bool {
-        assert(!Self.started.value, "LeafKit can only be configured prior to instantiating any LeafRenderer")
-        return Self.started.value
+        assert(!Self.started.withLockedValue { $0 }, "LeafKit can only be configured prior to instantiating any LeafRenderer")
+        return Self.started.withLockedValue { $0 }
     }
     
     /// Convenience flag for local lock-after-access

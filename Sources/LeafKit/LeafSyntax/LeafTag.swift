@@ -1,3 +1,4 @@
+import NIOConcurrencyHelpers
 import Foundation
 
 /// Create custom tags by conforming to this protocol and registering them.
@@ -9,7 +10,7 @@ public protocol LeafTag: Sendable {
 /// Tags conforming to this protocol do not get their contents HTML-escaped.
 public protocol UnsafeUnescapedLeafTag: LeafTag {}
 
-let _defaultTags = SendableBox<[String: LeafTag]>([
+let _defaultTags = NIOLockedValueBox<[String: LeafTag]>([
     "unsafeHTML": UnsafeHTML(),
     "lowercased": Lowercased(),
     "uppercased": Uppercased(),
@@ -24,10 +25,10 @@ let _defaultTags = SendableBox<[String: LeafTag]>([
 
 public var defaultTags: [String: LeafTag] {
     get {
-        _defaultTags.value
+        _defaultTags.withLockedValue { $0 }
     }
     set(newValue) {
-        _defaultTags.value = newValue
+        _defaultTags.withLockedValue { $0 = newValue }
     }
 }
 

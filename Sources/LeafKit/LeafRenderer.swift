@@ -1,4 +1,5 @@
 import NIO
+import NIOConcurrencyHelpers
 
 // MARK: - `LeafRenderer` Summary
 
@@ -25,7 +26,7 @@ public final class LeafRenderer: Sendable {
     public let sources: LeafSources
     /// The NIO `EventLoop` on which this instance of `LeafRenderer` will operate
     public let eventLoop: EventLoop
-    let _userInfo: SendableBox<[AnyHashable: Any]>
+    let _userInfo: NIOLoopBound<[AnyHashable: Any]>
     /// Any custom instance data to use (eg, in Vapor, the `Application` and/or `Request` data)
     public var userInfo: [AnyHashable: Any] {
         _userInfo.value
@@ -45,7 +46,7 @@ public final class LeafRenderer: Sendable {
         self.cache = cache
         self.sources = sources
         self.eventLoop = eventLoop
-        self._userInfo = .init(userInfo)
+        self._userInfo = .init(userInfo, eventLoop: eventLoop)
     }
     
     /// The public interface to `LeafRenderer`

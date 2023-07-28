@@ -63,7 +63,7 @@ internal struct LeafLexer {
     private mutating func nextToken() throws -> LeafToken? {
         // if EOF, return nil - no more to read
         guard let current = src.peek() else { return nil }
-        let isTagID = current == .tagIndicator
+        let isTagID = current == .tagIndicator.withLockedValue { $0 }
         let isTagVal = current.isValidInTagName
         let isCol = current == .colon
         let next = src.peek(aheadBy: 1)
@@ -107,10 +107,11 @@ internal struct LeafLexer {
     /// Consume all data until hitting an unescaped `tagIndicator` and return a `.raw` token
     private mutating func lexRaw() -> LeafToken {
         var slice = ""
-        while let current = src.peek(), current != .tagIndicator {
-            slice += src.readWhile { $0 != .tagIndicator && $0 != .backSlash }
+        let tagIndicator = Character.tagIndicator.withLockedValue({ $0 })
+        while let current = src.peek(), current != tagIndicator {
+            slice += src.readWhile { $0 != tagIndicator && $0 != .backSlash }
             guard let newCurrent = src.peek(), newCurrent == .backSlash else { break }
-            if let next = src.peek(aheadBy: 1), next == .tagIndicator {
+            if let next = src.peek(aheadBy: 1), next == tagIndicator {
                 src.pop()
             }
             slice += src.pop()!.description
@@ -129,7 +130,7 @@ internal struct LeafLexer {
             return .tagIndicator
         } else {
             state = .raw
-            return .raw(Character.tagIndicator.description)
+            return .raw((Character.tagIndicator.withLockedValue { $0 }).description)
         }
     }
 

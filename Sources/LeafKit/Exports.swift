@@ -1,16 +1,9 @@
+import NIOConcurrencyHelpers
 /// Various helper identities for convenience
 extension Character {
 
     // MARK: - LeafToken specific identities (Internal)
-    private static let _tagIndicator = SendableBox(Character.octothorpe)
-    static var tagIndicator: Character {
-        get {
-            _tagIndicator.value
-        }
-        set(newValue) {
-            _tagIndicator.value = newValue
-        }
-    }
+    static let tagIndicator = NIOLockedValueBox(Character.octothorpe)
 
     var isValidInTagName: Bool {
         return self.isLowercaseLetter
