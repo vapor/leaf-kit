@@ -47,17 +47,16 @@ public final class DefaultLeafCache: SynchronousLeafCache, @unchecked Sendable {
         on loop: EventLoop,
         replace: Bool = false
     ) -> EventLoopFuture<LeafAST> {
-        // future fails if caching is enabled
-        guard isEnabled else { return loop.makeSucceededFuture(document) }
-
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        // return an error if replace is false and the document name is already in cache
-        switch (self.cache.keys.contains(document.name),replace) {
+        self.lock.withLock {
+            // future fails if caching is enabled
+            guard __isEnabled else { return loop.makeSucceededFuture(document) }
+            // return an error if replace is false and the document name is already in cache
+            switch (self.cache.keys.contains(document.name),replace) {
             case (true, false): return loop.makeFailedFuture(LeafError(.keyExists(document.name)))
             default: self.cache[document.name] = document
+            }
+            return loop.makeSucceededFuture(document)
         }
-        return loop.makeSucceededFuture(document)
     }
     
     /// - Parameters:
@@ -68,10 +67,10 @@ public final class DefaultLeafCache: SynchronousLeafCache, @unchecked Sendable {
         documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<LeafAST?> {
-        guard isEnabled == true else { return loop.makeSucceededFuture(nil) }
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return loop.makeSucceededFuture(self.cache[documentName])
+        self.lock.withLock {
+            guard __isEnabled == true else { return loop.makeSucceededFuture(nil) }
+            return loop.makeSucceededFuture(self.cache[documentName])
+        }
     }
 
     /// - Parameters:
@@ -83,14 +82,12 @@ public final class DefaultLeafCache: SynchronousLeafCache, @unchecked Sendable {
         _ documentName: String,
         on loop: EventLoop
     ) -> EventLoopFuture<Bool?> {
-        guard isEnabled == true else { return loop.makeFailedFuture(LeafError(.cachingDisabled)) }
-
-        self.lock.lock()
-        defer { self.lock.unlock() }
-
-        guard self.cache[documentName] != nil else { return loop.makeSucceededFuture(nil) }
-        self.cache[documentName] = nil
-        return loop.makeSucceededFuture(true)
+        self.lock.withLock {
+            guard __isEnabled == true else { return loop.makeFailedFuture(LeafError(.cachingDisabled)) }
+            guard self.cache[documentName] != nil else { return loop.makeSucceededFuture(nil) }
+            self.cache[documentName] = nil
+            return loop.makeSucceededFuture(true)
+        }
     }
     
     // MARK: - Internal Only
@@ -100,9 +97,9 @@ public final class DefaultLeafCache: SynchronousLeafCache, @unchecked Sendable {
     
     /// Blocking file load behavior
     internal func retrieve(documentName: String) throws -> LeafAST? {
-        guard isEnabled == true else { throw LeafError(.cachingDisabled) }
         self.lock.lock()
         defer { self.lock.unlock() }
+        guard __isEnabled == true else { throw LeafError(.cachingDisabled) }
         let result = self.cache[documentName]
         guard result != nil else { throw LeafError(.noValueForKey(documentName)) }
         return result
