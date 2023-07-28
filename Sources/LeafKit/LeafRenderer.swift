@@ -34,7 +34,7 @@ public final class LeafRenderer: Sendable {
     /// Initial configuration of LeafRenderer.
     public init(
         configuration: LeafConfiguration,
-        tags: [String: LeafTag] = defaultLeafTags,
+        tags: [String: LeafTag] = defaultTags,
         cache: LeafCache = DefaultLeafCache(),
         sources: LeafSources,
         eventLoop: EventLoop,

@@ -9,7 +9,7 @@ public protocol LeafTag: Sendable {
 /// Tags conforming to this protocol do not get their contents HTML-escaped.
 public protocol UnsafeUnescapedLeafTag: LeafTag {}
 
-public let defaultLeafTags: [String: LeafTag] = [
+let _defaultTags = SendableBox<[String: LeafTag]>([
     "unsafeHTML": UnsafeHTML(),
     "lowercased": Lowercased(),
     "uppercased": Uppercased(),
@@ -20,10 +20,16 @@ public let defaultLeafTags: [String: LeafTag] = [
     "count": Count(),
     "comment": Comment(),
     "dumpContext": DumpContext()
-]
+])
 
-@available(*, deprecated, renamed: "defaultRendererTags", message: "This variable is concurrently unsafe and is deprecated")
-public var defaultTags: [String: LeafTag] = defaultLeafTags
+public var defaultTags: [String: LeafTag] {
+    get {
+        _defaultTags.value
+    }
+    set(newValue) {
+        _defaultTags.value = newValue
+    }
+}
 
 struct UnsafeHTML: UnsafeUnescapedLeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData {

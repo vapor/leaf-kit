@@ -1,5 +1,5 @@
 import Foundation
-@preconcurrency import NIO
+import NIO
 
 /// Reference and default implementation of `LeafSource` adhering object that provides a non-blocking
 /// file reader for `LeafRenderer`

@@ -55,7 +55,7 @@ internal class TestRenderer: @unchecked Sendable {
     private var counter: Int = 0
     
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
-            tags: [String : LeafTag] = defaultLeafTags,
+            tags: [String : LeafTag] = defaultTags,
             cache: LeafCache = DefaultLeafCache(),
             sources: LeafSources = .singleSource(TestFiles()),
             eventLoop: EventLoop = EmbeddedEventLoop(),
