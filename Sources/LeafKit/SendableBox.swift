@@ -1,7 +1,7 @@
 import NIOConcurrencyHelpers
 
 /// Uses a locking mechanism to ensure Sendability.
-internal final class SendableBox<Value>: @unchecked Sendable {
+internal final class SendableBox<Value: Sendable>: @unchecked Sendable {
     private var _value: Value
     private let lock = NIOLock()
 
