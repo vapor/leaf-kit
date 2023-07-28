@@ -3,7 +3,7 @@ import Foundation
 /// General configuration of Leaf
 /// - Sets the default View directory where templates will be looked for
 /// - Guards setting the global tagIndicator (default `#`).
-public struct LeafConfiguration {
+public struct LeafConfiguration: Sendable {
     
     /// Initialize Leaf with the default tagIndicator `#` and unfound imports throwing an exception
     /// - Parameter rootDirectory: Default directory where templates will be found
@@ -23,9 +23,9 @@ public struct LeafConfiguration {
     /// - Parameter tagIndicator: Unique tagIndicator - may only be set once.
     /// - Parameter ignoreUnfoundImports: Ignore unfound imports - may only be set once.
     public init(rootDirectory: String, tagIndicator: Character, ignoreUnfoundImports: Bool) {
-        if !Self.started {
+        if !Self.started.value {
             Character.tagIndicator = tagIndicator
-            Self.started = true
+            Self.started.value = true
         }
         self._rootDirectory = rootDirectory
         self._ignoreUnfoundImports = ignoreUnfoundImports
@@ -42,53 +42,53 @@ public struct LeafConfiguration {
     }
 
     public static var encoding: String.Encoding {
-        get { _encoding }
-        set { if !Self.running { _encoding = newValue } }
+        get { _encoding.value }
+        set { if !Self.running { _encoding.value = newValue } }
     }
     
     public static var boolFormatter: (Bool) -> String {
-        get { _boolFormatter }
-        set { if !Self.running { _boolFormatter = newValue } }
+        get { _boolFormatter.value }
+        set { if !Self.running { _boolFormatter.value = newValue } }
     }
     
     public static var intFormatter: (Int) -> String {
-        get { _intFormatter }
-        set { if !Self.running { _intFormatter = newValue } }
+        get { _intFormatter.value }
+        set { if !Self.running { _intFormatter.value = newValue } }
     }
     
     public static var doubleFormatter: (Double) -> String {
-        get { _doubleFormatter }
-        set { if !Self.running { _doubleFormatter = newValue } }
+        get { _doubleFormatter.value }
+        set { if !Self.running { _doubleFormatter.value = newValue } }
     }
     
     public static var nilFormatter: () -> String {
-        get { _nilFormatter }
-        set { if !Self.running { _nilFormatter = newValue } }
+        get { _nilFormatter.value }
+        set { if !Self.running { _nilFormatter.value = newValue } }
     }
     
     public static var voidFormatter: () -> String {
-        get { _voidFormatter }
-        set { if !Self.running { _voidFormatter = newValue } }
+        get { _voidFormatter.value }
+        set { if !Self.running { _voidFormatter.value = newValue } }
     }
     
     public static var stringFormatter: (String) -> String {
-        get { _stringFormatter }
-        set { if !Self.running { _stringFormatter = newValue } }
+        get { _stringFormatter.value }
+        set { if !Self.running { _stringFormatter.value = newValue } }
     }
     
     public static var arrayFormatter: ([String]) -> String {
-        get { _arrayFormatter }
-        set { if !Self.running { _arrayFormatter = newValue } }
+        get { _arrayFormatter.value }
+        set { if !Self.running { _arrayFormatter.value = newValue } }
     }
     
     public static var dictFormatter: ([String: String]) -> String {
-        get { _dictFormatter }
-        set { if !Self.running { _dictFormatter = newValue } }
+        get { _dictFormatter.value }
+        set { if !Self.running { _dictFormatter.value = newValue } }
     }
     
     public static var dataFormatter: (Data) -> String? {
-        get { _dataFormatter }
-        set { if !Self.running { _dataFormatter = newValue } }
+        get { _dataFormatter.value }
+        set { if !Self.running { _dataFormatter.value = newValue } }
     }
     
     // MARK: - Internal/Private Only
@@ -99,27 +99,29 @@ public struct LeafConfiguration {
     internal var _ignoreUnfoundImports: Bool {
         willSet { assert(!accessed, "Changing property after LeafConfiguration has been read has no effect") }
     }
-    
-    internal static var _encoding: String.Encoding = .utf8
-    internal static var _boolFormatter: (Bool) -> String = { $0.description }
-    internal static var _intFormatter: (Int) -> String = { $0.description }
-    internal static var _doubleFormatter: (Double) -> String = { $0.description }
-    internal static var _nilFormatter: () -> String = { "" }
-    internal static var _voidFormatter: () -> String = { "" }
-    internal static var _stringFormatter: (String) -> String = { $0 }
-    internal static var _arrayFormatter: ([String]) -> String =
+
+    internal static let _encoding = SendableBox<String.Encoding>(.utf8)
+    internal static let _boolFormatter = SendableBox<(Bool) -> String>({ $0.description })
+    internal static let _intFormatter = SendableBox<(Int) -> String>({ $0.description })
+    internal static let _doubleFormatter = SendableBox<(Double) -> String>({ $0.description })
+    internal static let _nilFormatter = SendableBox<(() -> String)>({ "" })
+    internal static let _voidFormatter = SendableBox<(() -> String)>({ "" })
+    internal static let _stringFormatter = SendableBox<((String) -> String)>({ $0 })
+    internal static let _arrayFormatter = SendableBox<(([String]) -> String)>(
         { "[\($0.map {"\"\($0)\""}.joined(separator: ", "))]" }
-    internal static var _dictFormatter: ([String: String]) -> String =
+    )
+    internal static let _dictFormatter = SendableBox<(([String: String]) -> String)>(
         { "[\($0.map { "\($0): \"\($1)\"" }.joined(separator: ", "))]" }
-    internal static var _dataFormatter: (Data) -> String? =
-        { String(data: $0, encoding: Self._encoding) }
-    
+    )
+    internal static let _dataFormatter = SendableBox<((Data) -> String?)>(
+        { String(data: $0, encoding: Self._encoding.value) }
+    )
     
     /// Convenience flag for global write-once
-    private static var started = false
+    private static let started = SendableBox(false)
     private static var running: Bool {
-        assert(!Self.started, "LeafKit can only be configured prior to instantiating any LeafRenderer")
-        return Self.started
+        assert(!Self.started.value, "LeafKit can only be configured prior to instantiating any LeafRenderer")
+        return Self.started.value
     }
     
     /// Convenience flag for local lock-after-access

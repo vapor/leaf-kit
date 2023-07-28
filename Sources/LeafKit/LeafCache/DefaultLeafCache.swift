@@ -1,11 +1,33 @@
 import NIOConcurrencyHelpers
 import NIO
 
-public final class DefaultLeafCache: SynchronousLeafCache {
+/// `@unchecked Sendable` because uses locks to guarantee Sendability.
+public final class DefaultLeafCache: SynchronousLeafCache, @unchecked Sendable {
     // MARK: - Public - `LeafCache` Protocol Conformance
-    
+
+    var __isEnabled = true
     /// Global setting for enabling or disabling the cache
-    public var isEnabled: Bool = true
+    public var _isEnabled: Bool {
+        get {
+            self.lock.withLock {
+                self.__isEnabled
+            }
+        }
+        set(newValue) {
+            self.lock.withLock {
+                self.__isEnabled = newValue
+            }
+        }
+    }
+    /// Global setting for enabling or disabling the cache
+    public var isEnabled: Bool {
+        get {
+            self._isEnabled
+        }
+        set(newValue) {
+            self._isEnabled = newValue
+        }
+    }
     /// Current count of cached documents
     public var count: Int { self.lock.withLock { cache.count } }
     
@@ -73,7 +95,7 @@ public final class DefaultLeafCache: SynchronousLeafCache {
     
     // MARK: - Internal Only
     
-    internal let lock: Lock
+    internal let lock: NIOLock
     internal var cache: [String: LeafAST]
     
     /// Blocking file load behavior

@@ -5,7 +5,7 @@
 ///
 public struct LeafError: Error {
     /// Possible cases of a LeafError.Reason, with applicable stored values where useful for the type
-    public enum Reason {
+    public enum Reason: Sendable {
         // MARK: Errors related to loading raw templates
         /// Attempted to access a template blocked for security reasons
         case illegalAccess(String)
@@ -109,7 +109,7 @@ public struct LeafError: Error {
 public struct LexerError: Error {
     // MARK: - Public
     
-    public enum Reason {
+    public enum Reason: Sendable {
         // MARK: Errors occuring during Lexing
         /// A character not usable in parameters is present when Lexer is not expecting it
         case invalidParameterToken(Character)

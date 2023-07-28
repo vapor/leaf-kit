@@ -1,11 +1,11 @@
 import Foundation
-import NIO
+@preconcurrency import NIO
 
 /// Reference and default implementation of `LeafSource` adhering object that provides a non-blocking
 /// file reader for `LeafRenderer`
 ///
 /// Default initializer will
-public struct NIOLeafFiles: LeafSource {
+public struct NIOLeafFiles: LeafSource, Sendable {
     // MARK: - Public
     
     /// Various options for configuring an instance of `NIOLeafFiles`
@@ -17,7 +17,7 @@ public struct NIOLeafFiles: LeafSource {
     ///                     inside a directory starting with `.`)
     ///
     /// A new `NIOLeafFiles` defaults to [.toSandbox, .toVisibleFiles, .requireExtensions]
-    public struct Limit: OptionSet {
+    public struct Limit: OptionSet, Sendable {
         public let rawValue: Int
         public init(rawValue: Int) {
             self.rawValue = rawValue

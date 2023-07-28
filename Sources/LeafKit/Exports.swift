@@ -2,8 +2,16 @@
 extension Character {
 
     // MARK: - LeafToken specific identities (Internal)
-    static var tagIndicator: Character = .octothorpe
-    
+    private static let _tagIndicator = SendableBox(Character.octothorpe)
+    static var tagIndicator: Character {
+        get {
+            _tagIndicator.value
+        }
+        set(newValue) {
+            _tagIndicator.value = newValue
+        }
+    }
+
     var isValidInTagName: Bool {
         return self.isLowercaseLetter
             || self.isUppercaseLetter

@@ -1,7 +1,7 @@
 import NIO
 
 /// `LeafAST` represents a "compiled," grammatically valid Leaf template (which may or may not be fully resolvable or erroring)
-public struct LeafAST: Hashable {
+public struct LeafAST: Hashable, Sendable {
     // MARK: - Public
     
     public func hash(into hasher: inout Hasher) { hasher.combine(name) }

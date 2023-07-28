@@ -5,7 +5,7 @@ internal struct LeafSerializer {
     
     init(
         ast: [Syntax],
-        tags: [String: LeafTag] = defaultTags,
+        tags: [String: LeafTag] = defaultLeafTags,
         userInfo: [AnyHashable: Any] = [:],
         ignoreUnfoundImports: Bool
         

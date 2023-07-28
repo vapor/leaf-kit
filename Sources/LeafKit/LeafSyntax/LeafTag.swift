@@ -1,14 +1,15 @@
 import Foundation
 
 /// Create custom tags by conforming to this protocol and registering them.
-public protocol LeafTag {
+@preconcurrency
+public protocol LeafTag: Sendable {
     func render(_ ctx: LeafContext) throws -> LeafData
 }
 
 /// Tags conforming to this protocol do not get their contents HTML-escaped.
 public protocol UnsafeUnescapedLeafTag: LeafTag {}
 
-public var defaultTags: [String: LeafTag] = [
+public let defaultLeafTags: [String: LeafTag] = [
     "unsafeHTML": UnsafeHTML(),
     "lowercased": Lowercased(),
     "uppercased": Uppercased(),
@@ -20,6 +21,9 @@ public var defaultTags: [String: LeafTag] = [
     "comment": Comment(),
     "dumpContext": DumpContext()
 ]
+
+@available(*, deprecated, renamed: "defaultRendererTags", message: "This variable is concurrently unsafe and is deprecated")
+public var defaultTags: [String: LeafTag] = defaultLeafTags
 
 struct UnsafeHTML: UnsafeUnescapedLeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData {
