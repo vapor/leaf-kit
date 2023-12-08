@@ -1,22 +1,33 @@
 name: test
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 on:
-- pull_request
+  pull_request: { types: [opened, reopened, synchronize, ready_for_review] }
+  push: { branches: [ main ] }
+env:
+  LOG_LEVEL: info
+  SWIFT_DETERMINISTIC_HASHING: 1
+
 jobs:
   unit-tests:
-     uses: vapor/ci/.github/workflows/run-unit-tests.yml@reusable-workflows
-     with:
-       with_coverage: false
-       with_tsan: true
-  leaf:
-    container: 
-      image: swift:5.6-focal
+     uses: vapor/ci/.github/workflows/run-unit-tests.yml@main
+
+  leaf-integration:
+    if: ${{ !(github.event.pull_request.draft || false) }}
     runs-on: ubuntu-latest
-    steps:
-    - run: git clone -b main https://github.com/vapor/leaf.git
-      working-directory: ./
-    - run: swift package edit leaf-kit --revision ${{ github.sha }}
-      working-directory: ./leaf
-    - run: swift test --sanitize=thread
-      env:
-          SWIFT_DETERMINISTIC_HASHING: 1
-      working-directory: ./leaf
+    container: swift:jammy
+    steps: 
+      - name: Check out LeafKit
+        uses: actions/checkout@v4
+        with:
+          path: leaf-kit
+      - name: Check out Leaf provider
+        uses: actions/checkout@v4
+        with:
+          repository: vapor/leaf
+          path: leaf
+      - name: Use local LeafKit
+        run: swift package --package-path leaf edit leaf-kit --path ./leaf-kit
+      - name: Run tests with Thread Sanitizer
+        run: swift test --package-path leaf --sanitize=thread
