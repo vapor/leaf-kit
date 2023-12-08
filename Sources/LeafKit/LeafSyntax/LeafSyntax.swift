@@ -105,6 +105,10 @@ extension Syntax: BodiedSyntax  {
     }
     
     internal func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Export]) -> [Syntax] {
+        if case .extend(let extend) = self, let context = extend.context {
+            let inner = extend.inlineRefs(externals, imports)
+            return [.with(.init(context: context, body: inner))]
+        }
         var result = [Syntax]()
         switch self {
             case .import(let im):
