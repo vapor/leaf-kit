@@ -1,14 +1,16 @@
+import NIOConcurrencyHelpers
 import Foundation
 
 /// Create custom tags by conforming to this protocol and registering them.
-public protocol LeafTag {
+@preconcurrency
+public protocol LeafTag: Sendable {
     func render(_ ctx: LeafContext) throws -> LeafData
 }
 
 /// Tags conforming to this protocol do not get their contents HTML-escaped.
 public protocol UnsafeUnescapedLeafTag: LeafTag {}
 
-public var defaultTags: [String: LeafTag] = [
+let _defaultTags = NIOLockedValueBox<[String: LeafTag]>([
     "unsafeHTML": UnsafeHTML(),
     "lowercased": Lowercased(),
     "uppercased": Uppercased(),
@@ -19,7 +21,16 @@ public var defaultTags: [String: LeafTag] = [
     "count": Count(),
     "comment": Comment(),
     "dumpContext": DumpContext()
-]
+])
+
+public var defaultTags: [String: LeafTag] {
+    get {
+        _defaultTags.withLockedValue { $0 }
+    }
+    set(newValue) {
+        _defaultTags.withLockedValue { $0 = newValue }
+    }
+}
 
 struct UnsafeHTML: UnsafeUnescapedLeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData {

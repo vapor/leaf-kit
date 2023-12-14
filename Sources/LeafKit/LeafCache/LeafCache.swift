@@ -12,7 +12,8 @@ import NIO
 /// adherents where the cache store itself is not a bottleneck.
 ///
 /// `LeafAST.name` is to be used in all cases as the key for retrieving cached documents.
-public protocol LeafCache {
+@preconcurrency
+public protocol LeafCache: Sendable {
     /// Global setting for enabling or disabling the cache
     var isEnabled : Bool { get set }
     /// Current count of cached documents
