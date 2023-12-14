@@ -191,6 +191,16 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, [:]), expected)
     }
 
+    func testEscapingQuote() throws {
+        let template = """
+        #("foo \\"bar\\"")
+        """
+        let expected = """
+        foo "bar"
+        """
+        try XCTAssertEqual(render(template), expected)
+    }
+
     func testCount() throws {
         let template = """
         count: #count(array)
