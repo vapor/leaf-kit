@@ -200,7 +200,13 @@ internal struct LeafParser {
                     let params = try readParameters()
                     // parameter tags not permitted to have bodies
                     if params.count > 1  { group.append(.expression(params)) }
-                    else { group.append(params.first!) }
+                    ///// else { group.append(params.first!) }
+                    else {
+                      guard let firstParam = params.first else {
+                        throw LeafError(.missingParameter("Expected a parameter but found none"))
+                      }
+                      group.append(firstParam)
+                    }
                 case .parameter(let p):
                     pop()
                     switch p {
