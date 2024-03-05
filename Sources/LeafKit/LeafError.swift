@@ -32,7 +32,7 @@ public struct LeafError: Error {
         /// - Provide template name & ordered array of template names that causes the cycle path
         case cyclicalReference(String, [String])
         /// Parameter missing
-        case missingParameter(String)
+        case missingParameter
 
         // MARK: Wrapped Errors related to Lexing or Parsing
         /// Errors due to malformed template syntax or grammar
@@ -86,8 +86,8 @@ public struct LeafError: Error {
                 return "\(src) - \(key) cyclically referenced in [\(chain.joined(separator: " -> "))]"
             case .lexerError(let e):
                 return "Lexing error - \(e.localizedDescription)"
-            case .missingParameter(let message):
-                return message
+            case .missingParameter:
+                return "Expected a parameter but found none"
         }
     }
     

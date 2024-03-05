@@ -45,4 +45,26 @@ final class LeafErrorTests: XCTestCase {
             XCTFail("Wrong error: \(error.localizedDescription)")
         }
     }
+    
+    /// Verify that rendering a template with a missing required parameter will throw `LeafError.missingParameter`
+    func testMissingParameterError() {
+      var test = TestFiles()
+      // Assuming "/missingParam.leaf" is a template that requires a parameter we intentionally don't provide
+      test.files["/missingParam.leaf"] = """
+          #(foo.bar.trim())
+          """
+      do {
+        _ = try TestRenderer(sources: .singleSource(test)).render(path: "missingParam", context: [:]).wait()
+        XCTFail("Should have thrown LeafError.missingParameter")
+      } catch let error as LeafError {
+        switch error.reason {
+        case .missingParameter:
+          return
+        default:
+          XCTFail("Wrong error: \(error.localizedDescription)")
+        }
+      } catch {
+        XCTFail("Wrong error: \(error.localizedDescription)")
+      }
+    }
 }
