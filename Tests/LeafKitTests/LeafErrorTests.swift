@@ -53,18 +53,12 @@ final class LeafErrorTests: XCTestCase {
       test.files["/missingParam.leaf"] = """
           #(foo.bar.trim())
           """
-      do {
-        _ = try TestRenderer(sources: .singleSource(test)).render(path: "missingParam", context: [:]).wait()
-        XCTFail("Should have thrown LeafError.missingParameter")
-      } catch let error as LeafError {
-        switch error.reason {
-        case .missingParameter:
-          return
-        default:
-          XCTFail("Wrong error: \(error.localizedDescription)")
+        XCTAssertThrowsError(try TestRenderer(sources: .singleSource(test))
+            .render(path: "missingParam", context: [:])
+            .wait()
+        ) {
+            guard case .missingParameter = ($0 as? LeafError)?.reason else {
+                return XCTFail("Expected LeafError.missingParameter, got \(String(reflecting: $0))")
+            }
         }
-      } catch {
-        XCTFail("Wrong error: \(error.localizedDescription)")
-      }
-    }
 }
