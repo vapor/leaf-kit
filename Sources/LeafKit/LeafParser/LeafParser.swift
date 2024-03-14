@@ -193,7 +193,7 @@ internal struct LeafParser {
             guard let first = group.first else {
               // It's better to handle this case as well, even though logically it might never happen
               // since you're checking if group.isEmpty before.
-              throw LeafError(.missingParameter, file: #file, function: #function, line: #line, column: #column)
+              throw LeafError(.unknownError("Found nil while iterating through params"), file: #file, function: #function, line: #line, column: #column)
             }
             paramsList.append(first)
           }
@@ -209,7 +209,7 @@ internal struct LeafParser {
                     if params.count > 1  { group.append(.expression(params)) }
                     else {
                       guard let firstParam = params.first else {
-                        throw LeafError(.missingParameter)
+                        throw LeafError(.unknownError("Found nil while iterating through params"))
                       }
                       group.append(firstParam)
                     }

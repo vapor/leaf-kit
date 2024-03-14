@@ -57,8 +57,9 @@ final class LeafErrorTests: XCTestCase {
             .render(path: "missingParam", context: [:])
             .wait()
         ) {
-            guard case .missingParameter = ($0 as? LeafError)?.reason else {
-                return XCTFail("Expected LeafError.missingParameter, got \(String(reflecting: $0))")
+            guard case .unknownError("Found nil while iterating through params") = ($0 as? LeafError)?.reason else {
+                return XCTFail("Expected LeafError.unknownError(\"Found nil while iterating through params\"), got \(String(reflecting: $0))")
             }
         }
+    }
 }
