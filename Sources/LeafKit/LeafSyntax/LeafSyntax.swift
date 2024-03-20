@@ -85,6 +85,7 @@ extension Syntax: BodiedSyntax  {
                  .custom(let bS as BodiedSyntax),
                  .export(let bS as BodiedSyntax),
                  .extend(let bS as BodiedSyntax),
+                 .with(let bS as BodiedSyntax),
                  .loop(let bS as BodiedSyntax): return bS.externals()
             default: return .init()
         }
@@ -125,6 +126,7 @@ extension Syntax: BodiedSyntax  {
                  .custom(let bS as BodiedSyntax),
                  .export(let bS as BodiedSyntax),
                  .extend(let bS as BodiedSyntax),
+                 .with(let bS as BodiedSyntax),
                  .loop(let bS as BodiedSyntax): result += bS.inlineRefs(externals, imports)
             case .expression(let pDA): result.append(.expression(pDA.inlineImports(imports)))
             // .variable, .raw
