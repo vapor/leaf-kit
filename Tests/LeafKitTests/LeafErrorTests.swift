@@ -45,4 +45,21 @@ final class LeafErrorTests: XCTestCase {
             XCTFail("Wrong error: \(error.localizedDescription)")
         }
     }
+    
+    /// Verify that rendering a template with a missing required parameter will throw `LeafError.missingParameter`
+    func testMissingParameterError() {
+      var test = TestFiles()
+      // Assuming "/missingParam.leaf" is a template that requires a parameter we intentionally don't provide
+      test.files["/missingParam.leaf"] = """
+          #(foo.bar.trim())
+          """
+        XCTAssertThrowsError(try TestRenderer(sources: .singleSource(test))
+            .render(path: "missingParam", context: [:])
+            .wait()
+        ) {
+            guard case .unknownError("Found nil while iterating through params") = ($0 as? LeafError)?.reason else {
+                return XCTFail("Expected LeafError.unknownError(\"Found nil while iterating through params\"), got \(String(reflecting: $0))")
+            }
+        }
+    }
 }

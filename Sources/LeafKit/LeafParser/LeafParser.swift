@@ -183,13 +183,20 @@ internal struct LeafParser {
 
         var group = [ParameterDeclaration]()
         var paramsList = [ParameterDeclaration]()
-
-        func dump() {
-            defer { group = [] }
-            if group.isEmpty { return }
-            group.evaluate()
-            if group.count > 1 { paramsList.append(.expression(group)) }
-            else { paramsList.append(group.first!) }
+      
+        func dump() throws {
+          defer { group = [] }
+          if group.isEmpty { return }
+          group.evaluate()
+          if group.count > 1 { paramsList.append(.expression(group)) }
+          else {
+            guard let first = group.first else {
+              // It's better to handle this case as well, even though logically it might never happen
+              // since you're checking if group.isEmpty before.
+              throw LeafError(.unknownError("Found nil while iterating through params"), file: #file, function: #function, line: #line, column: #column)
+            }
+            paramsList.append(first)
+          }
         }
 
         outer: while let next = peek() {
@@ -200,7 +207,12 @@ internal struct LeafParser {
                     let params = try readParameters()
                     // parameter tags not permitted to have bodies
                     if params.count > 1  { group.append(.expression(params)) }
-                    else { group.append(params.first!) }
+                    else {
+                      guard let firstParam = params.first else {
+                        throw LeafError(.unknownError("Found nil while iterating through params"))
+                      }
+                      group.append(firstParam)
+                    }
                 case .parameter(let p):
                     pop()
                     switch p {
@@ -214,11 +226,11 @@ internal struct LeafParser {
                     }
                 case .parametersEnd:
                     pop()
-                    dump()
+                    try dump()
                     break outer
                 case .parameterDelimiter:
                     pop()
-                    dump()
+                    try dump()
                 case .whitespace:
                     pop()
                     continue
