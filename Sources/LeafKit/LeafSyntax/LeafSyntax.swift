@@ -85,6 +85,7 @@ extension Syntax: BodiedSyntax  {
                  .custom(let bS as BodiedSyntax),
                  .export(let bS as BodiedSyntax),
                  .extend(let bS as BodiedSyntax),
+                 .with(let bS as BodiedSyntax),
                  .loop(let bS as BodiedSyntax): return bS.externals()
             default: return .init()
         }
@@ -105,6 +106,10 @@ extension Syntax: BodiedSyntax  {
     }
     
     internal func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Export]) -> [Syntax] {
+        if case .extend(let extend) = self, let context = extend.context {
+            let inner = extend.inlineRefs(externals, imports)
+            return [.with(.init(context: context, body: inner))]
+        }
         var result = [Syntax]()
         switch self {
             case .import(let im):
@@ -121,6 +126,7 @@ extension Syntax: BodiedSyntax  {
                  .custom(let bS as BodiedSyntax),
                  .export(let bS as BodiedSyntax),
                  .extend(let bS as BodiedSyntax),
+                 .with(let bS as BodiedSyntax),
                  .loop(let bS as BodiedSyntax): result += bS.inlineRefs(externals, imports)
             case .expression(let pDA): result.append(.expression(pDA.inlineImports(imports)))
             // .variable, .raw
