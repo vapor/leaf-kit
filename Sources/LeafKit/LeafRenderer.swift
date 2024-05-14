@@ -1,4 +1,5 @@
 import NIO
+import NIOConcurrencyHelpers
 
 // MARK: - `LeafRenderer` Summary
 
@@ -10,7 +11,7 @@ import NIO
 ///
 /// Additional instances of LeafRenderer can then be created using these shared modules to allow
 /// concurrent rendering, potentially with unique per-instance scoped data via `userInfo`.
-public final class LeafRenderer {
+public final class LeafRenderer: Sendable {
     // MARK: - Public Only
     
     /// An initialized `LeafConfiguration` specificying default directory and tagIndicator
@@ -25,9 +26,12 @@ public final class LeafRenderer {
     public let sources: LeafSources
     /// The NIO `EventLoop` on which this instance of `LeafRenderer` will operate
     public let eventLoop: EventLoop
+    let _userInfo: NIOLoopBound<[AnyHashable: Any]>
     /// Any custom instance data to use (eg, in Vapor, the `Application` and/or `Request` data)
-    public let userInfo: [AnyHashable: Any]
-    
+    public var userInfo: [AnyHashable: Any] {
+        _userInfo.value
+    }
+
     /// Initial configuration of LeafRenderer.
     public init(
         configuration: LeafConfiguration,
@@ -42,7 +46,7 @@ public final class LeafRenderer {
         self.cache = cache
         self.sources = sources
         self.eventLoop = eventLoop
-        self.userInfo = userInfo
+        self._userInfo = .init(userInfo, eventLoop: eventLoop)
     }
     
     /// The public interface to `LeafRenderer`
@@ -164,6 +168,7 @@ public final class LeafRenderer {
 
         let fetchRequests = ast.unresolvedRefs.map { self.fetch(template: $0, chain: chain) }
 
+        let constantChain = chain
         let results = EventLoopFuture.whenAllComplete(fetchRequests, on: self.eventLoop)
         return results.flatMap { results in
             let results = results
@@ -182,7 +187,7 @@ public final class LeafRenderer {
             // Check new AST's unresolved refs to see if extension introduced new refs
             if !new.unresolvedRefs.subtracting(ast.unresolvedRefs).isEmpty {
                 // AST has new references - try to resolve again recursively
-                return self.resolve(ast: new, chain: chain)
+                return self.resolve(ast: new, chain: constantChain)
             } else {
                 // Cache extended AST & return - AST is either flat or unresolvable
                 return self.cache.insert(new, on: self.eventLoop, replace: true)

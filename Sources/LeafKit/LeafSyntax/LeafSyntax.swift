@@ -1,6 +1,6 @@
 import NIO
 
-public indirect enum Syntax {
+public indirect enum Syntax: Sendable {
     // MARK: .raw - Makeable, Entirely Readable
     case raw(ByteBuffer)
     // MARK: `case variable(Variable)` removed
@@ -23,7 +23,7 @@ public indirect enum Syntax {
     case export(Export)
 }
 
-public enum ConditionalSyntax {
+public enum ConditionalSyntax: Sendable {
     case `if`([ParameterDeclaration])
     case `elseif`([ParameterDeclaration])
     case `else`
@@ -172,7 +172,7 @@ func indent(_ depth: Int) -> String {
 }
 
 extension Syntax {
-    public struct Import {
+    public struct Import: Sendable {
         public let key: String
         public init(_ params: [ParameterDeclaration]) throws {
             guard params.count == 1 else { throw "import only supports single param \(params)" }
@@ -186,7 +186,7 @@ extension Syntax {
         }
     }
 
-    public struct Extend: BodiedSyntax {
+    public struct Extend: BodiedSyntax, Sendable {
         public let key: String
         public private(set) var exports: [String: Export]
         public private(set) var context: [ParameterDeclaration]?
@@ -313,7 +313,7 @@ extension Syntax {
         }
     }
 
-    public struct Export: BodiedSyntax {
+    public struct Export: BodiedSyntax, Sendable {
         public let key: String
         public internal(set) var body: [Syntax]
         private var externalsSet: Set<String>
@@ -369,7 +369,7 @@ extension Syntax {
         }
     }
 
-    public struct Conditional: BodiedSyntax {
+    public struct Conditional: BodiedSyntax, Sendable {
         public internal(set) var chain: [(
             condition: ConditionalSyntax,
             body: [Syntax]
@@ -470,7 +470,7 @@ extension Syntax {
         }
     }
 
-    public struct With: BodiedSyntax {
+    public struct With: BodiedSyntax, Sendable {
         public internal(set) var body: [Syntax]
         public internal(set) var context: [ParameterDeclaration]
 
@@ -534,7 +534,7 @@ extension Syntax {
         }
     }
 
-    public struct Loop: BodiedSyntax {
+    public struct Loop: BodiedSyntax, Sendable {
         /// the key to use when accessing items
         public let item: String
         /// the key to use to access the array
@@ -620,7 +620,7 @@ extension Syntax {
         }
     }
 
-    public struct CustomTagDeclaration: BodiedSyntax {
+    public struct CustomTagDeclaration: BodiedSyntax, Sendable {
         public let name: String
         public let params: [ParameterDeclaration]
         public internal(set) var body: [Syntax]?
