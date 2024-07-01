@@ -87,6 +87,15 @@ struct DateTag: LeafTag {
                 throw "Unable to convert date format to string"
             }
             formatter.dateFormat = string
+        case 3:
+            guard let string = ctx.parameters[1].string else {
+                throw "Unable to convert date format to string"
+            }
+            formatter.dateFormat = string
+            guard let timeZone = ctx.parameters[2].string else {
+                throw "Unable to convert time zone to string"
+            }
+            formatter.timeZone = TimeZone(identifier: timeZone)
         default:
             throw "invalid parameters provided for date"
         }

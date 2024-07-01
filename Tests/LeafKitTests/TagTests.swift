@@ -208,6 +208,30 @@ class TagTests: XCTestCase {
         try XCTAssertEqual(render(template, ["now": .int(now)]), expected)
     }
 
+    func testDateWithCustomFormatAndTimeZone() throws {
+        let now = 1604932200 - Calendar.current.timeZone.secondsFromGMT()
+        
+        let templateNewYork = """
+        The date is #date(now, "yyyy-MM-dd'T'HH:mm", "America/New_York")
+        """
+
+        let expectedNewYork = """
+        The date is 2020-11-09T09:30
+        """
+        
+        try XCTAssertEqual(render(templateNewYork, ["now": .int(now)]), expectedNewYork)
+        
+        let templateCalifornia = """
+        The date is #date(now, "yyyy-MM-dd'T'HH:mm", "America/Los_Angeles")
+        """
+
+        let expectedCalifornia = """
+        The date is 2020-11-09T06:30
+        """
+        
+        try XCTAssertEqual(render(templateCalifornia, ["now": .int(now)]), expectedCalifornia)
+    }
+
     func testDumpContext() throws {
         let data: [String: LeafData] = ["value": 12345]
         let template = """
