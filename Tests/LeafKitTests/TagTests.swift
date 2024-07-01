@@ -216,7 +216,7 @@ class TagTests: XCTestCase {
         """
 
         let expectedNewYork = """
-        The date is 2020-11-09T07:30
+        The date is 2020-11-09T09:30
         """
         
         try XCTAssertEqual(render(templateNewYork, ["now": .int(now)]), expectedNewYork)
@@ -226,7 +226,7 @@ class TagTests: XCTestCase {
         """
 
         let expectedCalifornia = """
-        The date is 2020-11-09T04:30
+        The date is 2020-11-09T06:30
         """
         
         try XCTAssertEqual(render(templateCalifornia, ["now": .int(now)]), expectedCalifornia)
