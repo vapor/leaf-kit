@@ -1,6 +1,6 @@
 import NIO
 
-public indirect enum ParameterDeclaration: CustomStringConvertible {
+public indirect enum ParameterDeclaration: CustomStringConvertible, Sendable {
     case parameter(Parameter)
     case expression([ParameterDeclaration])
     case tag(Syntax.CustomTagDeclaration)

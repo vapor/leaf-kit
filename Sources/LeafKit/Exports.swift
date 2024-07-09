@@ -1,9 +1,10 @@
+import NIOConcurrencyHelpers
 /// Various helper identities for convenience
 extension Character {
 
     // MARK: - LeafToken specific identities (Internal)
-    static var tagIndicator: Character = .octothorpe
-    
+    static let tagIndicator = NIOLockedValueBox(Character.octothorpe)
+
     var isValidInTagName: Bool {
         return self.isLowercaseLetter
             || self.isUppercaseLetter

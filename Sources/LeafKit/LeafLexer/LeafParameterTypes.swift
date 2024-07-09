@@ -1,7 +1,7 @@
 // MARK: - `Parameter` Token Type
 
 /// An associated value enum holding data, objects or values usable as parameters to a `.tag`
-public enum Parameter: Equatable, CustomStringConvertible {
+public enum Parameter: Equatable, CustomStringConvertible, Sendable {
     case stringLiteral(String)
     case constant(Constant)
     case variable(name: String)
@@ -44,7 +44,7 @@ public enum Parameter: Equatable, CustomStringConvertible {
 /// `Keyword`s are identifiers which take precedence over syntax/variable names - may potentially have
 /// representable state themselves as value when used with operators (eg, `true`, `false` when
 /// used with logical operators, `nil` when used with equality operators, and so forth)
-public enum LeafKeyword: String, Equatable {
+public enum LeafKeyword: String, Equatable, Sendable {
     // MARK: Public - Cases
     
     //                      Eval -> Bool / Other
@@ -79,7 +79,7 @@ extension LeafKeyword {
 // MARK: - Operator Symbols
 
 /// Mathematical and Logical operators
-public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterable {
+public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterable, Sendable {
     // MARK: Public - Cases
     
     // Operator types:              Logic      Exist.       UnPre        Scope
@@ -157,7 +157,7 @@ public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterab
 }
 
 /// An integer or double constant value parameter (eg `1_000`, `-42.0`)
-public enum Constant: CustomStringConvertible, Equatable {
+public enum Constant: CustomStringConvertible, Equatable, Sendable {
     case int(Int)
     case double(Double)
 
