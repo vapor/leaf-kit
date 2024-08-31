@@ -630,4 +630,40 @@ final class LeafKitTests: XCTestCase {
             XCTAssert(error.localizedDescription.contains("No searchable sources exist"))
         }
     }
+
+    func testBodyRequiring() async throws {
+        var test = TestFiles()
+        test.files["/body.leaf"] = "#bodytag:test#endbodytag"
+        test.files["/bodyError.leaf"] = "#bodytag:#endbodytag"
+        test.files["/nobody.leaf"] = "#nobodytag"
+        test.files["/nobodyError.leaf"] = "#nobodytag:test#endnobodytag"
+
+        struct BodyRequiringTag: UnsafeUnescapedLeafTag {
+            func render(_ ctx: LeafContext) throws -> LeafData {
+                _ = try ctx.requireBody()
+                
+                return .string("Hello there")
+            }
+        }
+
+        struct NoBodyRequiringTag: UnsafeUnescapedLeafTag {
+            func render(_ ctx: LeafContext) throws -> LeafData {
+                try ctx.requireNoBody()
+                
+                return .string("General Kenobi")
+            }
+        }
+
+        let renderer = TestRenderer(
+            tags: [
+                "bodytag": BodyRequiringTag(),
+                "nobodytag": NoBodyRequiringTag()
+            ],
+            sources: .singleSource(test)
+        )
+        XCTAssertEqual(try renderer.render(path: "body", context: ["test":"ciao"]).wait().string, "Hello there")
+        XCTAssertThrowsError(try renderer.render(path: "bodyError", context: [:]).wait())
+        XCTAssertEqual(try renderer.render(path: "nobody", context: [:]).wait().string, "General Kenobi")
+        XCTAssertThrowsError(try renderer.render(path: "nobodyError", context: [:]).wait())
+    }
 }
