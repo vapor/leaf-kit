@@ -1,7 +1,7 @@
 import NIO
 
 /// Public protocol to adhere to in order to provide template source originators to `LeafRenderer`
-public protocol LeafSource {
+public protocol LeafSource: Sendable {
     /// Given a path name, return an EventLoopFuture holding a ByteBuffer
     /// - Parameters:
     ///   - template: Relative template name (eg: `"path/to/template"`)

@@ -11,7 +11,9 @@ import NIOConcurrencyHelpers
 ///     prior to use by `LeafRenderer`.
 /// - `.all` provides a `Set` of the `String`keys for all sources registered with the instance
 /// - `.searchOrder` provides the keys of sources that an unspecified template request will search.
-public final class LeafSources {
+///
+/// `@unchecked Sendable` because uses locks to guarantee Sendability.
+public final class LeafSources: @unchecked Sendable {
     // MARK: - Public
     
     /// All available `LeafSource`s of templates
@@ -52,8 +54,8 @@ public final class LeafSources {
     // MARK: - Internal Only
     internal private(set) var sources: [String: LeafSource]
     private var order: [String]
-    private let lock: Lock = .init()
-    
+    private let lock: NIOLock = .init()
+
     /// Locate a template from the sources; if a specific source is named, only try to read from it. Otherwise, use the specified search order
     internal func find(template: String, in source: String? = nil, on eventLoop: EventLoop) throws -> EventLoopFuture<(String, ByteBuffer)> {
         var keys: [String]
@@ -71,12 +73,11 @@ public final class LeafSources {
     
     private func searchSources(t: String, on eL: EventLoop, s: [String]) -> EventLoopFuture<(String, ByteBuffer)> {
         guard !s.isEmpty else { return eL.makeFailedFuture(LeafError(.noTemplateExists(t))) }
-        var more = s
-        let key = more.removeFirst()
-        lock.lock()
-            let source = sources[key]!
-        lock.unlock()
-        
+        var _more = s
+        let key = _more.removeFirst()
+        let source = self.lock.withLock { sources[key]! }
+        let more = _more
+
         do {
             let file = try source.file(template: t, escape: true, on: eL)
             // Hit the file - return the combined tuple
