@@ -1,4 +1,4 @@
-// swift-tools-version:5.4
+// swift-tools-version:5.8
 import PackageDescription
 
 let package = Package(
@@ -19,8 +19,14 @@ let package = Package(
         .target(name: "LeafKit", dependencies: [
             .product(name: "NIO", package: "swift-nio"),
         ]),
-        .testTarget(name: "LeafKitTests", dependencies: [
-            .target(name: "LeafKit"),
-        ]),
+        .testTarget(
+            name: "LeafKitTests",
+            dependencies: [
+                .target(name: "LeafKit"),
+            ],
+            resources: [
+                .copy("Templates"),
+            ]
+        ),
     ]
 )
