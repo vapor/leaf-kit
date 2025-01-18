@@ -49,7 +49,7 @@ internal func render(name: String = "test-render", _ template: String, _ context
 /// Helper wrapping` LeafRenderer` to preconfigure for simplicity & allow eliding context
 internal class TestRenderer {
     var r: LeafRenderer
-    private let lock: Lock
+    private let lock: NIOLock
     private var counter: Int = 0
     
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
@@ -88,7 +88,7 @@ internal class TestRenderer {
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
 internal struct TestFiles: LeafSource {
     var files: [String: String]
-    var lock: Lock
+    var lock: NIOLock
     
     init() {
         files = [:]

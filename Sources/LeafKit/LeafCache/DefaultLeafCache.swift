@@ -73,7 +73,7 @@ public final class DefaultLeafCache: SynchronousLeafCache {
     
     // MARK: - Internal Only
     
-    internal let lock: Lock
+    internal let lock: NIOLock
     internal var cache: [String: LeafAST]
     
     /// Blocking file load behavior

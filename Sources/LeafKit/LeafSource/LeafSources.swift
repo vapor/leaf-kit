@@ -52,7 +52,7 @@ public final class LeafSources {
     // MARK: - Internal Only
     internal private(set) var sources: [String: LeafSource]
     private var order: [String]
-    private let lock: Lock = .init()
+    private let lock: NIOLock = .init()
     
     /// Locate a template from the sources; if a specific source is named, only try to read from it. Otherwise, use the specified search order
     internal func find(template: String, in source: String? = nil, on eventLoop: EventLoop) throws -> EventLoopFuture<(String, ByteBuffer)> {
