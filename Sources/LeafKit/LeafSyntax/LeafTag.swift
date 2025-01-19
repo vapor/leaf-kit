@@ -8,7 +8,7 @@ public protocol LeafTag {
 /// Tags conforming to this protocol do not get their contents HTML-escaped.
 public protocol UnsafeUnescapedLeafTag: LeafTag {}
 
-public var defaultTags: [String: LeafTag] = [
+public var defaultTags: [String: any LeafTag] = [
     "unsafeHTML": UnsafeHTML(),
     "lowercased": Lowercased(),
     "uppercased": Uppercased(),

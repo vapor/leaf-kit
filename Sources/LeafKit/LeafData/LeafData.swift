@@ -105,7 +105,7 @@ public struct LeafData: CustomStringConvertible,
     }
     
     // MARK: - Generic `LeafDataRepresentable` Initializer
-    public init(_ leafData: LeafDataRepresentable) { self = leafData.leafData }
+    public init(_ leafData: any LeafDataRepresentable) { self = leafData.leafData }
 
     // MARK: - Static Initializer Conformances
     /// Creates a new `LeafData` from a `Bool`.

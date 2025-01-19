@@ -12,5 +12,5 @@ public protocol LeafSource {
     ///            template, or an appropriate failed state ELFuture (not found, illegal access, etc)
     func file(template: String,
               escape: Bool,
-              on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer>
+              on eventLoop: any EventLoop) throws -> EventLoopFuture<ByteBuffer>
 }

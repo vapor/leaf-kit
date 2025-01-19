@@ -53,10 +53,10 @@ internal class TestRenderer {
     private var counter: Int = 0
     
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
-            tags: [String : LeafTag] = defaultTags,
-            cache: LeafCache = DefaultLeafCache(),
+            tags: [String : any LeafTag] = defaultTags,
+            cache: any LeafCache = DefaultLeafCache(),
             sources: LeafSources = .singleSource(TestFiles()),
-            eventLoop: EventLoop = EmbeddedEventLoop(),
+            eventLoop: any EventLoop = EmbeddedEventLoop(),
             userInfo: [AnyHashable : Any] = [:]) {
         self.r = .init(configuration: configuration,
                               tags: tags,
@@ -95,7 +95,7 @@ internal struct TestFiles: LeafSource {
         lock = .init()
     }
     
-    public func file(template: String, escape: Bool = false, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+    public func file(template: String, escape: Bool = false, on eventLoop: any EventLoop) -> EventLoopFuture<ByteBuffer> {
         var path = template
         if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2,
            !path.hasSuffix(".leaf") { path += ".leaf" }

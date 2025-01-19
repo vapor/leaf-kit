@@ -81,12 +81,12 @@ public enum ConditionalSyntax {
 extension Syntax: BodiedSyntax  {
     internal func externals() -> Set<String> {
         switch self {
-            case .conditional(let bS as BodiedSyntax),
-                 .custom(let bS as BodiedSyntax),
-                 .export(let bS as BodiedSyntax),
-                 .extend(let bS as BodiedSyntax),
-                 .with(let bS as BodiedSyntax),
-                 .loop(let bS as BodiedSyntax): return bS.externals()
+            case .conditional(let bS as any BodiedSyntax),
+                 .custom(let bS as any BodiedSyntax),
+                 .export(let bS as any BodiedSyntax),
+                 .extend(let bS as any BodiedSyntax),
+                 .with(let bS as any BodiedSyntax),
+                 .loop(let bS as any BodiedSyntax): return bS.externals()
             default: return .init()
         }
     }
@@ -94,12 +94,12 @@ extension Syntax: BodiedSyntax  {
     internal func imports() -> Set<String> {
         switch self {
             case .import(let i): return .init(arrayLiteral: i.key)
-            case .conditional(let bS as BodiedSyntax),
-                 .custom(let bS as BodiedSyntax),
-                 .export(let bS as BodiedSyntax),
-                 .extend(let bS as BodiedSyntax),
-                 .expression(let bS as BodiedSyntax),
-                 .loop(let bS as BodiedSyntax): return bS.imports()
+            case .conditional(let bS as any BodiedSyntax),
+                 .custom(let bS as any BodiedSyntax),
+                 .export(let bS as any BodiedSyntax),
+                 .extend(let bS as any BodiedSyntax),
+                 .expression(let bS as any BodiedSyntax),
+                 .loop(let bS as any BodiedSyntax): return bS.imports()
             // .variable, .raw
             default: return .init()
         }
@@ -122,12 +122,12 @@ extension Syntax: BodiedSyntax  {
                     result.append(self)
                 }
             // Recursively inline single Syntaxes
-            case .conditional(let bS as BodiedSyntax),
-                 .custom(let bS as BodiedSyntax),
-                 .export(let bS as BodiedSyntax),
-                 .extend(let bS as BodiedSyntax),
-                 .with(let bS as BodiedSyntax),
-                 .loop(let bS as BodiedSyntax): result += bS.inlineRefs(externals, imports)
+            case .conditional(let bS as any BodiedSyntax),
+                 .custom(let bS as any BodiedSyntax),
+                 .export(let bS as any BodiedSyntax),
+                 .extend(let bS as any BodiedSyntax),
+                 .with(let bS as any BodiedSyntax),
+                 .loop(let bS as any BodiedSyntax): result += bS.inlineRefs(externals, imports)
             case .expression(let pDA): result.append(.expression(pDA.inlineImports(imports)))
             // .variable, .raw
             default: result.append(self)
