@@ -14,7 +14,7 @@ internal struct ParameterResolver {
     
     let params: [ParameterDeclaration]
     let data: [String: LeafData]
-    let tags: [String: LeafTag]
+    let tags: [String: any LeafTag]
     let userInfo: [AnyHashable: Any]
 
     func resolve() throws -> [ResolvedParameter] {

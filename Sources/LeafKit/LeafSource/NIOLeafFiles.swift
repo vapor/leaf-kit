@@ -69,7 +69,7 @@ public struct NIOLeafFiles: LeafSource {
     ///   - eventLoop: `EventLoop` on which to perform file access
     /// - Returns: A succeeded `EventLoopFuture` holding a `ByteBuffer` with the raw
     ///            template, or an appropriate failed state ELFuture (not found, illegal access, etc)
-    public func file(template: String, escape: Bool = false, on eventLoop: EventLoop) throws -> EventLoopFuture<ByteBuffer> {
+    public func file(template: String, escape: Bool = false, on eventLoop: any EventLoop) throws -> EventLoopFuture<ByteBuffer> {
         var template = URL(fileURLWithPath: sandbox + viewRelative + template, isDirectory: false).standardized.path
         /// If default extension is enforced for template files, add it if it's not on the file, or if no extension present
         if limits.contains(.onlyLeafExtensions), !template.hasSuffix(".\(self.extension)")
@@ -108,7 +108,7 @@ public struct NIOLeafFiles: LeafSource {
     internal let `extension`: String
     
     /// Attempt to read a fully pathed template and return a ByteBuffer or fail
-    private func read(path: String, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+    private func read(path: String, on eventLoop: any EventLoop) -> EventLoopFuture<ByteBuffer> {
         let openFile = self.fileio.openFile(path: path, eventLoop: eventLoop)
         return openFile.flatMapErrorThrowing { error in
             throw LeafError(.noTemplateExists(path))

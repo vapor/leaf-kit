@@ -31,7 +31,7 @@ public final class LeafSources {
     ///   - searchable: Whether the source should be added to the default search path
     /// - Throws: Attempting to overwrite a previously named source is not permitted
     public func register(source key: String = "default",
-                         using source: LeafSource,
+                         using source: any LeafSource,
                          searchable: Bool = true) throws {
         try lock.withLock {
             guard !sources.keys.contains(key) else { throw "Can't replace source at \(key)" }
@@ -43,19 +43,19 @@ public final class LeafSources {
     /// Convenience for initializing a `LeafSources` object with a single `LeafSource`
     /// - Parameter source: A fully configured `LeafSource`
     /// - Returns: Configured `LeafSource` instance
-    public static func singleSource(_ source: LeafSource) -> LeafSources {
+    public static func singleSource(_ source: any LeafSource) -> LeafSources {
         let sources = LeafSources()
         try! sources.register(using: source)
         return sources
     }
     
     // MARK: - Internal Only
-    internal private(set) var sources: [String: LeafSource]
+    internal private(set) var sources: [String: any LeafSource]
     private var order: [String]
-    private let lock: Lock = .init()
+    private let lock: NIOLock = .init()
     
     /// Locate a template from the sources; if a specific source is named, only try to read from it. Otherwise, use the specified search order
-    internal func find(template: String, in source: String? = nil, on eventLoop: EventLoop) throws -> EventLoopFuture<(String, ByteBuffer)> {
+    internal func find(template: String, in source: String? = nil, on eventLoop: any EventLoop) throws -> EventLoopFuture<(String, ByteBuffer)> {
         var keys: [String]
         
         switch source {
@@ -69,7 +69,7 @@ public final class LeafSources {
         return searchSources(t: template, on: eventLoop, s: keys)
     }
     
-    private func searchSources(t: String, on eL: EventLoop, s: [String]) -> EventLoopFuture<(String, ByteBuffer)> {
+    private func searchSources(t: String, on eL: any EventLoop, s: [String]) -> EventLoopFuture<(String, ByteBuffer)> {
         guard !s.isEmpty else { return eL.makeFailedFuture(LeafError(.noTemplateExists(t))) }
         var more = s
         let key = more.removeFirst()

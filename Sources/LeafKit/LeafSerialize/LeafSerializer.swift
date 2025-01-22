@@ -5,7 +5,7 @@ internal struct LeafSerializer {
     
     init(
         ast: [Syntax],
-        tags: [String: LeafTag] = defaultTags,
+        tags: [String: any LeafTag] = defaultTags,
         userInfo: [AnyHashable: Any] = [:],
         ignoreUnfoundImports: Bool
         
@@ -34,7 +34,7 @@ internal struct LeafSerializer {
     private let ast: [Syntax]
     private var offset: Int
     private var buffer: ByteBuffer
-    private let tags: [String: LeafTag]
+    private let tags: [String: any LeafTag]
     private let userInfo: [AnyHashable: Any]
     private let ignoreUnfoundImports: Bool
 
@@ -94,7 +94,7 @@ internal struct LeafSerializer {
 
         let leafData: LeafData
 
-        if foundTag is UnsafeUnescapedLeafTag {
+        if foundTag is any UnsafeUnescapedLeafTag {
             leafData = try foundTag.render(sub)
         } else {
             leafData = try foundTag.render(sub).htmlEscaped()

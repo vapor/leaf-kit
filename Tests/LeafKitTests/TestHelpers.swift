@@ -49,14 +49,14 @@ internal func render(name: String = "test-render", _ template: String, _ context
 /// Helper wrapping` LeafRenderer` to preconfigure for simplicity & allow eliding context
 internal class TestRenderer {
     var r: LeafRenderer
-    private let lock: Lock
+    private let lock: NIOLock
     private var counter: Int = 0
     
     init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
-            tags: [String : LeafTag] = defaultTags,
-            cache: LeafCache = DefaultLeafCache(),
+            tags: [String : any LeafTag] = defaultTags,
+            cache: any LeafCache = DefaultLeafCache(),
             sources: LeafSources = .singleSource(TestFiles()),
-            eventLoop: EventLoop = EmbeddedEventLoop(),
+            eventLoop: any EventLoop = EmbeddedEventLoop(),
             userInfo: [AnyHashable : Any] = [:]) {
         self.r = .init(configuration: configuration,
                               tags: tags,
@@ -88,14 +88,14 @@ internal class TestRenderer {
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
 internal struct TestFiles: LeafSource {
     var files: [String: String]
-    var lock: Lock
+    var lock: NIOLock
     
     init() {
         files = [:]
         lock = .init()
     }
     
-    public func file(template: String, escape: Bool = false, on eventLoop: EventLoop) -> EventLoopFuture<ByteBuffer> {
+    public func file(template: String, escape: Bool = false, on eventLoop: any EventLoop) -> EventLoopFuture<ByteBuffer> {
         var path = template
         if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2,
            !path.hasSuffix(".leaf") { path += ".leaf" }
