@@ -44,7 +44,7 @@ public final class DefaultLeafCache: SynchronousLeafCache, @unchecked Sendable {
     /// - Returns: The document provided as an identity return
     public func insert(
         _ document: LeafAST,
-        on loop: EventLoop,
+        on loop: any EventLoop,
         replace: Bool = false
     ) -> EventLoopFuture<LeafAST> {
         self.lock.withLock {
@@ -65,7 +65,7 @@ public final class DefaultLeafCache: SynchronousLeafCache, @unchecked Sendable {
     /// - Returns: `EventLoopFuture<LeafAST?>` holding the `LeafAST` or nil if no matching result
     public func retrieve(
         documentName: String,
-        on loop: EventLoop
+        on loop: any EventLoop
     ) -> EventLoopFuture<LeafAST?> {
         self.lock.withLock {
             guard __isEnabled == true else { return loop.makeSucceededFuture(nil) }
@@ -80,7 +80,7 @@ public final class DefaultLeafCache: SynchronousLeafCache, @unchecked Sendable {
     ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
     public func remove(
         _ documentName: String,
-        on loop: EventLoop
+        on loop: any EventLoop
     ) -> EventLoopFuture<Bool?> {
         self.lock.withLock {
             guard __isEnabled == true else { return loop.makeFailedFuture(LeafError(.cachingDisabled)) }

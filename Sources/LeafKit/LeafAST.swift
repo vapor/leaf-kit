@@ -62,13 +62,7 @@ public struct LeafAST: Hashable, Sendable {
             }
             
             // replace the original Syntax with the results of inlining, potentially 1...n
-            let replacementSyntax: [Syntax]
-            if case .extend(let extend) = ast[pos], let context = extend.context {
-                let inner = ast[pos].inlineRefs(providedExts, [:])
-                replacementSyntax = [.with(.init(context: context, body: inner))]
-            } else {
-                replacementSyntax = ast[pos].inlineRefs(providedExts, [:])
-            }
+            let replacementSyntax = ast[pos].inlineRefs(providedExts, [:])
             ast.replaceSubrange(pos...pos, with: replacementSyntax)
             // any returned new inlined syntaxes can't be further resolved at this point
             // but we need to add their unresolvable references to the global set

@@ -191,6 +191,16 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, [:]), expected)
     }
 
+    func testEscapingQuote() throws {
+        let template = """
+        #("foo \\"bar\\"")
+        """
+        let expected = """
+        foo "bar"
+        """
+        try XCTAssertEqual(render(template), expected)
+    }
+
     func testCount() throws {
         let template = """
         count: #count(array)
@@ -224,6 +234,34 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template, ["parent": ["child": "Elizabeth"]]), expected)
     }
 
+    func testWithWrappingExtend() throws {
+        let header = """
+        <h1>#(child)</h1>
+        """
+
+        let base = """
+        <body>#with(parent):<main>#extend("header")</main>#endwith</body>
+        """
+
+        let expected = """
+        <body><main><h1>Elizabeth</h1></main></body>
+        """
+
+        let headerAST = try LeafAST(name: "header", ast: parse(header))
+        let baseAST = try LeafAST(name: "base", ast: parse(base))
+
+        let baseResolved = LeafAST(from: baseAST, referencing: ["header": headerAST])
+
+        var serializer = LeafSerializer(
+            ast: baseResolved.ast,
+            ignoreUnfoundImports: false
+        )
+        let view = try serializer.serialize(context: ["parent": ["child": "Elizabeth"]])
+        let str = view.getString(at: view.readerIndex, length: view.readableBytes) ?? ""
+
+        XCTAssertEqual(str, expected)
+    }
+
     func testExtendWithSugar() throws {
         let header = """
         <h1>#(child)</h1>
@@ -241,6 +279,39 @@ final class LeafTests: XCTestCase {
         let baseAST = try LeafAST(name: "base", ast: parse(base))
 
         let baseResolved = LeafAST(from: baseAST, referencing: ["header": headerAST])
+
+        var serializer = LeafSerializer(
+            ast: baseResolved.ast,
+            ignoreUnfoundImports: false
+        )
+        let view = try serializer.serialize(context: ["parent": ["child": "Elizabeth"]])
+        let str = view.getString(at: view.readerIndex, length: view.readableBytes) ?? ""
+
+        XCTAssertEqual(str, expected)
+    }
+
+    func testNestedExtendWithSugar() throws {
+        let layout = """
+        <body>#import("content")</body>
+        """
+
+        let header = """
+        <h1>#(child)</h1>
+        """
+
+        let base = """
+        #extend("layout"):#export("content"):<main>#extend("header", parent)</main>#endexport#endextend
+        """
+
+        let expected = """
+        <body><main><h1>Elizabeth</h1></main></body>
+        """
+
+        let layoutAST = try LeafAST(name: "layout", ast: parse(layout))
+        let headerAST = try LeafAST(name: "header", ast: parse(header))
+        let baseAST = try LeafAST(name: "base", ast: parse(base))
+
+        let baseResolved = LeafAST(from: baseAST, referencing: ["layout": layoutAST, "header": headerAST])
 
         var serializer = LeafSerializer(
             ast: baseResolved.ast,

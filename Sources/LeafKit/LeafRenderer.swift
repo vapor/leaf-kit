@@ -19,13 +19,13 @@ public final class LeafRenderer: Sendable {
     /// A keyed dictionary of custom `LeafTags` to extend Leaf's basic functionality, registered
     /// with the names which will call them when rendering - eg `tags["tagName"]` can be used
     /// in a template as `#tagName(parameters)`
-    public let tags: [String: LeafTag]
+    public let tags: [String: any LeafTag]
     /// A thread-safe implementation of `LeafCache` protocol
-    public let cache: LeafCache
+    public let cache: any LeafCache
     /// A thread-safe implementation of `LeafSource` protocol
     public let sources: LeafSources
     /// The NIO `EventLoop` on which this instance of `LeafRenderer` will operate
-    public let eventLoop: EventLoop
+    public let eventLoop: any EventLoop
     let _userInfo: NIOLoopBound<[AnyHashable: Any]>
     /// Any custom instance data to use (eg, in Vapor, the `Application` and/or `Request` data)
     public var userInfo: [AnyHashable: Any] {
@@ -35,10 +35,10 @@ public final class LeafRenderer: Sendable {
     /// Initial configuration of LeafRenderer.
     public init(
         configuration: LeafConfiguration,
-        tags: [String: LeafTag] = defaultTags,
-        cache: LeafCache = DefaultLeafCache(),
+        tags: [String: any LeafTag] = defaultTags,
+        cache: any LeafCache = DefaultLeafCache(),
         sources: LeafSources,
-        eventLoop: EventLoop,
+        eventLoop: any EventLoop,
         userInfo: [AnyHashable: Any] = [:]
     ) {
         self.configuration = configuration
@@ -222,7 +222,7 @@ public final class LeafRenderer: Sendable {
     
     private func getFlatCachedHit(_ path: String) -> LeafAST? {
         // If cache provides blocking load, try to get a flat AST immediately
-        guard let blockingCache = cache as? SynchronousLeafCache,
+        guard let blockingCache = cache as? any SynchronousLeafCache,
            let cached = try? blockingCache.retrieve(documentName: path),
            cached.flat else { return nil }
         return cached

@@ -25,7 +25,7 @@ public struct LeafContext {
 
     /// Throws an error if this tag does not include a body.
     public func requireBody() throws -> [Syntax] {
-        guard let body = body else {
+        guard let body, !body.isEmpty else {
             throw "Missing body"
         }
 
@@ -34,7 +34,7 @@ public struct LeafContext {
 
     /// Throws an error if this tag includes a body.
     public func requireNoBody() throws {
-        guard body == nil else {
+        if let body, !body.isEmpty {
             throw "Extraneous body"
         }
     }

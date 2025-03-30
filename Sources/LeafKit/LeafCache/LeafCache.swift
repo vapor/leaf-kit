@@ -26,7 +26,7 @@ public protocol LeafCache: Sendable {
     /// - Returns: The document provided as an identity return (or a failed future if it can't be inserted)
     func insert(
         _ document: LeafAST,
-        on loop: EventLoop,
+        on loop: any EventLoop,
         replace: Bool
     ) -> EventLoopFuture<LeafAST>
     
@@ -36,7 +36,7 @@ public protocol LeafCache: Sendable {
     /// - Returns: `EventLoopFuture<LeafAST?>` holding the `LeafAST` or nil if no matching result
     func retrieve(
         documentName: String,
-        on loop: EventLoop
+        on loop: any EventLoop
     ) -> EventLoopFuture<LeafAST?>
 
     /// - Parameters:
@@ -46,7 +46,7 @@ public protocol LeafCache: Sendable {
     ///     returns true. If cache can't remove because of dependencies (not yet possible), returns false.
     func remove(
         _ documentName: String,
-        on loop: EventLoop
+        on loop: any EventLoop
     ) -> EventLoopFuture<Bool?>
 }
 
