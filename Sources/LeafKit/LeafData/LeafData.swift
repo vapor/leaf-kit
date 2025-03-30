@@ -15,10 +15,11 @@ public struct LeafData: CustomStringConvertible,
                         ExpressibleByBooleanLiteral,
                         ExpressibleByArrayLiteral,
                         ExpressibleByFloatLiteral,
-                        ExpressibleByNilLiteral {
-    
+                        ExpressibleByNilLiteral,
+                        Sendable {
+
     /// The concrete instantiable object types for a `LeafData`
-    public enum NaturalType: String, CaseIterable, Hashable {
+    public enum NaturalType: String, CaseIterable, Hashable, Sendable {
         case bool
         case string
         case int
@@ -250,7 +251,7 @@ public struct LeafData: CustomStringConvertible,
     
     /// Creates a new `LeafData` from `() -> LeafData` if possible or `nil` if not possible.
     /// `returns` must specify a `NaturalType` that the function will return
-    internal static func lazy(_ lambda: @escaping () -> LeafData,
+    internal static func lazy(_ lambda: @Sendable @escaping () -> LeafData,
                             returns type: LeafData.NaturalType,
                             invariant sideEffects: Bool) throws -> LeafData {
         LeafData(.lazy(f: lambda, returns: type, invariant: sideEffects))

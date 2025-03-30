@@ -22,7 +22,7 @@
 /// - `.whitespace`: Only generated when not at top-level, and unclear why maintaining it is useful
 ///
 
-internal enum LeafToken: CustomStringConvertible, Equatable  {
+internal enum LeafToken: CustomStringConvertible, Equatable, Sendable {
     /// Holds a variable-length string of data that will be passed through with no processing
     case raw(String)
     

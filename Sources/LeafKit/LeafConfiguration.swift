@@ -1,9 +1,10 @@
 import Foundation
+import NIOConcurrencyHelpers
 
 /// General configuration of Leaf
 /// - Sets the default View directory where templates will be looked for
 /// - Guards setting the global tagIndicator (default `#`).
-public struct LeafConfiguration {
+public struct LeafConfiguration: Sendable {
     
     /// Initialize Leaf with the default tagIndicator `#` and unfound imports throwing an exception
     /// - Parameter rootDirectory: Default directory where templates will be found
@@ -23,9 +24,9 @@ public struct LeafConfiguration {
     /// - Parameter tagIndicator: Unique tagIndicator - may only be set once.
     /// - Parameter ignoreUnfoundImports: Ignore unfound imports - may only be set once.
     public init(rootDirectory: String, tagIndicator: Character, ignoreUnfoundImports: Bool) {
-        if !Self.started {
-            Character.tagIndicator = tagIndicator
-            Self.started = true
+        if !Self.started.withLockedValue({ $0 }) {
+            Character.tagIndicator.withLockedValue { $0 = tagIndicator }
+            Self.started.withLockedValue { $0 = true }
         }
         self._rootDirectory = rootDirectory
         self._ignoreUnfoundImports = ignoreUnfoundImports
@@ -42,53 +43,53 @@ public struct LeafConfiguration {
     }
 
     public static var encoding: String.Encoding {
-        get { _encoding }
-        set { if !Self.running { _encoding = newValue } }
+        get { _encoding.withLockedValue { $0 } }
+        set { if !Self.running { _encoding.withLockedValue { $0 = newValue } } }
     }
     
     public static var boolFormatter: (Bool) -> String {
-        get { _boolFormatter }
-        set { if !Self.running { _boolFormatter = newValue } }
+        get { _boolFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _boolFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var intFormatter: (Int) -> String {
-        get { _intFormatter }
-        set { if !Self.running { _intFormatter = newValue } }
+        get { _intFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _intFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var doubleFormatter: (Double) -> String {
-        get { _doubleFormatter }
-        set { if !Self.running { _doubleFormatter = newValue } }
+        get { _doubleFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _doubleFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var nilFormatter: () -> String {
-        get { _nilFormatter }
-        set { if !Self.running { _nilFormatter = newValue } }
+        get { _nilFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _nilFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var voidFormatter: () -> String {
-        get { _voidFormatter }
-        set { if !Self.running { _voidFormatter = newValue } }
+        get { _voidFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _voidFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var stringFormatter: (String) -> String {
-        get { _stringFormatter }
-        set { if !Self.running { _stringFormatter = newValue } }
+        get { _stringFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _stringFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var arrayFormatter: ([String]) -> String {
-        get { _arrayFormatter }
-        set { if !Self.running { _arrayFormatter = newValue } }
+        get { _arrayFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _arrayFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var dictFormatter: ([String: String]) -> String {
-        get { _dictFormatter }
-        set { if !Self.running { _dictFormatter = newValue } }
+        get { _dictFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _dictFormatter.withLockedValue { $0 = newValue } } }
     }
     
     public static var dataFormatter: (Data) -> String? {
-        get { _dataFormatter }
-        set { if !Self.running { _dataFormatter = newValue } }
+        get { _dataFormatter.withLockedValue { $0 } }
+        set { if !Self.running { _dataFormatter.withLockedValue { $0 = newValue } } }
     }
     
     // MARK: - Internal/Private Only
@@ -99,27 +100,29 @@ public struct LeafConfiguration {
     internal var _ignoreUnfoundImports: Bool {
         willSet { assert(!accessed, "Changing property after LeafConfiguration has been read has no effect") }
     }
-    
-    internal static var _encoding: String.Encoding = .utf8
-    internal static var _boolFormatter: (Bool) -> String = { $0.description }
-    internal static var _intFormatter: (Int) -> String = { $0.description }
-    internal static var _doubleFormatter: (Double) -> String = { $0.description }
-    internal static var _nilFormatter: () -> String = { "" }
-    internal static var _voidFormatter: () -> String = { "" }
-    internal static var _stringFormatter: (String) -> String = { $0 }
-    internal static var _arrayFormatter: ([String]) -> String =
+
+    internal static let _encoding = NIOLockedValueBox<String.Encoding>(.utf8)
+    internal static let _boolFormatter = NIOLockedValueBox<(Bool) -> String>({ $0.description })
+    internal static let _intFormatter = NIOLockedValueBox<(Int) -> String>({ $0.description })
+    internal static let _doubleFormatter = NIOLockedValueBox<(Double) -> String>({ $0.description })
+    internal static let _nilFormatter = NIOLockedValueBox<(() -> String)>({ "" })
+    internal static let _voidFormatter = NIOLockedValueBox<(() -> String)>({ "" })
+    internal static let _stringFormatter = NIOLockedValueBox<((String) -> String)>({ $0 })
+    internal static let _arrayFormatter = NIOLockedValueBox<(([String]) -> String)>(
         { "[\($0.map {"\"\($0)\""}.joined(separator: ", "))]" }
-    internal static var _dictFormatter: ([String: String]) -> String =
+    )
+    internal static let _dictFormatter = NIOLockedValueBox<(([String: String]) -> String)>(
         { "[\($0.map { "\($0): \"\($1)\"" }.joined(separator: ", "))]" }
-    internal static var _dataFormatter: (Data) -> String? =
-        { String(data: $0, encoding: Self._encoding) }
-    
+    )
+    internal static let _dataFormatter = NIOLockedValueBox<((Data) -> String?)>(
+        { String(data: $0, encoding: Self._encoding.withLockedValue { $0 }) }
+    )
     
     /// Convenience flag for global write-once
-    private static var started = false
+    private static let started = NIOLockedValueBox(false)
     private static var running: Bool {
-        assert(!Self.started, "LeafKit can only be configured prior to instantiating any LeafRenderer")
-        return Self.started
+        assert(!Self.started.withLockedValue { $0 }, "LeafKit can only be configured prior to instantiating any LeafRenderer")
+        return Self.started.withLockedValue { $0 }
     }
     
     /// Convenience flag for local lock-after-access

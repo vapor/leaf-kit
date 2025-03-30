@@ -47,7 +47,9 @@ internal func render(name: String = "test-render", _ template: String, _ context
 // MARK: - Helper Structs and Classes
 
 /// Helper wrapping` LeafRenderer` to preconfigure for simplicity & allow eliding context
-internal class TestRenderer {
+///
+/// `@unchecked Sendable` because uses locks to guarantee Sendability.
+internal class TestRenderer: @unchecked Sendable {
     var r: LeafRenderer
     private let lock: NIOLock
     private var counter: Int = 0
@@ -89,7 +91,7 @@ internal class TestRenderer {
 internal struct TestFiles: LeafSource {
     var files: [String: String]
     var lock: NIOLock
-    
+
     init() {
         files = [:]
         lock = .init()
