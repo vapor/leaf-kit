@@ -2,9 +2,7 @@ import Foundation
 
 extension ParameterDeclaration {
     func `operator`() -> LeafOperator? {
-        guard case .parameter(let p) = self,
-              case .operator(let o) = p
-        else {
+        guard case .parameter(.operator(let o)) = self else {
             return nil
         }
         return o
