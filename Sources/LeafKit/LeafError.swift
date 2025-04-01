@@ -86,7 +86,7 @@ public struct LeafError: Error {
         }
     }
     
-    /// Create a `LeafError` - only `reason` typically used as source locations are auto-grabbed
+    /// Create a `LeafError`.
     public init(
         _ reason: Reason,
         file: String = #fileID,

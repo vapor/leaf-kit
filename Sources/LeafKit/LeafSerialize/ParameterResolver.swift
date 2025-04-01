@@ -224,9 +224,6 @@ struct ParameterResolver {
         case .double(let d):
             let rhs = rhs.double ?? 0
             return .double(d + rhs)
-        case .lazy(let load, _, _):
-            let l = load()
-            return try self.plus(lhs: l, rhs: rhs)
         case .dictionary(let lhs):
             var rhs = rhs.dictionary ?? [:]
             lhs.forEach { key, val in
@@ -263,9 +260,6 @@ struct ParameterResolver {
         case .double(let d):
             let rhs = rhs.double ?? 0
             return .double(d - rhs)
-        case .lazy(let load, _, _):
-            let l = load()
-            return try self.minus(lhs: l, rhs: rhs)
         case .data, .string, .dictionary, .bool:
             throw "unable to subtract from \(lhs)"
         }
@@ -287,9 +281,6 @@ struct ParameterResolver {
         case .double(let d):
             let rhs = rhs.double ?? 0
             return .double(d * rhs)
-        case .lazy(let load, _, _):
-            let l = load()
-            return try self.multiply(lhs: l, rhs: rhs)
         case .data, .array, .string, .dictionary, .bool:
             throw "unable to multiply this type `\(lhs)`"
         }
@@ -311,9 +302,6 @@ struct ParameterResolver {
         case .double(let d):
             let rhs = rhs.double ?? 0
             return .double(d / rhs)
-        case .lazy(let load, _, _):
-            let l = load()
-            return try self.divide(lhs: l, rhs: rhs)
         case .data, .array, .string, .dictionary, .bool:
             throw "unable to divide this type `\(lhs)`"
         }
@@ -335,9 +323,6 @@ struct ParameterResolver {
         case .double(let d):
             let rhs = rhs.double ?? 0
             return .double(d.truncatingRemainder(dividingBy: rhs))
-        case .lazy(let load, _, _):
-            let l = load()
-            return try self.modulo(lhs: l, rhs: rhs)
         case .data, .array, .string, .dictionary, .bool:
             throw "unable to apply modulo on this type `\(lhs)`"
         }

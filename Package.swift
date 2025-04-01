@@ -21,6 +21,7 @@ let package = Package(
             dependencies: [
                 .product(name: "NIO", package: "swift-nio"),
                 .product(name: "_NIOFileSystem", package: "swift-nio"),
+                .product(name: "NIOFoundationCompat", package: "swift-nio"),
             ],
             swiftSettings: swiftSettings
         ),

@@ -34,7 +34,7 @@ public struct LeafData:
 
     /// The case-self identity
     public var celf: NaturalType {
-        self.storage.concreteType!
+        self.storage.concreteType
     }
 
     /// Returns `true` if the data is `nil` or `void`.
@@ -52,7 +52,7 @@ public struct LeafData:
     /// - This does not imply it's not possible to *coerce* data - handle with `coerce(to:)`
     ///   EG: `.string("")` -> `.nil`, `.string("1")` -> ` .bool(true)`
     public func isCastable(to type: LeafData.NaturalType) -> Bool {
-        let conversion = _ConverterMap.symbols.get(self.storage.concreteType!, type)!
+        let conversion = _ConverterMap.symbols.get(self.storage.concreteType, type)!
 
         return conversion.is >= DataConvertible.castable
     }
@@ -62,7 +62,7 @@ public struct LeafData:
     ///       or `.int(1)` -> `.bool(true)`
     /// - This does *not* validate the data itself in coercion
     public func isCoercible(to type: LeafData.NaturalType) -> Bool {
-        let conversion = _ConverterMap.symbols.get(self.storage.concreteType!, type)!
+        let conversion = _ConverterMap.symbols.get(self.storage.concreteType, type)!
 
         return conversion.is >= DataConvertible.coercible
     }
@@ -76,10 +76,6 @@ public struct LeafData:
         // If either side is nil, false - storage == would have returned false
         if lhs.isNil || rhs.isNil {
             return true
-        }
-        // - Lazy variant data should never be tested due to potential side-effects
-        guard lhs.invariant, rhs.invariant else {
-            return false
         }
         // Fuzzy comparison by string casting
         guard lhs.isCastable(to: .string),
@@ -101,48 +97,38 @@ public struct LeafData:
     }
 
     /// Returns `true` if the object has a single uniform type
-    /// - Always true for invariant non-containers
-    /// - True or false for containers if determinable
-    /// - Nil if the object is variant lazy data, or invariant lazy producing a container, or a container holding such
+    /// - Always true for non-containers
+    /// - True or false for containers
+    /// - Never returns `nil`; the optional result is an historical artifact of the API
     public var hasUniformType: Bool? {
-        // Default case - anything that doesn't return a container
-        if !self.isCollection {
-            return true
-        }
-        // A container-returning lazy (unknowable) - specific test to avoid invariant check
-        if self.storage.isLazy, self.isCollection {
-            return nil
-        }
-        // A non-lazy container - somewhat expensive to check
+        // A container - somewhat expensive to check
         if case .array(let a) = self.storage {
-            guard a.count > 1, let first = a.first?.concreteType else {
+            guard let first = a.first?.celf else {
                 return true
             }
             return a.allSatisfy { $0.celf == first && $0.hasUniformType ?? false }
         } else if case .dictionary(let d) = self.storage {
-            guard d.count > 1, let first = d.values.first?.concreteType else {
+            guard let first = d.values.first?.celf else {
                 return true
             }
             return d.values.allSatisfy { $0.celf == first && $0.hasUniformType ?? false }
-        } else {
-            return nil
+        }
+        // Anything else
+        else {
+            return true
         }
     }
     
-    /// Returns the uniform type of the object, or nil if it can't be determined/is a non-uniform container
+    /// Returns the uniform type of the object, or nil if it is a non-uniform container
     public var uniformType: NaturalType? {
-        guard let determinable = self.hasUniformType, determinable else {
-            return nil
-        }
-        if !self.isCollection {
-            return self.storage.concreteType
-        }
-        if case .array(let a) = self.storage {
-            return a.isEmpty ? .void : a.first?.concreteType ?? nil
+        if self.hasUniformType == false {
+            nil
+        } else if case .array(let a) = self.storage {
+            a.first?.celf ?? .void
         } else if case .dictionary(let d) = self.storage {
-            return d.values.isEmpty ? .void : d.values.first?.concreteType ?? nil
+            d.values.first?.celf ?? .void
         } else {
-            return nil
+            self.storage.concreteType
         }
     }
     
@@ -283,30 +269,16 @@ public struct LeafData:
     /// Actual storage.
     private(set) var storage: LeafDataStorage
     
-    // MARK: - LeafSymbol Conformance
-    var resolved: Bool { self.storage.resolved }
-    var invariant: Bool { self.storage.invariant }
-    var symbols: Set<String> { .init() }
-    var isAtomic: Bool { true }
-    var isExpression: Bool { false }
-    var isConcrete: Bool { false }
-    var isAny: Bool { true }
-    var concreteType: NaturalType? { nil }
-    func resolve() -> LeafData {
-        LeafData(self.storage.resolve())
+    func serialize() -> String {
+        self.storage.serialize()
     }
-    func serialize() throws -> String? {
-        try self.storage.serialize()
-    }
+
     func serialize(buffer: inout ByteBuffer) throws {
         try self.storage.serialize(buffer: &buffer)
     }
     
     // Hard resolve data (remove invariants), remaining optional if nil
     var evaluate: LeafData {
-        if case .lazy(let f, _, _) = self.storage {
-            return f()
-        }
         if case .dictionary(let d) = self.storage {
             return .dictionary(d.mapValues { $0.evaluate })
         }
@@ -321,27 +293,14 @@ public struct LeafData:
         self.storage = storage
     }
 
-    /// Creates a new `LeafData` from `() -> LeafData` if possible or `nil` if not possible.
-    /// `returns` must specify a `NaturalType` that the function will return
-    static func lazy(
-        _ lambda: @escaping @Sendable () -> LeafData,
-        returns type: LeafData.NaturalType,
-        invariant sideEffects: Bool
-    ) throws -> LeafData {
-        LeafData(.lazy(f: lambda, returns: type, invariant: sideEffects))
-    }
-    
     /// Try to convert one concrete object to a second type.
     func convert(to output: NaturalType, _ level: DataConvertible = .castable) -> LeafData {
         guard celf != output else  {
             return self
         }
 
-        if case .lazy(let f,_,_) = self.storage {
-            return f().convert(to: output, level)
-        }
         guard let input = self.storage.unwrap,
-              let conversion = _ConverterMap.symbols.get(input.concreteType!, output),
+              let conversion = _ConverterMap.symbols.get(input.concreteType, output),
               conversion.is >= level
         else {
             return nil
@@ -518,7 +477,7 @@ fileprivate enum _ConverterMap {
                                           // Use the configured formatter
         Converter(.array      , .data       , is: .coercible, via: {
             ($0 as? [LeafData]).map {
-                try? LeafDataStorage.array($0).serialize()?.data(using: c.encoding)
+                LeafDataStorage.array($0).serialize().data(using: c.encoding)
             }?.map { .data($0) } ?? .trueNil
         }),
                                           // Use the configured formatter
@@ -529,7 +488,7 @@ fileprivate enum _ConverterMap {
                                           // Use the configured formatter
         Converter(.dictionary , .data       , is: .coercible, via: {
             ($0 as? [String: LeafData]).map {
-                try? LeafDataStorage.dictionary($0).serialize()?.data(using: c.encoding)
+                LeafDataStorage.dictionary($0).serialize().data(using: c.encoding)
             }?.map { .data($0) } ?? .trueNil
         }),
                                           // Use the configured formatter
@@ -566,15 +525,13 @@ fileprivate enum _ConverterMap {
                                           // Conversion using the formatter
         Converter(.array      , .string     , is: .ambiguous, via: {
             ($0 as? [LeafData]).map {
-                let stringified: String? = try? LeafData.array($0).serialize()
-                return .string(stringified)
+                .string(LeafData.array($0).serialize())
             } ?? .trueNil
         }),
                                           // Conversion using the formatter
         Converter(.dictionary , .string     , is: .ambiguous, via: {
             ($0 as? [String: LeafData]).map {
-                let stringified: String? = try? LeafData.dictionary($0).serialize()
-                return .string(stringified)
+                .string(LeafData.dictionary($0).serialize())
             } ?? .trueNil
         }),
 
