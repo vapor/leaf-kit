@@ -1,4 +1,4 @@
-import NIO
+import NIOCore
 
 /// `LeafCache` provides blind storage for compiled `LeafAST` objects.
 ///

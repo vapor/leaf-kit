@@ -1,6 +1,5 @@
-import XCTest
-
 @testable import LeafKit
+import XCTest
 
 class HTMLEscapeTests: XCTestCase {
     func testCorrectness() {

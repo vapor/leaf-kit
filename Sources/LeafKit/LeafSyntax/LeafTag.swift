@@ -1,4 +1,8 @@
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 /// Create custom tags by conforming to this protocol and registering them.
 public protocol LeafTag {

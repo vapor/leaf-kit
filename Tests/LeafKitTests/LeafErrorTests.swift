@@ -1,8 +1,8 @@
 /// Place all tests related to verifying that errors ARE thrown here
 
-import XCTest
-import NIOConcurrencyHelpers
 @testable import LeafKit
+import NIOConcurrencyHelpers
+import XCTest
 
 final class LeafErrorTests: XCTestCase {
 

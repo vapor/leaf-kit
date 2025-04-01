@@ -1,7 +1,7 @@
-import XCTest
-import NIOConcurrencyHelpers
-import NIO
 @testable import LeafKit
+import NIOCore
+import NIOConcurrencyHelpers
+import XCTest
 
 /// Assorted multi-purpose helper pieces for LeafKit tests
 

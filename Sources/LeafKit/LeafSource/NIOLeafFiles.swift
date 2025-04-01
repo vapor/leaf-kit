@@ -1,6 +1,11 @@
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
-import NIO
+#endif
+import NIOCore
 import NIOFileSystem
+import NIOPosix
 
 /// Reference and default implementation of `LeafSource` adhering object that provides a non-blocking
 /// file reader for `LeafRenderer`

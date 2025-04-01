@@ -1,5 +1,5 @@
-import XCTest
 @testable import LeafKit
+import XCTest
 
 final class SerializerTests: XCTestCase {
     func testNestedKeyPathLoop() throws {

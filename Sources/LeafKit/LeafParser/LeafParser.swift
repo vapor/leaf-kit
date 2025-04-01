@@ -1,4 +1,4 @@
-import NIO
+import NIOCore
 
 // This is a horrible, horrible mistake, it really stinks that it can't be taken back.
 extension Swift.String: Swift.Error {}

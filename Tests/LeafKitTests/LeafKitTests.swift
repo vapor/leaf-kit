@@ -1,7 +1,7 @@
-import XCTest
-import NIOConcurrencyHelpers
 @testable import LeafKit
-import NIO
+import NIOConcurrencyHelpers
+import NIOCore
+import XCTest
 
 final class ParserTests: XCTestCase {
     func testParsingNesting() throws {

@@ -1,4 +1,4 @@
-import NIO
+import NIOCore
 
 /// `LeafAST` represents a "compiled," grammatically valid Leaf template (which may or may not be fully resolvable or erroring)
 public struct LeafAST: Hashable, Sendable {

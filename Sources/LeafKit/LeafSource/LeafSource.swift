@@ -1,4 +1,4 @@
-import NIO
+import NIOCore
 
 /// Public protocol to adhere to in order to provide template source originators to `LeafRenderer`
 public protocol LeafSource {

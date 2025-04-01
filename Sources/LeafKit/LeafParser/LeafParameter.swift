@@ -1,4 +1,4 @@
-import NIO
+import NIOCore
 
 public indirect enum ParameterDeclaration: CustomStringConvertible, Sendable {
     case parameter(Parameter)

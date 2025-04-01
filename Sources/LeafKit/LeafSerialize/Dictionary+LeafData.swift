@@ -1,5 +1,3 @@
-import Foundation
-
 public extension Dictionary where Key == String, Value == LeafData {
     subscript(keyPath keyPath: String) -> LeafData? {
         let comps = keyPath.split(separator: ".").map(String.init)

@@ -1,5 +1,9 @@
-import NIO
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
+import NIOCore
 
 internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible, Sendable {
     // MARK: - Cases

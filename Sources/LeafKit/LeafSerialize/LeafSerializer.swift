@@ -1,4 +1,4 @@
-import NIO
+import NIOCore
 
 internal struct LeafSerializer {
     // MARK: - Internal Only

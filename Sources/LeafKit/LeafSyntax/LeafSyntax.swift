@@ -1,4 +1,4 @@
-import NIO
+import NIOCore
 
 public indirect enum Syntax: Sendable {
     // MARK: .raw - Makeable, Entirely Readable

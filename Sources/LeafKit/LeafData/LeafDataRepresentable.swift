@@ -1,4 +1,8 @@
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 /// Capable of being encoded as `LeafData`.
 public protocol LeafDataRepresentable {

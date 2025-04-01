@@ -1,5 +1,5 @@
-import XCTest
 @testable import LeafKit
+import XCTest
 
 class TagTests: XCTestCase {
     func testWithHTMLEntities() throws {
