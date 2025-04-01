@@ -64,9 +64,9 @@ public struct NIOLeafFiles: LeafSource, Sendable {
         let sD = URL(fileURLWithPath: sandboxDirectory, isDirectory: true).standardized.path.appending("/")
         let vD = URL(fileURLWithPath: viewDirectory, isDirectory: true).standardized.path.appending("/")
         // Ensure provided sandboxDir is directly reachable from viewDir, otherwise only use viewDir
-        assert(vD.hasPrefix(sD), "View directory must be inside sandbox directory")
-        self.sandbox = vD.hasPrefix(sD) ? sD : vD
-        self.viewRelative = String(vD[sD.indices.endIndex ..< vD.indices.endIndex])
+        assert(vD.starts(with: sD), "View directory must be inside sandbox directory")
+        self.sandbox = vD.starts(with: sD) ? sD : vD
+        self.viewRelative = String(vD.dropFirst(sD.count))
     }
 
     /// Conformance to `LeafSource` to allow `LeafRenderer` to request a template.
@@ -78,29 +78,38 @@ public struct NIOLeafFiles: LeafSource, Sendable {
     /// - Returns: A succeeded `EventLoopFuture` holding a `ByteBuffer` with the raw
     ///            template, or an appropriate failed state ELFuture (not found, illegal access, etc)
     public func file(template: String, escape: Bool = false, on eventLoop: any EventLoop) throws -> EventLoopFuture<ByteBuffer> {
-        var template = URL(fileURLWithPath: sandbox + viewRelative + template, isDirectory: false).standardized.path
+        var templateURL = URL(fileURLWithPath: self.sandbox)
+            .appendingPathComponent(self.viewRelative, isDirectory: true)
+            .appendingPathComponent(template, isDirectory: false)
+
         /// If default extension is enforced for template files, add it if it's not on the file, or if no extension present
-        if limits.contains(.onlyLeafExtensions), !template.hasSuffix(".\(self.extension)")
-            { template += ".\(self.extension)" }
-        else if limits.contains(.requireExtensions), !template.split(separator: "/").last!.contains(".")
-            { template += ".\(self.extension)" }
-        
-        if !limits.isDisjoint(with: .dirLimited), [".","/"].contains(template.first) {
+        if self.limits.contains(.onlyLeafExtensions), templateURL.pathExtension != self.extension {
+            templateURL.appendPathExtension(self.extension)
+        } else if self.limits.contains(.requireExtensions), templateURL.pathExtension == "" {
+            templateURL.appendPathExtension(self.extension)
+        }
+
+        let template = templateURL.standardized.path
+
+        if !self.limits.isDisjoint(with: .dirLimited), [".", "/"].contains(template.first) {
             /// If sandboxing is enforced and the path contains a potential escaping path, look harder
-            if limits.contains(.toVisibleFiles) {
+            if self.limits.contains(.toVisibleFiles) {
                 let protected = template.split(separator: "/")
                     .compactMap {
-                        guard $0.count > 1, $0.first == ".", !$0.hasPrefix("..") else { return nil }
+                        guard $0.count > 1, $0.first == ".", !$0.starts(with: "..") else { return nil }
                         return String($0)
                     }
-                .joined(separator: ",")
-                if protected.count > 0 { throw LeafError(.illegalAccess("Attempted to access \(protected)")) }
+                    .joined(separator: ",")
+                if !protected.isEmpty {
+                    throw LeafError(.illegalAccess("Attempted to access \(protected)"))
+                }
             }
             
-            if limits.contains(.toSandbox) {
-                let limitedTo = escape ? sandbox : sandbox + viewRelative
-                guard template.hasPrefix(limitedTo)
-                    else { throw LeafError(.illegalAccess("Attempted to escape sandbox: \(template)")) }
+            if self.limits.contains(.toSandbox) {
+                let limitedTo = escape ? self.sandbox : self.sandbox + self.viewRelative
+                guard template.starts(with: limitedTo) else {
+                    throw LeafError(.illegalAccess("Attempted to escape sandbox: \(template)"))
+                }
             }
         }
 
