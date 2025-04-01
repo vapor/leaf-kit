@@ -31,7 +31,7 @@ public indirect enum ParameterDeclaration: CustomStringConvertible, Sendable {
     
     // MARK: - Internal Only
     
-    internal func imports() -> Set<String> {
+    func imports() -> Set<String> {
         switch self {
         case .parameter(_):
             return .init()
@@ -52,7 +52,7 @@ public indirect enum ParameterDeclaration: CustomStringConvertible, Sendable {
         }
     }
     
-    internal func inlineImports(_ imports: [String : Syntax.Export]) -> ParameterDeclaration {
+    func inlineImports(_ imports: [String : Syntax.Export]) -> ParameterDeclaration {
         switch self {
         case .parameter(_):
             return self

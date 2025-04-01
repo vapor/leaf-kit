@@ -98,37 +98,37 @@ public struct LeafConfiguration: Sendable {
     }
 
     // MARK: - Internal/Private Only
-    internal static var tagIndicator: Character {
+    static var tagIndicator: Character {
         Self._tagIndicator // The lock is expensive; because the value is write-once, it's safe (enough) to skip it here
     }
 
-    internal var _rootDirectory: String {
+    var _rootDirectory: String {
         willSet { assert(!accessed, "Changing property after LeafConfiguration has been read has no effect") }
     }
     
-    internal var _ignoreUnfoundImports: Bool {
+    var _ignoreUnfoundImports: Bool {
         willSet { assert(!accessed, "Changing property after LeafConfiguration has been read has no effect") }
     }
 
     private static let _dataLock: NIOLock = .init()
 
-    nonisolated(unsafe) private static var _tagIndicator: Character = .octothorpe
-    nonisolated(unsafe) private static var _encoding: String.Encoding = .utf8
-    nonisolated(unsafe) private static var _boolFormatter: (Bool) -> String = { $0.description }
-    nonisolated(unsafe) private static var _intFormatter: (Int) -> String = { $0.description }
-    nonisolated(unsafe) private static var _doubleFormatter: (Double) -> String = { $0.description }
-    nonisolated(unsafe) private static var _nilFormatter: () -> String = { "" }
-    nonisolated(unsafe) private static var _voidFormatter: () -> String = { "" }
-    nonisolated(unsafe) private static var _stringFormatter: (String) -> String = { $0 }
-    nonisolated(unsafe) private static var _arrayFormatter: ([String]) -> String =
+    private nonisolated(unsafe) static var _tagIndicator: Character = .octothorpe
+    private nonisolated(unsafe) static var _encoding: String.Encoding = .utf8
+    private nonisolated(unsafe) static var _boolFormatter: (Bool) -> String = { $0.description }
+    private nonisolated(unsafe) static var _intFormatter: (Int) -> String = { $0.description }
+    private nonisolated(unsafe) static var _doubleFormatter: (Double) -> String = { $0.description }
+    private nonisolated(unsafe) static var _nilFormatter: () -> String = { "" }
+    private nonisolated(unsafe) static var _voidFormatter: () -> String = { "" }
+    private nonisolated(unsafe) static var _stringFormatter: (String) -> String = { $0 }
+    private nonisolated(unsafe) static var _arrayFormatter: ([String]) -> String =
         { "[\($0.map {"\"\($0)\""}.joined(separator: ", "))]" }
-    nonisolated(unsafe) private static var _dictFormatter: ([String: String]) -> String =
+    private nonisolated(unsafe) static var _dictFormatter: ([String: String]) -> String =
         { "[\($0.map { "\($0): \"\($1)\"" }.joined(separator: ", "))]" }
-    nonisolated(unsafe) private static var _dataFormatter: (Data) -> String? =
+    private nonisolated(unsafe) static var _dataFormatter: (Data) -> String? =
         { String(data: $0, encoding: Self._encoding) }
 
     /// Convenience flag for global write-once
-    nonisolated(unsafe) private static var started = false
+    private nonisolated(unsafe) static var started = false
     /// Calls to this accessor must be guarded by the data lock; this avoids having to take the lock twice when setting values.
     private static var running: Bool {
         assert(!Self.started, "LeafKit can only be configured prior to instantiating any LeafRenderer")

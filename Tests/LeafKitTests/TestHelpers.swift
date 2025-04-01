@@ -50,7 +50,7 @@ func render(name: String = "test-render", _ template: String, _ context: [String
 final class TestRenderer: Sendable {
     nonisolated(unsafe) var r: LeafRenderer
     private let lock: NIOLock
-    nonisolated(unsafe) private var counter: Int = 0
+    private nonisolated(unsafe) var counter: Int = 0
 
     init(
         configuration: LeafConfiguration = .init(rootDirectory: "/"),
@@ -96,9 +96,12 @@ struct TestFiles: LeafSource {
 
     func file(template: String, escape: Bool = false, on eventLoop: any EventLoop) -> EventLoopFuture<ByteBuffer> {
         var path = template
-        if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2,
-           !path.hasSuffix(".leaf") { path += ".leaf" }
-        if !path.hasPrefix("/") { path = "/" + path }
+        if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2, !path.hasSuffix(".leaf") {
+            path += ".leaf"
+        }
+        if !path.starts(with: "/") {
+            path = "/" + path
+        }
 
         return self.lock.withLock {
             if let file = self.files[path] {

@@ -142,7 +142,7 @@ public struct LexerError: Error {
     ///   - src: File being lexed
     ///   - lexed: `LeafTokens` already lexed prior to error
     ///   - recoverable: Flag to say whether the error can potentially be recovered during Parse
-    internal init(
+    init(
         _ reason: Reason,
         src: LeafRawTemplate,
         lexed: [LeafToken] = [],

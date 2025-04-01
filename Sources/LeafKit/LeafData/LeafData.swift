@@ -365,7 +365,7 @@ public struct LeafData:
     }
 
     /// Return a HTML-escaped version of this data if it can be converted to a string.
-    internal func htmlEscaped() -> LeafData {
+    func htmlEscaped() -> LeafData {
         guard let string = self.string else {
             return self
         }
@@ -377,7 +377,7 @@ public struct LeafData:
 // MARK: - Data Converter Static Mapping
 
 /// Stages of convertibility
-internal enum DataConvertible: Int, Equatable, Comparable {
+enum DataConvertible: Int, Equatable, Comparable {
     /// Not implicitly convertible automatically
     case ambiguous = 0
     /// A coercioni with a clear meaning in one direction

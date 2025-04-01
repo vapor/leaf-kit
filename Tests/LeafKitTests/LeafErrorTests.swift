@@ -1,11 +1,10 @@
-/// Place all tests related to verifying that errors ARE thrown here
+/// Place all tests related to verifying that errors ARE thrown here.
 
 @testable import LeafKit
 import NIOConcurrencyHelpers
 import XCTest
 
 final class LeafErrorTests: XCTestCase {
-
     /// Verify that cyclical references via #extend will throw `LeafError.cyclicalReference`
     func testCyclicalError() async throws {
         var test = TestFiles()
@@ -28,7 +27,7 @@ final class LeafErrorTests: XCTestCase {
         }
     }
     
-    /// Verify taht referecing a non-existent template will throw `LeafError.noTemplateExists`
+    /// Verify that referencing a non-existent template will throw `LeafError.noTemplateExists`
     func testDependencyError() async throws {
         var test = TestFiles()
         test.files["/a.leaf"] = "#extend(\"b\")"

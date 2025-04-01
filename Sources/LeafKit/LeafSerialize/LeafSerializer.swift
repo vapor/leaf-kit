@@ -1,6 +1,6 @@
 import NIOCore
 
-internal struct LeafSerializer {
+struct LeafSerializer {
     // MARK: - Internal Only
     
     init(

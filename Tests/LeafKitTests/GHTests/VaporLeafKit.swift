@@ -6,7 +6,6 @@ import NIOConcurrencyHelpers
 import XCTest
 
 final class GHLeafKitIssuesTest: XCTestCase {
-    
     /// https://github.com/vapor/leaf-kit/issues/33
     func testGH33() async throws {
         var test = TestFiles()

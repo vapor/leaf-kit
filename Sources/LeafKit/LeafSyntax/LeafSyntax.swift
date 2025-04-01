@@ -661,7 +661,7 @@ extension Syntax {
         private var externalsSet: Set<String>
         private var importSet: Set<String>
         
-        internal init(name: String, params: [ParameterDeclaration], body: [Syntax]? = nil) {
+        init(name: String, params: [ParameterDeclaration], body: [Syntax]? = nil) {
             self.name = name
             self.params = params
             self.externalsSet = .init()

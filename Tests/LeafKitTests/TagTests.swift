@@ -1,7 +1,7 @@
 @testable import LeafKit
 import XCTest
 
-class TagTests: XCTestCase {
+final class TagTests: XCTestCase {
     func testWithHTMLEntities() throws {
         let template = """
         #(name)

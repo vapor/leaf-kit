@@ -5,7 +5,7 @@ import Foundation
 #endif
 import NIOCore
 
-internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible, Sendable {
+indirect enum LeafDataStorage: Equatable, CustomStringConvertible, Sendable {
     // MARK: - Cases
     
     // Static values

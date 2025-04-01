@@ -4,7 +4,7 @@ import FoundationEssentials
 import Foundation
 #endif
 
-internal extension ParameterDeclaration {
+extension ParameterDeclaration {
     func `operator`() -> LeafOperator? {
         guard case .parameter(let p) = self,
               case .operator(let o) = p

@@ -95,7 +95,7 @@ public final class LeafRenderer {
     
     // MARK: - Internal Only
     /// Temporary testing interface
-    internal func render(source: String, path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
+    func render(source: String, path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
         guard !path.isEmpty else {
             return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)")))
         }

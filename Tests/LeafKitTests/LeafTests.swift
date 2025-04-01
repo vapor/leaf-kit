@@ -2,7 +2,6 @@
 import XCTest
 
 final class LeafTests: XCTestCase {
-
     // conversation ongoing
     func testCommentSugar() throws {
         let template = """

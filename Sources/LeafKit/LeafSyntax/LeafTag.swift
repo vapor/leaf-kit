@@ -14,7 +14,7 @@ public protocol UnsafeUnescapedLeafTag: LeafTag {}
 
 // Why is this even mutable? We have no choice but to silence the compiler's legitimate warning about
 // safety because we can't remove the setter.
-nonisolated(unsafe) public var defaultTags: [String: any LeafTag] = [
+public nonisolated(unsafe) var defaultTags: [String: any LeafTag] = [
     "unsafeHTML": UnsafeHTML(),
     "lowercased": Lowercased(),
     "uppercased": Uppercased(),

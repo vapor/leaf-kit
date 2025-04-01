@@ -1,7 +1,7 @@
 @testable import LeafKit
 import XCTest
 
-class HTMLEscapeTests: XCTestCase {
+final class HTMLEscapeTests: XCTestCase {
     func testCorrectness() {
         XCTAssertEqual("".htmlEscaped(), "")
         XCTAssertEqual("abcdef".htmlEscaped(), "abcdef")
