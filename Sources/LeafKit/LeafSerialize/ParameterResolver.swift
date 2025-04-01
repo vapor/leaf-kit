@@ -20,7 +20,7 @@ struct ParameterResolver {
     let userInfo: [AnyHashable: Any]
 
     func resolve() throws -> [ResolvedParameter] {
-        try params.map(resolve)
+        try self.params.map(resolve)
     }
 
     struct ResolvedParameter {
@@ -59,10 +59,10 @@ struct ParameterResolver {
         switch param {
         case .constant(let c):
             switch c {
-                case .double(let d):
-                    LeafData(.double(d))
-                case .int(let d):
-                    LeafData(.int(d))
+            case .double(let d):
+                LeafData(.double(d))
+            case .int(let d):
+                LeafData(.int(d))
             }
         case .stringLiteral(let s):
             .init(.string(s))
@@ -70,7 +70,7 @@ struct ParameterResolver {
             self.data[keyPath: v] ?? .trueNil
         case .keyword(let k):
             switch k {
-                case .this: .init(.dictionary(data))
+                case .this: .init(.dictionary(self.data))
                 case .nil: .trueNil
                 case .true, .yes: .init(.bool(true))
                 case .false, .no: .init(.bool(false))
@@ -228,7 +228,7 @@ struct ParameterResolver {
             return .double(d + rhs)
         case .lazy(let load, _, _):
             let l = load()
-            return try plus(lhs: l, rhs: rhs)
+            return try self.plus(lhs: l, rhs: rhs)
         case .dictionary(let lhs):
             var rhs = rhs.dictionary ?? [:]
             lhs.forEach { key, val in

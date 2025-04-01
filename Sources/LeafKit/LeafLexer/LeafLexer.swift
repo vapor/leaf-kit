@@ -307,7 +307,7 @@ struct LeafLexer {
         }
         if read.last == .backSlash, src.peek() == .quote {
             src.pop()
-            return read.dropLast() + "\"" + readWithEscapingQuotes(src: &src)
+            return read.dropLast() + "\"" + self.readWithEscapingQuotes(src: &src)
         } else {
             return read
         }

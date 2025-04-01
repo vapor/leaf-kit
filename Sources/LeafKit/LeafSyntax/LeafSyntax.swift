@@ -191,7 +191,7 @@ extension Syntax {
         }
 
         func print(depth: Int) -> String {
-            return indent(depth) + "import(" + key.debugDescription + ")"
+            return indent(depth) + "import(" + self.key.debugDescription + ")"
         }
     }
 
@@ -287,7 +287,7 @@ extension Syntax {
                 let resolvedExtend = Syntax.Extend(
                     key: self.key,
                     exports: newExports,
-                    externalsSet: externalsSet,
+                    externalsSet: self.externalsSet,
                     importSet: newImportSet
                 )
                 results.append(.extend(resolvedExtend))
@@ -383,7 +383,7 @@ extension Syntax {
         }
         
         func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
-            guard !externalsSet.isEmpty || !importSet.isEmpty else {
+            guard !self.externalsSet.isEmpty || !self.importSet.isEmpty else {
                 return [.export(self)]
             }
             return [.export(.init(key: self.key, body: self.body.inlineRefs(externals, imports)))]
@@ -554,7 +554,7 @@ extension Syntax {
 
         func print(depth: Int) -> String {
             var print = indent(depth)
-            print += "with(\(context)):\n"
+            print += "with(\(self.context)):\n"
             print += self.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
             return print
         }

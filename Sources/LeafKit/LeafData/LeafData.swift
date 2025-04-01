@@ -340,7 +340,7 @@ public struct LeafData:
         if case .lazy(let f,_,_) = self.storage {
             return f().convert(to: output, level)
         }
-        guard let input = storage.unwrap,
+        guard let input = self.storage.unwrap,
               let conversion = _ConverterMap.symbols.get(input.concreteType!, output),
               conversion.is >= level
         else {

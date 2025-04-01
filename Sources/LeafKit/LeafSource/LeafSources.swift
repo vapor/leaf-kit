@@ -84,7 +84,7 @@ public final class LeafSources: Sendable {
             throw LeafError(.illegalAccess("No searchable sources exist"))
         }
 
-        return searchSources(t: template, on: eventLoop, s: keys)
+        return self.searchSources(t: template, on: eventLoop, s: keys)
     }
     
     private func searchSources(t: String, on eL: any EventLoop, s: [String]) -> EventLoopFuture<(String, ByteBuffer)> {

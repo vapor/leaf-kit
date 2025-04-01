@@ -28,7 +28,7 @@ public final class DefaultLeafCache: SynchronousLeafCache {
         replace: Bool = false
     ) -> EventLoopFuture<LeafAST> {
         // future fails if caching is enabled
-        guard isEnabled else {
+        guard self.isEnabled else {
             return loop.makeSucceededFuture(document)
         }
 
@@ -69,7 +69,7 @@ public final class DefaultLeafCache: SynchronousLeafCache {
         _ documentName: String,
         on loop: any EventLoop
     ) -> EventLoopFuture<Bool?> {
-        guard isEnabled else {
+        guard self.isEnabled else {
             return loop.makeFailedFuture(LeafError(.cachingDisabled))
         }
 
@@ -89,7 +89,7 @@ public final class DefaultLeafCache: SynchronousLeafCache {
     
     /// Blocking file load behavior
     func retrieve(documentName: String) throws -> LeafAST? {
-        guard isEnabled else {
+        guard self.isEnabled else {
             throw LeafError(.cachingDisabled)
         }
         return try self.lock.withLock {

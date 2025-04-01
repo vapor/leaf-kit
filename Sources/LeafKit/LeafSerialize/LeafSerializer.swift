@@ -40,7 +40,7 @@ struct LeafSerializer {
 
     private mutating func serialize(_ syntax: Syntax, context data: [String: LeafData]) throws {
         switch syntax {
-            case .raw(var byteBuffer): buffer.writeBuffer(&byteBuffer)
+            case .raw(var byteBuffer): self.buffer.writeBuffer(&byteBuffer)
             case .custom(let custom):  try self.serialize(custom, context: data)
             case .conditional(let c):  try self.serialize(c, context: data)
             case .loop(let loop):      try self.serialize(loop, context: data)
@@ -164,7 +164,7 @@ struct LeafSerializer {
             params: parameters,
             data: data,
             tags: self.tags,
-            userInfo: userInfo
+            userInfo: self.userInfo
         )
         return try resolver.resolve().map { $0.result }
     }

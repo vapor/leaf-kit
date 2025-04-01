@@ -159,7 +159,7 @@ public final class LeafRenderer {
     private func fetch(source: String? = nil, template: String, chain: [String] = []) -> EventLoopFuture<LeafAST?> {
         nonisolated(unsafe) let nself = self
 
-        return self.cache.retrieve(documentName: template, on: eventLoop).flatMap { cached in
+        return self.cache.retrieve(documentName: template, on: self.eventLoop).flatMap { cached in
             guard let cached else {
                 return nself.read(source: source, name: template, escape: true).flatMap { ast in
                     guard let ast else {
@@ -239,7 +239,7 @@ public final class LeafRenderer {
         do {
             raw = try self.sources.find(template: name, in: source , on: self.eventLoop)
         } catch {
-            return eventLoop.makeFailedFuture(error)
+            return self.eventLoop.makeFailedFuture(error)
         }
 
         return raw.flatMapThrowing { raw -> LeafAST? in
@@ -259,7 +259,7 @@ public final class LeafRenderer {
     
     private func getFlatCachedHit(_ path: String) -> LeafAST? {
         // If cache provides blocking load, try to get a flat AST immediately
-        guard let blockingCache = cache as? any SynchronousLeafCache,
+        guard let blockingCache = self.cache as? any SynchronousLeafCache,
            let cached = try? blockingCache.retrieve(documentName: path),
            cached.flat
         else {

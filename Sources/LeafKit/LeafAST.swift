@@ -5,7 +5,7 @@ public struct LeafAST: Hashable, Sendable {
     // MARK: - Public
     
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(name)
+        hasher.combine(self.name)
     }
 
     public static func == (lhs: LeafAST, rhs: LeafAST) -> Bool {
@@ -47,8 +47,8 @@ public struct LeafAST: Hashable, Sendable {
     mutating private func updateRefs(_ externals: [String: LeafAST]) {
         var firstRun = false
 
-        if rawAST == nil, flat == false {
-            rawAST = ast
+        if self.rawAST == nil, self.flat == false {
+            self.rawAST = self.ast
             firstRun = true
         }
         self.unresolvedRefs.removeAll()
@@ -77,9 +77,9 @@ public struct LeafAST: Hashable, Sendable {
             // but we need to add their unresolvable references to the global set
             var offset = replacementSyntax.startIndex
             while offset < replacementSyntax.endIndex {
-                self.unresolvedRefs.formUnion(ast[pos].externals())
+                self.unresolvedRefs.formUnion(self.ast[pos].externals())
                 offset = replacementSyntax.index(after: offset)
-                pos = ast.index(after: pos)
+                pos = self.ast.index(after: pos)
             }
         }
 
