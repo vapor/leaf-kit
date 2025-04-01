@@ -1,4 +1,4 @@
-// swift-tools-version:5.9
+// swift-tools-version:5.10
 import PackageDescription
 
 let package = Package(
@@ -13,36 +13,34 @@ let package = Package(
         .library(name: "LeafKit", targets: ["LeafKit"])
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.2.0")
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.81.0"),
     ],
     targets: [
         .target(
             name: "LeafKit",
             dependencies: [
-                .product(name: "NIO", package: "swift-nio")
+                .product(name: "NIO", package: "swift-nio"),
+                .product(name: "_NIOFileSystem", package: "swift-nio"),
             ],
             swiftSettings: swiftSettings
         ),
         .testTarget(
             name: "LeafKitTests",
             dependencies: [
-                .target(name: "LeafKit")
+                .target(name: "LeafKit"),
             ],
             resources: [
-                .copy("Templates")
+                .copy("Templates"),
             ],
             swiftSettings: swiftSettings
         ),
     ]
 )
 
-var swiftSettings: [SwiftSetting] {
-    [
-        .enableUpcomingFeature("ExistentialAny"),
-        .enableUpcomingFeature("ConciseMagicFile"),
-        .enableUpcomingFeature("ForwardTrailingClosures"),
-        .enableUpcomingFeature("DisableOutwardActorInference"),
-        .enableUpcomingFeature("StrictConcurrency"),
-        .enableExperimentalFeature("StrictConcurrency=complete"),
-    ]
-}
+var swiftSettings: [SwiftSetting] { [
+    .enableUpcomingFeature("ExistentialAny"),
+    .enableUpcomingFeature("ConciseMagicFile"),
+    .enableUpcomingFeature("ForwardTrailingClosures"),
+    .enableUpcomingFeature("DisableOutwardActorInference"),
+    .enableExperimentalFeature("StrictConcurrency=complete"),
+] }

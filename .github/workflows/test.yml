@@ -5,14 +5,13 @@ concurrency:
 on:
   pull_request: { types: [opened, reopened, synchronize, ready_for_review] }
   push: { branches: [ main ] }
-env:
-  SWIFT_DETERMINISTIC_HASHING: 1
 
 jobs:
   unit-tests:
     uses: vapor/ci/.github/workflows/run-unit-tests.yml@main
     with:
       with_musl: true
+      with_android: true
       ios_scheme_name: leaf-kit
     secrets: inherit
 
