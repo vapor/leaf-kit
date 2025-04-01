@@ -1,6 +1,6 @@
 import NIO
 
-public indirect enum Syntax {
+public indirect enum Syntax: Sendable {
     // MARK: .raw - Makeable, Entirely Readable
     case raw(ByteBuffer)
     // MARK: `case variable(Variable)` removed
@@ -23,7 +23,7 @@ public indirect enum Syntax {
     case export(Export)
 }
 
-public enum ConditionalSyntax {
+public enum ConditionalSyntax: Sendable {
     case `if`([ParameterDeclaration])
     case `elseif`([ParameterDeclaration])
     case `else`
@@ -136,7 +136,7 @@ extension Syntax: BodiedSyntax  {
     }
 }
 
-internal protocol BodiedSyntax {
+protocol BodiedSyntax: Sendable {
     func externals() -> Set<String>
     func imports() -> Set<String>
     func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax]
@@ -172,7 +172,7 @@ func indent(_ depth: Int) -> String {
 }
 
 extension Syntax {
-    public struct Import {
+    public struct Import: Sendable {
         public let key: String
         public init(_ params: [ParameterDeclaration]) throws {
             guard params.count == 1 else { throw "import only supports single param \(params)" }

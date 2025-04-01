@@ -8,7 +8,7 @@ import NIOConcurrencyHelpers
 final class GHLeafKitIssuesTest: XCTestCase {
     
     /// https://github.com/vapor/leaf-kit/issues/33
-    func testGH33() {
+    func testGH33() async throws {
         var test = TestFiles()
         test.files["/base.leaf"] = """
         <body>
@@ -40,13 +40,13 @@ final class GHLeafKitIssuesTest: XCTestCase {
         </body>
         """
 
-        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "page").wait()
+        let page = try await TestRenderer(sources: .singleSource(test)).render(path: "page").get()
         XCTAssertEqual(page.string, expected)
     }
     
     
     /// https://github.com/vapor/leaf-kit/issues/50
-    func testGH50() {
+    func testGH50() async throws {
         var test = TestFiles()
         test.files["/a.leaf"] = """
         #extend("a/b"):
@@ -70,8 +70,8 @@ final class GHLeafKitIssuesTest: XCTestCase {
 
         """
 
-        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "a", context: ["challenges":["","",""]]).wait()
-            XCTAssertEqual(page.string, expected)
+        let page = try await TestRenderer(sources: .singleSource(test)).render(path: "a", context: ["challenges":["","",""]]).get()
+        XCTAssertEqual(page.string, expected)
     }
     
     /// https://github.com/vapor/leaf-kit/issues/87
@@ -95,7 +95,7 @@ final class GHLeafKitIssuesTest: XCTestCase {
     }
     
     /// https://github.com/vapor/leaf-kit/issues/84
-    func testGH84() {
+    func testGH84() async throws {
         var test = TestFiles()
         test.files["/base.leaf"] = """
         <body>
@@ -114,13 +114,18 @@ final class GHLeafKitIssuesTest: XCTestCase {
         """
 
         // Page renders as expected. Unresolved import is ignored.
-        let page = try! TestRenderer(sources: .singleSource(test)).render(path: "page").wait()
+        let page = try await TestRenderer(sources: .singleSource(test)).render(path: "page").get()
         XCTAssertEqual(page.string, expected)
         
         // Page rendering throws expected error
-        let config = LeafConfiguration(rootDirectory: "/", tagIndicator: Character.tagIndicator, ignoreUnfoundImports: false)
-        XCTAssertThrowsError(try TestRenderer(configuration: config, sources: .singleSource(test)).render(path: "page").wait()) { error in
-            XCTAssertEqual("\(error)", "import(\"body\") should have been resolved BEFORE serialization")
+        let config = LeafConfiguration(rootDirectory: "/", tagIndicator: LeafConfiguration.tagIndicator, ignoreUnfoundImports: false)
+        do {
+            _ = try await TestRenderer(configuration: config, sources: .singleSource(test)).render(path: "page").get()
+            XCTFail("Expected import error to be thrown, but it wasn't.")
+        } catch let error as String {
+            XCTAssertEqual(error, "import(\"body\") should have been resolved BEFORE serialization")
+        } catch {
+            XCTFail("Expected import error to be thrown, but got \(String(reflecting: error)) instead.")
         }
     }
 }

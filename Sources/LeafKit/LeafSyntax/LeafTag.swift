@@ -8,7 +8,9 @@ public protocol LeafTag {
 /// Tags conforming to this protocol do not get their contents HTML-escaped.
 public protocol UnsafeUnescapedLeafTag: LeafTag {}
 
-public var defaultTags: [String: any LeafTag] = [
+// Why is this even mutable? We have no choice but to silence the compiler's legitimate warning about
+// safety because we can't remove the setter.
+nonisolated(unsafe) public var defaultTags: [String: any LeafTag] = [
     "unsafeHTML": UnsafeHTML(),
     "lowercased": Lowercased(),
     "uppercased": Uppercased(),

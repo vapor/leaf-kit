@@ -47,8 +47,8 @@ internal func render(name: String = "test-render", _ template: String, _ context
 // MARK: - Helper Structs and Classes
 
 /// Helper wrapping` LeafRenderer` to preconfigure for simplicity & allow eliding context
-internal class TestRenderer {
-    var r: LeafRenderer
+final class TestRenderer: Sendable {
+    nonisolated(unsafe) var r: LeafRenderer
     private let lock: NIOLock
     private var counter: Int = 0
     
@@ -77,11 +77,11 @@ internal class TestRenderer {
     }
     
     public var isDone: Bool {
-        return lock.withLock { counter == 0 } ? true : false
+        self.lock.withLock { self.counter == 0 } ? true : false
     }
     
     func finishTask() {
-        lock.withLock { counter -= 1 }
+        self.lock.withLock { self.counter -= 1 }
     }
 }
 

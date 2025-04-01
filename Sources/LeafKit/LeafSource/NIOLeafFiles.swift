@@ -1,11 +1,12 @@
 import Foundation
 import NIO
+import NIOFileSystem
 
 /// Reference and default implementation of `LeafSource` adhering object that provides a non-blocking
 /// file reader for `LeafRenderer`
 ///
 /// Default initializer will
-public struct NIOLeafFiles: LeafSource {
+public struct NIOLeafFiles: LeafSource, Sendable {
     // MARK: - Public
     
     /// Various options for configuring an instance of `NIOLeafFiles`
@@ -17,8 +18,9 @@ public struct NIOLeafFiles: LeafSource {
     ///                     inside a directory starting with `.`)
     ///
     /// A new `NIOLeafFiles` defaults to [.toSandbox, .toVisibleFiles, .requireExtensions]
-    public struct Limit: OptionSet {
+    public struct Limit: OptionSet, Sendable {
         public let rawValue: Int
+
         public init(rawValue: Int) {
             self.rawValue = rawValue
         }
@@ -38,19 +40,20 @@ public struct NIOLeafFiles: LeafSource {
     
     /// Initialize `NIOLeafFiles` with a NIO file IO object, limit options, and sandbox/view dirs
     /// - Parameters:
-    ///   - fileio: `NonBlockingFileIO` file object
+    ///   - fileio: `NonBlockingFileIO` file object. This is no longer used but must still be passed.
     ///   - limits: Options for constraining which files may be read - see `NIOLeafFiles.Limit`
     ///   - sandboxDirectory: Full path of the lowest directory which may be escaped to
     ///   - viewDirectory: Full path of the default directory templates are relative to
     ///   - defaultExtension: The default extension inferred files will have (defaults to `leaf`)
     ///
     /// `viewDirectory` must be contained within (or overlap) `sandboxDirectory`
-    public init(fileio: NonBlockingFileIO,
-                limits: Limit = .default,
-                sandboxDirectory: String = "/",
-                viewDirectory: String = "/",
-                defaultExtension: String = "leaf") {
-        self.fileio = fileio
+    public init(
+        fileio _: NonBlockingFileIO,
+        limits: Limit = .default,
+        sandboxDirectory: String = "/",
+        viewDirectory: String = "/",
+        defaultExtension: String = "leaf"
+    ) {
         self.limits = limits
         self.extension = defaultExtension
         let sD = URL(fileURLWithPath: sandboxDirectory, isDirectory: true).standardized.path.appending("/")
@@ -101,23 +104,20 @@ public struct NIOLeafFiles: LeafSource {
     
     // MARK: - Internal/Private Only
 
-    internal let fileio: NonBlockingFileIO
-    internal let limits: Limit
-    internal let sandbox: String
-    internal let viewRelative: String
-    internal let `extension`: String
+    let limits: Limit
+    let sandbox: String
+    let viewRelative: String
+    let `extension`: String
     
     /// Attempt to read a fully pathed template and return a ByteBuffer or fail
     private func read(path: String, on eventLoop: any EventLoop) -> EventLoopFuture<ByteBuffer> {
-        let openFile = self.fileio.openFile(path: path, eventLoop: eventLoop)
-        return openFile.flatMapErrorThrowing { error in
-            throw LeafError(.noTemplateExists(path))
-        }.flatMap { (handle, region) -> EventLoopFuture<ByteBuffer> in
-            let allocator = ByteBufferAllocator()
-            let read = self.fileio.read(fileRegion: region, allocator: allocator, eventLoop: eventLoop)
-            return read.flatMapThrowing { (buffer)  in
-                try handle.close()
-                return buffer
+        eventLoop.makeFutureWithTask {
+            do {
+                return try await FileSystem.shared.withFileHandle(forReadingAt: .init(path)) { fh in
+                    try await fh.readToEnd(maximumSizeAllowed: .gibibytes(2))
+                }
+            } catch let error as FileSystemError where error.code == .notFound {
+                throw LeafError(.noTemplateExists(path))
             }
         }
     }

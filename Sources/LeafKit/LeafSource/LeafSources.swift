@@ -11,14 +11,18 @@ import NIOConcurrencyHelpers
 ///     prior to use by `LeafRenderer`.
 /// - `.all` provides a `Set` of the `String`keys for all sources registered with the instance
 /// - `.searchOrder` provides the keys of sources that an unspecified template request will search.
-public final class LeafSources {
+public final class LeafSources: Sendable {
     // MARK: - Public
     
     /// All available `LeafSource`s of templates
-    public var all: Set<String> { lock.withLock { .init(self.sources.keys) } }
+    public var all: Set<String> {
+        self.lock.withLock { .init(self.sources.keys) }
+    }
     /// Configured default implicit search order of `LeafSource`'s
-    public var searchOrder: [String] { lock.withLock { order } }
-    
+    public var searchOrder: [String] {
+        self.lock.withLock { self.order }
+    }
+
     public init() {
         self.sources = [:]
         self.order = []
@@ -30,13 +34,19 @@ public final class LeafSources {
     ///   - source: A fully configured `LeafSource` object
     ///   - searchable: Whether the source should be added to the default search path
     /// - Throws: Attempting to overwrite a previously named source is not permitted
-    public func register(source key: String = "default",
-                         using source: any LeafSource,
-                         searchable: Bool = true) throws {
-        try lock.withLock {
-            guard !sources.keys.contains(key) else { throw "Can't replace source at \(key)" }
-            sources[key] = source
-            if searchable { order.append(key) }
+    public func register(
+        source key: String = "default",
+        using source: any LeafSource,
+        searchable: Bool = true
+    ) throws {
+        try self.lock.withLock {
+            guard !self.sources.keys.contains(key) else {
+                throw "Can't replace source at \(key)"
+            }
+            self.sources[key] = source
+            if searchable {
+                self.order.append(key)
+            }
         }
     }
     
@@ -50,8 +60,10 @@ public final class LeafSources {
     }
     
     // MARK: - Internal Only
-    internal private(set) var sources: [String: any LeafSource]
-    private var order: [String]
+
+    // Note: nonisolated(unsafe) is safe because these are protected by the lock
+    private(set) nonisolated(unsafe) var sources: [String: any LeafSource]
+    private nonisolated(unsafe) var order: [String]
     private let lock: NIOLock = .init()
     
     /// Locate a template from the sources; if a specific source is named, only try to read from it. Otherwise, use the specified search order

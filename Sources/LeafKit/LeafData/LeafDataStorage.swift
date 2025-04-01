@@ -1,7 +1,7 @@
 import NIO
 import Foundation
 
-internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
+internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible, Sendable {
     // MARK: - Cases
     
     // Static values
@@ -20,12 +20,12 @@ internal indirect enum LeafDataStorage: Equatable, CustomStringConvertible {
     
     // Lazy resolvable function
     // Must specify return tuple giving (returnType, invariance)
-    case lazy(f: () -> (LeafData),
-              returns: LeafData.NaturalType,
-              invariant: Bool)
-    
-    // MARK: - LeafSymbol Conformance
-    
+    case lazy(
+        f: @Sendable () -> (LeafData),
+        returns: LeafData.NaturalType,
+        invariant: Bool
+    )
+
     // MARK: Properties
     internal var resolved: Bool { true }
     internal var invariant: Bool {

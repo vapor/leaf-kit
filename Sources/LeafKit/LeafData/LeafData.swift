@@ -7,18 +7,21 @@ import Foundation
 ///     supported, all of which may also be representable as `Optional` values.
 /// - `NaturalType` presents these cases plus `Void` as a case for functional `LeafSymbols`
 /// - `nil` is creatable, but only within context of a root base type - eg, `.nil(.bool)` == `Bool?`
-public struct LeafData: CustomStringConvertible,
-                        Equatable,
-                        ExpressibleByDictionaryLiteral,
-                        ExpressibleByStringLiteral,
-                        ExpressibleByIntegerLiteral,
-                        ExpressibleByBooleanLiteral,
-                        ExpressibleByArrayLiteral,
-                        ExpressibleByFloatLiteral,
-                        ExpressibleByNilLiteral {
-    
+public struct LeafData:
+    CustomStringConvertible,
+    Equatable,
+    ExpressibleByDictionaryLiteral,
+    ExpressibleByStringLiteral,
+    ExpressibleByIntegerLiteral,
+    ExpressibleByBooleanLiteral,
+    ExpressibleByArrayLiteral,
+    ExpressibleByFloatLiteral,
+    ExpressibleByNilLiteral,
+    Sendable
+{
+
     /// The concrete instantiable object types for a `LeafData`
-    public enum NaturalType: String, CaseIterable, Hashable {
+    public enum NaturalType: String, CaseIterable, Hashable, Sendable {
         case bool
         case string
         case int
