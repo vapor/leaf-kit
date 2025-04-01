@@ -539,7 +539,11 @@ final class LeafKitTests: XCTestCase {
 
         await XCTAssertEqualAsync(try await renderer.render(path: "a", context: ["b":["1","2","3"]]).string, expected)
     }
-    
+
+    // The #filePath trick this test relies on doesn't work in the Android CI because the build
+    // machine is not the same box as the test machine; we'd need to turn the templates into working
+    // resources for that. Disable for now.
+    #if !os(Android)
     func testFileSandbox() async throws {
         let renderer = TestRenderer(
             configuration: .init(rootDirectory: templateFolder),
@@ -562,7 +566,8 @@ final class LeafKitTests: XCTestCase {
         }
         XCTAssert(renderer.isDone)
     }
-    
+    #endif
+
     func testMultipleSources() async throws {
         var sourceOne = TestFiles()
         var sourceTwo = TestFiles()
