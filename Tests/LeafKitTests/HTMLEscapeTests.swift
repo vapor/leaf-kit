@@ -9,6 +9,7 @@ final class HTMLEscapeTests: XCTestCase {
         XCTAssertEqual("abc&".htmlEscaped(), "abc&amp;")
     }
 
+    #if !os(Android)
     func testShortStringNoReplacements() {
         let string = "abcde12345"
         measure {
@@ -74,5 +75,5 @@ final class HTMLEscapeTests: XCTestCase {
             _ = longString.htmlEscaped()
         }
     }
-
+    #endif
 }

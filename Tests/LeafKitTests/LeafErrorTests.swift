@@ -1,7 +1,6 @@
 /// Place all tests related to verifying that errors ARE thrown here.
 
 @testable import LeafKit
-import NIOConcurrencyHelpers
 import XCTest
 
 final class LeafErrorTests: XCTestCase {
@@ -12,18 +11,14 @@ final class LeafErrorTests: XCTestCase {
         test.files["/b.leaf"] = "#extend(\"c\")"
         test.files["/c.leaf"] = "#extend(\"a\")"
 
-        do {
-            _ = try await TestRenderer(sources: .singleSource(test)).render(path: "a").get()
-            XCTFail("Should have thrown LeafError.cyclicalReference")
-        } catch let error as LeafError {
-            switch error.reason {
+        await XCTAssertThrowsErrorAsync(try await TestRenderer(sources: .singleSource(test)).render(path: "a")) {
+            switch ($0 as? LeafError)?.reason {
             case .cyclicalReference(let name, let cycle):
-                XCTAssertEqual([name: cycle], ["a": ["a","b","c","a"]])
+                XCTAssertEqual(name, "a")
+                XCTAssertEqual(cycle, ["a", "b", "c", "a"])
             default:
-                XCTFail("Wrong error: \(error.localizedDescription)")
+                XCTFail("Expected .cyclicalReference(a, [a, b, c, a]), got \($0.localizedDescription)")
             }
-        } catch {
-            XCTFail("Wrong error: \(error.localizedDescription)")
         }
     }
     
@@ -33,18 +28,13 @@ final class LeafErrorTests: XCTestCase {
         test.files["/a.leaf"] = "#extend(\"b\")"
         test.files["/b.leaf"] = "#extend(\"c\")"
 
-        do {
-            _ = try await TestRenderer(sources: .singleSource(test)).render(path: "a").get()
-            XCTFail("Should have thrown LeafError.noTemplateExists")
-        } catch let error as LeafError {
-            switch error.reason {
+        await XCTAssertThrowsErrorAsync(try await TestRenderer(sources: .singleSource(test)).render(path: "a")) {
+            switch ($0 as? LeafError)?.reason {
             case .noTemplateExists(let name):
                 XCTAssertEqual(name, "c")
             default:
-                XCTFail("Wrong error: \(error.localizedDescription)")
+                XCTFail("Expected .noTemplateExists(c), got \($0.localizedDescription)")
             }
-        } catch {
-            XCTFail("Wrong error: \(error.localizedDescription)")
         }
     }
     
@@ -56,18 +46,13 @@ final class LeafErrorTests: XCTestCase {
           #(foo.bar.trim())
           """
 
-        do {
-            _ = try await TestRenderer(sources: .singleSource(test)).render(path: "missingParam", context: [:]).get()
-            XCTFail("Should have thrown LeafError.unknownError")
-        } catch let error as LeafError {
-            switch error.reason {
+        await XCTAssertThrowsErrorAsync(try await TestRenderer(sources: .singleSource(test)).render(path: "missingParam", context: [:])) {
+            switch ($0 as? LeafError)?.reason {
             case .unknownError(let s):
                 XCTAssertEqual(s, "Found nil while iterating through params")
             default:
-                XCTFail("Expected LeafError.unknownError(\"Found nil while iterating through params\"), got \(String(reflecting: error))")
+                XCTFail("Expected .unknownError(Found nil while iterating through params), got \($0.localizedDescription)")
             }
-        } catch {
-            XCTFail("Expected LeafError.unknownError(\"Found nil while iterating through params\"), got \(String(reflecting: error))")
         }
     }
 }

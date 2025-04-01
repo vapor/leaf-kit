@@ -8,6 +8,59 @@ import XCTest
 
 // MARK: - Helper Functions
 
+func XCTAssertThrowsErrorAsync<T>(
+    _ expression: @autoclosure () async throws -> T,
+    _ message: @autoclosure () -> String = "",
+    file: StaticString = #filePath, line: UInt = #line,
+    _ callback: (any Error) -> Void = { _ in }
+) async {
+    do {
+        _ = try await expression()
+        XCTAssertThrowsError({}(), message(), file: file, line: line, callback)
+    } catch {
+        XCTAssertThrowsError(try { throw error }(), message(), file: file, line: line, callback)
+    }
+}
+
+func XCTAssertNoThrowAsync<T>(
+    _ expression: @autoclosure () async throws -> T,
+    _ message: @autoclosure () -> String = "",
+    file: StaticString = #filePath, line: UInt = #line
+) async {
+    do {
+        _ = try await expression()
+    } catch {
+        XCTAssertNoThrow(try { throw error }(), message(), file: file, line: line)
+    }
+}
+
+func XCTAssertEqualAsync<T>(
+    _ expression1: @autoclosure () async throws -> T,
+    _ expression2: @autoclosure () async throws -> T,
+    _ message: @autoclosure () -> String = "",
+    file: StaticString = #filePath, line: UInt = #line
+) async where T: Equatable {
+    do {
+        let expr1 = try await expression1(), expr2 = try await expression2()
+        return XCTAssertEqual(expr1, expr2, message(), file: file, line: line)
+    } catch {
+        return XCTAssertEqual(try { () -> Bool in throw error }(), false, message(), file: file, line: line)
+    }
+}
+
+func XCTAssertAsync(
+    _ predicate: @autoclosure () async throws -> Bool,
+    _ message: @autoclosure () -> String = "",
+    file: StaticString = #filePath, line: UInt = #line
+) async {
+    do {
+        let result = try await predicate()
+        XCTAssert(result, message(), file: file, line: line)
+    } catch {
+        return XCTAssert(try { throw error }(), message(), file: file, line: line)
+    }
+}
+
 /// Directly run a String "template" through `LeafLexer`
 /// - Parameter str: Raw String holding Leaf template source data
 /// - Returns: A lexed array of LeafTokens
@@ -49,7 +102,7 @@ func render(name: String = "test-render", _ template: String, _ context: [String
 
 /// Helper wrapping` LeafRenderer` to preconfigure for simplicity & allow eliding context
 final class TestRenderer: Sendable {
-    nonisolated(unsafe) var r: LeafRenderer
+    nonisolated(unsafe) let r: LeafRenderer
     private let lock: NIOLock
     private nonisolated(unsafe) var counter: Int = 0
 
@@ -72,17 +125,18 @@ final class TestRenderer: Sendable {
         self.lock = .init()
     }
     
-    func render(source: String? = nil, path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
-        self.lock.withLock {
-            self.counter += 1
-            if let source {
-                return self.r.render(source: source, path: path, context: context)
-            } else {
-                return self.r.render(path: path, context: context)
-            }
-        }
+    func render(path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
+        self.lock.withLock { self.counter += 1 }
+        return self.r.render(path: path, context: context)
     }
-    
+
+    @discardableResult
+    func render(path: String, context: [String: LeafData] = [:]) async throws -> ByteBuffer {
+        self.lock.withLock { self.counter += 1 }
+        defer { self.lock.withLock { self.counter -= 1 } }
+        return try await self.r.render(path: path, context: context).get()
+    }
+
     public var isDone: Bool {
         self.lock.withLock { self.counter == 0 } ? true : false
     }
@@ -108,9 +162,7 @@ struct TestFiles: LeafSource {
 
         return self.lock.withLock {
             if let file = self.files[path] {
-                var buffer = ByteBufferAllocator().buffer(capacity: file.count)
-                buffer.writeString(file)
-                return eventLoop.makeSucceededFuture(buffer)
+                return eventLoop.makeSucceededFuture(.init(string: file))
             } else {
                 return eventLoop.makeFailedFuture(LeafError(.noTemplateExists(template)))
             }
@@ -135,13 +187,13 @@ extension Array where Element == LeafToken {
     }
     
     var string: String {
-        self.map { $0.description + "\n" } .reduce("", +)
+        self.map { $0.description + "\n" }.reduce("", +)
     }
 }
 
 extension Array where Element == Syntax {
     var string: String {
-        self.map { $0.description } .joined(separator: "\n")
+        self.map { $0.description }.joined(separator: "\n")
     }
 }
 
@@ -187,16 +239,16 @@ final class PrintTests: XCTestCase {
 
     func testLoop() throws {
         let template = """
-        #for(name in names):
-            hello, #(name).
-        #endfor
-        """
+            #for(name in names):
+                hello, #(name).
+            #endfor
+            """
         let expectation = """
-        for(name in names):
-          raw("\\n    hello, ")
-          expression[variable(name)]
-          raw(".\\n")
-        """
+            for(name in names):
+              raw("\\n    hello, ")
+              expression[variable(name)]
+              raw(".\\n")
+            """
         
         let v = try XCTUnwrap(parse(template).first)
         guard case .loop(let test) = v else { throw LeafError(.unknownError("nope")) }
@@ -206,18 +258,18 @@ final class PrintTests: XCTestCase {
 
     func testLoopCustomIndex() throws {
         let template = """
-        #for(i, name in names):
-            #(i): hello, #(name).
-        #endfor
-        """
+            #for(i, name in names):
+                #(i): hello, #(name).
+            #endfor
+            """
         let expectation = """
-        for(i, name in names):
-          raw("\\n    ")
-          expression[variable(i)]
-          raw(": hello, ")
-          expression[variable(name)]
-          raw(".\\n")
-        """
+            for(i, name in names):
+              raw("\\n    ")
+              expression[variable(i)]
+              raw(": hello, ")
+              expression[variable(name)]
+              raw(".\\n")
+            """
 
         let v = try XCTUnwrap(parse(template).first)
         guard case .loop(let test) = v else { throw LeafError(.unknownError("nope")) }
@@ -227,23 +279,23 @@ final class PrintTests: XCTestCase {
 
     func testConditional() throws {
         let template = """
-        #if(foo):
-            some stuff
-        #elseif(bar == "bar"):
-            bar stuff
-        #else:
-            no stuff
-        #endif
-        """
+            #if(foo):
+                some stuff
+            #elseif(bar == "bar"):
+                bar stuff
+            #else:
+                no stuff
+            #endif
+            """
         let expectation = """
-        conditional:
-          if(variable(foo)):
-            raw("\\n    some stuff\\n")
-          elseif([bar == "bar"]):
-            raw("\\n    bar stuff\\n")
-          else:
-            raw("\\n    no stuff\\n")
-        """
+            conditional:
+              if(variable(foo)):
+                raw("\\n    some stuff\\n")
+              elseif([bar == "bar"]):
+                raw("\\n    bar stuff\\n")
+              else:
+                raw("\\n    no stuff\\n")
+            """
         
         let v = try XCTUnwrap(parse(template).first)
         guard case .conditional(let test) = v else { throw LeafError(.unknownError("nope")) }
@@ -263,20 +315,20 @@ final class PrintTests: XCTestCase {
 
     func testExtendAndExport() throws {
         let template = """
-        #extend("base"):
-            #export("title","Welcome")
-            #export("body"):
-                hello there
-            #endexport
-        #endextend
-        """
+            #extend("base"):
+                #export("title","Welcome")
+                #export("body"):
+                    hello there
+                #endexport
+            #endextend
+            """
         let expectation = """
-        extend("base"):
-          export("body"):
-            raw("\\n        hello there\\n    ")
-          export("title"):
-            expression[stringLiteral("Welcome")]
-        """
+            extend("base"):
+              export("body"):
+                raw("\\n        hello there\\n    ")
+              export("title"):
+                expression[stringLiteral("Welcome")]
+            """
         
         let v = try XCTUnwrap(parse(template).first)
         guard case .extend(let test) = v else { throw LeafError(.unknownError("nope")) }
@@ -286,18 +338,18 @@ final class PrintTests: XCTestCase {
 
     func testCustomTag() throws {
         let template = """
-        #custom(tag, foo == bar):
-            some body
-        #endcustom
-        """
+            #custom(tag, foo == bar):
+                some body
+            #endcustom
+            """
 
         let v = try XCTUnwrap(parse(template).first)
         guard case .custom(let test) = v else { throw LeafError(.unknownError("nope")) }
 
         let expectation = """
-        custom(variable(tag), [foo == bar]):
-          raw("\\n    some body\\n")
-        """
+            custom(variable(tag), [foo == bar]):
+              raw("\\n    some body\\n")
+            """
         let output = test.print(depth: 0)
         XCTAssertEqual(output, expectation)
     }

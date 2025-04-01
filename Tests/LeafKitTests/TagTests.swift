@@ -261,6 +261,7 @@ final class TagTests: XCTestCase {
         try XCTAssertEqual(render(template, data), expected)
     }
 
+    #if !os(Android)
     func testPerformance() throws {
         let template = """
         <!DOCTYPE html>
@@ -309,5 +310,5 @@ final class TagTests: XCTestCase {
             }
         }
     }
-
+    #endif
 }
