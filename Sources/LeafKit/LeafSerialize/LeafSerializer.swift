@@ -41,11 +41,11 @@ internal struct LeafSerializer {
     private mutating func serialize(_ syntax: Syntax, context data: [String: LeafData]) throws {
         switch syntax {
             case .raw(var byteBuffer): buffer.writeBuffer(&byteBuffer)
-            case .custom(let custom):  try serialize(custom, context: data)
-            case .conditional(let c):  try serialize(c, context: data)
-            case .loop(let loop):      try serialize(loop, context: data)
-            case .with(let with):      try serialize(with, context: data)
-            case .expression(let exp): try serialize(expression: exp, context: data)
+            case .custom(let custom):  try self.serialize(custom, context: data)
+            case .conditional(let c):  try self.serialize(c, context: data)
+            case .loop(let loop):      try self.serialize(loop, context: data)
+            case .with(let with):      try self.serialize(with, context: data)
+            case .expression(let exp): try self.serialize(expression: exp, context: data)
             case .import:
                 if (self.ignoreUnfoundImports) {
                     break
@@ -66,15 +66,17 @@ internal struct LeafSerializer {
     }
 
     private mutating func serialize(body: [Syntax], context data: [String: LeafData]) throws {
-        try body.forEach { try serialize($0, context: data) }
+        try body.forEach { try self.serialize($0, context: data) }
     }
 
     private mutating func serialize(_ conditional: Syntax.Conditional, context data: [String: LeafData]) throws {
         evaluate:
         for block in conditional.chain {
-            let evaluated = try resolveAtomic(block.condition.expression(), context: data)
-            guard (evaluated.bool ?? false) || (!evaluated.isNil && evaluated.celf != .bool) else { continue }
-            try serialize(body: block.body, context: data)
+            let evaluated = try self.resolveAtomic(block.condition.expression(), context: data)
+            guard (evaluated.bool ?? false) || (!evaluated.isNil && evaluated.celf != .bool) else {
+                continue
+            }
+            try self.serialize(body: block.body, context: data)
             break evaluate
         }
     }
@@ -107,9 +109,11 @@ internal struct LeafSerializer {
         let resolved = try self.resolve(parameters: [.expression(with.context)], context: data)
         guard resolved.count == 1,
             let dict = resolved[0].dictionary
-            else { throw "expressions should resolve to a single dictionary value" }
+        else {
+            throw "expressions should resolve to a single dictionary value"
+        }
 
-        try? serialize(body: with.body, context: dict)
+        try? self.serialize(body: with.body, context: dict)
     }
 
     private mutating func serialize(_ loop: Syntax.Loop, context data: [String: LeafData]) throws {
@@ -174,7 +178,7 @@ internal struct LeafSerializer {
                 throw LeafError(.unknownError("Parameter statement must hold a single value"))
             }
         }
-        return try resolve(parameters: parameters, context: data).first ?? .trueNil
+        return try self.resolve(parameters: parameters, context: data).first ?? .trueNil
     }
 
     private func peek() -> Syntax? {
@@ -184,5 +188,7 @@ internal struct LeafSerializer {
         return self.ast[self.offset]
     }
 
-    private mutating func pop() { self.offset += 1 }
+    private mutating func pop() {
+        self.offset += 1
+    }
 }

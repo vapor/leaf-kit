@@ -67,43 +67,52 @@ public final class LeafSources: Sendable {
     private let lock: NIOLock = .init()
     
     /// Locate a template from the sources; if a specific source is named, only try to read from it. Otherwise, use the specified search order
-    internal func find(template: String, in source: String? = nil, on eventLoop: any EventLoop) throws -> EventLoopFuture<(String, ByteBuffer)> {
+    func find(template: String, in source: String? = nil, on eventLoop: any EventLoop) throws -> EventLoopFuture<(String, ByteBuffer)> {
         var keys: [String]
         
         switch source {
-            case .none: keys = searchOrder
-            case .some(let source):
-                if all.contains(source) { keys = [source] }
-                else { throw LeafError(.illegalAccess("Invalid source \(source) specified")) }
+        case .none:
+            keys = self.searchOrder
+        case .some(let source):
+            if all.contains(source) {
+                keys = [source]
+            } else {
+                throw LeafError(.illegalAccess("Invalid source \(source) specified"))
+            }
         }
-        guard !keys.isEmpty else { throw LeafError(.illegalAccess("No searchable sources exist")) }
-        
+        guard !keys.isEmpty else {
+            throw LeafError(.illegalAccess("No searchable sources exist"))
+        }
+
         return searchSources(t: template, on: eventLoop, s: keys)
     }
     
     private func searchSources(t: String, on eL: any EventLoop, s: [String]) -> EventLoopFuture<(String, ByteBuffer)> {
-        guard !s.isEmpty else { return eL.makeFailedFuture(LeafError(.noTemplateExists(t))) }
+        guard !s.isEmpty else {
+            return eL.makeFailedFuture(LeafError(.noTemplateExists(t)))
+        }
         var more = s
         let key = more.removeFirst()
-        lock.lock()
-            let source = sources[key]!
-        lock.unlock()
-        
+        let source = self.lock.withLock {
+            self.sources[key]!
+        }
+
         do {
             let file = try source.file(template: t, escape: true, on: eL)
             // Hit the file - return the combined tuple
-            return eL.makeSucceededFuture(key).and(file).flatMapError { _ in
+            return eL.makeSucceededFuture(key).and(file).flatMapError { [more] _ in
                 // Or move onto the next one if this source can't get the file
                 return self.searchSources(t: t, on: eL, s: more)
             }
-        }
-        catch {
-            // If the throwing error is illegal access, fail immediately
+        } catch {
+            // If the thrown error is illegal access, fail immediately
             if let e = error as? LeafError,
-               case .illegalAccess(_) = e.reason { return eL.makeFailedFuture(e) }
-            else {
+               case .illegalAccess(_) = e.reason
+            {
+                return eL.makeFailedFuture(e)
+            } else {
                 // Or move onto the next one
-                return searchSources(t: t, on: eL, s: more)
+                return self.searchSources(t: t, on: eL, s: more)
             }
         }
     }

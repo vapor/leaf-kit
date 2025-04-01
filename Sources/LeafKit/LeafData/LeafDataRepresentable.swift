@@ -9,12 +9,16 @@ public protocol LeafDataRepresentable {
 // MARK: Default Conformances
 
 extension String: LeafDataRepresentable {
-    public var leafData: LeafData { .string(self) }
+    public var leafData: LeafData {
+        .string(self)
+    }
 }
 
 extension FixedWidthInteger {
     public var leafData: LeafData {
-        guard let valid = Int(exactly: self) else { return .int(nil) }
+        guard let valid = Int(exactly: self) else {
+            return .int(nil)
+        }
         return .int(Int(valid))
     }
 }
@@ -32,7 +36,9 @@ extension UInt: LeafDataRepresentable {}
 
 extension BinaryFloatingPoint {
     public var leafData: LeafData {
-        guard let valid = Double(exactly: self) else { return .double(nil) }
+        guard let valid = Double(exactly: self) else {
+            return .double(nil)
+        }
         return .double(Double(valid))
     }
 }
@@ -44,33 +50,49 @@ extension Float80: LeafDataRepresentable {}
 #endif
 
 extension Bool: LeafDataRepresentable {
-    public var leafData: LeafData { .bool(self) }
+    public var leafData: LeafData {
+        .bool(self)
+    }
 }
 
 extension UUID: LeafDataRepresentable {
-    public var leafData: LeafData { .string(LeafConfiguration.stringFormatter(description)) }
+    public var leafData: LeafData {
+        .string(LeafConfiguration.stringFormatter(self.description))
+    }
 }
 
 extension Date: LeafDataRepresentable {
-    public var leafData: LeafData { .double(timeIntervalSince1970) }
+    public var leafData: LeafData {
+        .double(self.timeIntervalSince1970)
+    }
 }
 
 extension Array where Element == LeafData {
-    public var leafData: LeafData { .array(self.map { $0 }) }
+    public var leafData: LeafData {
+        .array(self.map { $0 })
+    }
 }
 
 extension Dictionary where Key == String, Value == LeafData {
-    public var leafData: LeafData { .dictionary(self.mapValues { $0 }) }
+    public var leafData: LeafData {
+        .dictionary(self.mapValues { $0 })
+    }
 }
 
 extension Set where Element: LeafDataRepresentable {
-    public var leafData: LeafData { .array(self.map { $0.leafData }) }
+    public var leafData: LeafData {
+        .array(self.map { $0.leafData })
+    }
 }
 
 extension Array where Element: LeafDataRepresentable {
-    public var leafData: LeafData { .array(self.map { $0.leafData }) }
+    public var leafData: LeafData {
+        .array(self.map { $0.leafData })
+    }
 }
 
 extension Dictionary where Key == String, Value: LeafDataRepresentable {
-    public var leafData: LeafData { .dictionary(self.mapValues { $0.leafData }) }
+    public var leafData: LeafData {
+        .dictionary(self.mapValues { $0.leafData })
+    }
 }

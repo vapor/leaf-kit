@@ -1,12 +1,11 @@
-/// Place all tests here originating from https://github.com/vapor/leaf here
-/// Suffix test name with issue # (eg, `testGH33()`)
+/// Place all tests originating from https://github.com/vapor/leaf here.
+/// Suffix test name with issue # (e.g., `testGH33()`)
 
-import XCTest
-import NIOConcurrencyHelpers
 @testable import LeafKit
+import NIOConcurrencyHelpers
+import XCTest
 
 final class GHLeafIssuesTest: XCTestCase {
-    
     /// https://github.com/vapor/leaf/issues/96
     func testGH96() throws {
         let template = """

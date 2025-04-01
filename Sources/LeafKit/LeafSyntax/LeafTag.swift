@@ -108,7 +108,7 @@ struct DateTag: LeafTag {
         let date = Date(timeIntervalSince1970: dateAsDouble)
 
         let dateAsString = formatter.string(from: date)
-        return LeafData.string(dateAsString)
+        return .string(dateAsString)
     }
 }
 
@@ -127,13 +127,13 @@ struct Count: LeafTag {
 
 struct Comment: LeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData {
-        LeafData.trueNil
+        .trueNil
     }
 }
 
 struct DumpContext: LeafTag {
     func render(_ ctx: LeafContext) throws -> LeafData {
         try ctx.requireParameterCount(0)
-        return LeafData(.dictionary(ctx.data))
+        return .dictionary(ctx.data)
     }
 }

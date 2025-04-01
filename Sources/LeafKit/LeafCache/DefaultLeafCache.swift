@@ -1,5 +1,5 @@
-import NIOConcurrencyHelpers
 import NIO
+import NIOConcurrencyHelpers
 
 public final class DefaultLeafCache: SynchronousLeafCache {
     // MARK: - Public - `LeafCache` Protocol Conformance
@@ -7,8 +7,10 @@ public final class DefaultLeafCache: SynchronousLeafCache {
     /// Global setting for enabling or disabling the cache
     public var isEnabled: Bool = true
     /// Current count of cached documents
-    public var count: Int { self.lock.withLock { cache.count } }
-    
+    public var count: Int {
+        self.lock.withLock { self.cache.count }
+    }
+
     /// Initializer
     public init() {
         self.lock = .init()
@@ -26,16 +28,20 @@ public final class DefaultLeafCache: SynchronousLeafCache {
         replace: Bool = false
     ) -> EventLoopFuture<LeafAST> {
         // future fails if caching is enabled
-        guard isEnabled else { return loop.makeSucceededFuture(document) }
-
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        // return an error if replace is false and the document name is already in cache
-        switch (self.cache.keys.contains(document.name),replace) {
-            case (true, false): return loop.makeFailedFuture(LeafError(.keyExists(document.name)))
-            default: self.cache[document.name] = document
+        guard isEnabled else {
+            return loop.makeSucceededFuture(document)
         }
-        return loop.makeSucceededFuture(document)
+
+        return self.lock.withLock {
+            // return an error if replace is false and the document name is already in cache
+            switch (self.cache.keys.contains(document.name), replace) {
+                case (true, false):
+                    return loop.makeFailedFuture(LeafError(.keyExists(document.name)))
+                default:
+                    self.cache[document.name] = document
+            }
+            return loop.makeSucceededFuture(document)
+        }
     }
     
     /// - Parameters:
@@ -46,10 +52,12 @@ public final class DefaultLeafCache: SynchronousLeafCache {
         documentName: String,
         on loop: any EventLoop
     ) -> EventLoopFuture<LeafAST?> {
-        guard isEnabled == true else { return loop.makeSucceededFuture(nil) }
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return loop.makeSucceededFuture(self.cache[documentName])
+        guard self.isEnabled else {
+            return loop.makeSucceededFuture(nil)
+        }
+        return self.lock.withLock {
+            loop.makeSucceededFuture(self.cache[documentName])
+        }
     }
 
     /// - Parameters:
@@ -61,28 +69,34 @@ public final class DefaultLeafCache: SynchronousLeafCache {
         _ documentName: String,
         on loop: any EventLoop
     ) -> EventLoopFuture<Bool?> {
-        guard isEnabled == true else { return loop.makeFailedFuture(LeafError(.cachingDisabled)) }
+        guard isEnabled else {
+            return loop.makeFailedFuture(LeafError(.cachingDisabled))
+        }
 
-        self.lock.lock()
-        defer { self.lock.unlock() }
-
-        guard self.cache[documentName] != nil else { return loop.makeSucceededFuture(nil) }
-        self.cache[documentName] = nil
-        return loop.makeSucceededFuture(true)
+        return self.lock.withLock {
+            guard self.cache[documentName] != nil else {
+                return loop.makeSucceededFuture(nil)
+            }
+            self.cache[documentName] = nil
+            return loop.makeSucceededFuture(true)
+        }
     }
     
     // MARK: - Internal Only
     
-    internal let lock: NIOLock
-    internal var cache: [String: LeafAST]
+    let lock: NIOLock
+    var cache: [String: LeafAST]
     
     /// Blocking file load behavior
-    internal func retrieve(documentName: String) throws -> LeafAST? {
-        guard isEnabled == true else { throw LeafError(.cachingDisabled) }
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        let result = self.cache[documentName]
-        guard result != nil else { throw LeafError(.noValueForKey(documentName)) }
-        return result
+    func retrieve(documentName: String) throws -> LeafAST? {
+        guard isEnabled else {
+            throw LeafError(.cachingDisabled)
+        }
+        return try self.lock.withLock {
+            guard let result = self.cache[documentName] else {
+                throw LeafError(.noValueForKey(documentName))
+            }
+            return result
+        }
     }
 }

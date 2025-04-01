@@ -10,7 +10,9 @@ public protocol LeafSource {
     ///   - eventLoop: `EventLoop` on which to perform file access
     /// - Returns: A succeeded `EventLoopFuture` holding a `ByteBuffer` with the raw
     ///            template, or an appropriate failed state ELFuture (not found, illegal access, etc)
-    func file(template: String,
-              escape: Bool,
-              on eventLoop: any EventLoop) throws -> EventLoopFuture<ByteBuffer>
+    func file(
+        template: String,
+        escape: Bool,
+        on eventLoop: any EventLoop
+    ) throws -> EventLoopFuture<ByteBuffer>
 }

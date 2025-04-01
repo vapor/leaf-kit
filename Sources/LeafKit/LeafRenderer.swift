@@ -27,7 +27,7 @@ public final class LeafRenderer {
     public let eventLoop: any EventLoop
     /// Any custom instance data to use (eg, in Vapor, the `Application` and/or `Request` data)
     public let userInfo: [AnyHashable: Any]
-    
+
     /// Initial configuration of LeafRenderer.
     public init(
         configuration: LeafConfiguration,
@@ -58,12 +58,15 @@ public final class LeafRenderer {
     /// `"/.../ViewDirectory/path/to/template.leaf"`, while an explicit extension -
     /// `"file.svg"` would correspond to `"/.../ViewDirectory/file.svg"`
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
+        guard !path.isEmpty else {
+            return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)")))
+        }
 
         // If a flat AST is cached and available, serialize and return
-        if let flatAST = getFlatCachedHit(path),
-           let buffer = try? serialize(flatAST, context: context) {
-            return eventLoop.makeSucceededFuture(buffer)
+        if let flatAST = self.getFlatCachedHit(path),
+           let buffer = try? self.serialize(flatAST, context: context)
+        {
+            return self.eventLoop.makeSucceededFuture(buffer)
         }
         
         // Otherwise operate using normal future-based full resolving behavior
@@ -93,12 +96,15 @@ public final class LeafRenderer {
     // MARK: - Internal Only
     /// Temporary testing interface
     internal func render(source: String, path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
+        guard !path.isEmpty else {
+            return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)")))
+        }
         let sourcePath = source + ":" + path
         // If a flat AST is cached and available, serialize and return
-        if let flatAST = getFlatCachedHit(sourcePath),
-           let buffer = try? serialize(flatAST, context: context) {
-            return eventLoop.makeSucceededFuture(buffer)
+        if let flatAST = self.getFlatCachedHit(sourcePath),
+           let buffer = try? self.serialize(flatAST, context: context)
+        {
+            return self.eventLoop.makeSucceededFuture(buffer)
         }
         
         nonisolated(unsafe) let nself = self
@@ -127,7 +133,9 @@ public final class LeafRenderer {
     
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
     private func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
-        guard doc.flat == true else { throw LeafError(.unresolvedAST(doc.name, Array(doc.unresolvedRefs))) }
+        guard doc.flat else {
+            throw LeafError(.unresolvedAST(doc.name, Array(doc.unresolvedRefs)))
+        }
 
         var serializer = LeafSerializer(
             ast: doc.ast,
@@ -175,10 +183,13 @@ public final class LeafRenderer {
     /// - Recursively `fetch()` any extended template references and build a new `LeafAST`
     private func resolve(ast: LeafAST, chain: [String]) -> EventLoopFuture<LeafAST> {
         // if the ast is already flat, cache it immediately and return
-        if ast.flat == true { return self.cache.insert(ast, on: self.eventLoop, replace: true) }
+        guard !ast.flat else {
+            return self.cache.insert(ast, on: self.eventLoop, replace: true)
+        }
 
         var chain = chain
         chain.append(ast.name)
+
         let intersect = ast.unresolvedRefs.intersection(Set<String>(chain))
         guard intersect.count == 0 else {
             let badRef = intersect.first ?? ""
@@ -227,7 +238,9 @@ public final class LeafRenderer {
         let raw: EventLoopFuture<(String, ByteBuffer)>
         do {
             raw = try self.sources.find(template: name, in: source , on: self.eventLoop)
-        } catch { return eventLoop.makeFailedFuture(error) }
+        } catch {
+            return eventLoop.makeFailedFuture(error)
+        }
 
         return raw.flatMapThrowing { raw -> LeafAST? in
             var raw = raw
@@ -248,7 +261,10 @@ public final class LeafRenderer {
         // If cache provides blocking load, try to get a flat AST immediately
         guard let blockingCache = cache as? any SynchronousLeafCache,
            let cached = try? blockingCache.retrieve(documentName: path),
-           cached.flat else { return nil }
+           cached.flat
+        else {
+            return nil
+        }
         return cached
     }
 }

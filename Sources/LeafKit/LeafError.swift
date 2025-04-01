@@ -62,34 +62,34 @@ public struct LeafError: Error {
         let file = self.file.split(separator: "/").last
         let src = "\(file ?? "?").\(function):\(line)"
 
-        switch self.reason {
+        return switch self.reason {
             case .illegalAccess(let message):
-                return "\(src) - \(message)"
+                "\(src) - \(message)"
             case .unknownError(let message):
-                return "\(src) - \(message)"
+                "\(src) - \(message)"
             case .unsupportedFeature(let feature):
-                return "\(src) - \(feature) is not implemented"
+                "\(src) - \(feature) is not implemented"
             case .cachingDisabled:
-                return "\(src) - Caching is globally disabled"
+                "\(src) - Caching is globally disabled"
             case .keyExists(let key):
-                return "\(src) - Existing entry \(key); use insert with replace=true to overrride"
+                "\(src) - Existing entry \(key); use insert with replace=true to overrride"
             case .noValueForKey(let key):
-                return "\(src) - No cache entry exists for \(key)"
+                "\(src) - No cache entry exists for \(key)"
             case .unresolvedAST(let key, let dependencies):
-                return "\(src) - Flat AST expected; \(key) has unresolved dependencies: \(dependencies)"
+                "\(src) - Flat AST expected; \(key) has unresolved dependencies: \(dependencies)"
             case .noTemplateExists(let key):
-                return "\(src) - No template found for \(key)"
+                "\(src) - No template found for \(key)"
             case .cyclicalReference(let key, let chain):
-                return "\(src) - \(key) cyclically referenced in [\(chain.joined(separator: " -> "))]"
+                "\(src) - \(key) cyclically referenced in [\(chain.joined(separator: " -> "))]"
             case .lexerError(let e):
-                return "Lexing error - \(e.localizedDescription)"
+                "Lexing error - \(e.localizedDescription)"
         }
     }
     
     /// Create a `LeafError` - only `reason` typically used as source locations are auto-grabbed
     public init(
         _ reason: Reason,
-        file: String = #file,
+        file: String = #fileID,
         function: String = #function,
         line: UInt = #line,
         column: UInt = #column
@@ -130,11 +130,11 @@ public struct LexerError: Error {
     // MARK: - Internal Only
     
     /// State of tokens already processed by Lexer prior to error
-    internal let lexed: [LeafToken]
+    let lexed: [LeafToken]
     /// Flag to true if lexing error is something that may be recoverable during parsing;
     /// EG, `"#anhtmlanchor"` may lex as a tag name but fail to tokenize to tag because it isn't
     /// followed by a left paren. Parser may be able to recover by decaying it to `.raw`.
-    internal let recoverable: Bool
+    let recoverable: Bool
     
     /// Create a `LexerError`
     /// - Parameters:
@@ -158,6 +158,6 @@ public struct LexerError: Error {
     
     /// Convenience description of source file name, error reason, and location in file of error source
     var localizedDescription: String {
-        return "\"\(name)\": \(reason) - \(line):\(column)"
+        "\"\(self.name)\": \(self.reason) - \(self.line):\(self.column)"
     }
 }

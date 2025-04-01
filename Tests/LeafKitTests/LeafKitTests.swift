@@ -647,7 +647,6 @@ final class LeafKitTests: XCTestCase {
         struct BodyRequiringTag: UnsafeUnescapedLeafTag {
             func render(_ ctx: LeafContext) throws -> LeafData {
                 _ = try ctx.requireBody()
-                
                 return .string("Hello there")
             }
         }
@@ -655,7 +654,6 @@ final class LeafKitTests: XCTestCase {
         struct NoBodyRequiringTag: UnsafeUnescapedLeafTag {
             func render(_ ctx: LeafContext) throws -> LeafData {
                 try ctx.requireNoBody()
-                
                 return .string("General Kenobi")
             }
         }

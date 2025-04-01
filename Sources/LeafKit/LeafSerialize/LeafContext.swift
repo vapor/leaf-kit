@@ -18,8 +18,8 @@ public struct LeafContext {
 
     /// Throws an error if the parameter count does not equal the supplied number `n`.
     public func requireParameterCount(_ n: Int) throws {
-        guard parameters.count == n else {
-            throw "Invalid parameter count: \(parameters.count)/\(n)"
+        guard self.parameters.count == n else {
+            throw "Invalid parameter count: \(self.parameters.count)/\(n)"
         }
     }
 
