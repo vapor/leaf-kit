@@ -45,7 +45,7 @@ extension BinaryFloatingPoint {
 
 extension Float: LeafDataRepresentable {}
 extension Double: LeafDataRepresentable {}
-#if arch(i386) || arch(x86_64)
+#if (canImport(Darwin) || canImport(Glibc)) && (arch(i386) || arch(x86_64))
 extension Float80: LeafDataRepresentable {}
 #endif
 
