@@ -53,14 +53,14 @@ struct LeafSerializer {
                     fallthrough
                 }
             case .extend, .export:
-                throw "\(syntax) should have been resolved BEFORE serialization"
+                throw LeafError(.unknownError("\(syntax) should have been resolved BEFORE serialization"))
         }
     }
 
     private mutating func serialize(expression: [ParameterDeclaration], context data: [String: LeafData]) throws {
         let resolved = try self.resolve(parameters: [.expression(expression)], context: data)
         guard resolved.count == 1, let leafData = resolved.first else {
-            throw "expressions should resolve to single value"
+            throw LeafError(.unknownError("expressions should resolve to single value"))
         }
         try? leafData.htmlEscaped().serialize(buffer: &self.buffer)
     }
@@ -110,7 +110,7 @@ struct LeafSerializer {
         guard resolved.count == 1,
             let dict = resolved[0].dictionary
         else {
-            throw "expressions should resolve to a single dictionary value"
+            throw LeafError(.unknownError("expressions should resolve to a single dictionary value"))
         }
 
         try? self.serialize(body: with.body, context: dict)
@@ -127,7 +127,7 @@ struct LeafSerializer {
 
                     guard let nextData = innerData[key]?.dictionary else {
                         let currentPath = pathComponents[0...pathContext.offset].joined(separator: ".")
-                        throw "expected dictionary at key: \(currentPath)"
+                        throw LeafError(.unknownError("expected dictionary at key: \(currentPath)"))
                     }
 
                     return nextData
@@ -137,7 +137,7 @@ struct LeafSerializer {
         }
 
         guard let array = finalData[String(pathComponents.last!)]?.array else {
-            throw "expected array at key: \(loop.array)"
+            throw LeafError(.unknownError("expected array at key: \(loop.array)"))
         }
 
         for (idx, item) in array.enumerated() {

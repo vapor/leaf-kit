@@ -61,7 +61,7 @@ final class SerializerTests: XCTestCase {
         var serializer = LeafSerializer(ast: syntax, ignoreUnfoundImports: false)
 
         XCTAssertThrowsError(try serializer.serialize(context: ["people": people])) { error in
-            XCTAssertEqual("\(error)", "expected dictionary at key: person.profile")
+            XCTAssert((error as? LeafError)?.localizedDescription.contains("expected dictionary at key: person.profile") ?? false)
         }
     }
 }

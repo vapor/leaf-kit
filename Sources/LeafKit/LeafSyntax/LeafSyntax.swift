@@ -184,9 +184,15 @@ extension Syntax {
     public struct Import: Sendable {
         public let key: String
         public init(_ params: [ParameterDeclaration]) throws {
-            guard params.count == 1 else { throw "import only supports single param \(params)" }
-            guard case .parameter(let p) = params[0] else { throw "expected parameter" }
-            guard case .stringLiteral(let s) = p else { throw "import only supports string literals" }
+            guard params.count == 1 else {
+                throw LeafError(.unknownError("import only supports single param \(params)"))
+            }
+            guard case .parameter(let p) = params[0] else {
+                throw LeafError(.unknownError("expected parameter"))
+            }
+            guard case .stringLiteral(let s) = p else {
+                throw LeafError(.unknownError("import only supports string literals"))
+            }
             self.key = s
         }
 
@@ -204,19 +210,19 @@ extension Syntax {
 
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard params.count == 1 || params.count == 2 else {
-                throw "extend only supports one or two parameters \(params)"
+                throw LeafError(.unknownError("extend only supports one or two parameters \(params)"))
             }
             if params.count == 2 {
                 guard let context = With.extract(params: Array(params[1...])) else {
-                    throw "#extend's context requires a single expression"
+                    throw LeafError(.unknownError("#extend's context requires a single expression"))
                 }
                 self.context = context
             }
             guard case .parameter(let p) = params[0] else {
-                throw "extend expected parameter type, got \(params[0])"
+                throw LeafError(.unknownError("extend expected parameter type, got \(params[0])"))
             }
             guard case .stringLiteral(let s) = p else {
-                throw "import only supports string literals"
+                throw LeafError(.unknownError("import only supports string literals"))
             }
             self.key = s
             self.externalsSet = .init(arrayLiteral: self.key)
@@ -236,7 +242,7 @@ extension Syntax {
                     self.externalsSet.formUnion(export.externals())
                     self.importSet.formUnion(export.imports())
                 default:
-                    throw "unexpected token in extend body: \(syntax).. use raw space and `export` only"
+                    throw LeafError(.unknownError("unexpected token in extend body: \(syntax).. use raw space and `export` only"))
                 }
             }
         }
@@ -339,27 +345,27 @@ extension Syntax {
 
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard (1...2).contains(params.count) else {
-                throw "export expects 1 or 2 params"
+                throw LeafError(.unknownError("export expects 1 or 2 params"))
             }
             guard case .parameter(let p) = params[0] else {
-                throw "expected parameter"
+                throw LeafError(.unknownError("expected parameter"))
             }
             guard case .stringLiteral(let s) = p else {
-                throw "export only supports string literals"
+                throw LeafError(.unknownError("export only supports string literals"))
             }
             self.key = s
 
             if params.count == 2 {
-            //    guard case .parameter(let _) = params[1] else { throw "expected parameter" }
+            //    guard case .parameter(let _) = params[1] else { throw LeafError(.unknownError("expected parameter")) }
                 guard body.isEmpty else {
-                    throw "extend w/ two args requires NO body"
+                    throw LeafError(.unknownError("extend w/ two args requires NO body"))
                 }
                 self.body = [.expression([params[1]])]
                 self.externalsSet = .init()
                 self.importSet = .init()
             } else {
                 guard !body.isEmpty else {
-                    throw "export requires body or secondary arg"
+                    throw LeafError(.unknownError("export requires body or secondary arg"))
                 }
                 self.body = body
                 self.externalsSet = body.externals()
@@ -434,7 +440,7 @@ extension Syntax {
                     self.externalsSet.formUnion(new.externalsSet)
                     self.importSet.formUnion(new.importSet)
                 } else {
-                    throw "\(next.description) can't follow \(state.description)"
+                    throw LeafError(.unknownError("\(next.description) can't follow \(state.description)"))
                 }
             }
         }
@@ -541,10 +547,10 @@ extension Syntax {
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             Swift.print(params)
             guard let params = With.extract(params: params) else {
-                throw "with statements expect a single expression"
+                throw LeafError(.unknownError("with statements expect a single expression"))
             }
             guard !body.isEmpty else {
-                throw "with statements require a body"
+                throw LeafError(.unknownError("with statements require a body"))
             }
             self.body = body
             self.context = params
@@ -588,7 +594,7 @@ extension Syntax {
                     case .parameter(let right) = list[2],
                     case .variable(let array) = right
                 else {
-                    throw "for loops expect one of the following expressions: 'name in names' or 'nameIndex, name in names'"
+                    throw LeafError(.unknownError("for loops expect one of the following expressions: 'name in names' or 'nameIndex, name in names'"))
                 }
                 self.item = item
                 self.array = array
@@ -607,7 +613,7 @@ extension Syntax {
                     case .parameter(let right) = list[2],
                     case .variable(let array) = right
                 else {
-                    throw "for loops expect one of the following expressions: 'name in names' or 'nameIndex, name in names'"
+                    throw LeafError(.unknownError("for loops expect one of the following expressions: 'name in names' or 'nameIndex, name in names'"))
                 }
                 self.item = item
                 self.array = array
@@ -615,7 +621,7 @@ extension Syntax {
             }
 
             guard !body.isEmpty else {
-                throw "for loops require a body"
+                throw LeafError(.unknownError("for loops require a body"))
             }
             self.body = body
             self.externalsSet = body.externals()

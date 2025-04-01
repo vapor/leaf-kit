@@ -1,8 +1,5 @@
-// MARK: `LeafError` Summary
-
-/// `LeafError` reports errors during the template rendering process, wrapping more specific
+/// ``LeafError`` reports errors during the template rendering process, wrapping more specific
 /// errors if necessary during Lexing and Parsing stages.
-///
 public struct LeafError: Error {
     /// Possible cases of a LeafError.Reason, with applicable stored values where useful for the type
     public enum Reason: Sendable {
@@ -102,9 +99,7 @@ public struct LeafError: Error {
     }
 }
 
-// MARK: - `LexerError` Summary (Wrapped by LeafError)
-
-/// `LexerError` reports errors during the stage.
+/// ``LexerError`` reports errors during the lexing stage.
 public struct LexerError: Error {
     // MARK: - Public
     

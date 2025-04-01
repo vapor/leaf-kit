@@ -41,7 +41,7 @@ public final class LeafSources: Sendable {
     ) throws {
         try self.lock.withLock {
             guard !self.sources.keys.contains(key) else {
-                throw "Can't replace source at \(key)"
+                throw LeafError(.unknownError("Can't replace source at \(key)"))
             }
             self.sources[key] = source
             if searchable {

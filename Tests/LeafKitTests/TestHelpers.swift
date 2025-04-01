@@ -169,7 +169,7 @@ final class PrintTests: XCTestCase {
         let expectation = "raw(\"hello, raw text\")"
         
         let v = try XCTUnwrap(parse(template).first)
-        guard case .raw = v else { throw "nope" }
+        guard case .raw = v else { throw LeafError(.unknownError("nope")) }
         let output = v.print(depth: 0)
         XCTAssertEqual(output, expectation)
     }
@@ -180,7 +180,7 @@ final class PrintTests: XCTestCase {
         
         let v = try XCTUnwrap(parse(template).first)
         guard case .expression(let e) = v,
-              let test = e.first else { throw "nope" }
+              let test = e.first else { throw LeafError(.unknownError("nope")) }
         let output = test.description
         XCTAssertEqual(output, expectation)
     }
@@ -199,7 +199,7 @@ final class PrintTests: XCTestCase {
         """
         
         let v = try XCTUnwrap(parse(template).first)
-        guard case .loop(let test) = v else { throw "nope" }
+        guard case .loop(let test) = v else { throw LeafError(.unknownError("nope")) }
         let output = test.print(depth: 0)
         XCTAssertEqual(output, expectation)
     }
@@ -220,7 +220,7 @@ final class PrintTests: XCTestCase {
         """
 
         let v = try XCTUnwrap(parse(template).first)
-        guard case .loop(let test) = v else { throw "nope" }
+        guard case .loop(let test) = v else { throw LeafError(.unknownError("nope")) }
         let output = test.print(depth: 0)
         XCTAssertEqual(output, expectation)
     }
@@ -246,7 +246,7 @@ final class PrintTests: XCTestCase {
         """
         
         let v = try XCTUnwrap(parse(template).first)
-        guard case .conditional(let test) = v else { throw "nope" }
+        guard case .conditional(let test) = v else { throw LeafError(.unknownError("nope")) }
         let output = test.print(depth: 0)
         XCTAssertEqual(output, expectation)
     }
@@ -256,7 +256,7 @@ final class PrintTests: XCTestCase {
         let expectation = "import(\"someimport\")"
         
         let v = try XCTUnwrap(parse(template).first)
-        guard case .import(let test) = v else { throw "nope" }
+        guard case .import(let test) = v else { throw LeafError(.unknownError("nope")) }
         let output = test.print(depth: 0)
         XCTAssertEqual(output, expectation)
     }
@@ -279,7 +279,7 @@ final class PrintTests: XCTestCase {
         """
         
         let v = try XCTUnwrap(parse(template).first)
-        guard case .extend(let test) = v else { throw "nope" }
+        guard case .extend(let test) = v else { throw LeafError(.unknownError("nope")) }
         let output = test.print(depth: 0)
         XCTAssertEqual(output, expectation)
     }
@@ -292,7 +292,7 @@ final class PrintTests: XCTestCase {
         """
 
         let v = try XCTUnwrap(parse(template).first)
-        guard case .custom(let test) = v else { throw "nope" }
+        guard case .custom(let test) = v else { throw LeafError(.unknownError("nope")) }
 
         let expectation = """
         custom(variable(tag), [foo == bar]):

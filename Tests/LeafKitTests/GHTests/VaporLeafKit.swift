@@ -121,8 +121,8 @@ final class GHLeafKitIssuesTest: XCTestCase {
         do {
             _ = try await TestRenderer(configuration: config, sources: .singleSource(test)).render(path: "page").get()
             XCTFail("Expected import error to be thrown, but it wasn't.")
-        } catch let error as String {
-            XCTAssertEqual(error, "import(\"body\") should have been resolved BEFORE serialization")
+        } catch let error as LeafError {
+            XCTAssert(error.localizedDescription.contains("import(\"body\") should have been resolved BEFORE serialization"))
         } catch {
             XCTFail("Expected import error to be thrown, but got \(String(reflecting: error)) instead.")
         }

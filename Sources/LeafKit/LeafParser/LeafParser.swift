@@ -70,17 +70,17 @@ struct LeafParser {
                 self.finished.append(.raw(r))
             }
         default:
-            throw "unexpected token \(next)"
+            throw LeafError(.unknownError("unexpected token \(next)"))
         }
     }
 
     private mutating func close(with terminator: TagDeclaration) throws {
         guard !self.awaitingBody.isEmpty else {
-            throw "\(self.name): found terminator \(terminator), with no corresponding tag"
+            throw LeafError(.unknownError("\(self.name): found terminator \(terminator), with no corresponding tag"))
         }
         let willClose = self.awaitingBody.removeLast()
         guard willClose.parent.matches(terminator: terminator) else {
-            throw "\(name): unable to match \(willClose.parent) with \(terminator)"
+            throw LeafError(.unknownError("\(name): unable to match \(willClose.parent) with \(terminator)"))
         }
 
         // closed body
@@ -100,7 +100,7 @@ struct LeafParser {
 
         if case .conditional(let new) = newSyntax {
             guard let conditional = new.chain.first else {
-                throw "Malformed syntax block"
+                throw LeafError(.unknownError("Malformed syntax block"))
             }
             switch conditional.0.naturalType {
                 // a new if, never attaches to a previous
@@ -116,7 +116,7 @@ struct LeafParser {
                     guard let existingConditional = previousBlock,
                         case .conditional(var tail) = existingConditional
                     else {
-                        throw "Can't attach \(conditional.0) to \(previousBlock?.description ?? "empty AST")"
+                        throw LeafError(.unknownError("Can't attach \(conditional.0) to \(previousBlock?.description ?? "empty AST")"))
                     }
                     try tail.attach(new)
                     switch aW {
@@ -141,11 +141,11 @@ struct LeafParser {
     private mutating func readTagDeclaration() throws -> TagDeclaration {
         // consume tag indicator
         guard let first = self.read(), first == .tagIndicator else {
-            throw "expected .tagIndicator(\(LeafConfiguration.tagIndicator))"
+            throw LeafError(.unknownError("expected .tagIndicator(\(LeafConfiguration.tagIndicator))"))
         }
         // a tag should ALWAYS follow a tag indicator
         guard let tag = self.read(), case .tag(let name) = tag else {
-            throw "expected tag name following a tag indicator"
+            throw LeafError(.unknownError("expected tag name following a tag indicator"))
         }
 
         // if no further, then we've ended w/ a tag
@@ -192,14 +192,14 @@ struct LeafParser {
                 }
                 return TagDeclaration(name: name, parameters: params, expectsBody: expectsBody)
             default:
-                throw "found unexpected token " + next.description
+                throw LeafError(.unknownError("found unexpected token " + next.description))
         }
     }
 
     private mutating func readParameters() throws -> [ParameterDeclaration] {
         // ensure open parameters
         guard self.read() == .parametersStart else {
-            throw "expected parameters start"
+            throw LeafError(.unknownError("expected parameters start"))
         }
 
         var group = [ParameterDeclaration]()
@@ -243,7 +243,7 @@ struct LeafParser {
                     switch p {
                         case .tag(let name):
                             guard self.peek() == .parametersStart else {
-                                throw "tags in parameter list MUST declare parameter list"
+                                throw LeafError(.unknownError("tags in parameter list MUST declare parameter list"))
                             }
                             let params = try self.readParameters()
                             // parameter tags not permitted to have bodies
@@ -333,10 +333,10 @@ struct LeafParser {
 
             switch self.name {
                 case let n where n.starts(with: "end"):
-                    throw "unable to convert terminator to syntax"
+                    throw LeafError(.unknownError("unable to convert terminator to syntax"))
                 case "":
                     guard params.count == 1 else {
-                        throw "only single parameter support, should be broken earlier"
+                        throw LeafError(.unknownError("only single parameter support, should be broken earlier"))
                     }
                     switch params[0] {
                         case .parameter(let p):
@@ -357,7 +357,7 @@ struct LeafParser {
                                     buffer.writeString(kw.rawValue)
                                     return .raw(buffer)
                                 default:
-                                    throw "unsupported parameter \(p)"
+                                    throw LeafError(.unknownError("unsupported parameter \(p)"))
                             }
                         case .expression(let e):
                             return .expression(e)
@@ -370,7 +370,7 @@ struct LeafParser {
                     return .conditional(.init(.elseif(params), body: body))
                 case "else":
                     guard params.count == 0 else {
-                        throw "else does not accept params"
+                        throw LeafError(.unknownError("else does not accept params"))
                     }
                     return .conditional(.init(.else, body: body))
                 case "for":
@@ -383,7 +383,7 @@ struct LeafParser {
                     return try .with(.init(params, body: body))
                 case "import":
                     guard body.isEmpty else {
-                        throw "import does not accept a body"
+                        throw LeafError(.unknownError("import does not accept a body"))
                     }
                     return try .import(.init(params))
                 default:
