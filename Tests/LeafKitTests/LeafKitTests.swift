@@ -1,6 +1,7 @@
 @testable import LeafKit
 import NIOConcurrencyHelpers
 import NIOCore
+import NIOPosix
 import XCTest
 
 final class ParserTests: XCTestCase {
@@ -444,13 +445,13 @@ final class LeafKitTests: XCTestCase {
     }
 
     func _testCacheSpeedLinear(templates: Int, iterations: Int) {
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        let group = NIOSingletons.posixEventLoopGroup
         var test = TestFiles()
 
         for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf" }
         let renderer = TestRenderer(
             sources: .singleSource(test),
-            eventLoop: group.next()
+            eventLoop: group.any()
         )
 
         for iteration in 1...iterations {
@@ -459,7 +460,7 @@ final class LeafKitTests: XCTestCase {
         }
 
         while !renderer.isDone { usleep(10) }
-        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, templates) }
+        XCTAssertEqual(renderer.r.cache.count, templates)
     }
 
     func testCacheSpeedRandom() {
@@ -470,7 +471,7 @@ final class LeafKitTests: XCTestCase {
     }
 
     func _testCacheSpeedRandom(layer1: Int, layer2: Int, layer3: Int, iterations: Int) {
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        let group = NIOSingletons.posixEventLoopGroup
         var test = TestFiles()
 
         for name in 1...layer3 { test.files["/\(name)-3.leaf"] = "Template \(name)"}
@@ -484,7 +485,7 @@ final class LeafKitTests: XCTestCase {
 
         let renderer = TestRenderer(
             sources: .singleSource(test),
-            eventLoop: group.next()
+            eventLoop: group.any()
         )
 
         for x in (0..<iterations).reversed() {
@@ -495,7 +496,7 @@ final class LeafKitTests: XCTestCase {
         }
 
         while !renderer.isDone { usleep(10) }
-        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, layer1+layer2+layer3) }
+        XCTAssertEqual(renderer.r.cache.count, layer1+layer2+layer3)
     }
 
     func testImportParameter() async throws {
@@ -554,18 +555,19 @@ final class LeafKitTests: XCTestCase {
     }
     
     func testFileSandbox() throws {
-        let threadPool = NIOThreadPool(numberOfThreads: 1)
-        threadPool.start()
+        let threadPool = NIOSingletons.posixBlockingThreadPool
         let fileio = NonBlockingFileIO(threadPool: threadPool)
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-    
+        let group = NIOSingletons.posixEventLoopGroup
+
         let renderer = TestRenderer(
             configuration: .init(rootDirectory: templateFolder),
-            sources: .singleSource(NIOLeafFiles(fileio: fileio,
-                                                limits: .default,
-                                                sandboxDirectory: templateFolder,
-                                                viewDirectory: templateFolder + "/SubTemplates")),
-            eventLoop: group.next()
+            sources: .singleSource(NIOLeafFiles(
+                fileio: fileio,
+                limits: .default,
+                sandboxDirectory: templateFolder,
+                viewDirectory: templateFolder + "/SubTemplates"
+            )),
+            eventLoop: group.any()
         )
         
         renderer.render(path: "test").whenComplete { _ in renderer.finishTask() }
@@ -584,8 +586,6 @@ final class LeafKitTests: XCTestCase {
         }
         
         while !renderer.isDone { usleep(10) }
-        try group.syncShutdownGracefully()
-        try threadPool.syncShutdownGracefully()
     }
     
     func testMultipleSources() async throws {

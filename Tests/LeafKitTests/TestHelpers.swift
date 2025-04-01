@@ -1,6 +1,7 @@
 @testable import LeafKit
 import NIOCore
 import NIOConcurrencyHelpers
+import NIOEmbedded
 import XCTest
 
 /// Assorted multi-purpose helper pieces for LeafKit tests
@@ -72,11 +73,13 @@ final class TestRenderer: Sendable {
     }
     
     func render(source: String? = nil, path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
-        self.lock.withLock { self.counter += 1 }
-        if let source = source {
-            return self.r.render(source: source, path: path, context: context)
-        } else {
-            return self.r.render(path: path, context: context)
+        self.lock.withLock {
+            self.counter += 1
+            if let source {
+                return self.r.render(source: source, path: path, context: context)
+            } else {
+                return self.r.render(path: path, context: context)
+            }
         }
     }
     

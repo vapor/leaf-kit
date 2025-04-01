@@ -29,8 +29,8 @@ let package = Package(
             dependencies: [
                 .target(name: "LeafKit"),
             ],
-            resources: [
-                .copy("Templates"),
+            exclude: [
+                "Templates",
             ],
             swiftSettings: swiftSettings
         ),

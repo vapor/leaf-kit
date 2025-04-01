@@ -1,3 +1,5 @@
+import Foundation
+
 // MARK: `LeafLexer` Summary
 
 /// `LeafLexer` is an opaque structure that wraps the lexing logic of Leaf-Kit.
@@ -221,7 +223,11 @@ struct LeafLexer {
 
             let next = self.src.peek()!
             let peekRaw = String(current) + (self.src.peekWhile { $0.isValidInNumeric })
+            #if swift(>=6.0)
+            var peekNum = peekRaw.replacing(String(.underscore), with: "")
+            #else
             var peekNum = peekRaw.replacingOccurrences(of: String(.underscore), with: "")
+            #endif
             // We must be immediately preceeded by a minus to flip the sign
             // And only flip back if immediately preceeded by a const, tag or variable
             // (which we assume will provide a numeric). Grammatical errors in the

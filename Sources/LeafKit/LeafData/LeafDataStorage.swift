@@ -1,8 +1,4 @@
-#if canImport(FoundationEssentials)
-import FoundationEssentials
-#else
 import Foundation
-#endif
 import NIOCore
 
 indirect enum LeafDataStorage: Equatable, CustomStringConvertible, Sendable {

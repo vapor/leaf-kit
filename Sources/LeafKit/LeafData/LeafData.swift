@@ -1,8 +1,4 @@
-#if canImport(FoundationEssentials)
-import FoundationEssentials
-#else
 import Foundation
-#endif
 import NIOCore
 
 /// `LeafData` is a "pseudo-protocol" wrapping the physically storable Swift data types
