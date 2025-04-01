@@ -564,7 +564,7 @@ final class LeafKitTests: XCTestCase {
             sources: .singleSource(NIOLeafFiles(fileio: fileio,
                                                 limits: .default,
                                                 sandboxDirectory: templateFolder,
-                                                viewDirectory: templateFolder + "SubTemplates/")),
+                                                viewDirectory: templateFolder + "/SubTemplates")),
             eventLoop: group.next()
         )
         

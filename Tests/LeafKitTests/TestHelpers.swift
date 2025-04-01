@@ -50,25 +50,29 @@ internal func render(name: String = "test-render", _ template: String, _ context
 final class TestRenderer: Sendable {
     nonisolated(unsafe) var r: LeafRenderer
     private let lock: NIOLock
-    private var counter: Int = 0
-    
-    init(configuration: LeafConfiguration = .init(rootDirectory: "/"),
-            tags: [String : any LeafTag] = defaultTags,
-            cache: any LeafCache = DefaultLeafCache(),
-            sources: LeafSources = .singleSource(TestFiles()),
-            eventLoop: any EventLoop = EmbeddedEventLoop(),
-            userInfo: [AnyHashable : Any] = [:]) {
-        self.r = .init(configuration: configuration,
-                              tags: tags,
-                              cache: cache,
-                              sources: sources,
-                              eventLoop: eventLoop,
-                              userInfo: userInfo)
-        lock = .init()
+    nonisolated(unsafe) private var counter: Int = 0
+
+    init(
+        configuration: LeafConfiguration = .init(rootDirectory: "/"),
+        tags: [String : any LeafTag] = defaultTags,
+        cache: any LeafCache = DefaultLeafCache(),
+        sources: LeafSources = .singleSource(TestFiles()),
+        eventLoop: any EventLoop = EmbeddedEventLoop(),
+        userInfo: [AnyHashable: Any] = [:]
+    ) {
+        self.r = .init(
+            configuration: configuration,
+            tags: tags,
+            cache: cache,
+            sources: sources,
+            eventLoop: eventLoop,
+            userInfo: userInfo
+        )
+        self.lock = .init()
     }
     
     func render(source: String? = nil, path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
-        lock.withLock { counter += 1 }
+        self.lock.withLock { self.counter += 1 }
         if let source = source {
             return self.r.render(source: source, path: path, context: context)
         } else {
@@ -143,13 +147,16 @@ internal extension Array where Element == Syntax {
 // MARK: - Helper Variables
 
 /// Automatic path discovery for the Templates folder in this package
-internal var templateFolder: String {
-    return projectTestFolder + "Templates/"
+var templateFolder: String {
+    URL(fileURLWithPath: projectTestFolder, isDirectory: true)
+        .appendingPathComponent("Templates", isDirectory: true)
+        .path
 }
 
-internal var projectTestFolder: String {
-    let folder = #file.split(separator: "/").dropLast().joined(separator: "/")
-    return "/" + folder + "/"
+var projectTestFolder: String {
+    URL(fileURLWithPath: #filePath, isDirectory: false) // .../leaf-kit/Tests/LeafKitTests/TestHelpers.swift
+        .deletingLastPathComponent() // .../leaf-kit/Tests/LeafKitTests
+        .path
 }
 
 // MARK: - Internal Tests

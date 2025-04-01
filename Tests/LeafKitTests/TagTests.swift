@@ -175,7 +175,11 @@ class TagTests: XCTestCase {
         The date is 2020-11-09T14:30:00
         """
 
-        let now = 1604932200 - Calendar.current.timeZone.secondsFromGMT()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        formatter.timeZone = .current
+        let date = formatter.date(from: "2020-11-09T14:30:00")!
+        let now = Int(date.timeIntervalSince1970)
 
         try XCTAssertEqual(render(template, ["now": .int(now)]), expected)
     }
@@ -189,7 +193,11 @@ class TagTests: XCTestCase {
         The date is 2020-11-09
         """
 
-        let now = 1604932200 - Calendar.current.timeZone.secondsFromGMT()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        formatter.timeZone = .init(secondsFromGMT: 0)
+        let date = formatter.date(from: "2020-11-09T14:30:00")!
+        let now = Int(date.timeIntervalSince1970)
 
         try XCTAssertEqual(render(template, ["now": .int(now)]), expected)
     }
@@ -203,14 +211,22 @@ class TagTests: XCTestCase {
         The date is &lt;2020-11-09&gt;
         """
 
-        let now = 1604932200 - Calendar.current.timeZone.secondsFromGMT()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        formatter.timeZone = .init(secondsFromGMT: 0)
+        let date = formatter.date(from: "2020-11-09T14:30:00")!
+        let now = Int(date.timeIntervalSince1970)
 
         try XCTAssertEqual(render(template, ["now": .int(now)]), expected)
     }
 
     func testDateWithCustomFormatAndTimeZone() throws {
-        let now = 1604932200 - Calendar.current.timeZone.secondsFromGMT()
-        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        formatter.timeZone = .init(secondsFromGMT: 0)
+        let date = formatter.date(from: "2020-11-09T14:30:00")!
+        let now = Int(date.timeIntervalSince1970)
+
         let templateNewYork = """
         The date is #date(now, "yyyy-MM-dd'T'HH:mm", "America/New_York")
         """

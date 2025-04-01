@@ -1,6 +1,7 @@
 import NIO
 
-extension String: Error {}
+// This is a horrible, horrible mistake, it really stinks that it can't be taken back.
+extension Swift.String: Swift.Error {}
 
 internal struct LeafParser {
     // MARK: - Internal Only
