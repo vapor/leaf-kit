@@ -1,58 +1,65 @@
 /// Place all tests related to verifying that errors ARE thrown here.
 
-@testable import LeafKit
-import XCTest
+import Testing
 
-final class LeafErrorTests: XCTestCase {
+@testable import LeafKit
+
+@Suite
+struct LeafErrorTests {
     /// Verify that cyclical references via #extend will throw `LeafError.cyclicalReference`
-    func testCyclicalError() async throws {
+    @Test func testCyclicalError() async throws {
         var test = TestFiles()
         test.files["/a.leaf"] = "#extend(\"b\")"
         test.files["/b.leaf"] = "#extend(\"c\")"
         test.files["/c.leaf"] = "#extend(\"a\")"
 
-        await XCTAssertThrowsErrorAsync(try await TestRenderer(sources: .singleSource(test)).render(path: "a")) {
-            switch ($0 as? LeafError)?.reason {
-            case .cyclicalReference(let name, let cycle):
-                XCTAssertEqual(name, "a")
-                XCTAssertEqual(cycle, ["a", "b", "c", "a"])
-            default:
-                XCTFail("Expected .cyclicalReference(a, [a, b, c, a]), got \($0.localizedDescription)")
-            }
+        let error = await #expect(throws: LeafError.self) {
+            try await TestRenderer(sources: .init(singleSource: test)).render(path: "a")
         }
+
+        guard case .cyclicalReference(let name, let cycle) = error else {
+            Issue.record("Expected .cyclicalReference(a, [a, b, c, a]), got \($0.localizedDescription)")
+        }
+
+        #expect(error.reason.name == "a")
+        #expect(error.reason.cycle == ["a", "b", "c", "a"])
     }
-    
+
     /// Verify that referencing a non-existent template will throw `LeafError.noTemplateExists`
-    func testDependencyError() async throws {
+    @Test func testDependencyError() async throws {
         var test = TestFiles()
         test.files["/a.leaf"] = "#extend(\"b\")"
         test.files["/b.leaf"] = "#extend(\"c\")"
 
-        await XCTAssertThrowsErrorAsync(try await TestRenderer(sources: .singleSource(test)).render(path: "a")) {
-            switch ($0 as? LeafError)?.reason {
-            case .noTemplateExists(let name):
-                XCTAssertEqual(name, "c")
-            default:
-                XCTFail("Expected .noTemplateExists(c), got \($0.localizedDescription)")
-            }
+        let error = await #expect(throws: LeafError.self) {
+            try await TestRenderer(sources: .init(singleSource: test)).render(path: "a")
         }
-    }
-    
-    /// Verify that rendering a template with a missing required parameter will throw `LeafError.missingParameter`
-    func testMissingParameterError() async throws {
-      var test = TestFiles()
-      // Assuming "/missingParam.leaf" is a template that requires a parameter we intentionally don't provide
-      test.files["/missingParam.leaf"] = """
-          #(foo.bar.trim())
-          """
 
-        await XCTAssertThrowsErrorAsync(try await TestRenderer(sources: .singleSource(test)).render(path: "missingParam", context: [:])) {
-            switch ($0 as? LeafError)?.reason {
-            case .unknownError(let s):
-                XCTAssertEqual(s, "Found nil while iterating through params")
-            default:
-                XCTFail("Expected .unknownError(Found nil while iterating through params), got \($0.localizedDescription)")
-            }
+        guard case .noTemplateExists(let name) = error.reason else {
+            Issue.record("Expected .noTemplateExists(c), got \(error.localizedDescription)")
+            return
         }
+
+        #expect(name == "c")
+    }
+
+    /// Verify that rendering a template with a missing required parameter will throw `LeafError.missingParameter`
+    @Test func testMissingParameterError() async throws {
+        var test = TestFiles()
+        // Assuming "/missingParam.leaf" is a template that requires a parameter we intentionally don't provide
+        test.files["/missingParam.leaf"] = """
+            #(foo.bar.trim())
+            """
+
+        let error = await #expect(throws: LeafError.self) {
+            try await TestRenderer(sources: .init(singleSource: test)).render(path: "missingParam", context: [:])
+        }
+
+        guard case .unknownError(let message) = error.reason else {
+            Issue.record("Expected .unknownError(Found nil while iterating through params), got \(error.localizedDescription)")
+            return
+        }
+
+        #expect(message == "Found nil while iterating through params")
     }
 }

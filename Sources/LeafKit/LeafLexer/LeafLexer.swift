@@ -8,21 +8,21 @@ import Foundation
 /// used by evaluating with `LeafLexer.lex()` and either erroring or returning `[LeafToken]`
 struct LeafLexer {
     // MARK: - Internal Only
-    
+
     /// Convenience to initialize `LeafLexer` with a `String`
     init(name: String, template string: String) {
         self.name = name
         self.src = LeafRawTemplate(name: name, src: string)
         self.state = .raw
     }
-    
+
     /// Init with `LeafRawTemplate`
     init(name: String, template: LeafRawTemplate) {
         self.name = name
         self.src = template
         self.state = .raw
     }
-    
+
     /// Lex the stored `LeafRawTemplate`
     /// - Throws: `LexerError`
     /// - Returns: An array of fully built `LeafTokens`, to then be parsed by `LeafParser`
@@ -33,9 +33,9 @@ struct LeafLexer {
         }
         return self.lexed
     }
-    
+
     // MARK: - Private Only
-    
+
     private enum State {
         /// Parse as raw, until it finds `#` (but consuming escaped `\#`)
         case raw
@@ -46,7 +46,7 @@ struct LeafLexer {
         /// Start attempting to sequence a tag body
         case body
     }
-    
+
     /// Current state of the Lexer
     private var state: State
     /// Current parameter depth, when in a Parameter-lexing state
@@ -59,7 +59,7 @@ struct LeafLexer {
     private var src: LeafRawTemplate
     /// Name of the template (as opposed to file name) - eg if file = "/views/template.leaf", `template`
     private var name: String
-    
+
     // MARK: - Private - Actual implementation of Lexer
 
     private mutating func nextToken() throws -> LeafToken? {
@@ -72,18 +72,18 @@ struct LeafLexer {
         let isCol = current == .colon
         let next = self.src.peek(aheadBy: 1)
 
-        switch   (self.state,  isTagID, isTagVal, isCol, next) {
-            case (.raw,        false,   _,        _,     _):     return self.lexRaw()
-            case (.raw,        true,    _,        _,     .some): return self.lexCheckTagIndicator()
-            case (.tag,        _,       true,     _,     _):     return self.lexNamedTag()
-            case (.tag,        _,       false,    _,     _):     return self.lexAnonymousTag()
-            case (.parameters, _,   _,   _,  _):                 return try self.lexParameters()
-            case (.body,       _,   _, true,  _):                return self.lexBodyIndicator()
-            /// Ambiguous case  - `#endTagName#` at EOF. Should this result in `tag(tagName),raw(#)`?
-            case (.raw,        true,    _,        _,     .none):
-                throw LexerError(.unknownError("Unescaped # at EOF"), src: self.src, lexed: self.lexed)
-            default:
-                throw LexerError(.unknownError("Template cannot be lexed"), src: self.src, lexed: self.lexed)
+        switch (self.state, isTagID, isTagVal, isCol, next) {
+        case (.raw, false, _, _, _): return self.lexRaw()
+        case (.raw, true, _, _, .some): return self.lexCheckTagIndicator()
+        case (.tag, _, true, _, _): return self.lexNamedTag()
+        case (.tag, _, false, _, _): return self.lexAnonymousTag()
+        case (.parameters, _, _, _, _): return try self.lexParameters()
+        case (.body, _, _, true, _): return self.lexBodyIndicator()
+        /// Ambiguous case  - `#endTagName#` at EOF. Should this result in `tag(tagName),raw(#)`?
+        case (.raw, true, _, _, .none):
+            throw LexerError(.unknownError("Unescaped # at EOF"), src: self.src, lexed: self.lexed)
+        default:
+            throw LexerError(.unknownError("Template cannot be lexed"), src: self.src, lexed: self.lexed)
         }
     }
 
@@ -160,29 +160,29 @@ struct LeafLexer {
 
         // Simple returning cases - .parametersStart/Delimiter/End, .whitespace, .stringLiteral Parameter
         switch current {
-            case .leftParenthesis:
-                self.depth += 1
-                return .parametersStart
-            case .rightParenthesis:
-                switch (self.depth <= 1, self.src.peek() == .colon) {
-                    case (true, true):  self.state = .body
-                    case (true, false): self.state = .raw
-                    case (false, _):    self.depth -= 1
-                }
-                return .parametersEnd
-            case .comma:
-                return .parameterDelimiter
-            case .quote:
-                let read = self.readWithEscapingQuotes(src: &src)
-                guard self.src.peek() == .quote else {
-                    throw LexerError(.unterminatedStringLiteral, src: self.src, lexed: self.lexed)
-                }
-                src.pop() // consume final quote
-                return .parameter(.stringLiteral(read))
-            case .space:
-                let read = self.src.readWhile { $0 == .space }
-                return .whitespace(length: read.count + 1)
-            default: break
+        case .leftParenthesis:
+            self.depth += 1
+            return .parametersStart
+        case .rightParenthesis:
+            switch (self.depth <= 1, self.src.peek() == .colon) {
+            case (true, true): self.state = .body
+            case (true, false): self.state = .raw
+            case (false, _): self.depth -= 1
+            }
+            return .parametersEnd
+        case .comma:
+            return .parameterDelimiter
+        case .quote:
+            let read = self.readWithEscapingQuotes(src: &src)
+            guard self.src.peek() == .quote else {
+                throw LexerError(.unterminatedStringLiteral, src: self.src, lexed: self.lexed)
+            }
+            src.pop()  // consume final quote
+            return .parameter(.stringLiteral(read))
+        case .space:
+            let read = self.src.readWhile { $0 == .space }
+            return .whitespace(length: read.count + 1)
+        default: break
         }
 
         // Complex Parameter lexing situations - enhanced to allow non-whitespace separated values
@@ -233,15 +233,16 @@ struct LeafLexer {
             // (which we assume will provide a numeric). Grammatical errors in the
             // template (eg, keyword-numeric) may throw here
             if case .parameter(let p) = self.lexed[self.offset - 1],
-               case .operator(let op) = p,
-               op == .minus
+                case .operator(let op) = p,
+                op == .minus
             {
                 switch self.lexed[self.offset - 2] {
                 case .parameter(let p):
                     switch p {
                     case .constant,
-                         .tag,
-                         .variable: sign = 1
+                        .tag,
+                        .variable:
+                        sign = 1
                     default:
                         throw LexerError(.invalidParameterToken("-"), src: self.src)
                     }
@@ -253,16 +254,16 @@ struct LeafLexer {
             }
 
             switch (peekNum.contains(.period), next, peekNum.count > 2) {
-                case (true, _, _) :                  testDouble = Double(peekNum)
-                case (false, .binaryNotation, true): radix = 2
-                case (false, .octalNotation, true):  radix = 8
-                case (false, .hexNotation, true):    radix = 16
-                default:                             testInt = Int(peekNum)
+            case (true, _, _): testDouble = Double(peekNum)
+            case (false, .binaryNotation, true): radix = 2
+            case (false, .octalNotation, true): radix = 8
+            case (false, .hexNotation, true): radix = 16
+            default: testInt = Int(peekNum)
             }
 
             if let radix {
                 let start = peekNum.startIndex
-                peekNum.removeSubrange(start ... peekNum.index(after: start))
+                peekNum.removeSubrange(start...peekNum.index(after: start))
                 testInt = Int(peekNum, radix: radix)
             }
 

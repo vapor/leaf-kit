@@ -1,5 +1,5 @@
-import NIOCore
 import NIOConcurrencyHelpers
+import NIOCore
 
 /// An opaque object holding named `LeafSource` adherants specifying a default search order.
 ///
@@ -11,23 +11,31 @@ import NIOConcurrencyHelpers
 ///     prior to use by `LeafRenderer`.
 /// - `.all` provides a `Set` of the `String`keys for all sources registered with the instance
 /// - `.searchOrder` provides the keys of sources that an unspecified template request will search.
-public final class LeafSources: Sendable {
+public actor LeafSources: Sendable {
     // MARK: - Public
-    
+
     /// All available `LeafSource`s of templates
     public var all: Set<String> {
-        self.lock.withLock { .init(self.sources.keys) }
+        .init(self.sources.keys)
     }
     /// Configured default implicit search order of `LeafSource`'s
     public var searchOrder: [String] {
-        self.lock.withLock { self.order }
+        self.order
     }
 
     public init() {
         self.sources = [:]
         self.order = []
     }
-    
+
+    /// Convenience for initializing a `LeafSources` object with a single `LeafSource`
+    /// - Parameter source: A fully configured `LeafSource`
+    /// - Returns: Configured `LeafSource` instance
+    init(singleSource: any LeafSource) {
+        self.sources = ["default": singleSource]
+        self.order = ["default"]
+    }
+
     /// Register a `LeafSource` as `key`
     /// - Parameters:
     ///   - key: Name for the source; at most one may be registered without a name
@@ -39,37 +47,25 @@ public final class LeafSources: Sendable {
         using source: any LeafSource,
         searchable: Bool = true
     ) throws {
-        try self.lock.withLock {
-            guard !self.sources.keys.contains(key) else {
-                throw LeafError(.unknownError("Can't replace source at \(key)"))
-            }
-            self.sources[key] = source
-            if searchable {
-                self.order.append(key)
-            }
+        guard !self.sources.keys.contains(key) else {
+            throw LeafError(.unknownError("Can't replace source at \(key)"))
+        }
+        self.sources[key] = source
+        if searchable {
+            self.order.append(key)
         }
     }
-    
-    /// Convenience for initializing a `LeafSources` object with a single `LeafSource`
-    /// - Parameter source: A fully configured `LeafSource`
-    /// - Returns: Configured `LeafSource` instance
-    public static func singleSource(_ source: any LeafSource) -> LeafSources {
-        let sources = LeafSources()
-        try! sources.register(using: source)
-        return sources
-    }
-    
+
     // MARK: - Internal Only
 
     // Note: nonisolated(unsafe) is safe because these are protected by the lock
-    private(set) nonisolated(unsafe) var sources: [String: any LeafSource]
-    private nonisolated(unsafe) var order: [String]
-    private let lock: NIOLock = .init()
-    
+    private(set) var sources: [String: any LeafSource]
+    private var order: [String]
+
     /// Locate a template from the sources; if a specific source is named, only try to read from it. Otherwise, use the specified search order
-    func find(template: String, in source: String? = nil, on eventLoop: any EventLoop) throws -> EventLoopFuture<(String, ByteBuffer)> {
+    func find(template: String, in source: String? = nil) async throws -> (String, ByteBuffer) {
         var keys: [String]
-        
+
         switch source {
         case .none:
             keys = self.searchOrder
@@ -84,36 +80,31 @@ public final class LeafSources: Sendable {
             throw LeafError(.illegalAccess("No searchable sources exist"))
         }
 
-        return self.searchSources(t: template, on: eventLoop, s: keys)
+        return try await self.searchSources(template: template, sources: keys)
     }
-    
-    private func searchSources(t: String, on eL: any EventLoop, s: [String]) -> EventLoopFuture<(String, ByteBuffer)> {
-        guard !s.isEmpty else {
-            return eL.makeFailedFuture(LeafError(.noTemplateExists(t)))
-        }
-        var more = s
-        let key = more.removeFirst()
-        let source = self.lock.withLock {
-            self.sources[key]!
+
+    private func searchSources(template: String, sources: [String]) async throws -> (String, ByteBuffer) {
+        guard !sources.isEmpty else {
+            throw LeafError(.noTemplateExists(template))
         }
 
+        var remaining = sources
+        let key = remaining.removeFirst()
+        let source = self.sources[key]!
+
         do {
-            let file = try source.file(template: t, escape: true, on: eL)
-            // Hit the file - return the combined tuple
-            return eL.makeSucceededFuture(key).and(file).flatMapError { [more] _ in
-                // Or move onto the next one if this source can't get the file
-                return self.searchSources(t: t, on: eL, s: more)
-            }
-        } catch {
+            // Assuming source.file has been updated to be async
+            let file = try await source.file(template: template, escape: true)
+            return (key, file)
+        } catch let error as LeafError {
             // If the thrown error is illegal access, fail immediately
-            if let e = error as? LeafError,
-               case .illegalAccess(_) = e.reason
-            {
-                return eL.makeFailedFuture(e)
-            } else {
-                // Or move onto the next one
-                return self.searchSources(t: t, on: eL, s: more)
+            if case .illegalAccess(_) = error.reason {
+                throw error
             }
+            return try await searchSources(template: template, sources: remaining)
+        } catch {
+            // Try the next source
+            return try await searchSources(template: template, sources: remaining)
         }
     }
 }

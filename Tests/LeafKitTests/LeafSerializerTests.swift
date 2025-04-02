@@ -1,7 +1,9 @@
-@testable import LeafKit
-import XCTest
+import Testing
 
-final class SerializerTests: XCTestCase {
+@testable import LeafKit
+
+@Suite
+struct SerializerTests {
     func testNestedKeyPathLoop() throws {
         let input = """
             #for(person in people):
@@ -13,27 +15,30 @@ final class SerializerTests: XCTestCase {
             """
 
         let syntax = try parse(input)
-        let people = LeafData(.array([
-            LeafData(.dictionary([
-                "name": "LOGAN",
-                "skills": LeafData(.array(["running", "walking"]))
+        let people = LeafData(
+            .array([
+                LeafData(
+                    .dictionary([
+                        "name": "LOGAN",
+                        "skills": LeafData(.array(["running", "walking"])),
+                    ]))
             ]))
-        ]))
 
         var serializer = LeafSerializer(ast: syntax, ignoreUnfoundImports: false)
         var serialized = try serializer.serialize(context: ["people": people])
         let str = (serialized.readString(length: serialized.readableBytes) ?? "<err>")
 
-        XCTAssertEqual(str, """
-        
-        hello LOGAN
+        #expect(
+            str == """
 
-        you're pretty good at running
+                hello LOGAN
 
-        you're pretty good at walking
-        
-        
-        """)
+                you're pretty good at running
+
+                you're pretty good at walking
+
+
+                """)
     }
 
     func testInvalidNestedKeyPathLoop() throws {
@@ -47,17 +52,18 @@ final class SerializerTests: XCTestCase {
             """
 
         let syntax = try parse(input)
-        let people = LeafData(.array([
-            LeafData(.dictionary([
-                "name": "LOGAN",
-                "skills": LeafData(.array(["running", "walking"]))
+        let people = LeafData(
+            .array([
+                LeafData(
+                    .dictionary([
+                        "name": "LOGAN",
+                        "skills": LeafData(.array(["running", "walking"])),
+                    ]))
             ]))
-        ]))
 
         var serializer = LeafSerializer(ast: syntax, ignoreUnfoundImports: false)
 
-        XCTAssertThrowsError(try serializer.serialize(context: ["people": people])) { error in
-            XCTAssert((error as? LeafError)?.localizedDescription.contains("expected dictionary at key: person.profile") ?? false)
-        }
+        let error = #expect(throws: LeafError.self) { try serializer.serialize(context: ["people": people]) }
+        #expect(error.localizedDescription.contains("expected dictionary at key: person.profile"))
     }
 }

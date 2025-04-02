@@ -8,33 +8,33 @@ public enum Parameter: Equatable, CustomStringConvertible, Sendable {
     case keyword(LeafKeyword)
     case `operator`(LeafOperator)
     case tag(name: String)
-    
+
     /// Returns `parameterCase(parameterValue)`
     public var description: String {
         "\(self.name)(\(self.short))"
     }
-    
+
     /// Returns `parameterCase`
     var name: String {
         switch self {
         case .stringLiteral: "stringLiteral"
-        case .constant:      "constant"
-        case .variable:      "variable"
-        case .keyword:       "keyword"
-        case .operator:      "operator"
-        case .tag:           "tag"
+        case .constant: "constant"
+        case .variable: "variable"
+        case .keyword: "keyword"
+        case .operator: "operator"
+        case .tag: "tag"
         }
     }
-    
+
     /// Returns `parameterValue` or `"parameterValue"` as appropriate for type
     var short: String {
         switch self {
         case .stringLiteral(let s): "\"\(s)\""
-        case .constant(let c):      "\(c)"
-        case .variable(let v):      "\(v)"
-        case .keyword(let k):       "\(k)"
-        case .operator(let o):      "\(o)"
-        case .tag(let t):           "\"\(t)\""
+        case .constant(let c): "\(c)"
+        case .variable(let v): "\(v)"
+        case .keyword(let k): "\(k)"
+        case .operator(let o): "\(o)"
+        case .tag(let t): "\"\(t)\""
         }
     }
 }
@@ -46,19 +46,21 @@ public enum Parameter: Equatable, CustomStringConvertible, Sendable {
 /// used with logical operators, `nil` when used with equality operators, and so forth)
 public enum LeafKeyword: String, Equatable, Sendable {
     // MARK: Public - Cases
-    
+
     //                      Eval -> Bool / Other
     //                   -----------------------
-    case `in`,           //
-         `true`,         //   X       T
-         `false`,        //   X       F
-         this = "self",  //   X             X
-         `nil`,          //   X       F     X
-         `yes`,          //   X       T
-         `no`            //   X       F
+    case `in`,  //
+        `true`,  //   X       T
+        `false`
+    case
+        this = "self"
+    case
+        `nil`,  //   X       F     X
+        `yes`,  //   X       T
+        `no`  //   X       F
 
     // MARK: Internal Only
-    
+
     // State booleans
     var isEvaluable: Bool {
         self != .in
@@ -85,17 +87,13 @@ public enum LeafKeyword: String, Equatable, Sendable {
     }
 }
 
-extension LeafKeyword {
-     @available(*, deprecated, message: "Use .this instead")
-     static var `self`: Self { this }
- }
-
 // MARK: - Operator Symbols
 
+// swift-format-ignore
 /// Mathematical and Logical operators
 public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterable, Sendable {
     // MARK: Public - Cases
-    
+
     // Operator types:              Logic      Exist.       UnPre        Scope
     //                                |   Math    |   Infix   |   UnPost   |
     //   Logical Tests          --------------------------------------------
@@ -123,14 +121,14 @@ public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterab
     case scopeMember = "."      //                      X                 X
     case subOpen = "["          //                      X                 X
     case subClose = "]"         //                                  X     X
-    
+
     /// Raw string value of the operator - eg `!=`
     public var description: String {
         self.rawValue
     }
 
     // MARK: Internal Only
-    
+
     // State booleans
     var logical: Bool {
         Self.states["logical"]!.contains(self)
@@ -173,9 +171,9 @@ public enum LeafOperator: String, Equatable, CustomStringConvertible, CaseIterab
         (check: { $0 == .equal || $0 == .unequal }, infixed: true), // !, !=
         (check: { $0 == .and || $0 == .or }, infixed: true), // &&, ||
     ]
-    
+
     // MARK: Private Only
-    
+
     private static let states: [String: Set<LeafOperator>] = [
         "logical"       : [.not, .equal, .unequal, .greater, .greaterOrEqual,
                            .lesser, .lesserOrEqual, .and, .or],
@@ -200,8 +198,8 @@ public enum Constant: CustomStringConvertible, Equatable, Sendable {
 
     public var description: String {
         switch self {
-            case .int(let i):    i.description
-            case .double(let d): d.description
+        case .int(let i): i.description
+        case .double(let d): d.description
         }
     }
 }

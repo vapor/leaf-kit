@@ -1,12 +1,14 @@
-@testable import LeafKit
-import XCTest
+import Testing
 
-final class HTMLEscapeTests: XCTestCase {
+@testable import LeafKit
+
+@Suite
+struct HTMLEscapeTests {
     func testCorrectness() {
-        XCTAssertEqual("".htmlEscaped(), "")
-        XCTAssertEqual("abcdef".htmlEscaped(), "abcdef")
-        XCTAssertEqual("abc&<>\"'".htmlEscaped(), "abc&amp;&lt;&gt;&quot;&#39;")
-        XCTAssertEqual("abc&".htmlEscaped(), "abc&amp;")
+        #expect("".htmlEscaped() == "")
+        #expect("abcdef".htmlEscaped() == "abcdef")
+        #expect("abc&<>\"'".htmlEscaped() == "abc&amp;&lt;&gt;&quot;&#39;")
+        #expect("abc&".htmlEscaped() == "abc&amp;")
     }
 
     #if !os(Android)
@@ -43,8 +45,11 @@ final class HTMLEscapeTests: XCTestCase {
         let lowercase = Array(UInt8(ascii: "a")...UInt8(ascii: "z"))
         let digits = Array(UInt8(ascii: "0")...UInt8(ascii: "9"))
         let uppercase = Array(UInt8(ascii: "A")...UInt8(ascii: "Z"))
-        let allCharacters = [[UInt8(ascii: "&")], lowercase, [UInt8(ascii: "\"")], digits, [UInt8(ascii: "'")], uppercase, [UInt8(ascii: "<")], [UInt8(ascii: ">")]]
-            .flatMap { $0 }
+        let allCharacters = [
+            [UInt8(ascii: "&")], lowercase, [UInt8(ascii: "\"")], digits, [UInt8(ascii: "'")], uppercase, [UInt8(ascii: "<")],
+            [UInt8(ascii: ">")],
+        ]
+        .flatMap { $0 }
 
         return String(bytes: allCharacters, encoding: .utf8)!
     }()
