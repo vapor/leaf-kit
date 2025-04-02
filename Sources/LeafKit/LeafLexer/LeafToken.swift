@@ -22,7 +22,7 @@
 /// - `.whitespace`: Only generated when not at top-level, and unclear why maintaining it is useful
 ///
 
-internal enum LeafToken: CustomStringConvertible, Equatable  {
+enum LeafToken: CustomStringConvertible, Equatable  {
     /// Holds a variable-length string of data that will be passed through with no processing
     case raw(String)
     
@@ -50,26 +50,26 @@ internal enum LeafToken: CustomStringConvertible, Equatable  {
     /// Returns `"tokenCase"` or `"tokenCase(valueAsString)"` if holding a value
     var description: String {
         switch self {
-            case .raw(let str):
-                return "raw(\(str.debugDescription))"
-            case .tagIndicator:
-                return "tagIndicator"
-            case .tag(let name):
-                return "tag(name: \(name.debugDescription))"
-            case .tagBodyIndicator:
-                return "tagBodyIndicator"
-            case .parametersStart:
-                return "parametersStart"
-            case .parametersEnd:
-                return "parametersEnd"
-            case .parameterDelimiter:
-                return "parameterDelimiter"
-            case .parameter(let param):
-                return "param(\(param))"
-            case .stringLiteral(let string):
-                return "stringLiteral(\(string.debugDescription))"
-            case .whitespace(let length):
-                return "whitespace(\(length))"
+        case .raw(let str):
+            "raw(\(str.debugDescription))"
+        case .tagIndicator:
+            "tagIndicator"
+        case .tag(let name):
+            "tag(name: \(name.debugDescription))"
+        case .tagBodyIndicator:
+            "tagBodyIndicator"
+        case .parametersStart:
+            "parametersStart"
+        case .parametersEnd:
+            "parametersEnd"
+        case .parameterDelimiter:
+            "parameterDelimiter"
+        case .parameter(let param):
+            "param(\(param))"
+        case .stringLiteral(let string):
+            "stringLiteral(\(string.debugDescription))"
+        case .whitespace(let length):
+            "whitespace(\(length))"
         }
     }
 }

@@ -1,4 +1,4 @@
-import NIO
+import NIOCore
 
 // MARK: - `LeafRenderer` Summary
 
@@ -27,7 +27,7 @@ public final class LeafRenderer {
     public let eventLoop: any EventLoop
     /// Any custom instance data to use (eg, in Vapor, the `Application` and/or `Request` data)
     public let userInfo: [AnyHashable: Any]
-    
+
     /// Initial configuration of LeafRenderer.
     public init(
         configuration: LeafConfiguration,
@@ -58,58 +58,47 @@ public final class LeafRenderer {
     /// `"/.../ViewDirectory/path/to/template.leaf"`, while an explicit extension -
     /// `"file.svg"` would correspond to `"/.../ViewDirectory/file.svg"`
     public func render(path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
+        guard !path.isEmpty else {
+            return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)")))
+        }
 
         // If a flat AST is cached and available, serialize and return
-        if let flatAST = getFlatCachedHit(path),
-           let buffer = try? serialize(flatAST, context: context) {
-            return eventLoop.makeSucceededFuture(buffer)
+        if let flatAST = self.getFlatCachedHit(path),
+           let buffer = try? self.serialize(flatAST, context: context)
+        {
+            return self.eventLoop.makeSucceededFuture(buffer)
         }
         
         // Otherwise operate using normal future-based full resolving behavior
+        nonisolated(unsafe) let nself = self
         return self.cache.retrieve(documentName: path, on: self.eventLoop).flatMapThrowing { cached in
-            guard let cached = cached else { throw LeafError(.noValueForKey(path)) }
-            guard cached.flat else { throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs))) }
-            return try self.serialize(cached, context: context)
+            guard let cached else {
+                throw LeafError(.noValueForKey(path))
+            }
+            guard cached.flat else {
+                throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs)))
+            }
+            return try nself.serialize(cached, context: context)
         }.flatMapError { e in
-            return self.fetch(template: path).flatMapThrowing { ast in
-                guard let ast = ast else { throw LeafError(.noTemplateExists(path)) }
-                guard ast.flat else { throw LeafError(.unresolvedAST(path, Array(ast.unresolvedRefs))) }
-                return try self.serialize(ast, context: context)
+            return nself.fetch(template: path).flatMapThrowing { ast in
+                guard let ast else {
+                    throw LeafError(.noTemplateExists(path))
+                }
+                guard ast.flat else {
+                    throw LeafError(.unresolvedAST(path, Array(ast.unresolvedRefs)))
+                }
+                return try nself.serialize(ast, context: context)
             }
         }
     }
     
-    
-    // MARK: - Internal Only
-    /// Temporary testing interface
-    internal func render(source: String, path: String, context: [String: LeafData]) -> EventLoopFuture<ByteBuffer> {
-        guard path.count > 0 else { return self.eventLoop.makeFailedFuture(LeafError(.noTemplateExists("(no key provided)"))) }
-        let sourcePath = source + ":" + path
-        // If a flat AST is cached and available, serialize and return
-        if let flatAST = getFlatCachedHit(sourcePath),
-           let buffer = try? serialize(flatAST, context: context) {
-            return eventLoop.makeSucceededFuture(buffer)
-        }
-        
-        return self.cache.retrieve(documentName: sourcePath, on: self.eventLoop).flatMapThrowing { cached in
-            guard let cached = cached else { throw LeafError(.noValueForKey(path)) }
-            guard cached.flat else { throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs))) }
-            return try self.serialize(cached, context: context)
-        }.flatMapError { e in
-            return self.fetch(source: source, template: path).flatMapThrowing { ast in
-                guard let ast = ast else { throw LeafError(.noTemplateExists(path)) }
-                guard ast.flat else { throw LeafError(.unresolvedAST(path, Array(ast.unresolvedRefs))) }
-                return try self.serialize(ast, context: context)
-            }
-        }
-    }
-
     // MARK: - Private Only
     
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
     private func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
-        guard doc.flat == true else { throw LeafError(.unresolvedAST(doc.name, Array(doc.unresolvedRefs))) }
+        guard doc.flat else {
+            throw LeafError(.unresolvedAST(doc.name, Array(doc.unresolvedRefs)))
+        }
 
         var serializer = LeafSerializer(
             ast: doc.ast,
@@ -130,16 +119,22 @@ public final class LeafRenderer {
     ///
     /// Recursive calls to `fetch()` from `resolve()` must provide the chain of extended
     /// templates to prevent cyclical errors
-    private func fetch(source: String? = nil, template: String, chain: [String] = []) -> EventLoopFuture<LeafAST?> {
-        return cache.retrieve(documentName: template, on: eventLoop).flatMap { cached in
-            guard let cached = cached else {
-                return self.read(source: source, name: template, escape: true).flatMap { ast in
-                    guard let ast = ast else { return self.eventLoop.makeSucceededFuture(nil) }
-                    return self.resolve(ast: ast, chain: chain).map {$0}
+    private func fetch(template: String, chain: [String] = []) -> EventLoopFuture<LeafAST?> {
+        nonisolated(unsafe) let nself = self
+
+        return self.cache.retrieve(documentName: template, on: self.eventLoop).flatMap { cached in
+            guard let cached else {
+                return nself.read(name: template, escape: true).flatMap { ast in
+                    guard let ast else {
+                        return nself.eventLoop.makeSucceededFuture(nil)
+                    }
+                    return nself.resolve(ast: ast, chain: chain).map { $0 }
                 }
             }
-            guard cached.flat == false else { return self.eventLoop.makeSucceededFuture(cached) }
-            return self.resolve(ast: cached, chain: chain).map {$0}
+            guard !cached.flat else {
+                return nself.eventLoop.makeSucceededFuture(cached)
+            }
+            return nself.resolve(ast: cached, chain: chain).map { $0 }
         }
     }
 
@@ -151,10 +146,13 @@ public final class LeafRenderer {
     /// - Recursively `fetch()` any extended template references and build a new `LeafAST`
     private func resolve(ast: LeafAST, chain: [String]) -> EventLoopFuture<LeafAST> {
         // if the ast is already flat, cache it immediately and return
-        if ast.flat == true { return self.cache.insert(ast, on: self.eventLoop, replace: true) }
+        guard !ast.flat else {
+            return self.cache.insert(ast, on: self.eventLoop, replace: true)
+        }
 
         var chain = chain
         chain.append(ast.name)
+
         let intersect = ast.unresolvedRefs.intersection(Set<String>(chain))
         guard intersect.count == 0 else {
             let badRef = intersect.first ?? ""
@@ -164,17 +162,22 @@ public final class LeafRenderer {
 
         let fetchRequests = ast.unresolvedRefs.map { self.fetch(template: $0, chain: chain) }
 
+        nonisolated(unsafe) let nself = self
         let results = EventLoopFuture.whenAllComplete(fetchRequests, on: self.eventLoop)
-        return results.flatMap { results in
-            let results = results
+
+        return results.flatMap { [chain] results in
             var externals: [String: LeafAST] = [:]
+
             for result in results {
                 // skip any unresolvable references
                 switch result {
-                    case .success(let external):
-                        guard let external = external else { continue }
-                        externals[external.name] = external
-                    case .failure(let e): return self.eventLoop.makeFailedFuture(e)
+                case .success(let external):
+                    guard let external else {
+                        continue
+                    }
+                    externals[external.name] = external
+                case .failure(let e):
+                    return nself.eventLoop.makeFailedFuture(e)
                 }
             }
             // create new AST with loaded references
@@ -182,10 +185,10 @@ public final class LeafRenderer {
             // Check new AST's unresolved refs to see if extension introduced new refs
             if !new.unresolvedRefs.subtracting(ast.unresolvedRefs).isEmpty {
                 // AST has new references - try to resolve again recursively
-                return self.resolve(ast: new, chain: chain)
+                return nself.resolve(ast: new, chain: chain)
             } else {
                 // Cache extended AST & return - AST is either flat or unresolvable
-                return self.cache.insert(new, on: self.eventLoop, replace: true)
+                return nself.cache.insert(new, on: nself.eventLoop, replace: true)
             }
         }
     }
@@ -194,19 +197,19 @@ public final class LeafRenderer {
     ///
     /// If the configured `LeafSource` can't read a file, future will fail - otherwise, a complete (but not
     /// necessarily flat) `LeafAST` will be returned.
-    private func read(source: String? = nil, name: String, escape: Bool = false) -> EventLoopFuture<LeafAST?> {
+    private func read(name: String, escape: Bool = false) -> EventLoopFuture<LeafAST?> {
         let raw: EventLoopFuture<(String, ByteBuffer)>
         do {
-            raw = try self.sources.find(template: name, in: source , on: self.eventLoop)
-        } catch { return eventLoop.makeFailedFuture(error) }
+            raw = try self.sources.find(template: name, in: nil, on: self.eventLoop)
+        } catch {
+            return self.eventLoop.makeFailedFuture(error)
+        }
 
         return raw.flatMapThrowing { raw -> LeafAST? in
             var raw = raw
             guard let template = raw.1.readString(length: raw.1.readableBytes) else {
                 throw LeafError.init(.unknownError("File read failed"))
             }
-            let name = source == nil ? name : raw.0 + name
-            
             var lexer = LeafLexer(name: name, template: LeafRawTemplate(name: name, src: template))
             let tokens = try lexer.lex()
             var parser = LeafParser(name: name, tokens: tokens)
@@ -217,9 +220,12 @@ public final class LeafRenderer {
     
     private func getFlatCachedHit(_ path: String) -> LeafAST? {
         // If cache provides blocking load, try to get a flat AST immediately
-        guard let blockingCache = cache as? any SynchronousLeafCache,
+        guard let blockingCache = self.cache as? any SynchronousLeafCache,
            let cached = try? blockingCache.retrieve(documentName: path),
-           cached.flat else { return nil }
+           cached.flat
+        else {
+            return nil
+        }
         return cached
     }
 }

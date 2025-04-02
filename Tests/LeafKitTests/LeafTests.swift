@@ -2,7 +2,6 @@
 import XCTest
 
 final class LeafTests: XCTestCase {
-
     // conversation ongoing
     func testCommentSugar() throws {
         let template = """
@@ -22,20 +21,17 @@ final class LeafTests: XCTestCase {
         try XCTAssertEqual(render(template), "hi #thisIsNotATag...")
     }
 
-    // conversation ongoing
     func testComplexIf() throws {
         let template = """
         #if(a): #if(b): hallo #else: #if(c): dallo #else: ballo #endif #endif #endif
         """
 
         let expectation = """
-        ballo
+           ballo   
         """
         let rendered = try render(template, ["a": .string("true")])
-        XCTAssertEqual(
-            rendered.trimmingCharacters(in: .whitespacesAndNewlines),
-            expectation.trimmingCharacters(in: .whitespacesAndNewlines)
-        )
+
+        XCTAssertEqual(rendered, expectation)
     }
 
     func testRaw() throws {

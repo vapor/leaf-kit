@@ -1,8 +1,7 @@
+@testable import LeafKit
 import XCTest
 
-@testable import LeafKit
-
-class HTMLEscapeTests: XCTestCase {
+final class HTMLEscapeTests: XCTestCase {
     func testCorrectness() {
         XCTAssertEqual("".htmlEscaped(), "")
         XCTAssertEqual("abcdef".htmlEscaped(), "abcdef")
@@ -10,6 +9,7 @@ class HTMLEscapeTests: XCTestCase {
         XCTAssertEqual("abc&".htmlEscaped(), "abc&amp;")
     }
 
+    #if !os(Android)
     func testShortStringNoReplacements() {
         let string = "abcde12345"
         measure {
@@ -75,5 +75,5 @@ class HTMLEscapeTests: XCTestCase {
             _ = longString.htmlEscaped()
         }
     }
-
+    #endif
 }

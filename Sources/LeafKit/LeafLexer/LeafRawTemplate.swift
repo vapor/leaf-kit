@@ -1,4 +1,4 @@
-internal struct LeafRawTemplate {
+struct LeafRawTemplate {
     // MARK: - Internal Only
     let name: String
     
@@ -9,31 +9,39 @@ internal struct LeafRawTemplate {
     }
 
     mutating func readWhile(_ check: (Character) -> Bool) -> String {
-        return String(readSliceWhile(pop: true, check))
+        .init(self.readSliceWhile(pop: true, check))
     }
 
     mutating func peekWhile(_ check: (Character) -> Bool) -> String {
-        return String(peekSliceWhile(check))
+        .init(self.peekSliceWhile(check))
     }
     
     @discardableResult
     mutating func popWhile(_ check: (Character) -> Bool) -> Int {
-        return readSliceWhile(pop: true, check).count
+        self.readSliceWhile(pop: true, check).count
     }
 
     func peek(aheadBy idx: Int = 0) -> Character? {
-        let peekIndex = body.index(current, offsetBy: idx)
-        guard peekIndex < body.endIndex else { return nil }
-        return body[peekIndex]
+        let peekIndex = self.body.index(self.current, offsetBy: idx)
+        guard peekIndex < self.body.endIndex else {
+            return nil
+        }
+        return self.body[peekIndex]
     }
 
     @discardableResult
     mutating func pop() -> Character? {
-        guard current < body.endIndex else { return nil }
-        if body[current] == .newLine { line += 1; column = 0 }
-        else { column += 1 }
-        defer { current = body.index(after: current) }
-        return body[current]
+        guard self.current < self.body.endIndex else {
+            return nil
+        }
+        if self.body[self.current] == .newLine {
+            self.line += 1
+            self.column = 0
+        } else {
+            self.column += 1
+        }
+        defer { self.current = self.body.index(after: self.current) }
+        return self.body[self.current]
     }
     
     // MARK: - Private Only
@@ -47,9 +55,13 @@ internal struct LeafRawTemplate {
     mutating private func readSliceWhile(pop: Bool, _ check: (Character) -> Bool) -> [Character] {
         var str = [Character]()
         str.reserveCapacity(512)
-        while let next = peek() {
-            guard check(next) else { return str }
-            if pop { self.pop() }
+        while let next = self.peek() {
+            guard check(next) else {
+                return str
+            }
+            if pop {
+                self.pop()
+            }
             str.append(next)
         }
         return str
@@ -59,8 +71,10 @@ internal struct LeafRawTemplate {
         var str = [Character]()
         str.reserveCapacity(512)
         var index = 0
-        while let next = peek(aheadBy: index) {
-            guard check(next) else { return str }
+        while let next = self.peek(aheadBy: index) {
+            guard check(next) else {
+                return str
+            }
             str.append(next)
             index += 1
         }

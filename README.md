@@ -1,24 +1,21 @@
 <p align="center">
-    <img 
-        src="https://user-images.githubusercontent.com/1342803/75629786-f9b64600-5bb2-11ea-856b-9ded8ea07450.png" 
-        height="64" 
-        alt="LeafKit"
-    >
-    <br>
-    <br>
-    <a href="https://docs.vapor.codes/4.0/">
-        <img src="http://img.shields.io/badge/read_the-docs-2196f3.svg" alt="Documentation">
-    </a>
-    <a href="https://discord.gg/vapor">
-        <img src="https://img.shields.io/discord/431917998102675485.svg" alt="Team Chat">
-    </a>
-    <a href="LICENSE">
-        <img src="http://img.shields.io/badge/license-MIT-brightgreen.svg" alt="MIT License">
-    </a>
-    <a href="https://github.com/vapor/leaf-kit/actions">
-        <img src="https://github.com/vapor/leaf-kit/workflows/test/badge.svg" alt="Continuous Integration">
-    </a>
-    <a href="https://swift.org">
-        <img src="http://img.shields.io/badge/swift-5.2-brightgreen.svg" alt="Swift 5.2">
-    </a>
+<img src="https://design.vapor.codes/images/vapor-leafkit.svg" height="96" alt="LeafKit">
+<br>
+<br>
+<a href="https://docs.vapor.codes/4.0/"><img src="https://design.vapor.codes/images/readthedocs.svg" alt="Documentation"></a>
+<a href="https://discord.gg/vapor"><img src="https://design.vapor.codes/images/discordchat.svg" alt="Team Chat"></a>
+<a href="LICENSE"><img src="https://design.vapor.codes/images/mitlicense.svg" alt="MIT License"></a>
+<a href="https://github.com/vapor/leaf-kit/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/vapor/leaf-kit/test.yml?event=push&style=plastic&logo=github&label=tests&logoColor=%23ccc" alt="Continuous Integration"></a>
+<a href="https://codecov.io/github/vapor/leaf-kit"><img src="https://img.shields.io/codecov/c/github/vapor/leaf-kit?style=plastic&logo=codecov&label=codecov"></a>
+<a href="https://swift.org"><img src="https://design.vapor.codes/images/swift510up.svg" alt="Swift 5.10+"></a>
 </p>
+
+<br>
+
+Leaf is a templating language for generating dynamic content such as HTML using a simple syntax.
+
+## Overview
+
+LeafKit is the main templating language for Vapor.
+
+For more details, check out the [docs](https://docs.vapor.codes/leaf/getting-started/).

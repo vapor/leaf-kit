@@ -1,11 +1,8 @@
-// MARK: `LeafError` Summary
-
-/// `LeafError` reports errors during the template rendering process, wrapping more specific
+/// ``LeafError`` reports errors during the template rendering process, wrapping more specific
 /// errors if necessary during Lexing and Parsing stages.
-///
 public struct LeafError: Error {
     /// Possible cases of a LeafError.Reason, with applicable stored values where useful for the type
-    public enum Reason {
+    public enum Reason: Sendable {
         // MARK: Errors related to loading raw templates
         /// Attempted to access a template blocked for security reasons
         case illegalAccess(String)
@@ -54,7 +51,6 @@ public struct LeafError: Error {
     /// The specific reason for the error
     public let reason: Reason
 
-    
     /// Provide  a custom description of the `LeafError` based on type.
     ///
     /// - Where errors are caused by toolchain faults, will report the Swift source code location of the call
@@ -63,34 +59,34 @@ public struct LeafError: Error {
         let file = self.file.split(separator: "/").last
         let src = "\(file ?? "?").\(function):\(line)"
 
-        switch self.reason {
+        return switch self.reason {
             case .illegalAccess(let message):
-                return "\(src) - \(message)"
+                "\(src) - \(message)"
             case .unknownError(let message):
-                return "\(src) - \(message)"
+                "\(src) - \(message)"
             case .unsupportedFeature(let feature):
-                return "\(src) - \(feature) is not implemented"
+                "\(src) - \(feature) is not implemented"
             case .cachingDisabled:
-                return "\(src) - Caching is globally disabled"
+                "\(src) - Caching is globally disabled"
             case .keyExists(let key):
-                return "\(src) - Existing entry \(key); use insert with replace=true to overrride"
+                "\(src) - Existing entry \(key); use insert with replace=true to overrride"
             case .noValueForKey(let key):
-                return "\(src) - No cache entry exists for \(key)"
+                "\(src) - No cache entry exists for \(key)"
             case .unresolvedAST(let key, let dependencies):
-                return "\(src) - Flat AST expected; \(key) has unresolved dependencies: \(dependencies)"
+                "\(src) - Flat AST expected; \(key) has unresolved dependencies: \(dependencies)"
             case .noTemplateExists(let key):
-                return "\(src) - No template found for \(key)"
+                "\(src) - No template found for \(key)"
             case .cyclicalReference(let key, let chain):
-                return "\(src) - \(key) cyclically referenced in [\(chain.joined(separator: " -> "))]"
+                "\(src) - \(key) cyclically referenced in [\(chain.joined(separator: " -> "))]"
             case .lexerError(let e):
-                return "Lexing error - \(e.localizedDescription)"
+                "Lexing error - \(e.localizedDescription)"
         }
     }
     
-    /// Create a `LeafError` - only `reason` typically used as source locations are auto-grabbed
+    /// Create a `LeafError`.
     public init(
         _ reason: Reason,
-        file: String = #file,
+        file: String = #fileID,
         function: String = #function,
         line: UInt = #line,
         column: UInt = #column
@@ -103,13 +99,11 @@ public struct LeafError: Error {
     }
 }
 
-// MARK: - `LexerError` Summary (Wrapped by LeafError)
-
-/// `LexerError` reports errors during the stage.
+/// ``LexerError`` reports errors during the lexing stage.
 public struct LexerError: Error {
     // MARK: - Public
     
-    public enum Reason {
+    public enum Reason: Sendable {
         // MARK: Errors occuring during Lexing
         /// A character not usable in parameters is present when Lexer is not expecting it
         case invalidParameterToken(Character)
@@ -131,11 +125,11 @@ public struct LexerError: Error {
     // MARK: - Internal Only
     
     /// State of tokens already processed by Lexer prior to error
-    internal let lexed: [LeafToken]
+    let lexed: [LeafToken]
     /// Flag to true if lexing error is something that may be recoverable during parsing;
     /// EG, `"#anhtmlanchor"` may lex as a tag name but fail to tokenize to tag because it isn't
     /// followed by a left paren. Parser may be able to recover by decaying it to `.raw`.
-    internal let recoverable: Bool
+    let recoverable: Bool
     
     /// Create a `LexerError`
     /// - Parameters:
@@ -143,7 +137,7 @@ public struct LexerError: Error {
     ///   - src: File being lexed
     ///   - lexed: `LeafTokens` already lexed prior to error
     ///   - recoverable: Flag to say whether the error can potentially be recovered during Parse
-    internal init(
+    init(
         _ reason: Reason,
         src: LeafRawTemplate,
         lexed: [LeafToken] = [],
@@ -159,6 +153,6 @@ public struct LexerError: Error {
     
     /// Convenience description of source file name, error reason, and location in file of error source
     var localizedDescription: String {
-        return "\"\(name)\": \(reason) - \(line):\(column)"
+        "\"\(self.name)\": \(self.reason) - \(self.line):\(self.column)"
     }
 }

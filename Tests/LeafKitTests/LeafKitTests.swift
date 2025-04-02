@@ -1,7 +1,7 @@
-import XCTest
-import NIOConcurrencyHelpers
 @testable import LeafKit
-import NIO
+import NIOCore
+import NIOPosix
+import XCTest
 
 final class ParserTests: XCTestCase {
     func testParsingNesting() throws {
@@ -79,7 +79,7 @@ final class ParserTests: XCTestCase {
         #import("body")
         """
 
-        let syntax = try! parse(base)
+        let syntax = try parse(base)
         let ast = LeafAST(name: "base", ast: syntax)
         XCTAssertFalse(ast.unresolvedRefs.count == 0, "Unresolved template")
     }
@@ -391,7 +391,7 @@ final class LeafKitTests: XCTestCase {
         XCTAssertEqual(view.string, "Todo: Leaf!")
     }
 
-    func testRendererContext() throws {
+    func testRendererContext() async throws {
         var test = TestFiles()
         test.files["/foo.leaf"] = "Hello #custom(name)"
 
@@ -408,35 +408,27 @@ final class LeafKitTests: XCTestCase {
             sources: .singleSource(test),
             userInfo: ["prefix": "bar"]
         )
-        let view = try renderer.render(path: "foo", context: [
-            "name": "vapor"
-        ]).wait()
 
-        XCTAssertEqual(view.string, "Hello barvapor")
+        await XCTAssertEqualAsync(try await renderer.render(path: "foo", context: ["name": "vapor"]).string, "Hello barvapor")
     }
 
-    func testImportResolve() {
+    func testImportResolve() async throws {
         var test = TestFiles()
         test.files["/a.leaf"] = """
-        #extend("b"):
-        #export("variable"):Hello#endexport
-        #endextend
-        """
-        test.files["/b.leaf"] = """
-        #import("variable")
-        """
+            #extend("b"):
+            #export("variable"):Hello#endexport
+            #endextend
+            """
+            test.files["/b.leaf"] = """
+            #import("variable")
+            """
 
         let renderer = TestRenderer(sources: .singleSource(test))
 
-        do {
-            let output = try renderer.render(path: "a").wait().string
-            XCTAssertEqual(output, "Hello")
-        } catch {
-            let e = error as! LeafError
-            XCTFail(e.localizedDescription)
-        }
+        await XCTAssertEqualAsync(try await renderer.render(path: "a").string, "Hello")
     }
 
+    #if !os(Android)
     func testCacheSpeedLinear() {
         self.measure {
             self._testCacheSpeedLinear(templates: 10, iterations: 100)
@@ -444,22 +436,21 @@ final class LeafKitTests: XCTestCase {
     }
 
     func _testCacheSpeedLinear(templates: Int, iterations: Int) {
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        let group = NIOSingletons.posixEventLoopGroup
         var test = TestFiles()
 
         for name in 1...templates { test.files["/\(name).leaf"] = "Template /\(name).leaf" }
         let renderer = TestRenderer(
             sources: .singleSource(test),
-            eventLoop: group.next()
+            eventLoop: group.any()
         )
 
         for iteration in 1...iterations {
             let template = String((iteration % templates) + 1)
-            renderer.render(path: template).whenComplete { _ in renderer.finishTask() }
+            _ = try? renderer.render(path: template).wait(); renderer.finishTask()
         }
 
-        while !renderer.isDone { usleep(10) }
-        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, templates) }
+        XCTAssertEqual(renderer.r.cache.count, templates)
     }
 
     func testCacheSpeedRandom() {
@@ -470,7 +461,7 @@ final class LeafKitTests: XCTestCase {
     }
 
     func _testCacheSpeedRandom(layer1: Int, layer2: Int, layer3: Int, iterations: Int) {
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        let group = NIOSingletons.posixEventLoopGroup
         var test = TestFiles()
 
         for name in 1...layer3 { test.files["/\(name)-3.leaf"] = "Template \(name)"}
@@ -484,53 +475,50 @@ final class LeafKitTests: XCTestCase {
 
         let renderer = TestRenderer(
             sources: .singleSource(test),
-            eventLoop: group.next()
+            eventLoop: group.any()
         )
 
         for x in (0..<iterations).reversed() {
             let template: String
             if x / ratio < hitList.count { template = hitList.removeFirst() }
             else { template = allKeys[Int.random(in: 0 ..< totalTemplates)] }
-            renderer.render(path: template).whenComplete { _ in renderer.finishTask() }
+            _ = try? renderer.render(path: template).wait(); renderer.finishTask()
         }
 
-        while !renderer.isDone { usleep(10) }
-        group.shutdownGracefully { _ in XCTAssertEqual(renderer.r.cache.count, layer1+layer2+layer3) }
+        XCTAssertEqual(renderer.r.cache.count, layer1 + layer2 + layer3)
     }
+    #endif
 
-    func testImportParameter() throws {
+    func testImportParameter() async throws {
         var test = TestFiles()
         test.files["/base.leaf"] = """
-        #extend("parameter"):
-            #export("admin", admin)
-        #endextend
-        """
+            #extend("parameter"):
+                #export("admin", admin)
+            #endextend
+            """
         test.files["/delegate.leaf"] = """
-        #extend("parameter"):
-            #export("delegated", false || bypass)
-        #endextend
-        """
+            #extend("parameter"):
+                #export("delegated", false || bypass)
+            #endextend
+            """
         test.files["/parameter.leaf"] = """
-        #if(import("admin")):
-            Hi Admin
-        #elseif(import("delegated")):
-            Also an admin
-        #else:
-            No Access
-        #endif
-        """
+            #if(import("admin")):
+                Hi Admin
+            #elseif(import("delegated")):
+                Also an admin
+            #else:
+                No Access
+            #endif
+            """
 
         let renderer = TestRenderer(sources: .singleSource(test))
         
-        let normalPage = try renderer.render(path: "base", context: ["admin": false]).wait()
-        let adminPage = try renderer.render(path: "base", context: ["admin": true]).wait()
-        let delegatePage = try renderer.render(path: "delegate", context: ["bypass": true]).wait()
-        XCTAssertEqual(normalPage.string.trimmingCharacters(in: .whitespacesAndNewlines), "No Access")
-        XCTAssertEqual(adminPage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Hi Admin")
-        XCTAssertEqual(delegatePage.string.trimmingCharacters(in: .whitespacesAndNewlines), "Also an admin")
+        await XCTAssertEqualAsync(try await renderer.render(path: "base", context: ["admin": false]).string, "\n    No Access\n")
+        await XCTAssertEqualAsync(try await renderer.render(path: "base", context: ["admin": true]).string, "\n    Hi Admin\n")
+        await XCTAssertEqualAsync(try await renderer.render(path: "delegate", context: ["bypass": true]).string, "\n    Also an admin\n")
     }
     
-    func testDeepResolve() {
+    func testDeepResolve() async throws {
         var test = TestFiles()
         test.files["/a.leaf"] = """
         #for(a in b):#if(false):Hi#elseif(true && false):Hi#else:#extend("b"):#export("derp"):DEEP RESOLUTION #(a)#endexport#endextend#endif#endfor
@@ -549,85 +537,64 @@ final class LeafKitTests: XCTestCase {
 
         let renderer = TestRenderer(sources: .singleSource(test))
 
-        let page = try! renderer.render(path: "a", context: ["b":["1","2","3"]]).wait()
-            XCTAssertEqual(page.string, expected)
+        await XCTAssertEqualAsync(try await renderer.render(path: "a", context: ["b":["1","2","3"]]).string, expected)
     }
-    
-    func testFileSandbox() throws {
-        let threadPool = NIOThreadPool(numberOfThreads: 1)
-        threadPool.start()
-        let fileio = NonBlockingFileIO(threadPool: threadPool)
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-    
+
+    // The #filePath trick this test relies on doesn't work in the Android CI because the build
+    // machine is not the same box as the test machine; we'd need to turn the templates into working
+    // resources for that. Disable for now.
+    #if !os(Android)
+    func testFileSandbox() async throws {
         let renderer = TestRenderer(
             configuration: .init(rootDirectory: templateFolder),
-            sources: .singleSource(NIOLeafFiles(fileio: fileio,
-                                                limits: .default,
-                                                sandboxDirectory: templateFolder,
-                                                viewDirectory: templateFolder + "SubTemplates/")),
-            eventLoop: group.next()
+            sources: .singleSource(NIOLeafFiles(
+                fileio: .init(threadPool: NIOSingletons.posixBlockingThreadPool),
+                limits: .default,
+                sandboxDirectory: templateFolder,
+                viewDirectory: templateFolder + "/SubTemplates"
+            )),
+            eventLoop: NIOSingletons.posixEventLoopGroup.any()
         )
         
-        renderer.render(path: "test").whenComplete { _ in renderer.finishTask() }
-        renderer.render(path: "../test").whenComplete { _ in renderer.finishTask() }
-        renderer.render(path: "../../test").whenComplete { result in
-            renderer.finishTask()
-            if case .failure(let e) = result, let err = e as? LeafError {
-                XCTAssert(err.localizedDescription.contains("Attempted to escape sandbox"))
-            } else { XCTFail() }
+        await XCTAssertNoThrowAsync(try await renderer.render(path: "test"))
+        await XCTAssertNoThrowAsync(try await renderer.render(path: "../test"))
+        await XCTAssertThrowsErrorAsync(try await renderer.render(path: "../../test")) {
+            XCTAssert(($0 as? LeafError)?.localizedDescription.contains("Attempted to escape sandbox") ?? false)
         }
-        renderer.render(path: ".test").whenComplete { result in
-            renderer.finishTask()
-            if case .failure(let e) = result, let err = e as? LeafError {
-                XCTAssert(err.localizedDescription.contains("Attempted to access .test"))
-            } else { XCTFail() }
+        await XCTAssertThrowsErrorAsync(try await renderer.render(path: ".test")) {
+            XCTAssert(($0 as? LeafError)?.localizedDescription.contains("Attempted to access .test") ?? false)
         }
-        
-        while !renderer.isDone { usleep(10) }
-        try group.syncShutdownGracefully()
-        try threadPool.syncShutdownGracefully()
+        XCTAssert(renderer.isDone)
     }
-    
-    func testMultipleSources() throws {
+    #endif
+
+    func testMultipleSources() async throws {
         var sourceOne = TestFiles()
         var sourceTwo = TestFiles()
-        var hiddenSource = TestFiles()
         sourceOne.files["/a.leaf"] = "This file is in sourceOne"
         sourceTwo.files["/b.leaf"] = "This file is in sourceTwo"
-        hiddenSource.files["/c.leaf"] = "This file is in hiddenSource"
-        
+
         let multipleSources = LeafSources()
-        try! multipleSources.register(using: sourceOne)
-        try! multipleSources.register(source: "sourceTwo", using: sourceTwo)
-        try! multipleSources.register(source: "hiddenSource", using: hiddenSource, searchable: false)
-        
+        try multipleSources.register(using: sourceOne)
+        try multipleSources.register(source: "sourceTwo", using: sourceTwo)
+
         let unsearchableSources = LeafSources()
-        try! unsearchableSources.register(source: "unreachable", using: sourceOne, searchable: false)
-        
+        try unsearchableSources.register(source: "unreachable", using: sourceOne, searchable: false)
+
         let goodRenderer = TestRenderer(sources: multipleSources)
         let emptyRenderer = TestRenderer(sources: unsearchableSources)
         
         XCTAssert(goodRenderer.r.sources.all.contains("sourceTwo"))
         XCTAssert(emptyRenderer.r.sources.searchOrder.isEmpty)
 
-        let output1 = try goodRenderer.render(path: "a").wait().string
-        XCTAssert(output1.contains("sourceOne"))
-        let output2 = try goodRenderer.render(path: "b").wait().string
-        XCTAssert(output2.contains("sourceTwo"))
+        await XCTAssertAsync(try await goodRenderer.render(path: "a").string.contains("sourceOne"))
+        await XCTAssertAsync(try await goodRenderer.render(path: "b").string.contains("sourceTwo"))
 
-        do { try XCTFail(goodRenderer.render(path: "c").wait().string) }
-        catch {
-            let error = error as! LeafError
-            XCTAssert(error.localizedDescription.contains("No template found"))
+        await XCTAssertThrowsErrorAsync(try await goodRenderer.render(path: "c")) {
+            XCTAssert(($0 as? LeafError)?.localizedDescription.contains("No template found") ?? false)
         }
-        
-        let output3 = try goodRenderer.render(source: "hiddenSource", path: "c").wait().string
-        XCTAssert(output3.contains("hiddenSource"))
-        
-        do { try XCTFail(emptyRenderer.render(path: "c").wait().string) }
-        catch {
-            let error = error as! LeafError
-            XCTAssert(error.localizedDescription.contains("No searchable sources exist"))
+        await XCTAssertThrowsErrorAsync(try await emptyRenderer.render(path: "c")) {
+            XCTAssert(($0 as? LeafError)?.localizedDescription.contains("No searchable sources exist") ?? false)
         }
     }
 
@@ -641,7 +608,6 @@ final class LeafKitTests: XCTestCase {
         struct BodyRequiringTag: UnsafeUnescapedLeafTag {
             func render(_ ctx: LeafContext) throws -> LeafData {
                 _ = try ctx.requireBody()
-                
                 return .string("Hello there")
             }
         }
@@ -649,7 +615,6 @@ final class LeafKitTests: XCTestCase {
         struct NoBodyRequiringTag: UnsafeUnescapedLeafTag {
             func render(_ ctx: LeafContext) throws -> LeafData {
                 try ctx.requireNoBody()
-                
                 return .string("General Kenobi")
             }
         }
@@ -661,9 +626,11 @@ final class LeafKitTests: XCTestCase {
             ],
             sources: .singleSource(test)
         )
-        XCTAssertEqual(try renderer.render(path: "body", context: ["test":"ciao"]).wait().string, "Hello there")
-        XCTAssertThrowsError(try renderer.render(path: "bodyError", context: [:]).wait())
-        XCTAssertEqual(try renderer.render(path: "nobody", context: [:]).wait().string, "General Kenobi")
-        XCTAssertThrowsError(try renderer.render(path: "nobodyError", context: [:]).wait())
+
+        await XCTAssertEqualAsync(try await renderer.render(path: "body", context: ["test":"ciao"]).string, "Hello there")
+        await XCTAssertThrowsErrorAsync(try await renderer.render(path: "bodyError", context: [:]))
+
+        await XCTAssertEqualAsync(try await renderer.render(path: "nobody", context: [:]).string, "General Kenobi")
+        await XCTAssertThrowsErrorAsync(try await renderer.render(path: "nobodyError", context: [:]))
     }
 }
