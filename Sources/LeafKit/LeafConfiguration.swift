@@ -67,7 +67,8 @@ public struct LeafConfiguration: Sendable {
         get { Self._dataLock.withLock { Self._nilFormatter } }
         set { Self._dataLock.withLockVoid { if !Self.running { Self._nilFormatter = newValue } } }
     }
-    
+
+    /// Note: ``voidFormatter`` is never used by Leaf.
     public static var voidFormatter: () -> String {
         get { Self._dataLock.withLock { Self._voidFormatter } }
         set { Self._dataLock.withLockVoid { if !Self.running { Self._voidFormatter = newValue } } }
@@ -119,7 +120,7 @@ public struct LeafConfiguration: Sendable {
     private nonisolated(unsafe) static var _arrayFormatter: ([String]) -> String =
         { "[\($0.map {"\"\($0)\""}.joined(separator: ", "))]" }
     private nonisolated(unsafe) static var _dictFormatter: ([String: String]) -> String =
-        { "[\($0.map { "\($0): \"\($1)\"" }.joined(separator: ", "))]" }
+        { "[\($0.sorted { $0.0 < $1.0 }.map { "\($0): \"\($1)\"" }.joined(separator: ", "))]" }
     private nonisolated(unsafe) static var _dataFormatter: (Data) -> String? =
         { String(data: $0, encoding: Self._encoding) }
 

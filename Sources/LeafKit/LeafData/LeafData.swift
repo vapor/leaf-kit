@@ -19,7 +19,6 @@ public struct LeafData:
     ExpressibleByNilLiteral,
     Sendable
 {
-
     /// The concrete instantiable object types for a `LeafData`
     public enum NaturalType: String, CaseIterable, Hashable, Sendable {
         case bool
@@ -69,7 +68,7 @@ public struct LeafData:
     
     // MARK: - Equatable Conformance
     public static func ==(lhs: LeafData, rhs: LeafData) -> Bool {
-        // Strict compare of invariant stored values; considers .nil & .void equal
+        // Strict compare of invariant stored values; considers nils equal
         if lhs.storage == rhs.storage {
             return true
         }

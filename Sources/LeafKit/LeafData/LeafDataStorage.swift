@@ -74,7 +74,7 @@ indirect enum LeafDataStorage: Equatable, CustomStringConvertible, Sendable {
     
     // MARK: - Equatable Conformance
    
-    /// Strict equality comparision, with .nil/.void being equal
+    /// Strict equality comparision, with nil being equal
     static func == (lhs: LeafDataStorage, rhs: LeafDataStorage) -> Bool {
         switch (lhs, rhs) {
         // Both optional and nil
