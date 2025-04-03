@@ -1,10 +1,10 @@
-import LeafKit
 import Testing
+
+@testable import LeafKit
 
 @Suite
 struct LeafTests {
-    // conversation ongoing
-    func testCommentSugar() throws {
+    @Test func testCommentSugar() throws {
         let template = """
             #("foo")
             #comment:
@@ -12,17 +12,17 @@ struct LeafTests {
             #endcomment
             bar
             """
-        #expect(render(template) == "foo\n\nbar")
+        #expect(try render(template) == "foo\n\nbar")
     }
 
-    func testHashtag() throws {
+    @Test func testHashtag() throws {
         let template = """
             #("hi") #thisIsNotATag...
             """
-        #expect(render(template) == "hi #thisIsNotATag...")
+        #expect(try render(template) == "hi #thisIsNotATag...")
     }
 
-    func testComplexIf() throws {
+    @Test func testComplexIf() throws {
         let template = """
             #if(a): #if(b): hallo #else: #if(c): dallo #else: ballo #endif #endif #endif
             """
@@ -35,43 +35,43 @@ struct LeafTests {
         #expect(rendered == expectation)
     }
 
-    func testRaw() throws {
+    @Test func testRaw() throws {
         let template = "Hello!"
-        #expect(render(template) == "Hello!")
+        #expect(try render(template) == "Hello!")
     }
 
-    func testPrint() throws {
+    @Test func testPrint() throws {
         let template = "Hello, #(name)!"
-        #expect(render(template, ["name": "Tanner"]), "Hello == Tanner!")
+        #expect(try render(template, ["name": "Tanner"]) == "Hello == Tanner!")
     }
 
-    func testConstant() throws {
+    @Test func testConstant() throws {
         let template = "<h1>#(42)</h1>"
-        #expect(render(template) == "<h1>42</h1>")
+        #expect(try render(template) == "<h1>42</h1>")
     }
 
-    func testNested() throws {
+    @Test func testNested() throws {
         let template = """
             <p>#(lowercased(foo))</p>
             """
-        #expect(render(template, ["foo": "BAR"]) == "<p>bar</p>")
+        #expect(try render(template, ["foo": "BAR"]) == "<p>bar</p>")
     }
 
-    func testExpression() throws {
+    @Test func testExpression() throws {
         let template = "#(age > 99)"
-        #expect(render(template, ["age": 21]) == "false")
-        #expect(render(template, ["age": 150]) == "true")
+        #expect(try render(template, ["age": 21]) == "false")
+        #expect(try render(template, ["age": 150]) == "true")
     }
 
-    func testBody() throws {
+    @Test func testBody() throws {
         let template = """
             #if(show):hi#endif
             """
-        #expect(render(template, ["show": false]) == "")
-        #expect(render(template, ["show": true]) == "hi")
+        #expect(try render(template, ["show": false]) == "")
+        #expect(try render(template, ["show": true]) == "hi")
     }
 
-    func testForSugar() throws {
+    @Test func testForSugar() throws {
         let template = """
             <p>
                 <ul>
@@ -86,129 +86,129 @@ struct LeafTests {
                 </ul>
             </p>
             """
-        #expect(render(template, ["names": ["Vapor", "Leaf", "Bits"]]) == expect)
+        #expect(try render(template, ["names": ["Vapor", "Leaf", "Bits"]]) == expect)
     }
 
-    func testIfSugar() throws {
+    @Test func testIfSugar() throws {
         let template = """
             #if(false):Bad#elseif(true):Good#else:Bad#endif
             """
-        #expect(render(template) == "Good")
+        #expect(try render(template) == "Good")
     }
 
-    func testNot() throws {
+    @Test func testNot() throws {
         let template = """
             #if(!false):Good#endif#if(!true):Bad#endif
             """
-        #expect(render(template) == "Good")
+        #expect(try render(template) == "Good")
     }
 
-    func testNestedBodies() throws {
+    @Test func testNestedBodies() throws {
         let template = """
             #if(true):#if(true):Hello#endif#endif
             """
-        #expect(render(template) == "Hello")
+        #expect(try render(template) == "Hello")
     }
 
-    func testDotSyntax() throws {
+    @Test func testDotSyntax() throws {
         let template = """
             #if(user.isAdmin):Hello, #(user.name)!#endif
             """
-        #expect(render(template, ["user": ["isAdmin": true, "name": "Tanner"]]), "Hello == Tanner!")
+        #expect(try render(template, ["user": ["isAdmin": true, "name": "Tanner"]]) == "Hello == Tanner!")
     }
 
-    func testEqual() throws {
+    @Test func testEqual() throws {
         let template = """
             #if(id == 42):User 42!#endif#if(id != 42):Shouldn't show up#endif
             """
-        #expect(render(template, ["id": 42, "name": "Tanner"]) == "User 42!")
+        #expect(try render(template, ["id": 42, "name": "Tanner"]) == "User 42!")
     }
 
-    func testStringIf() throws {
+    @Test func testStringIf() throws {
         let template = """
             #if(name):Hello, #(name)!#else:No Name!#endif
             """
         let expectedName = "Hello, Tanner!"
         let expectedNoName = "No Name!"
-        #expect(render(template, ["name": .string("Tanner")]) == expectedName)
-        #expect(render(template) == expectedNoName)
+        #expect(try render(template, ["name": .string("Tanner")]) == expectedName)
+        #expect(try render(template) == expectedNoName)
     }
 
-    func testEqualIf() throws {
+    @Test func testEqualIf() throws {
         let template = """
             #if(string1 == string2):Good#else:Bad#endif
             """
         let expectedGood = "Good"
         let expectedBad = "Bad"
-        #expect(render(template, ["string1": .string("Tanner"), "string2": .string("Tanner")]) == expectedGood)
-        #expect(render(template, ["string1": .string("Tanner"), "string2": .string("n/a")]) == expectedBad)
+        #expect(try render(template, ["string1": .string("Tanner"), "string2": .string("Tanner")]) == expectedGood)
+        #expect(try render(template, ["string1": .string("Tanner"), "string2": .string("n/a")]) == expectedBad)
     }
 
-    func testAndStringIf() throws {
+    @Test func testAndStringIf() throws {
         let template = """
             #if(name && one):Hello, #(name)#(one)!#elseif(name):Hello, #(name)!#else:No Name!#endif
             """
         let expectedNameOne = "Hello, Tanner1!"
         let expectedName = "Hello, Tanner!"
         let expectedNoName = "No Name!"
-        #expect(render(template, ["name": .string("Tanner"), "one": .string("1")]) == expectedNameOne)
-        #expect(render(template, ["name": .string("Tanner")]) == expectedName)
-        #expect(render(template) == expectedNoName)
+        #expect(try render(template, ["name": .string("Tanner"), "one": .string("1")]) == expectedNameOne)
+        #expect(try render(template, ["name": .string("Tanner")]) == expectedName)
+        #expect(try render(template) == expectedNoName)
     }
 
-    func testOrStringIf() throws {
+    @Test func testOrStringIf() throws {
         let template = """
             #if(name || one):Hello, #(name)#(one)!#else:No Name!#endif
             """
         let expectedName = "Hello, Tanner!"
         let expectedOne = "Hello, 1!"
         let expectedNoName = "No Name!"
-        #expect(render(template, ["name": .string("Tanner")]) == expectedName)
-        #expect(render(template, ["one": .string("1")]) == expectedOne)
-        #expect(render(template) == expectedNoName)
+        #expect(try render(template, ["name": .string("Tanner")]) == expectedName)
+        #expect(try render(template, ["one": .string("1")]) == expectedOne)
+        #expect(try render(template) == expectedNoName)
     }
 
-    func testArrayIf() throws {
+    @Test func testArrayIf() throws {
         let template = """
             #if(namelist):#for(name in namelist):Hello, #(name)!#endfor#else:No Name!#endif
             """
         let expectedName = "Hello, Tanner!"
         let expectedNoName = "No Name!"
-        #expect(render(template, ["namelist": [.string("Tanner")]]) == expectedName)
-        #expect(render(template) == expectedNoName)
+        #expect(try render(template, ["namelist": [.string("Tanner")]]) == expectedName)
+        #expect(try render(template) == expectedNoName)
     }
 
-    func testEscapeTag() throws {
+    @Test func testEscapeTag() throws {
         let template = """
             #("foo") \\#("bar")
             """
         let expected = """
             foo #("bar")
             """
-        #expect(render(template, [:]) == expected)
+        #expect(try render(template, [:]) == expected)
     }
 
-    func testEscapingQuote() throws {
+    @Test func testEscapingQuote() throws {
         let template = """
             #("foo \\"bar\\"")
             """
         let expected = """
             foo "bar"
             """
-        #expect(render(template) == expected)
+        #expect(try render(template) == expected)
     }
 
-    func testCount() throws {
+    @Test func testCount() throws {
         let template = """
             count: #count(array)
             """
         let expected = """
             count: 4
             """
-        #expect(render(template, ["array": ["", "", "", ""]]) == expected)
+        #expect(try render(template, ["array": ["", "", "", ""]]) == expected)
     }
 
-    func testDateFormat() throws {
+    @Test func testDateFormat() throws {
         let template = """
             Date: #date(foo, "yyyy-MM-dd")
             """
@@ -216,11 +216,11 @@ struct LeafTests {
         let expected = """
             Date: 1970-01-16
             """
-        #expect(render(template, ["foo": 1_337_000]) == expected)
+        #expect(try render(template, ["foo": 1_337_000]) == expected)
 
     }
 
-    func testWith() throws {
+    @Test func testWith() throws {
         let template = """
             #with(parent):#(child)#endwith
             """
@@ -228,10 +228,10 @@ struct LeafTests {
             Elizabeth
             """
 
-        #expect(render(template, ["parent": ["child": "Elizabeth"]]) == expected)
+        #expect(try render(template, ["parent": ["child": "Elizabeth"]]) == expected)
     }
 
-    func testWithWrappingExtend() throws {
+    @Test func testWithWrappingExtend() throws {
         let header = """
             <h1>#(child)</h1>
             """
@@ -259,7 +259,7 @@ struct LeafTests {
         #expect(str == expected)
     }
 
-    func testExtendWithSugar() throws {
+    @Test func testExtendWithSugar() throws {
         let header = """
             <h1>#(child)</h1>
             """
@@ -287,7 +287,7 @@ struct LeafTests {
         #expect(str == expected)
     }
 
-    func testNestedExtendWithSugar() throws {
+    @Test func testNestedExtendWithSugar() throws {
         let layout = """
             <body>#import("content")</body>
             """
@@ -320,7 +320,7 @@ struct LeafTests {
         #expect(str == expected)
     }
 
-    func testEmptyForLoop() throws {
+    @Test func testEmptyForLoop() throws {
         let template = """
             #for(category in categories):
                 <a class=“dropdown-item” href=“#”>#(category.name)</a>
@@ -337,11 +337,10 @@ struct LeafTests {
             var categories: [Category]
         }
 
-        #expect(render(template, ["categories": []]) == expected)
-
+        #expect(try render(template, ["categories": []]) == expected)
     }
 
-    func testKeyEqual() throws {
+    @Test func testKeyEqual() throws {
         let template = """
             #if(title == "foo"):it's foo#else:not foo#endif
             """
@@ -353,10 +352,10 @@ struct LeafTests {
             var title: String
         }
 
-        #expect(render(template, ["title": "foo"]) == expected)
+        #expect(try render(template, ["title": "foo"]) == expected)
     }
 
-    func testLoopIndices() throws {
+    @Test func testLoopIndices() throws {
         let template = """
             #for(name in names):
                 #(name) - index=#(index) last=#(isLast) first=#(isFirst)
@@ -372,10 +371,10 @@ struct LeafTests {
 
             """
 
-        #expect(render(template, ["names": ["tanner", "ziz", "vapor"]]) == expected)
+        #expect(try render(template, ["names": ["tanner", "ziz", "vapor"]]) == expected)
     }
 
-    func testNestedLoopIndices() throws {
+    @Test func testNestedLoopIndices() throws {
         let template = """
             #for(array in arrays):
             Array#(index) - [#for(element in array): #(index)#if(isFirst):(first)#elseif(isLast):(last)#endif : "#(element)"#if(!isLast):, #endif#endfor]#endfor
@@ -393,10 +392,10 @@ struct LeafTests {
             LeafData.array(["red fish", "blue fish", "green fish"]),
         ])
 
-        #expect(render(template, ["arrays": data]) == expected)
+        #expect(try render(template, ["arrays": data]) == expected)
     }
 
-    func testNestedLoopCustomIndices() throws {
+    @Test func testNestedLoopCustomIndices() throws {
         let template = """
             #for(i, array in arrays):#for(j, element in array):
             (#(i), #(j)): #(element)#endfor#endfor
@@ -421,36 +420,36 @@ struct LeafTests {
             LeafData.array(["red fish", "blue fish", "green fish"]),
         ])
 
-        #expect(render(template, ["arrays": data]) == expected)
+        #expect(try render(template, ["arrays": data]) == expected)
     }
 
     // It would be nice if a pre-render phase could catch things like calling
     // tags that would normally ALWAYS throw in serializing (eg, calling index
     // when not in a loop) so that warnings can be provided and AST can be minimized.
-    func testLoopTagsInvalid() throws {
+    @Test func testLoopTagsInvalid() throws {
         let template = """
             #if(isFirst):Wrong#else:Right#endif
             """
         let expected = "Right"
 
-        #expect(render(template, [:]) == expected)
+        #expect(try render(template, [:]) == expected)
     }
 
     // Current implementation favors context keys over tag keys, so
     // defining a key for isFirst in context will override accessing registered
     // LeafTags with the same name.
     // More reason to introduce scoping tag keys!!
-    func testTagContextOverride() throws {
+    @Test func testTagContextOverride() throws {
         let template = """
             #if(isFirst):Wrong (Maybe)#else:Right#endif
             """
         let expected = "Wrong (Maybe)"
 
-        #expect(render(template, ["isFirst": true]) == expected)
+        #expect(try render(template, ["isFirst": true]) == expected)
     }
 
     // Validate parse resolution of negative numbers
-    func testNegatives() throws {
+    @Test func testNegatives() throws {
         let input = """
             #(10)
             #(-10)
@@ -470,11 +469,11 @@ struct LeafTests {
             .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
             .joined(separator: "\n")
         #expect(parsed == syntax)
-        #expect(render(input) == expectation)
+        #expect(try render(input) == expectation)
     }
 
     // Validate parse resolution of evaluable expressions
-    func testComplexParameters() throws {
+    @Test func testComplexParameters() throws {
         let input = """
             #(index-5)
             #(10-5)
@@ -500,11 +499,11 @@ struct LeafTests {
             .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
             .joined(separator: "\n")
         #expect(parsed == syntax)
-        #expect(render(input, ["index": 10]) == expectation)
+        #expect(try render(input, ["index": 10]) == expectation)
     }
 
     // Validate parse resolution of negative numbers
-    func testOperandGrouping() throws {
+    @Test func testOperandGrouping() throws {
         let input = """
             #(!true&&!false)
             #((!true) || (!false))
@@ -539,6 +538,6 @@ struct LeafTests {
             .compactMap { $0.description != "raw(\"\\n\")" ? $0.description : nil }
             .joined(separator: "\n")
         #expect(parsed == syntax)
-        #expect(render(input) == expectation)
+        #expect(try render(input) == expectation)
     }
 }

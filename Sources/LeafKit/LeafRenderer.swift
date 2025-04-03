@@ -5,7 +5,7 @@ import NIOCore
 /// `LeafRenderer` implements the full Leaf language pipeline.
 ///
 /// It must be configured before use with the appropriate `LeafConfiguration` and consituent
-/// threadsafe protocol-implementating modules (an NIO `EventLoop`, `LeafCache`, `LeafSource`,
+/// threadsafe protocol-implementating modules (`LeafCache`, `LeafSource`,
 /// and potentially any number of custom `LeafTag` additions to the language).
 ///
 /// Additional instances of LeafRenderer can then be created using these shared modules to allow
@@ -55,7 +55,7 @@ public final class LeafRenderer {
     /// `"file.svg"` would correspond to `"/.../ViewDirectory/file.svg"`
     public func render(path: String, context: [String: LeafData]) async throws -> ByteBuffer {
         guard !path.isEmpty else {
-            throw LeafError(.noTemplateExists("(no key provided)"))
+            throw LeafError.noTemplateExists(at: "(no key provided)")
         }
 
         // If a flat AST is cached and available, serialize and return
@@ -69,19 +69,19 @@ public final class LeafRenderer {
         let cached = try await self.cache.retrieve(documentName: path)
         do {
             guard let cached else {
-                throw LeafError(.noValueForKey(path))
+                throw LeafError.noValueForKey(path)
             }
             guard cached.flat else {
-                throw LeafError(.unresolvedAST(path, Array(cached.unresolvedRefs)))
+                throw LeafError.unresolvedAST(path, dependencies: Array(cached.unresolvedRefs))
             }
             return try self.serialize(cached, context: context)
         } catch {
             let ast = try await self.fetch(template: path)
             guard let ast else {
-                throw LeafError(.noTemplateExists(path))
+                throw LeafError.noTemplateExists(at: path)
             }
             guard ast.flat else {
-                throw LeafError(.unresolvedAST(path, Array(ast.unresolvedRefs)))
+                throw LeafError.unresolvedAST(path, dependencies: Array(ast.unresolvedRefs))
             }
             return try self.serialize(ast, context: context)
         }
@@ -92,7 +92,7 @@ public final class LeafRenderer {
     /// Given a `LeafAST` and context data, serialize the AST with provided data into a final render
     private func serialize(_ doc: LeafAST, context: [String: LeafData]) throws -> ByteBuffer {
         guard doc.flat else {
-            throw LeafError(.unresolvedAST(doc.name, Array(doc.unresolvedRefs)))
+            throw LeafError.unresolvedAST(doc.name, dependencies: Array(doc.unresolvedRefs))
         }
 
         var serializer = LeafSerializer(
@@ -148,7 +148,7 @@ public final class LeafRenderer {
         guard intersect.count == 0 else {
             let badRef = intersect.first ?? ""
             chain.append(badRef)
-            throw LeafError(.cyclicalReference(badRef, chain))
+            throw LeafError.cyclicalReference(badRef, chain: chain)
         }
 
         var results: [LeafAST?] = []
@@ -185,7 +185,7 @@ public final class LeafRenderer {
         var raw = try await self.sources.find(template: name, in: nil)
 
         guard let template = raw.1.readString(length: raw.1.readableBytes) else {
-            throw LeafError.init(.unknownError("File read failed"))
+            throw LeafError.unknownError("File read failed")
         }
         var lexer = LeafLexer(name: name, template: LeafRawTemplate(name: name, src: template))
         let tokens = try lexer.lex()

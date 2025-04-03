@@ -48,7 +48,7 @@ public actor LeafSources: Sendable {
         searchable: Bool = true
     ) throws {
         guard !self.sources.keys.contains(key) else {
-            throw LeafError(.unknownError("Can't replace source at \(key)"))
+            throw LeafError.unknownError("Can't replace source at \(key)")
         }
         self.sources[key] = source
         if searchable {
@@ -73,11 +73,11 @@ public actor LeafSources: Sendable {
             if all.contains(source) {
                 keys = [source]
             } else {
-                throw LeafError(.illegalAccess("Invalid source \(source) specified"))
+                throw LeafError.illegalAccess("Invalid source \(source) specified")
             }
         }
         guard !keys.isEmpty else {
-            throw LeafError(.illegalAccess("No searchable sources exist"))
+            throw LeafError.illegalAccess("No searchable sources exist")
         }
 
         return try await self.searchSources(template: template, sources: keys)
@@ -85,7 +85,7 @@ public actor LeafSources: Sendable {
 
     private func searchSources(template: String, sources: [String]) async throws -> (String, ByteBuffer) {
         guard !sources.isEmpty else {
-            throw LeafError(.noTemplateExists(template))
+            throw LeafError.noTemplateExists(at: template)
         }
 
         var remaining = sources
@@ -96,12 +96,9 @@ public actor LeafSources: Sendable {
             // Assuming source.file has been updated to be async
             let file = try await source.file(template: template, escape: true)
             return (key, file)
-        } catch let error as LeafError {
+        } catch let error as LeafError where error.errorType == .illegalAccess {
             // If the thrown error is illegal access, fail immediately
-            if case .illegalAccess(_) = error.reason {
-                throw error
-            }
-            return try await searchSources(template: template, sources: remaining)
+            throw error
         } catch {
             // Try the next source
             return try await searchSources(template: template, sources: remaining)

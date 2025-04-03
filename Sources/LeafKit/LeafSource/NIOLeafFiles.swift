@@ -69,9 +69,7 @@ public struct NIOLeafFiles: LeafSource, Sendable {
     ///   - template: Relative template name (eg: `"path/to/template"`)
     ///   - escape: If the adherent represents a filesystem or something scoped that enforces
     ///             a concept of directories and sandboxing, whether to allow escaping the view directory
-    ///   - eventLoop: `EventLoop` on which to perform file access
-    /// - Returns: A succeeded `EventLoopFuture` holding a `ByteBuffer` with the raw
-    ///            template, or an appropriate failed state ELFuture (not found, illegal access, etc)
+    /// - Returns: `ByteBuffer` with the raw template.
     public func file(template: String, escape: Bool = false) async throws -> ByteBuffer {
         var templateURL = URL(fileURLWithPath: self.sandbox)
             .appendingPathComponent(self.viewRelative, isDirectory: true)
@@ -96,14 +94,14 @@ public struct NIOLeafFiles: LeafSource, Sendable {
                     }
                     .joined(separator: ",")
                 if !protected.isEmpty {
-                    throw LeafError(.illegalAccess("Attempted to access \(protected)"))
+                    throw LeafError.illegalAccess("Attempted to access \(protected)")
                 }
             }
 
             if self.limits.contains(.toSandbox) {
                 let limitedTo = escape ? self.sandbox : self.sandbox + self.viewRelative
                 guard template.starts(with: limitedTo) else {
-                    throw LeafError(.illegalAccess("Attempted to escape sandbox: \(template)"))
+                    throw LeafError.illegalAccess("Attempted to escape sandbox: \(template)")
                 }
             }
         }
@@ -125,7 +123,7 @@ public struct NIOLeafFiles: LeafSource, Sendable {
                 try await fh.readToEnd(maximumSizeAllowed: .gibibytes(2))
             }
         } catch let error as FileSystemError where error.code == .notFound {
-            throw LeafError(.noTemplateExists(path))
+            throw LeafError.noTemplateExists(at: path)
         }
     }
 }

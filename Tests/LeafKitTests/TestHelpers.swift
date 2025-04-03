@@ -90,7 +90,7 @@ struct TestFiles: LeafSource {
         if let file = self.files[path] {
             return .init(string: file)
         } else {
-            throw LeafError(.noTemplateExists(template))
+            throw LeafError.noTemplateExists(at: template)
         }
     }
 }

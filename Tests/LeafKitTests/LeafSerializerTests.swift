@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct SerializerTests {
-    func testNestedKeyPathLoop() throws {
+    @Test func testNestedKeyPathLoop() throws {
         let input = """
             #for(person in people):
             hello #(person.name)
@@ -41,7 +41,7 @@ struct SerializerTests {
                 """)
     }
 
-    func testInvalidNestedKeyPathLoop() throws {
+    @Test func testInvalidNestedKeyPathLoop() throws {
         let input = """
             #for(person in people):
             hello #(person.name)
@@ -63,7 +63,9 @@ struct SerializerTests {
 
         var serializer = LeafSerializer(ast: syntax, ignoreUnfoundImports: false)
 
-        let error = #expect(throws: LeafError.self) { try serializer.serialize(context: ["people": people]) }
-        #expect(error.localizedDescription.contains("expected dictionary at key: person.profile"))
+        let error = #expect(throws: LeafError.self) {
+            try serializer.serialize(context: ["people": people])
+        }
+        #expect(error?.localizedDescription.contains("expected dictionary at key: person.profile") ?? false)
     }
 }

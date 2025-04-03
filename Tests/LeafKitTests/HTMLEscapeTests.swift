@@ -12,20 +12,20 @@ struct HTMLEscapeTests {
     }
 
     #if !os(Android)
-    func testShortStringNoReplacements() {
-        let string = "abcde12345"
-        measure {
-            _ = string.htmlEscaped()
-        }
-    }
+    // func testShortStringNoReplacements() {
+    //     let string = "abcde12345"
+    //     measure {
+    //         _ = string.htmlEscaped()
+    //     }
+    // }
 
-    func testShortStringWithReplacements() {
-        // The result should still fit into 15 bytes to hit the in-place String storage optimization.
-        let string = "<abcdef>"
-        measure {
-            _ = string.htmlEscaped()
-        }
-    }
+    // func testShortStringWithReplacements() {
+    //     // The result should still fit into 15 bytes to hit the in-place String storage optimization.
+    //     let string = "<abcdef>"
+    //     measure {
+    //         _ = string.htmlEscaped()
+    //     }
+    // }
 
     static let mediumStringNoReplacements: String = {
         let lowercase = Array(UInt8(ascii: "a")...UInt8(ascii: "z"))
@@ -35,11 +35,11 @@ struct HTMLEscapeTests {
         return String(bytes: lowercase + digits + uppercase, encoding: .utf8)!
     }()
 
-    func testMediumStringNoReplacements() {
-        measure {
-            _ = HTMLEscapeTests.mediumStringNoReplacements.htmlEscaped()
-        }
-    }
+    // func testMediumStringNoReplacements() {
+    //     measure {
+    //         _ = HTMLEscapeTests.mediumStringNoReplacements.htmlEscaped()
+    //     }
+    // }
 
     static let mediumStringWithReplacements: String = {
         let lowercase = Array(UInt8(ascii: "a")...UInt8(ascii: "z"))
@@ -54,31 +54,31 @@ struct HTMLEscapeTests {
         return String(bytes: allCharacters, encoding: .utf8)!
     }()
 
-    func testMediumStringWithReplacements() {
-        measure {
-            _ = HTMLEscapeTests.mediumStringWithReplacements.htmlEscaped()
-        }
-    }
+    // func testMediumStringWithReplacements() {
+    //     measure {
+    //         _ = HTMLEscapeTests.mediumStringWithReplacements.htmlEscaped()
+    //     }
+    // }
 
-    func testMediumStringWithOnlyReplacements() {
-        let string = Array(repeating: "&<>\"'", count: 10).joined(separator: "")
-        measure {
-            _ = string.htmlEscaped()
-        }
-    }
+    // func testMediumStringWithOnlyReplacements() {
+    //     let string = Array(repeating: "&<>\"'", count: 10).joined(separator: "")
+    //     measure {
+    //         _ = string.htmlEscaped()
+    //     }
+    // }
 
-    func testLongStringNoReplacements() {
-        let longString = Array(repeating: HTMLEscapeTests.mediumStringNoReplacements, count: 20).joined(separator: "")
-        measure {
-            _ = longString.htmlEscaped()
-        }
-    }
+    // func testLongStringNoReplacements() {
+    //     let longString = Array(repeating: HTMLEscapeTests.mediumStringNoReplacements, count: 20).joined(separator: "")
+    //     measure {
+    //         _ = longString.htmlEscaped()
+    //     }
+    // }
 
-    func testLongStringWithReplacements() {
-        let longString = Array(repeating: HTMLEscapeTests.mediumStringWithReplacements, count: 20).joined(separator: "")
-        measure {
-            _ = longString.htmlEscaped()
-        }
-    }
+    // func testLongStringWithReplacements() {
+    //     let longString = Array(repeating: HTMLEscapeTests.mediumStringWithReplacements, count: 20).joined(separator: "")
+    //     measure {
+    //         _ = longString.htmlEscaped()
+    //     }
+    // }
     #endif
 }

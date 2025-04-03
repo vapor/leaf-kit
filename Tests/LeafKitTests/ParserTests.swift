@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct ParserTests {
-    func testParsingNesting() throws {
+    @Test func testParsingNesting() throws {
         let input = """
             #if(lowercase(first(name == "admin")) == "welcome"):
             foo
@@ -21,7 +21,7 @@ struct ParserTests {
         #expect(output == expectation)
     }
 
-    func testComplex() throws {
+    @Test func testComplex() throws {
         let input = """
             #if(foo):
             foo
@@ -42,7 +42,7 @@ struct ParserTests {
         #expect(output == expectation)
     }
 
-    func testCompiler() throws {
+    @Test func testCompiler() throws {
         let input = """
             #if(sayhello):
                 abc
@@ -72,7 +72,7 @@ struct ParserTests {
         #expect(output == expectation)
     }
 
-    func testUnresolvedAST() throws {
+    @Test func testUnresolvedAST() throws {
         let base = """
             #extend("header")
             <title>#import("title")</title>
@@ -84,7 +84,7 @@ struct ParserTests {
         #require(ast.unresolvedRefs.count != 0, "Unresolved template")
     }
 
-    func testInsertResolution() throws {
+    @Test func testInsertResolution() throws {
         let header = """
             <h1>Hi!</h1>
             """
@@ -109,7 +109,7 @@ struct ParserTests {
         #expect(output == expectation)
     }
 
-    func testDocumentResolveExtend() throws {
+    @Test func testDocumentResolveExtend() throws {
         let header = """
             <h1>#import("header")</h1>
             """
@@ -147,7 +147,7 @@ struct ParserTests {
         #expect(output == expectation)
     }
 
-    func testCompileExtend() throws {
+    @Test func testCompileExtend() throws {
         let input = """
             #extend("base"):
                 #export("title", "Welcome")

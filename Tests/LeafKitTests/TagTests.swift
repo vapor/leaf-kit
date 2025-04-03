@@ -5,7 +5,7 @@ import Testing
 
 @Suite
 struct TagTests {
-    func testWithHTMLEntities() throws {
+    @Test func testWithHTMLEntities() throws {
         let template = """
             #(name)
             """
@@ -15,7 +15,7 @@ struct TagTests {
         #expect(render(template, ["name": "<h1>Alex</h1>\"\'"]) == expected)
     }
 
-    func testUnsafeTag() throws {
+    @Test func testUnsafeTag() throws {
         let template = """
             #unsafeHTML(name)
             """
@@ -25,7 +25,7 @@ struct TagTests {
         #expect(render(template, ["name": "<h1>Alex</h1>"]) == expected)
     }
 
-    func testUnsafeTagInteger() throws {
+    @Test func testUnsafeTagInteger() throws {
         let template = """
             #unsafeHTML(value)
             """
@@ -35,7 +35,7 @@ struct TagTests {
         #expect(render(template, ["value": 12345]) == expected)
     }
 
-    func testLowercaseTag() throws {
+    @Test func testLowercaseTag() throws {
         let template = """
             #lowercased(name)
             """
@@ -45,7 +45,7 @@ struct TagTests {
         #expect(render(template, ["name": "<Tim>"]) == expected)
     }
 
-    func testLowercaseTagWithAllCaps() throws {
+    @Test func testLowercaseTagWithAllCaps() throws {
         let template = """
             #lowercased(name)
             """
@@ -55,7 +55,7 @@ struct TagTests {
         #expect(render(template, ["name": "TIM"]) == expected)
     }
 
-    func testUppercaseTag() throws {
+    @Test func testUppercaseTag() throws {
         let template = """
             #uppercased(name)
             """
@@ -65,7 +65,7 @@ struct TagTests {
         #expect(render(template, ["name": "Tim"]) == expected)
     }
 
-    func testUppercaseTagWithHTML() throws {
+    @Test func testUppercaseTagWithHTML() throws {
         let template = """
             #uppercased(name)
             """
@@ -75,7 +75,7 @@ struct TagTests {
         #expect(render(template, ["name": "<h1>Tim</h1>"]) == expected)
     }
 
-    func testCapitalizedTag() throws {
+    @Test func testCapitalizedTag() throws {
         let template = """
             #capitalized(name)
             """
@@ -85,7 +85,7 @@ struct TagTests {
         #expect(render(template, ["name": "tim"]) == expected)
     }
 
-    func testCapitalizedTagWithHTML() throws {
+    @Test func testCapitalizedTagWithHTML() throws {
         let template = """
             #capitalized(name)
             """
@@ -95,7 +95,7 @@ struct TagTests {
         #expect(render(template, ["name": "<h1>tim</h1>"]) == expected)
     }
 
-    func testCount() throws {
+    @Test func testCount() throws {
         let template = """
             There are #count(people) people
             """
@@ -106,7 +106,7 @@ struct TagTests {
         #expect(render(template, ["people": ["Tanner", "Logan", "Gwynne", "Siemen", "Tim"]]) == expected)
     }
 
-    func testContainsTag() throws {
+    @Test func testContainsTag() throws {
         let template = """
             #if(contains(core, "Tanner")):
                 Tanner is in the core team!
@@ -121,7 +121,7 @@ struct TagTests {
         #expect(render(template, ["core": ["Tanner", "Logan", "Gwynne", "Siemen", "Tim"]]) == expected)
     }
 
-    func testIsEmpty() throws {
+    @Test func testIsEmpty() throws {
         let template = """
             #if(isEmpty(emptyString)):
                 This is an empty string.
@@ -136,7 +136,7 @@ struct TagTests {
         #expect(render(template, ["emptyString": ""]) == expected)
     }
 
-    func testIsEmptyFalseCase() throws {
+    @Test func testIsEmptyFalseCase() throws {
         let template = """
             #if(isEmpty(nonEmptyString)):
                 This is an empty string.
@@ -153,7 +153,7 @@ struct TagTests {
         #expect(render(template, ["nonEmptyString": "I'm not empty."]) == expected)
     }
 
-    func testContainsTagWithHTML() throws {
+    @Test func testContainsTagWithHTML() throws {
         let template = """
             #if(contains(core, "<h1>Tanner</h1>")):
                 Tanner is in the core team!
@@ -168,7 +168,7 @@ struct TagTests {
         #expect(render(template, ["core": ["<h1>Tanner</h1>", "Logan", "Gwynne", "Siemen", "Tim"]]) == expected)
     }
 
-    func testDate() throws {
+    @Test func testDate() throws {
         let template = """
             The date is #date(now)
             """
@@ -186,7 +186,7 @@ struct TagTests {
         #expect(render(template, ["now": .int(now)]) == expected)
     }
 
-    func testDateWithCustomFormat() throws {
+    @Test func testDateWithCustomFormat() throws {
         let template = """
             The date is #date(now, "yyyy-MM-dd")
             """
@@ -204,7 +204,7 @@ struct TagTests {
         #expect(render(template, ["now": .int(now)]) == expected)
     }
 
-    func testDateWithCustomFormatWithHTML() throws {
+    @Test func testDateWithCustomFormatWithHTML() throws {
         let template = """
             The date is #date(now, "<yyyy-MM-dd>")
             """
@@ -222,7 +222,7 @@ struct TagTests {
         #expect(render(template, ["now": .int(now)]) == expected)
     }
 
-    func testDateWithCustomFormatAndTimeZone() throws {
+    @Test func testDateWithCustomFormatAndTimeZone() throws {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
         formatter.timeZone = .init(secondsFromGMT: 0)
@@ -247,10 +247,10 @@ struct TagTests {
             The date is 2020-11-09T06:30
             """
 
-        #expect(render(templateCalifornia, ["now": .int(now)]) == expectedCalifornia)
+        try #expect(render(templateCalifornia, ["now": .int(now)]) == expectedCalifornia)
     }
 
-    func testDumpContext() throws {
+    @Test func testDumpContext() throws {
         let data: [String: LeafData] = ["value": 12345]
         let template = """
             dumpContext should output debug description #dumpContext
@@ -260,11 +260,11 @@ struct TagTests {
             dumpContext should output debug description [value: "12345"]
             """
 
-        #expect(render(template, data) == expected)
+        try #expect(render(template, data) == expected)
     }
 
     #if !os(Android)
-    func testPerformance() throws {
+    @Test func testPerformance() throws {
         let template = """
             <!DOCTYPE html>
             <html>

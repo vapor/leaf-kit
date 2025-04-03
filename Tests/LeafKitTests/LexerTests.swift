@@ -3,7 +3,7 @@ import Testing
 
 @Suite
 struct LexerTests {
-    func testParamNesting() throws {
+    @Test func testParamNesting() throws {
         let input = """
             #if(lowercase(first(name == "admin")) == "welcome"):
             foo
@@ -37,7 +37,7 @@ struct LexerTests {
         #expect(output == expectation)
     }
 
-    func testConstant() throws {
+    @Test func testConstant() throws {
         let input = "<h1>#(42)</h1>"
         let expectation = """
             raw("<h1>")
@@ -54,7 +54,7 @@ struct LexerTests {
         #expect(output == expectation)
     }
 
-    func testNoWhitespace() throws {
+    @Test func testNoWhitespace() throws {
         let input1 = "#if(!one||!two)"
         let input2 = "#if(!one || !two)"
         let input3 = "#if(! one||! two)"
@@ -70,7 +70,7 @@ struct LexerTests {
     }
 
     // Base2/8/10/16 lexing for Int constants, Base10/16 for Double
-    func testNonDecimals() throws {
+    @Test func testNonDecimals() throws {
         let input = "#(0b0101010 0o052 42 0_042 0x02A 0b0101010.0 0o052.0 42.0 0_042.0 0x02A.0)"
         let expectation = """
             tagIndicator
@@ -94,14 +94,14 @@ struct LexerTests {
         #expect(output == expectation)
     }
 
-    func testEscaping() throws {
+    @Test func testEscaping() throws {
         // input is really '\#' w/ escaping
         let input = "\\#"
         let output = try lex(input).string
         #expect(output == "raw(\"#\")\n")
     }
 
-    func testParameters() throws {
+    @Test func testParameters() throws {
         let input = "#(foo == 40, and, \"literal\", and, foo_bar)"
         let expectation = """
             tagIndicator
@@ -125,7 +125,7 @@ struct LexerTests {
         #expect(output == expectation)
     }
 
-    func testTags() throws {
+    @Test func testTags() throws {
         let input = """
             #tag
             #tag:
@@ -176,7 +176,7 @@ struct LexerTests {
         #expect(output == expectation)
     }
 
-    func testNestedEcho() throws {
+    @Test func testNestedEcho() throws {
         let input = """
             #(todo)
             #(todo.title)

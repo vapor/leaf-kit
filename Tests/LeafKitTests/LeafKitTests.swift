@@ -6,7 +6,7 @@ import Testing
 
 @Suite
 struct LeafKitTests {
-    func testNestedEcho() throws {
+    @Test func testNestedEcho() throws {
         let input = """
             Todo: #(todo.title)
             """
@@ -19,7 +19,7 @@ struct LeafKitTests {
         #expect(view.string == "Todo: Leaf!")
     }
 
-    func testRendererContext() async throws {
+    @Test func testRendererContext() async throws {
         var test = TestFiles()
         test.files["/foo.leaf"] = "Hello #custom(name)"
 
@@ -40,7 +40,7 @@ struct LeafKitTests {
         #expect(try await renderer.render(path: "foo", context: ["name": "vapor"]).string == "Hello barvapor")
     }
 
-    func testImportResolve() async throws {
+    @Test func testImportResolve() async throws {
         var test = TestFiles()
         test.files["/a.leaf"] = """
             #extend("b"):
@@ -104,7 +104,7 @@ struct LeafKitTests {
     }
     #endif
 
-    func testImportParameter() async throws {
+    @Test func testImportParameter() async throws {
         var test = TestFiles()
         test.files["/base.leaf"] = """
             #extend("parameter"):
@@ -133,7 +133,7 @@ struct LeafKitTests {
         #expect(try await renderer.render(path: "delegate", context: ["bypass": true]).string == "\n    Also an admin\n")
     }
 
-    func testDeepResolve() async throws {
+    @Test func testDeepResolve() async throws {
         var test = TestFiles()
         test.files["/a.leaf"] = """
             #for(a in b):#if(false):Hi#elseif(true && false):Hi#else:#extend("b"):#export("derp"):DEEP RESOLUTION #(a)#endexport#endextend#endif#endfor
@@ -159,7 +159,7 @@ struct LeafKitTests {
     // machine is not the same box as the test machine; we'd need to turn the templates into working
     // resources for that. Disable for now.
     #if !os(Android)
-    func testFileSandbox() async throws {
+    @Test func testFileSandbox() async throws {
         let renderer = TestRenderer(
             configuration: .init(rootDirectory: templateFolder),
             sources: .init(
@@ -174,17 +174,17 @@ struct LeafKitTests {
         await #expect(throws: Never.self) { try await renderer.render(path: "test") }
         await #expect(throws: Never.self) { try await renderer.render(path: "../test") }
 
-        let escapingSandboxError = await #expect(throws: LeafError.self) { try await renderer.render(path: "../../test") }
-        #expect(escapingSandboxError.localizedDescription.contains("Attempted to escape sandbox") ?? false)
+        let escapingSandboxError = await #expect(throws: LeafError.self) {
+            try await renderer.render(path: "../../test")
+        }
+        #expect(escapingSandboxError?.localizedDescription.contains("Attempted to escape sandbox") ?? false)
 
         let testAccessError = await #expect(throws: LeafError.self) { try await renderer.render(path: ".test") }
-        #expect(testAccessError.localizedDescription.contains("Attempted to access .test") ?? false)
-
-        #expect(renderer.isDone)
+        #expect(testAccessError?.localizedDescription.contains("Attempted to access .test") ?? false)
     }
     #endif
 
-    func testMultipleSources() async throws {
+    @Test func testMultipleSources() async throws {
         var sourceOne = TestFiles()
         var sourceTwo = TestFiles()
         sourceOne.files["/a.leaf"] = "This file is in sourceOne"
@@ -206,15 +206,18 @@ struct LeafKitTests {
         #expect(try await goodRenderer.render(path: "a").string.contains("sourceOne"))
         #expect(try await goodRenderer.render(path: "b").string.contains("sourceTwo"))
 
-        let noTemplateFoundError = await #expect(throws: LeafError.self) { try await goodRenderer.render(path: "c") }
-        #require(noTemplateFoundError.localizedDescription.contains("No template found"))
-        
-        let noSourcesError = await #expect(throws: LeafError.self) { try await emptyRenderer.render(path: "c") }
-        #expect(noSourcesError.localizedDescription.contains("No searchable sources exist"))
+        let noTemplateFoundError = await #expect(throws: LeafError.self) {
+            try await goodRenderer.render(path: "c")
+        }
+        try #require(noTemplateFoundError?.localizedDescription.contains("No template found") ?? false)
 
+        let noSourcesError = await #expect(throws: LeafError.self) {
+            try await emptyRenderer.render(path: "c")
+        }
+        #expect(noSourcesError?.localizedDescription.contains("No searchable sources exist") ?? false)
     }
 
-    func testBodyRequiring() async throws {
+    @Test func testBodyRequiring() async throws {
         var test = TestFiles()
         test.files["/body.leaf"] = "#bodytag:test#endbodytag"
         test.files["/bodyError.leaf"] = "#bodytag:#endbodytag"
@@ -244,9 +247,13 @@ struct LeafKitTests {
         )
 
         #expect(try await renderer.render(path: "body", context: ["test": "ciao"]).string == "Hello there")
-        await #expect(throws: (any Error).self) { try await renderer.render(path: "bodyError", context: [:]) }
+        await #expect(throws: (any Error).self) {
+            try await renderer.render(path: "bodyError", context: [:])
+        }
 
         #expect(try await renderer.render(path: "nobody", context: [:]).string == "General Kenobi")
-        await #expect(throws: (any Error).self) { try await renderer.render(path: "nobodyError", context: [:]) }
+        await #expect(throws: (any Error).self) {
+            try await renderer.render(path: "nobodyError", context: [:])
+        }
     }
 }

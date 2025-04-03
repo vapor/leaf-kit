@@ -4,29 +4,29 @@ import Testing
 
 @Suite
 struct PrintTests {
-    func testRaw() throws {
+    @Test func testRaw() throws {
         let template = "hello, raw text"
         let expectation = "raw(\"hello, raw text\")"
 
         let v = try #require(parse(template).first)
-        guard case .raw = v else { throw LeafError(.unknownError("nope")) }
+        guard case .raw = v else { throw LeafError.unknownError("nope") }
         let output = v.print(depth: 0)
         #expect(output == expectation)
     }
 
-    func testVariable() throws {
+    @Test func testVariable() throws {
         let template = "#(foo)"
         let expectation = "variable(foo)"
 
         let v = try #require(parse(template).first)
         guard case .expression(let e) = v,
             let test = e.first
-        else { throw LeafError(.unknownError("nope")) }
+        else { throw LeafError.unknownError("nope") }
         let output = test.description
         #expect(output == expectation)
     }
 
-    func testLoop() throws {
+    @Test func testLoop() throws {
         let template = """
             #for(name in names):
                 hello, #(name).
@@ -40,12 +40,12 @@ struct PrintTests {
             """
 
         let v = try #require(parse(template).first)
-        guard case .loop(let test) = v else { throw LeafError(.unknownError("nope")) }
+        guard case .loop(let test) = v else { throw LeafError.unknownError("nope") }
         let output = test.print(depth: 0)
         #expect(output == expectation)
     }
 
-    func testLoopCustomIndex() throws {
+    @Test func testLoopCustomIndex() throws {
         let template = """
             #for(i, name in names):
                 #(i): hello, #(name).
@@ -61,12 +61,12 @@ struct PrintTests {
             """
 
         let v = try #require(parse(template).first)
-        guard case .loop(let test) = v else { throw LeafError(.unknownError("nope")) }
+        guard case .loop(let test) = v else { throw LeafError.unknownError("nope") }
         let output = test.print(depth: 0)
         #expect(output == expectation)
     }
 
-    func testConditional() throws {
+    @Test func testConditional() throws {
         let template = """
             #if(foo):
                 some stuff
@@ -87,22 +87,22 @@ struct PrintTests {
             """
 
         let v = try #require(parse(template).first)
-        guard case .conditional(let test) = v else { throw LeafError(.unknownError("nope")) }
+        guard case .conditional(let test) = v else { throw LeafError.unknownError("nope") }
         let output = test.print(depth: 0)
         #expect(output == expectation)
     }
 
-    func testImport() throws {
+    @Test func testImport() throws {
         let template = "#import(\"someimport\")"
         let expectation = "import(\"someimport\")"
 
         let v = try #require(parse(template).first)
-        guard case .import(let test) = v else { throw LeafError(.unknownError("nope")) }
+        guard case .import(let test) = v else { throw LeafError.unknownError("nope") }
         let output = test.print(depth: 0)
         #expect(output == expectation)
     }
 
-    func testExtendAndExport() throws {
+    @Test func testExtendAndExport() throws {
         let template = """
             #extend("base"):
                 #export("title","Welcome")
@@ -120,12 +120,12 @@ struct PrintTests {
             """
 
         let v = try #require(parse(template).first)
-        guard case .extend(let test) = v else { throw LeafError(.unknownError("nope")) }
+        guard case .extend(let test) = v else { throw LeafError.unknownError("nope") }
         let output = test.print(depth: 0)
         #expect(output == expectation)
     }
 
-    func testCustomTag() throws {
+    @Test func testCustomTag() throws {
         let template = """
             #custom(tag, foo == bar):
                 some body
@@ -133,7 +133,7 @@ struct PrintTests {
             """
 
         let v = try #require(parse(template).first)
-        guard case .custom(let test) = v else { throw LeafError(.unknownError("nope")) }
+        guard case .custom(let test) = v else { throw LeafError.unknownError("nope") }
 
         let expectation = """
             custom(variable(tag), [foo == bar]):

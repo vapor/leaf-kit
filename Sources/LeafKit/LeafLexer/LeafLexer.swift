@@ -26,7 +26,7 @@ struct LeafLexer {
     /// Lex the stored `LeafRawTemplate`
     /// - Throws: `LexerError`
     /// - Returns: An array of fully built `LeafTokens`, to then be parsed by `LeafParser`
-    mutating func lex() throws -> [LeafToken] {
+    mutating func lex() throws(LexerError) -> [LeafToken] {
         while let next = try self.nextToken() {
             self.lexed.append(next)
             self.offset += 1
@@ -62,7 +62,7 @@ struct LeafLexer {
 
     // MARK: - Private - Actual implementation of Lexer
 
-    private mutating func nextToken() throws -> LeafToken? {
+    private mutating func nextToken() throws(LexerError) -> LeafToken? {
         // if EOF, return nil - no more to read
         guard let current = self.src.peek() else {
             return nil
@@ -81,9 +81,9 @@ struct LeafLexer {
         case (.body, _, _, true, _): return self.lexBodyIndicator()
         /// Ambiguous case  - `#endTagName#` at EOF. Should this result in `tag(tagName),raw(#)`?
         case (.raw, true, _, _, .none):
-            throw LexerError(.unknownError("Unescaped # at EOF"), src: self.src, lexed: self.lexed)
+            throw LexerError.unknownError("Unescaped # at EOF", src: self.src, lexed: self.lexed)
         default:
-            throw LexerError(.unknownError("Template cannot be lexed"), src: self.src, lexed: self.lexed)
+            throw LexerError.unknownError("Template cannot be lexed", src: self.src, lexed: self.lexed)
         }
     }
 
@@ -154,7 +154,7 @@ struct LeafLexer {
     }
 
     /// Parameter hot mess
-    private mutating func lexParameters() throws -> LeafToken {
+    private mutating func lexParameters() throws(LexerError) -> LeafToken {
         // consume first character regardless of what it is
         let current = self.src.pop()!
 
@@ -175,7 +175,7 @@ struct LeafLexer {
         case .quote:
             let read = self.readWithEscapingQuotes(src: &src)
             guard self.src.peek() == .quote else {
-                throw LexerError(.unterminatedStringLiteral, src: self.src, lexed: self.lexed)
+                throw LexerError.unterminatedStringLiteral(src: self.src, lexed: self.lexed)
             }
             src.pop()  // consume final quote
             return .parameter(.stringLiteral(read))
@@ -198,7 +198,7 @@ struct LeafLexer {
 
         // if current character isn't valid for any kind of parameter, something's majorly wrong
         guard current.isValidInParameter else {
-            throw LexerError(.invalidParameterToken(current), src: self.src, lexed: self.lexed)
+            throw LexerError.invalidParameterToken(current, src: self.src, lexed: self.lexed)
         }
 
         // Test for Operator first - this will only handle max two character operators, not ideal
@@ -206,9 +206,9 @@ struct LeafLexer {
         if current.isValidOperator {
             // Try to get a valid 2char Op
             var op = LeafOperator(rawValue: String(current) + String(self.src.peek()!))
-            if op != nil, !op!.available { throw LeafError(.unknownError("\(op!) is not yet supported as an operator")) }
+            if let op, !op.available { throw LexerError.unsupportedOperator(op, src: self.src) }
             if op == nil { op = LeafOperator(rawValue: String(current)) } else { self.src.pop() }
-            if op != nil, !op!.available { throw LeafError(.unknownError("\(op!) is not yet supported as an operator")) }
+            if let op, !op.available { throw LexerError.unsupportedOperator(op, src: self.src) }
             return .parameter(.operator(op!))
         }
 
@@ -223,11 +223,12 @@ struct LeafLexer {
 
             let next = self.src.peek()!
             let peekRaw = String(current) + (self.src.peekWhile { $0.isValidInNumeric })
-            #if swift(>=6.0)
-            var peekNum = peekRaw.replacing(String(.underscore), with: "")
-            #else
-            var peekNum = peekRaw.replacingOccurrences(of: String(.underscore), with: "")
-            #endif
+            var peekNum =
+                if #available(macOS 13, *) {
+                    peekRaw.replacing(String(.underscore), with: "")
+                } else {
+                    peekRaw.replacingOccurrences(of: String(.underscore), with: "")
+                }
             // We must be immediately preceeded by a minus to flip the sign
             // And only flip back if immediately preceeded by a const, tag or variable
             // (which we assume will provide a numeric). Grammatical errors in the
@@ -244,10 +245,10 @@ struct LeafLexer {
                         .variable:
                         sign = 1
                     default:
-                        throw LexerError(.invalidParameterToken("-"), src: self.src)
+                        throw LexerError.invalidParameterToken("-", src: self.src)
                     }
                 case .stringLiteral:
-                    throw LexerError(.invalidParameterToken("-"), src: self.src)
+                    throw LexerError.invalidParameterToken("-", src: self.src)
                 default:
                     sign = -1
                 }
