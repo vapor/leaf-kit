@@ -1,7 +1,6 @@
 import Foundation
 import NIOCore
 import NIOFileSystem
-import NIOPosix
 
 /// Reference and default implementation of `LeafSource` adhering object that provides a non-blocking
 /// file reader for `LeafRenderer`
@@ -9,7 +8,7 @@ import NIOPosix
 /// Default initializer will
 public struct NIOLeafFiles: LeafSource, Sendable {
     // MARK: - Public
-    
+
     /// Various options for configuring an instance of `NIOLeafFiles`
     ///
     /// - `.requireExtensions` - When set, any template *must* have a file extension
@@ -25,7 +24,7 @@ public struct NIOLeafFiles: LeafSource, Sendable {
         public init(rawValue: Int) {
             self.rawValue = rawValue
         }
-        
+
         /// Require any referenced file have an extension
         public static let requireExtensions = Limit(rawValue: 1 << 0)
         /// Require any referenced file end in `.leaf`
@@ -34,11 +33,11 @@ public struct NIOLeafFiles: LeafSource, Sendable {
         public static let toSandbox = Limit(rawValue: 1 << 2)
         /// Limit access to visible files/directories
         public static let toVisibleFiles = Limit(rawValue: 1 << 3)
-        
+
         public static let `default`: Limit = [.toSandbox, .toVisibleFiles, .requireExtensions]
         public static let dirLimited: Limit = [.toSandbox, .toVisibleFiles]
     }
-    
+
     /// Initialize `NIOLeafFiles` with a NIO file IO object, limit options, and sandbox/view dirs
     /// - Parameters:
     ///   - fileio: `NonBlockingFileIO` file object. This is no longer used but must still be passed.
@@ -49,7 +48,7 @@ public struct NIOLeafFiles: LeafSource, Sendable {
     ///
     /// `viewDirectory` must be contained within (or overlap) `sandboxDirectory`
     public init(
-        fileio _: NonBlockingFileIO,
+        fileio _: FileSystem,
         limits: Limit = .default,
         sandboxDirectory: String = "/",
         viewDirectory: String = "/",
@@ -70,10 +69,8 @@ public struct NIOLeafFiles: LeafSource, Sendable {
     ///   - template: Relative template name (eg: `"path/to/template"`)
     ///   - escape: If the adherent represents a filesystem or something scoped that enforces
     ///             a concept of directories and sandboxing, whether to allow escaping the view directory
-    ///   - eventLoop: `EventLoop` on which to perform file access
-    /// - Returns: A succeeded `EventLoopFuture` holding a `ByteBuffer` with the raw
-    ///            template, or an appropriate failed state ELFuture (not found, illegal access, etc)
-    public func file(template: String, escape: Bool = false, on eventLoop: any EventLoop) throws -> EventLoopFuture<ByteBuffer> {
+    /// - Returns: `ByteBuffer` with the raw template.
+    public func file(template: String, escape: Bool = false) async throws -> ByteBuffer {
         var templateURL = URL(fileURLWithPath: self.sandbox)
             .appendingPathComponent(self.viewRelative, isDirectory: true)
             .appendingPathComponent(template, isDirectory: false)
@@ -97,38 +94,36 @@ public struct NIOLeafFiles: LeafSource, Sendable {
                     }
                     .joined(separator: ",")
                 if !protected.isEmpty {
-                    throw LeafError(.illegalAccess("Attempted to access \(protected)"))
+                    throw LeafError.illegalAccess("Attempted to access \(protected)")
                 }
             }
-            
+
             if self.limits.contains(.toSandbox) {
                 let limitedTo = escape ? self.sandbox : self.sandbox + self.viewRelative
                 guard template.starts(with: limitedTo) else {
-                    throw LeafError(.illegalAccess("Attempted to escape sandbox: \(template)"))
+                    throw LeafError.illegalAccess("Attempted to escape sandbox: \(template)")
                 }
             }
         }
 
-        return self.read(path: template, on: eventLoop)
+        return try await self.read(path: template)
     }
-    
+
     // MARK: - Internal/Private Only
 
     let limits: Limit
     let sandbox: String
     let viewRelative: String
     let `extension`: String
-    
+
     /// Attempt to read a fully pathed template and return a ByteBuffer or fail
-    private func read(path: String, on eventLoop: any EventLoop) -> EventLoopFuture<ByteBuffer> {
-        eventLoop.makeFutureWithTask {
-            do {
-                return try await FileSystem.shared.withFileHandle(forReadingAt: .init(path)) { fh in
-                    try await fh.readToEnd(maximumSizeAllowed: .gibibytes(2))
-                }
-            } catch let error as FileSystemError where error.code == .notFound {
-                throw LeafError(.noTemplateExists(path))
+    private func read(path: String) async throws -> ByteBuffer {
+        do {
+            return try await FileSystem.shared.withFileHandle(forReadingAt: .init(path)) { fh in
+                try await fh.readToEnd(maximumSizeAllowed: .gibibytes(2))
             }
+        } catch let error as FileSystemError where error.code == .notFound {
+            throw LeafError.noTemplateExists(at: path)
         }
     }
 }

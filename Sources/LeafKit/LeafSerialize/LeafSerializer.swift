@@ -2,13 +2,13 @@ import NIOCore
 
 struct LeafSerializer {
     // MARK: - Internal Only
-    
+
     init(
         ast: [Syntax],
         tags: [String: any LeafTag] = defaultTags,
         userInfo: [AnyHashable: Any] = [:],
         ignoreUnfoundImports: Bool
-        
+
     ) {
         self.ast = ast
         self.offset = 0
@@ -17,7 +17,7 @@ struct LeafSerializer {
         self.userInfo = userInfo
         self.ignoreUnfoundImports = ignoreUnfoundImports
     }
-    
+
     mutating func serialize(
         context data: [String: LeafData]
     ) throws -> ByteBuffer {
@@ -28,9 +28,9 @@ struct LeafSerializer {
         }
         return self.buffer
     }
-    
+
     // MARK: - Private Only
-    
+
     private let ast: [Syntax]
     private var offset: Int
     private var buffer: ByteBuffer
@@ -40,27 +40,27 @@ struct LeafSerializer {
 
     private mutating func serialize(_ syntax: Syntax, context data: [String: LeafData]) throws {
         switch syntax {
-            case .raw(var byteBuffer): self.buffer.writeBuffer(&byteBuffer)
-            case .custom(let custom):  try self.serialize(custom, context: data)
-            case .conditional(let c):  try self.serialize(c, context: data)
-            case .loop(let loop):      try self.serialize(loop, context: data)
-            case .with(let with):      try self.serialize(with, context: data)
-            case .expression(let exp): try self.serialize(expression: exp, context: data)
-            case .import:
-                if (self.ignoreUnfoundImports) {
-                    break
-                } else {
-                    fallthrough
-                }
-            case .extend, .export:
-                throw LeafError(.unknownError("\(syntax) should have been resolved BEFORE serialization"))
+        case .raw(var byteBuffer): self.buffer.writeBuffer(&byteBuffer)
+        case .custom(let custom): try self.serialize(custom, context: data)
+        case .conditional(let c): try self.serialize(c, context: data)
+        case .loop(let loop): try self.serialize(loop, context: data)
+        case .with(let with): try self.serialize(with, context: data)
+        case .expression(let exp): try self.serialize(expression: exp, context: data)
+        case .import:
+            if self.ignoreUnfoundImports {
+                break
+            } else {
+                fallthrough
+            }
+        case .extend, .export:
+            throw LeafError.unknownError("\(syntax) should have been resolved BEFORE serialization")
         }
     }
 
     private mutating func serialize(expression: [ParameterDeclaration], context data: [String: LeafData]) throws {
         let resolved = try self.resolve(parameters: [.expression(expression)], context: data)
         guard resolved.count == 1, let leafData = resolved.first else {
-            throw LeafError(.unknownError("expressions should resolve to single value"))
+            throw LeafError.unknownError("expressions should resolve to single value")
         }
         try? leafData.htmlEscaped().serialize(buffer: &self.buffer)
     }
@@ -70,8 +70,7 @@ struct LeafSerializer {
     }
 
     private mutating func serialize(_ conditional: Syntax.Conditional, context data: [String: LeafData]) throws {
-        evaluate:
-        for block in conditional.chain {
+        evaluate: for block in conditional.chain {
             let evaluated = try self.resolveAtomic(block.condition.expression(), context: data)
             guard (evaluated.bool ?? false) || (!evaluated.isNil && evaluated.celf != .bool) else {
                 continue
@@ -110,7 +109,7 @@ struct LeafSerializer {
         guard resolved.count == 1,
             let dict = resolved[0].dictionary
         else {
-            throw LeafError(.unknownError("expressions should resolve to a single dictionary value"))
+            throw LeafError.unknownError("expressions should resolve to a single dictionary value")
         }
 
         try? self.serialize(body: with.body, context: dict)
@@ -127,7 +126,7 @@ struct LeafSerializer {
 
                     guard let nextData = innerData[key]?.dictionary else {
                         let currentPath = pathComponents[0...pathContext.offset].joined(separator: ".")
-                        throw LeafError(.unknownError("expected dictionary at key: \(currentPath)"))
+                        throw LeafError.unknownError("expected dictionary at key: \(currentPath)")
                     }
 
                     return nextData
@@ -137,7 +136,7 @@ struct LeafSerializer {
         }
 
         guard let array = finalData[String(pathComponents.last!)]?.array else {
-            throw LeafError(.unknownError("expected array at key: \(loop.array)"))
+            throw LeafError.unknownError("expected array at key: \(loop.array)")
         }
 
         for (idx, item) in array.enumerated() {
@@ -168,14 +167,14 @@ struct LeafSerializer {
         )
         return try resolver.resolve().map { $0.result }
     }
-    
+
     // Directive resolver for a [ParameterDeclaration] where only one parameter is allowed that must resolve to a single value
     private func resolveAtomic(_ parameters: [ParameterDeclaration], context data: [String: LeafData]) throws -> LeafData {
         guard parameters.count == 1 else {
             if parameters.isEmpty {
-                throw LeafError(.unknownError("Parameter statement can't be empty"))
+                throw LeafError.unknownError("Parameter statement can't be empty")
             } else {
-                throw LeafError(.unknownError("Parameter statement must hold a single value"))
+                throw LeafError.unknownError("Parameter statement must hold a single value")
             }
         }
         return try self.resolve(parameters: parameters, context: data).first ?? .trueNil

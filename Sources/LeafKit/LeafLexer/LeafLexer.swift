@@ -8,34 +8,34 @@ import Foundation
 /// used by evaluating with `LeafLexer.lex()` and either erroring or returning `[LeafToken]`
 struct LeafLexer {
     // MARK: - Internal Only
-    
+
     /// Convenience to initialize `LeafLexer` with a `String`
     init(name: String, template string: String) {
         self.name = name
         self.src = LeafRawTemplate(name: name, src: string)
         self.state = .raw
     }
-    
+
     /// Init with `LeafRawTemplate`
     init(name: String, template: LeafRawTemplate) {
         self.name = name
         self.src = template
         self.state = .raw
     }
-    
+
     /// Lex the stored `LeafRawTemplate`
     /// - Throws: `LexerError`
     /// - Returns: An array of fully built `LeafTokens`, to then be parsed by `LeafParser`
-    mutating func lex() throws -> [LeafToken] {
+    mutating func lex() throws(LexerError) -> [LeafToken] {
         while let next = try self.nextToken() {
             self.lexed.append(next)
             self.offset += 1
         }
         return self.lexed
     }
-    
+
     // MARK: - Private Only
-    
+
     private enum State {
         /// Parse as raw, until it finds `#` (but consuming escaped `\#`)
         case raw
@@ -46,7 +46,7 @@ struct LeafLexer {
         /// Start attempting to sequence a tag body
         case body
     }
-    
+
     /// Current state of the Lexer
     private var state: State
     /// Current parameter depth, when in a Parameter-lexing state
@@ -59,10 +59,10 @@ struct LeafLexer {
     private var src: LeafRawTemplate
     /// Name of the template (as opposed to file name) - eg if file = "/views/template.leaf", `template`
     private var name: String
-    
+
     // MARK: - Private - Actual implementation of Lexer
 
-    private mutating func nextToken() throws -> LeafToken? {
+    private mutating func nextToken() throws(LexerError) -> LeafToken? {
         // if EOF, return nil - no more to read
         guard let current = self.src.peek() else {
             return nil
@@ -72,18 +72,18 @@ struct LeafLexer {
         let isCol = current == .colon
         let next = self.src.peek(aheadBy: 1)
 
-        switch   (self.state,  isTagID, isTagVal, isCol, next) {
-            case (.raw,        false,   _,        _,     _):     return self.lexRaw()
-            case (.raw,        true,    _,        _,     .some): return self.lexCheckTagIndicator()
-            case (.tag,        _,       true,     _,     _):     return self.lexNamedTag()
-            case (.tag,        _,       false,    _,     _):     return self.lexAnonymousTag()
-            case (.parameters, _,   _,   _,  _):                 return try self.lexParameters()
-            case (.body,       _,   _, true,  _):                return self.lexBodyIndicator()
-            /// Ambiguous case  - `#endTagName#` at EOF. Should this result in `tag(tagName),raw(#)`?
-            case (.raw,        true,    _,        _,     .none):
-                throw LexerError(.unknownError("Unescaped # at EOF"), src: self.src, lexed: self.lexed)
-            default:
-                throw LexerError(.unknownError("Template cannot be lexed"), src: self.src, lexed: self.lexed)
+        switch (self.state, isTagID, isTagVal, isCol, next) {
+        case (.raw, false, _, _, _): return self.lexRaw()
+        case (.raw, true, _, _, .some): return self.lexCheckTagIndicator()
+        case (.tag, _, true, _, _): return self.lexNamedTag()
+        case (.tag, _, false, _, _): return self.lexAnonymousTag()
+        case (.parameters, _, _, _, _): return try self.lexParameters()
+        case (.body, _, _, true, _): return self.lexBodyIndicator()
+        /// Ambiguous case  - `#endTagName#` at EOF. Should this result in `tag(tagName),raw(#)`?
+        case (.raw, true, _, _, .none):
+            throw LexerError.unknownError("Unescaped # at EOF", src: self.src, lexed: self.lexed)
+        default:
+            throw LexerError.unknownError("Template cannot be lexed", src: self.src, lexed: self.lexed)
         }
     }
 
@@ -154,35 +154,35 @@ struct LeafLexer {
     }
 
     /// Parameter hot mess
-    private mutating func lexParameters() throws -> LeafToken {
+    private mutating func lexParameters() throws(LexerError) -> LeafToken {
         // consume first character regardless of what it is
         let current = self.src.pop()!
 
         // Simple returning cases - .parametersStart/Delimiter/End, .whitespace, .stringLiteral Parameter
         switch current {
-            case .leftParenthesis:
-                self.depth += 1
-                return .parametersStart
-            case .rightParenthesis:
-                switch (self.depth <= 1, self.src.peek() == .colon) {
-                    case (true, true):  self.state = .body
-                    case (true, false): self.state = .raw
-                    case (false, _):    self.depth -= 1
-                }
-                return .parametersEnd
-            case .comma:
-                return .parameterDelimiter
-            case .quote:
-                let read = self.readWithEscapingQuotes(src: &src)
-                guard self.src.peek() == .quote else {
-                    throw LexerError(.unterminatedStringLiteral, src: self.src, lexed: self.lexed)
-                }
-                src.pop() // consume final quote
-                return .parameter(.stringLiteral(read))
-            case .space:
-                let read = self.src.readWhile { $0 == .space }
-                return .whitespace(length: read.count + 1)
-            default: break
+        case .leftParenthesis:
+            self.depth += 1
+            return .parametersStart
+        case .rightParenthesis:
+            switch (self.depth <= 1, self.src.peek() == .colon) {
+            case (true, true): self.state = .body
+            case (true, false): self.state = .raw
+            case (false, _): self.depth -= 1
+            }
+            return .parametersEnd
+        case .comma:
+            return .parameterDelimiter
+        case .quote:
+            let read = self.readWithEscapingQuotes(src: &src)
+            guard self.src.peek() == .quote else {
+                throw LexerError.unterminatedStringLiteral(src: self.src, lexed: self.lexed)
+            }
+            src.pop()  // consume final quote
+            return .parameter(.stringLiteral(read))
+        case .space:
+            let read = self.src.readWhile { $0 == .space }
+            return .whitespace(length: read.count + 1)
+        default: break
         }
 
         // Complex Parameter lexing situations - enhanced to allow non-whitespace separated values
@@ -198,7 +198,7 @@ struct LeafLexer {
 
         // if current character isn't valid for any kind of parameter, something's majorly wrong
         guard current.isValidInParameter else {
-            throw LexerError(.invalidParameterToken(current), src: self.src, lexed: self.lexed)
+            throw LexerError.invalidParameterToken(current, src: self.src, lexed: self.lexed)
         }
 
         // Test for Operator first - this will only handle max two character operators, not ideal
@@ -206,9 +206,9 @@ struct LeafLexer {
         if current.isValidOperator {
             // Try to get a valid 2char Op
             var op = LeafOperator(rawValue: String(current) + String(self.src.peek()!))
-            if op != nil, !op!.available { throw LeafError(.unknownError("\(op!) is not yet supported as an operator")) }
+            if let op, !op.available { throw LexerError.unsupportedOperator(op, src: self.src) }
             if op == nil { op = LeafOperator(rawValue: String(current)) } else { self.src.pop() }
-            if op != nil, !op!.available { throw LeafError(.unknownError("\(op!) is not yet supported as an operator")) }
+            if let op, !op.available { throw LexerError.unsupportedOperator(op, src: self.src) }
             return .parameter(.operator(op!))
         }
 
@@ -223,46 +223,48 @@ struct LeafLexer {
 
             let next = self.src.peek()!
             let peekRaw = String(current) + (self.src.peekWhile { $0.isValidInNumeric })
-            #if swift(>=6.0)
-            var peekNum = peekRaw.replacing(String(.underscore), with: "")
-            #else
-            var peekNum = peekRaw.replacingOccurrences(of: String(.underscore), with: "")
-            #endif
+            var peekNum =
+                if #available(macOS 13, *) {
+                    peekRaw.replacing(String(.underscore), with: "")
+                } else {
+                    peekRaw.replacingOccurrences(of: String(.underscore), with: "")
+                }
             // We must be immediately preceeded by a minus to flip the sign
             // And only flip back if immediately preceeded by a const, tag or variable
             // (which we assume will provide a numeric). Grammatical errors in the
             // template (eg, keyword-numeric) may throw here
             if case .parameter(let p) = self.lexed[self.offset - 1],
-               case .operator(let op) = p,
-               op == .minus
+                case .operator(let op) = p,
+                op == .minus
             {
                 switch self.lexed[self.offset - 2] {
                 case .parameter(let p):
                     switch p {
                     case .constant,
-                         .tag,
-                         .variable: sign = 1
+                        .tag,
+                        .variable:
+                        sign = 1
                     default:
-                        throw LexerError(.invalidParameterToken("-"), src: self.src)
+                        throw LexerError.invalidParameterToken("-", src: self.src)
                     }
                 case .stringLiteral:
-                    throw LexerError(.invalidParameterToken("-"), src: self.src)
+                    throw LexerError.invalidParameterToken("-", src: self.src)
                 default:
                     sign = -1
                 }
             }
 
             switch (peekNum.contains(.period), next, peekNum.count > 2) {
-                case (true, _, _) :                  testDouble = Double(peekNum)
-                case (false, .binaryNotation, true): radix = 2
-                case (false, .octalNotation, true):  radix = 8
-                case (false, .hexNotation, true):    radix = 16
-                default:                             testInt = Int(peekNum)
+            case (true, _, _): testDouble = Double(peekNum)
+            case (false, .binaryNotation, true): radix = 2
+            case (false, .octalNotation, true): radix = 8
+            case (false, .hexNotation, true): radix = 16
+            default: testInt = Int(peekNum)
             }
 
             if let radix {
                 let start = peekNum.startIndex
-                peekNum.removeSubrange(start ... peekNum.index(after: start))
+                peekNum.removeSubrange(start...peekNum.index(after: start))
                 testInt = Int(peekNum, radix: radix)
             }
 

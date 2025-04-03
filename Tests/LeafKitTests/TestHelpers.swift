@@ -1,65 +1,13 @@
-@testable import LeafKit
-import NIOCore
 import NIOConcurrencyHelpers
+import NIOCore
 import NIOEmbedded
 import XCTest
+
+@testable import LeafKit
 
 /// Assorted multi-purpose helper pieces for LeafKit tests
 
 // MARK: - Helper Functions
-
-func XCTAssertThrowsErrorAsync<T>(
-    _ expression: @autoclosure () async throws -> T,
-    _ message: @autoclosure () -> String = "",
-    file: StaticString = #filePath, line: UInt = #line,
-    _ callback: (any Error) -> Void = { _ in }
-) async {
-    do {
-        _ = try await expression()
-        XCTAssertThrowsError({}(), message(), file: file, line: line, callback)
-    } catch {
-        XCTAssertThrowsError(try { throw error }(), message(), file: file, line: line, callback)
-    }
-}
-
-func XCTAssertNoThrowAsync<T>(
-    _ expression: @autoclosure () async throws -> T,
-    _ message: @autoclosure () -> String = "",
-    file: StaticString = #filePath, line: UInt = #line
-) async {
-    do {
-        _ = try await expression()
-    } catch {
-        XCTAssertNoThrow(try { throw error }(), message(), file: file, line: line)
-    }
-}
-
-func XCTAssertEqualAsync<T>(
-    _ expression1: @autoclosure () async throws -> T,
-    _ expression2: @autoclosure () async throws -> T,
-    _ message: @autoclosure () -> String = "",
-    file: StaticString = #filePath, line: UInt = #line
-) async where T: Equatable {
-    do {
-        let expr1 = try await expression1(), expr2 = try await expression2()
-        return XCTAssertEqual(expr1, expr2, message(), file: file, line: line)
-    } catch {
-        return XCTAssertEqual(try { () -> Bool in throw error }(), false, message(), file: file, line: line)
-    }
-}
-
-func XCTAssertAsync(
-    _ predicate: @autoclosure () async throws -> Bool,
-    _ message: @autoclosure () -> String = "",
-    file: StaticString = #filePath, line: UInt = #line
-) async {
-    do {
-        let result = try await predicate()
-        XCTAssert(result, message(), file: file, line: line)
-    } catch {
-        return XCTAssert(try { throw error }(), message(), file: file, line: line)
-    }
-}
 
 /// Directly run a String "template" through `LeafLexer`
 /// - Parameter str: Raw String holding Leaf template source data
@@ -101,17 +49,14 @@ func render(name: String = "test-render", _ template: String, _ context: [String
 // MARK: - Helper Structs and Classes
 
 /// Helper wrapping` LeafRenderer` to preconfigure for simplicity & allow eliding context
-final class TestRenderer: Sendable {
-    nonisolated(unsafe) let r: LeafRenderer
-    private let lock: NIOLock
-    private nonisolated(unsafe) var counter: Int = 0
+actor TestRenderer: Sendable {
+    let r: LeafRenderer
 
     init(
         configuration: LeafConfiguration = .init(rootDirectory: "/"),
-        tags: [String : any LeafTag] = defaultTags,
+        tags: [String: any LeafTag] = defaultTags,
         cache: any LeafCache = DefaultLeafCache(),
-        sources: LeafSources = .singleSource(TestFiles()),
-        eventLoop: any EventLoop = EmbeddedEventLoop(),
+        sources: LeafSources = LeafSources(singleSource: TestFiles()),
         userInfo: [AnyHashable: Any] = [:]
     ) {
         self.r = .init(
@@ -119,39 +64,21 @@ final class TestRenderer: Sendable {
             tags: tags,
             cache: cache,
             sources: sources,
-            eventLoop: eventLoop,
             userInfo: userInfo
         )
-        self.lock = .init()
-    }
-    
-    func render(path: String, context: [String: LeafData] = [:]) -> EventLoopFuture<ByteBuffer> {
-        self.lock.withLock { self.counter += 1 }
-        return self.r.render(path: path, context: context)
     }
 
     @discardableResult
     func render(path: String, context: [String: LeafData] = [:]) async throws -> ByteBuffer {
-        self.lock.withLock { self.counter += 1 }
-        defer { self.lock.withLock { self.counter -= 1 } }
-        return try await self.r.render(path: path, context: context).get()
-    }
-
-    public var isDone: Bool {
-        self.lock.withLock { self.counter == 0 } ? true : false
-    }
-    
-    func finishTask() {
-        self.lock.withLock { self.counter -= 1 }
+        try await self.r.render(path: path, context: context)
     }
 }
 
 /// Helper `LeafFiles` struct providing an in-memory thread-safe map of "file names" to "file data"
 struct TestFiles: LeafSource {
     var files: [String: String] = [:]
-    var lock: NIOLock = .init()
 
-    func file(template: String, escape: Bool = false, on eventLoop: any EventLoop) -> EventLoopFuture<ByteBuffer> {
+    func file(template: String, escape: Bool = false) async throws -> ByteBuffer {
         var path = template
         if path.split(separator: "/").last?.split(separator: ".").count ?? 1 < 2, !path.hasSuffix(".leaf") {
             path += ".leaf"
@@ -160,12 +87,10 @@ struct TestFiles: LeafSource {
             path = "/" + path
         }
 
-        return self.lock.withLock {
-            if let file = self.files[path] {
-                return eventLoop.makeSucceededFuture(.init(string: file))
-            } else {
-                return eventLoop.makeFailedFuture(LeafError(.noTemplateExists(template)))
-            }
+        if let file = self.files[path] {
+            return .init(string: file)
+        } else {
+            throw LeafError.noTemplateExists(at: template)
         }
     }
 }
@@ -179,13 +104,13 @@ extension ByteBuffer {
 }
 
 extension Array where Element == LeafToken {
-    func dropWhitespace() -> Array<LeafToken> {
+    func dropWhitespace() -> [LeafToken] {
         self.filter { token in
             guard case .whitespace = token else { return true }
             return false
         }
     }
-    
+
     var string: String {
         self.map { $0.description + "\n" }.reduce("", +)
     }
@@ -207,150 +132,7 @@ var templateFolder: String {
 }
 
 var projectTestFolder: String {
-    URL(fileURLWithPath: #filePath, isDirectory: false) // .../leaf-kit/Tests/LeafKitTests/TestHelpers.swift
-        .deletingLastPathComponent() // .../leaf-kit/Tests/LeafKitTests
+    URL(fileURLWithPath: #filePath, isDirectory: false)  // .../leaf-kit/Tests/LeafKitTests/TestHelpers.swift
+        .deletingLastPathComponent()  // .../leaf-kit/Tests/LeafKitTests
         .path
-}
-
-// MARK: - Internal Tests
-
-/// Test printing descriptions of Syntax objects
-final class PrintTests: XCTestCase {    
-    func testRaw() throws {
-        let template = "hello, raw text"
-        let expectation = "raw(\"hello, raw text\")"
-        
-        let v = try XCTUnwrap(parse(template).first)
-        guard case .raw = v else { throw LeafError(.unknownError("nope")) }
-        let output = v.print(depth: 0)
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testVariable() throws {
-        let template = "#(foo)"
-        let expectation = "variable(foo)"
-        
-        let v = try XCTUnwrap(parse(template).first)
-        guard case .expression(let e) = v,
-              let test = e.first else { throw LeafError(.unknownError("nope")) }
-        let output = test.description
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testLoop() throws {
-        let template = """
-            #for(name in names):
-                hello, #(name).
-            #endfor
-            """
-        let expectation = """
-            for(name in names):
-              raw("\\n    hello, ")
-              expression[variable(name)]
-              raw(".\\n")
-            """
-        
-        let v = try XCTUnwrap(parse(template).first)
-        guard case .loop(let test) = v else { throw LeafError(.unknownError("nope")) }
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testLoopCustomIndex() throws {
-        let template = """
-            #for(i, name in names):
-                #(i): hello, #(name).
-            #endfor
-            """
-        let expectation = """
-            for(i, name in names):
-              raw("\\n    ")
-              expression[variable(i)]
-              raw(": hello, ")
-              expression[variable(name)]
-              raw(".\\n")
-            """
-
-        let v = try XCTUnwrap(parse(template).first)
-        guard case .loop(let test) = v else { throw LeafError(.unknownError("nope")) }
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testConditional() throws {
-        let template = """
-            #if(foo):
-                some stuff
-            #elseif(bar == "bar"):
-                bar stuff
-            #else:
-                no stuff
-            #endif
-            """
-        let expectation = """
-            conditional:
-              if(variable(foo)):
-                raw("\\n    some stuff\\n")
-              elseif([bar == "bar"]):
-                raw("\\n    bar stuff\\n")
-              else:
-                raw("\\n    no stuff\\n")
-            """
-        
-        let v = try XCTUnwrap(parse(template).first)
-        guard case .conditional(let test) = v else { throw LeafError(.unknownError("nope")) }
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testImport() throws {
-        let template = "#import(\"someimport\")"
-        let expectation = "import(\"someimport\")"
-        
-        let v = try XCTUnwrap(parse(template).first)
-        guard case .import(let test) = v else { throw LeafError(.unknownError("nope")) }
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testExtendAndExport() throws {
-        let template = """
-            #extend("base"):
-                #export("title","Welcome")
-                #export("body"):
-                    hello there
-                #endexport
-            #endextend
-            """
-        let expectation = """
-            extend("base"):
-              export("body"):
-                raw("\\n        hello there\\n    ")
-              export("title"):
-                expression[stringLiteral("Welcome")]
-            """
-        
-        let v = try XCTUnwrap(parse(template).first)
-        guard case .extend(let test) = v else { throw LeafError(.unknownError("nope")) }
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
-    }
-
-    func testCustomTag() throws {
-        let template = """
-            #custom(tag, foo == bar):
-                some body
-            #endcustom
-            """
-
-        let v = try XCTUnwrap(parse(template).first)
-        guard case .custom(let test) = v else { throw LeafError(.unknownError("nope")) }
-
-        let expectation = """
-            custom(variable(tag), [foo == bar]):
-              raw("\\n    some body\\n")
-            """
-        let output = test.print(depth: 0)
-        XCTAssertEqual(output, expectation)
-    }
 }

@@ -55,7 +55,7 @@ public struct LeafData:
 
         return conversion.is >= DataConvertible.castable
     }
-    
+
     /// Returns `true` if concrete object is potentially directly coercible to a second type in some way
     /// - EG: `.array()` -> `.dictionary()` where array indices become keys
     ///       or `.int(1)` -> `.bool(true)`
@@ -65,9 +65,9 @@ public struct LeafData:
 
         return conversion.is >= DataConvertible.coercible
     }
-    
+
     // MARK: - Equatable Conformance
-    public static func ==(lhs: LeafData, rhs: LeafData) -> Bool {
+    public static func == (lhs: LeafData, rhs: LeafData) -> Bool {
         // Strict compare of invariant stored values; considers nils equal
         if lhs.storage == rhs.storage {
             return true
@@ -78,14 +78,14 @@ public struct LeafData:
         }
         // Fuzzy comparison by string casting
         guard lhs.isCastable(to: .string),
-              rhs.isCastable(to: .string),
-              let lhs = lhs.string, let rhs = rhs.string
+            rhs.isCastable(to: .string),
+            let lhs = lhs.string, let rhs = rhs.string
         else {
             return false
         }
         return lhs == rhs
     }
-    
+
     // MARK: - CustomStringConvertible
     public var description: String {
         self.storage.description
@@ -117,7 +117,7 @@ public struct LeafData:
             return true
         }
     }
-    
+
     /// Returns the uniform type of the object, or nil if it is a non-uniform container
     public var uniformType: NaturalType? {
         if self.hasUniformType == false {
@@ -130,7 +130,7 @@ public struct LeafData:
             self.storage.concreteType
         }
     }
-    
+
     // MARK: - Generic `LeafDataRepresentable` Initializer
     public init(_ leafData: any LeafDataRepresentable) {
         self = leafData.leafData
@@ -249,7 +249,7 @@ public struct LeafData:
         guard case .array(let a) = self.convert(to: .array).storage else { return nil }
         return a
     }
-    
+
     /// For convenience, `trueNil` is stored as `.optional(nil, .void)`
     public static var trueNil: LeafData {
         .init(.optional(nil, .void))
@@ -264,10 +264,10 @@ public struct LeafData:
     }
 
     // MARK: - Internal Only
-    
+
     /// Actual storage.
     private(set) var storage: LeafDataStorage
-    
+
     func serialize() -> String {
         self.storage.serialize()
     }
@@ -275,7 +275,7 @@ public struct LeafData:
     func serialize(buffer: inout ByteBuffer) throws {
         try self.storage.serialize(buffer: &buffer)
     }
-    
+
     // Hard resolve data (remove invariants), remaining optional if nil
     var evaluate: LeafData {
         if case .dictionary(let d) = self.storage {
@@ -294,27 +294,27 @@ public struct LeafData:
 
     /// Try to convert one concrete object to a second type.
     func convert(to output: NaturalType, _ level: DataConvertible = .castable) -> LeafData {
-        guard celf != output else  {
+        guard celf != output else {
             return self
         }
 
         guard let input = self.storage.unwrap,
-              let conversion = _ConverterMap.symbols.get(input.concreteType, output),
-              conversion.is >= level
+            let conversion = _ConverterMap.symbols.get(input.concreteType, output),
+            conversion.is >= level
         else {
             return nil
         }
         switch input {
-            case .array(let any as Any),
-                 .bool(let any as Any),
-                 .data(let any as Any),
-                 .dictionary(let any as Any),
-                 .double(let any as Any),
-                 .int(let any as Any),
-                 .string(let any as Any):
-                return conversion.via(any)
-            default:
-                return nil
+        case .array(let any as Any),
+            .bool(let any as Any),
+            .data(let any as Any),
+            .dictionary(let any as Any),
+            .double(let any as Any),
+            .int(let any as Any),
+            .string(let any as Any):
+            return conversion.via(any)
+        default:
+            return nil
         }
     }
 
@@ -340,40 +340,40 @@ enum DataConvertible: Int, Equatable, Comparable {
     case castable = 2
     /// An exact type match; identity
     case identity = 3
-    
+
     static func < (lhs: DataConvertible, rhs: DataConvertible) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
 }
 
 /// Wrapper for associating types and conversion tuple
-fileprivate struct Converter: Equatable, Hashable {
+private struct Converter: Equatable, Hashable {
     typealias Conversion = (is: DataConvertible, via: (Any) -> LeafData)
-    
+
     let from: LeafData.NaturalType
     let to: LeafData.NaturalType
     let conversion: Conversion?
-    
+
     static func == (lhs: Converter, rhs: Converter) -> Bool {
         lhs.from == rhs.from && lhs.to == rhs.to
     }
-    
+
     func hash(into hasher: inout Hasher) {
         hasher.combine(from)
         hasher.combine(to)
     }
-    
+
     /// Full initializer
     init(
         _ from: LeafData.NaturalType,
         _ to: LeafData.NaturalType,
-         `is`: DataConvertible, via: @escaping (Any) -> LeafData
+        `is`: DataConvertible, via: @escaping (Any) -> LeafData
     ) {
         self.from = from
         self.to = to
         self.conversion = (`is`, via)
     }
-    
+
     /// Initializer for the "key" only
     init(_ from: LeafData.NaturalType, _ to: LeafData.NaturalType) {
         self.from = from
@@ -382,8 +382,8 @@ fileprivate struct Converter: Equatable, Hashable {
     }
 }
 
-fileprivate extension Set where Element == Converter {
-    func get(_ from: LeafData.NaturalType, _ to: LeafData.NaturalType) -> Converter.Conversion? {
+extension Set where Element == Converter {
+    fileprivate func get(_ from: LeafData.NaturalType, _ to: LeafData.NaturalType) -> Converter.Conversion? {
         self.first(where: { $0 == .init(from, to) })?.conversion
     }
 }
@@ -394,163 +394,220 @@ fileprivate extension Set where Element == Converter {
 /// be unwrapped to concrete types before being called.
 ///
 /// Converters are guaranteed to be provided non-nil input. Failable converters must return LeafData.trueNil
-fileprivate enum _ConverterMap {
+private enum _ConverterMap {
     private static let c = LeafConfiguration.self
-    fileprivate static var symbols: Set<Converter> { [
-        // MARK: - .identity (Passthrough)
-        Converter(.array     , .array     , is: .identity, via: { .array($0 as? [LeafData]) }),
-        Converter(.bool      , .bool      , is: .identity, via: { .bool($0 as? Bool) }),
-        Converter(.data      , .data      , is: .identity, via: { .data($0 as? Data) }),
-        Converter(.dictionary, .dictionary, is: .identity, via: { .dictionary($0 as? [String : LeafData]) }),
-        Converter(.double    , .double    , is: .identity, via: { .double($0 as? Double) }),
-        Converter(.int       , .int       , is: .identity, via: { .int($0 as? Int) }),
-        Converter(.string    , .string    , is: .identity, via: { .string($0 as? String) }),
+    fileprivate static var symbols: Set<Converter> {
+        [
+            // MARK: - .identity (Passthrough)
+            Converter(.array, .array, is: .identity, via: { .array($0 as? [LeafData]) }),
+            Converter(.bool, .bool, is: .identity, via: { .bool($0 as? Bool) }),
+            Converter(.data, .data, is: .identity, via: { .data($0 as? Data) }),
+            Converter(.dictionary, .dictionary, is: .identity, via: { .dictionary($0 as? [String: LeafData]) }),
+            Converter(.double, .double, is: .identity, via: { .double($0 as? Double) }),
+            Converter(.int, .int, is: .identity, via: { .int($0 as? Int) }),
+            Converter(.string, .string, is: .identity, via: { .string($0 as? String) }),
 
-        // MARK: - .castable (Well-defined bi-directional conversions)
-                                        // Double in [0,1] == truthiness & value
-        Converter(.double  , .bool         , is: .castable, via: {
-            ($0 as? Double).map { [0.0, 1.0].contains($0) ? $0 == 1.0 : nil}?
-                .map { .bool($0) } ?? .trueNil
-        }),
-                                        // Int in [0,1] == truthiness & value
-        Converter(.int     , .bool         , is: .castable, via: {
-            ($0 as? Int).map { [0, 1].contains($0) ? $0 == 1 : nil }?
-                .map { .bool($0) } ?? .trueNil
-        }),
-                                        //  String == "true" || "false"
-        Converter(.string  , .bool         , is: .castable, via: {
-            ($0 as? String).map { Bool($0) }?.map { .bool($0) } ?? .trueNil
-        }),
-                                        // True = 1; False = 0
-        Converter(.bool    , .double       , is: .castable, via: {
-            ($0 as? Bool).map { $0 ? 1.0 : 0.0 }.map { .double($0) } ?? .trueNil
-        }),
-                                        // Direct conversion
-        Converter(.int     , .double       , is: .castable, via: {
-            ($0 as? Int).map { Double($0) }.map { .double($0) } ?? .trueNil
-        }),
-                                        // Using default string-init
-        Converter(.string  , .double       , is: .castable, via: {
-            ($0 as? String).map { Double($0) }?.map { .double($0) } ?? .trueNil
-        }),
-                                        // True = 1; False = 0
-        Converter(.bool    , .int          , is: .castable, via: {
-            ($0 as? Bool).map { $0 ? 1 : 0 }.map { .int($0) } ?? .trueNil
-        }),
-                                        // Base10 formatted Strings
-        Converter(.string  , .int          , is: .castable, via: {
-            ($0 as? String).map { Int($0) }?.map { .int($0) } ?? .trueNil
-        }),
-                                        // .description
-        Converter(.bool    , .string       , is: .castable, via: {
-            ($0 as? Bool).map { $0.description }.map { .string($0) } ?? .trueNil
-        }),
-                                        // Using configured encoding
-        Converter(.data    , .string       , is: .castable, via: {
-            ($0 as? Data).map { String(data: $0, encoding: c.encoding) }?
-                .map { .string($0) } ?? .trueNil
-        }),
-                                        // .description
-        Converter(.double  , .string       , is: .castable, via: {
-            ($0 as? Double).map { $0.description }.map { .string($0) } ?? .trueNil
-        }),
-                                        // .description
-        Converter(.int     , .string       , is: .castable, via: {
-            ($0 as? Int).map { $0.description }.map { .string($0) } ?? .trueNil
-        }),
-        
-        // MARK: - .coercible (One-direction defined conversion)
+            // MARK: - .castable (Well-defined bi-directional conversions)
+            // Double in [0,1] == truthiness & value
+            Converter(
+                .double, .bool, is: .castable,
+                via: {
+                    ($0 as? Double).map { [0.0, 1.0].contains($0) ? $0 == 1.0 : nil }?
+                        .map { .bool($0) } ?? .trueNil
+                }),
+            // Int in [0,1] == truthiness & value
+            Converter(
+                .int, .bool, is: .castable,
+                via: {
+                    ($0 as? Int).map { [0, 1].contains($0) ? $0 == 1 : nil }?
+                        .map { .bool($0) } ?? .trueNil
+                }),
+            //  String == "true" || "false"
+            Converter(
+                .string, .bool, is: .castable,
+                via: {
+                    ($0 as? String).map { Bool($0) }?.map { .bool($0) } ?? .trueNil
+                }),
+            // True = 1; False = 0
+            Converter(
+                .bool, .double, is: .castable,
+                via: {
+                    ($0 as? Bool).map { $0 ? 1.0 : 0.0 }.map { .double($0) } ?? .trueNil
+                }),
+            // Direct conversion
+            Converter(
+                .int, .double, is: .castable,
+                via: {
+                    ($0 as? Int).map { Double($0) }.map { .double($0) } ?? .trueNil
+                }),
+            // Using default string-init
+            Converter(
+                .string, .double, is: .castable,
+                via: {
+                    ($0 as? String).map { Double($0) }?.map { .double($0) } ?? .trueNil
+                }),
+            // True = 1; False = 0
+            Converter(
+                .bool, .int, is: .castable,
+                via: {
+                    ($0 as? Bool).map { $0 ? 1 : 0 }.map { .int($0) } ?? .trueNil
+                }),
+            // Base10 formatted Strings
+            Converter(
+                .string, .int, is: .castable,
+                via: {
+                    ($0 as? String).map { Int($0) }?.map { .int($0) } ?? .trueNil
+                }),
+            // .description
+            Converter(
+                .bool, .string, is: .castable,
+                via: {
+                    ($0 as? Bool).map { $0.description }.map { .string($0) } ?? .trueNil
+                }),
+            // Using configured encoding
+            Converter(
+                .data, .string, is: .castable,
+                via: {
+                    ($0 as? Data).map { String(data: $0, encoding: c.encoding) }?
+                        .map { .string($0) } ?? .trueNil
+                }),
+            // .description
+            Converter(
+                .double, .string, is: .castable,
+                via: {
+                    ($0 as? Double).map { $0.description }.map { .string($0) } ?? .trueNil
+                }),
+            // .description
+            Converter(
+                .int, .string, is: .castable,
+                via: {
+                    ($0 as? Int).map { $0.description }.map { .string($0) } ?? .trueNil
+                }),
 
-                                          // Array.isEmpty == truthiness
-        Converter(.array      , .bool       , is: .coercible, via: {
-            ($0 as? [LeafData]).map { $0.isEmpty }.map { .bool($0) } ?? .trueNil
-        }),
-                                          // Data.isEmpty == truthiness
-        Converter(.data       , .bool       , is: .coercible, via: {
-            ($0 as? Data).map { $0.isEmpty }.map { .bool($0) } ?? .trueNil
-        }),
-                                          // Dictionary.isEmpty == truthiness
-        Converter(.dictionary , .bool       , is: .coercible, via: {
-            ($0 as? [String: LeafData]).map { $0.isEmpty }.map { .bool($0) } ?? .trueNil
-        }),
-                                          // Use the configured formatter
-        Converter(.array      , .data       , is: .coercible, via: {
-            ($0 as? [LeafData]).map {
-                LeafDataStorage.array($0).serialize().data(using: c.encoding)
-            }?.map { .data($0) } ?? .trueNil
-        }),
-                                          // Use the configured formatter
-        Converter(.bool       , .data       , is: .coercible, via: {
-            ($0 as? Bool).map { c.boolFormatter($0).data(using: c.encoding) }?
-                .map { .data($0) } ?? .trueNil
-        }),
-                                          // Use the configured formatter
-        Converter(.dictionary , .data       , is: .coercible, via: {
-            ($0 as? [String: LeafData]).map {
-                LeafDataStorage.dictionary($0).serialize().data(using: c.encoding)
-            }?.map { .data($0) } ?? .trueNil
-        }),
-                                          // Use the configured formatter
-        Converter(.double     , .data       , is: .coercible, via: {
-            ($0 as? Double).map {
-                c.doubleFormatter($0)
-                    .data(using: c.encoding)
-                }?.map { .data($0) } ?? .trueNil
-        }),
-                                          // Use the configured formatter
-        Converter(.int        , .data       , is: .coercible, via: {
-            ($0 as? Int).map { c.intFormatter($0)
-                .data(using: c.encoding)
-            }?.map { .data($0) } ?? .trueNil
-        }),
-                                          // Use the configured formatter
-        Converter(.string     , .data       , is: .coercible, via: {
-            ($0 as? String).map { c.stringFormatter($0)
-                .data(using: c.encoding)
-            }?.map { .data($0) } ?? .trueNil
-        }),
-                                          // Schoolbook rounding
-        Converter(.double     , .int        , is: .coercible, via: {
-            ($0 as? Double).map { Int(exactly: $0.rounded()) }?.map { .int($0) } ?? .trueNil
-        }),
-        
-                                          // Transform with array indices as keys
-        Converter(.array      , .dictionary , is: .ambiguous, via: {
-            ($0 as? [LeafData]).map {
-                Dictionary(uniqueKeysWithValues: $0.enumerated().map {
-                                                  (String($0), $1) }) }
-                .map { .dictionary($0) } ?? .trueNil
-        }),
-                                          // Conversion using the formatter
-        Converter(.array      , .string     , is: .ambiguous, via: {
-            ($0 as? [LeafData]).map {
-                .string(LeafData.array($0).serialize())
-            } ?? .trueNil
-        }),
-                                          // Conversion using the formatter
-        Converter(.dictionary , .string     , is: .ambiguous, via: {
-            ($0 as? [String: LeafData]).map {
-                .string(LeafData.dictionary($0).serialize())
-            } ?? .trueNil
-        }),
+            // MARK: - .coercible (One-direction defined conversion)
 
-        // MARK: - .ambiguous (Unconvertible)
-        Converter(.bool      , .array,      is: .ambiguous, via: { _ in nil }),
-        Converter(.data      , .array,      is: .ambiguous, via: { _ in nil }),
-        Converter(.dictionary, .array,      is: .ambiguous, via: { _ in nil }),
-        Converter(.double    , .array,      is: .ambiguous, via: { _ in nil }),
-        Converter(.int       , .array,      is: .ambiguous, via: { _ in nil }),
-        Converter(.string    , .array,      is: .ambiguous, via: { _ in nil }),
-        Converter(.bool      , .dictionary, is: .ambiguous, via: { _ in nil }),
-        Converter(.data      , .dictionary, is: .ambiguous, via: { _ in nil }),
-        Converter(.double    , .dictionary, is: .ambiguous, via: { _ in nil }),
-        Converter(.int       , .dictionary, is: .ambiguous, via: { _ in nil }),
-        Converter(.string    , .dictionary, is: .ambiguous, via: { _ in nil }),
-        Converter(.array     , .double,     is: .ambiguous, via: { _ in nil }),
-        Converter(.data      , .double,     is: .ambiguous, via: { _ in nil }),
-        Converter(.dictionary, .double,     is: .ambiguous, via: { _ in nil }),
-        Converter(.array     , .int,        is: .ambiguous, via: { _ in nil }),
-        Converter(.data      , .int,        is: .ambiguous, via: { _ in nil }),
-        Converter(.dictionary, .int,        is: .ambiguous, via: { _ in nil }),
-    ] }
+            // Array.isEmpty == truthiness
+            Converter(
+                .array, .bool, is: .coercible,
+                via: {
+                    ($0 as? [LeafData]).map { $0.isEmpty }.map { .bool($0) } ?? .trueNil
+                }),
+            // Data.isEmpty == truthiness
+            Converter(
+                .data, .bool, is: .coercible,
+                via: {
+                    ($0 as? Data).map { $0.isEmpty }.map { .bool($0) } ?? .trueNil
+                }),
+            // Dictionary.isEmpty == truthiness
+            Converter(
+                .dictionary, .bool, is: .coercible,
+                via: {
+                    ($0 as? [String: LeafData]).map { $0.isEmpty }.map { .bool($0) } ?? .trueNil
+                }),
+            // Use the configured formatter
+            Converter(
+                .array, .data, is: .coercible,
+                via: {
+                    ($0 as? [LeafData]).map {
+                        LeafDataStorage.array($0).serialize().data(using: c.encoding)
+                    }?.map { .data($0) } ?? .trueNil
+                }),
+            // Use the configured formatter
+            Converter(
+                .bool, .data, is: .coercible,
+                via: {
+                    ($0 as? Bool).map { c.boolFormatter($0).data(using: c.encoding) }?
+                        .map { .data($0) } ?? .trueNil
+                }),
+            // Use the configured formatter
+            Converter(
+                .dictionary, .data, is: .coercible,
+                via: {
+                    ($0 as? [String: LeafData]).map {
+                        LeafDataStorage.dictionary($0).serialize().data(using: c.encoding)
+                    }?.map { .data($0) } ?? .trueNil
+                }),
+            // Use the configured formatter
+            Converter(
+                .double, .data, is: .coercible,
+                via: {
+                    ($0 as? Double).map {
+                        c.doubleFormatter($0)
+                            .data(using: c.encoding)
+                    }?.map { .data($0) } ?? .trueNil
+                }),
+            // Use the configured formatter
+            Converter(
+                .int, .data, is: .coercible,
+                via: {
+                    ($0 as? Int).map {
+                        c.intFormatter($0)
+                            .data(using: c.encoding)
+                    }?.map { .data($0) } ?? .trueNil
+                }),
+            // Use the configured formatter
+            Converter(
+                .string, .data, is: .coercible,
+                via: {
+                    ($0 as? String).map {
+                        c.stringFormatter($0)
+                            .data(using: c.encoding)
+                    }?.map { .data($0) } ?? .trueNil
+                }),
+            // Schoolbook rounding
+            Converter(
+                .double, .int, is: .coercible,
+                via: {
+                    ($0 as? Double).map { Int(exactly: $0.rounded()) }?.map { .int($0) } ?? .trueNil
+                }),
+
+            // Transform with array indices as keys
+            Converter(
+                .array, .dictionary, is: .ambiguous,
+                via: {
+                    ($0 as? [LeafData]).map {
+                        Dictionary(
+                            uniqueKeysWithValues: $0.enumerated().map {
+                                (String($0), $1)
+                            })
+                    }
+                    .map { .dictionary($0) } ?? .trueNil
+                }),
+            // Conversion using the formatter
+            Converter(
+                .array, .string, is: .ambiguous,
+                via: {
+                    ($0 as? [LeafData]).map {
+                        .string(LeafData.array($0).serialize())
+                    } ?? .trueNil
+                }),
+            // Conversion using the formatter
+            Converter(
+                .dictionary, .string, is: .ambiguous,
+                via: {
+                    ($0 as? [String: LeafData]).map {
+                        .string(LeafData.dictionary($0).serialize())
+                    } ?? .trueNil
+                }),
+
+            // MARK: - .ambiguous (Unconvertible)
+            Converter(.bool, .array, is: .ambiguous, via: { _ in nil }),
+            Converter(.data, .array, is: .ambiguous, via: { _ in nil }),
+            Converter(.dictionary, .array, is: .ambiguous, via: { _ in nil }),
+            Converter(.double, .array, is: .ambiguous, via: { _ in nil }),
+            Converter(.int, .array, is: .ambiguous, via: { _ in nil }),
+            Converter(.string, .array, is: .ambiguous, via: { _ in nil }),
+            Converter(.bool, .dictionary, is: .ambiguous, via: { _ in nil }),
+            Converter(.data, .dictionary, is: .ambiguous, via: { _ in nil }),
+            Converter(.double, .dictionary, is: .ambiguous, via: { _ in nil }),
+            Converter(.int, .dictionary, is: .ambiguous, via: { _ in nil }),
+            Converter(.string, .dictionary, is: .ambiguous, via: { _ in nil }),
+            Converter(.array, .double, is: .ambiguous, via: { _ in nil }),
+            Converter(.data, .double, is: .ambiguous, via: { _ in nil }),
+            Converter(.dictionary, .double, is: .ambiguous, via: { _ in nil }),
+            Converter(.array, .int, is: .ambiguous, via: { _ in nil }),
+            Converter(.data, .int, is: .ambiguous, via: { _ in nil }),
+            Converter(.dictionary, .int, is: .ambiguous, via: { _ in nil }),
+        ]
+    }
 }
