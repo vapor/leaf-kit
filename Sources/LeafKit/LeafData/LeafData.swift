@@ -74,7 +74,7 @@ public struct LeafData:
         }
         // If either side is nil, false - storage == would have returned false
         if lhs.isNil || rhs.isNil {
-            return true
+            return false
         }
         // Fuzzy comparison by string casting
         guard lhs.isCastable(to: .string),
