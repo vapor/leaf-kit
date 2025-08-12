@@ -21,11 +21,11 @@ jobs:
     container: swift:noble
     steps: 
       - name: Check out LeafKit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: leaf-kit
       - name: Check out Leaf provider
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: vapor/leaf
           path: leaf
