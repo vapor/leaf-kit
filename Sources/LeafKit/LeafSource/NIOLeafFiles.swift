@@ -1,6 +1,6 @@
 import Foundation
 import NIOCore
-import NIOFileSystem
+import _NIOFileSystem
 import NIOPosix
 
 /// Reference and default implementation of `LeafSource` adhering object that provides a non-blocking
