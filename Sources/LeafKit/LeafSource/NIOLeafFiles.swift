@@ -1,7 +1,9 @@
 import Foundation
-import NIOCore
+public import struct NIOCore.ByteBuffer
+public import protocol NIOCore.EventLoop
+public import class NIOCore.EventLoopFuture
 import _NIOFileSystem
-import NIOPosix
+public import struct NIOPosix.NonBlockingFileIO
 
 /// Reference and default implementation of `LeafSource` adhering object that provides a non-blocking
 /// file reader for `LeafRenderer`
