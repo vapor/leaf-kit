@@ -1,4 +1,5 @@
-import NIOCore
+public import protocol NIOCore.EventLoop
+public import class NIOCore.EventLoopFuture
 import NIOConcurrencyHelpers
 
 public final class DefaultLeafCache: SynchronousLeafCache {

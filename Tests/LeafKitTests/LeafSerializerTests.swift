@@ -1,4 +1,5 @@
 @testable import LeafKit
+import NIOCore
 import XCTest
 
 final class SerializerTests: XCTestCase {

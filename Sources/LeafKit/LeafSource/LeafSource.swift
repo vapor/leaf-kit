@@ -1,4 +1,6 @@
-import NIOCore
+public import struct NIOCore.ByteBuffer
+public import protocol NIOCore.EventLoop
+public import class NIOCore.EventLoopFuture
 
 /// Public protocol to adhere to in order to provide template source originators to `LeafRenderer`
 public protocol LeafSource {

@@ -1,4 +1,4 @@
-import Foundation
+public import struct Foundation.Data
 import NIOCore
 
 /// `LeafData` is a "pseudo-protocol" wrapping the physically storable Swift data types
