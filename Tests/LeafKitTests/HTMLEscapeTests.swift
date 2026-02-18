@@ -25,7 +25,7 @@ final class HTMLEscapeTests: XCTestCase {
         XCTAssertEqual(ampersandWithCombining.htmlEscaped(), "&amp;\u{0301}")
 
         let lessThanWithCombining = "<\u{0301}"  // <́
-        XCTAssertEqual(lessThanWithCombining.htmlEscaped(), "&lt;\u{0301}",)
+        XCTAssertEqual(lessThanWithCombining.htmlEscaped(), "&lt;\u{0301}")
 
         let greaterThanWithCombining = ">\u{0301}"  // >́
         XCTAssertEqual(greaterThanWithCombining.htmlEscaped(), "&gt;\u{0301}")
