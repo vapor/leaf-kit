@@ -8,3 +8,13 @@ updates:
       dependencies:
         patterns:
           - "*"
+  - package-ecosystem: "swift"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    allow:
+      - dependency-type: all
+    groups:
+      dependencies:
+        patterns:
+          - "*"
