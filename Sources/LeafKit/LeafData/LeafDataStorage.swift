@@ -64,12 +64,7 @@ indirect enum LeafDataStorage: Equatable, CustomStringConvertible, Sendable {
     
     /// Final serialization to a shared buffer
     func serialize(buffer: inout ByteBuffer) throws {
-        switch self {
-        case .bool, .int, .double, .string, .optional, .array, .dictionary:
-            try buffer.writeString(self.serialize(), encoding: LeafConfiguration.encoding)
-        case .data(let d):
-            buffer.writeData(d)
-        }
+        try buffer.writeString(self.serialize(), encoding: LeafConfiguration.encoding)
     }
     
     // MARK: - Equatable Conformance

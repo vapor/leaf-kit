@@ -12,6 +12,18 @@ final class TagTests: XCTestCase {
         try XCTAssertEqual(render(template, ["name": "<h1>Alex</h1>\"\'"]), expected)
     }
 
+    func testOtherThingsWithHTMLEntities() throws {
+        try XCTAssertEqual(render("#(foo)", ["foo": .data(Data([0x3c, 0x3e, 0xc3, 0xff]))]), "")
+        try XCTAssertEqual(render("#(foo)", ["foo": .data(Data([0x3c, 0x3e, 0xc3, 0xb7]))]), "&lt;&gt;÷")
+        try XCTAssertEqual(render("#(foo)", ["foo": ["<img src=x onerror=alert(1337)>"]]), "[&quot;&lt;img src=x onerror=alert(1337)&gt;&quot;]")
+        try XCTAssertEqual(render("#(foo)", ["foo": ["<img src=x onerror=alert(1337)>": "<img src=x onerror=alert(1337)>"]]), "[&lt;img src=x onerror=alert(1337)&gt;: &quot;&lt;img src=x onerror=alert(1337)&gt;&quot;]")
+
+        try XCTAssertThrowsError(render("#unsafeHTML(foo)", ["foo": .data(Data([0x3c, 0x3e, 0xc3, 0xff]))]))
+        try XCTAssertEqual(render("#unsafeHTML(foo)", ["foo": .data(Data([0x3c, 0x3e, 0xc3, 0xb7]))]), "<>÷")
+        try XCTAssertThrowsError(render("#unsafeHTML(foo)", ["foo": ["<img src=x onerror=alert(1337)>"]]))
+        try XCTAssertThrowsError(render("#unsafeHTML(foo)", ["foo": ["<img src=x onerror=alert(1337)>": "<img src=x onerror=alert(1337)>"]]))
+    }
+
     func testUnsafeTag() throws {
         let template = """
         #unsafeHTML(name)
@@ -255,7 +267,7 @@ final class TagTests: XCTestCase {
         """
 
         let expected = """
-        dumpContext should output debug description [value: "12345"]
+        dumpContext should output debug description [value: &quot;12345&quot;]
         """
 
         try XCTAssertEqual(render(template, data), expected)

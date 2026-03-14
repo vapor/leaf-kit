@@ -320,7 +320,7 @@ public struct LeafData:
 
     /// Return a HTML-escaped version of this data if it can be converted to a string.
     func htmlEscaped() -> LeafData {
-        guard let string = self.string else {
+        guard let string = self.convert(to: .string, .ambiguous).string else {
             return self
         }
 
@@ -334,7 +334,7 @@ public struct LeafData:
 enum DataConvertible: Int, Equatable, Comparable {
     /// Not implicitly convertible automatically
     case ambiguous = 0
-    /// A coercioni with a clear meaning in one direction
+    /// A coercion with a clear meaning in one direction
     case coercible = 1
     /// A conversion with a well-defined bi-directional casting possibility
     case castable = 2
