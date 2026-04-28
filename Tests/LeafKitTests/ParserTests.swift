@@ -81,7 +81,7 @@ struct ParserTests {
 
         let syntax = try parse(base)
         let ast = LeafAST(name: "base", ast: syntax)
-        #require(ast.unresolvedRefs.count != 0, "Unresolved template")
+        try #require(ast.unresolvedRefs.count != 0, "Unresolved template")
     }
 
     @Test func testInsertResolution() throws {

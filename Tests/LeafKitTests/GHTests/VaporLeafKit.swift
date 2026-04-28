@@ -75,7 +75,7 @@ struct GHLeafKitIssuesTest {
     }
 
     /// https://github.com/vapor/leaf-kit/issues/87
-    func testGH87() {
+    func testGH87() throws {
         let template1 = """
             #if(2 % 2 == 0):hi#endif #if(0 == 4 % 2):there#endif
             """

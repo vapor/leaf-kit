@@ -115,7 +115,7 @@ struct TagTests {
         let expected = """
             There are 5 people
             """
-        #expect(render(template, ["people": ["Tanner", "Logan", "Gwynne", "Siemen", "Tim"]]) == expected)
+        try #expect(render(template, ["people": ["Tanner", "Logan", "Gwynne", "Siemen", "Tim"]]) == expected)
     }
 
     @Test func testContainsTag() throws {
@@ -130,7 +130,7 @@ struct TagTests {
                 Tanner is in the core team!
 
             """
-        #expect(render(template, ["core": ["Tanner", "Logan", "Gwynne", "Siemen", "Tim"]]) == expected)
+        try #expect(render(template, ["core": ["Tanner", "Logan", "Gwynne", "Siemen", "Tim"]]) == expected)
     }
 
     @Test func testIsEmpty() throws {
@@ -145,7 +145,7 @@ struct TagTests {
                 This is an empty string.
 
             """
-        #expect(render(template, ["emptyString": ""]) == expected)
+        try #expect(render(template, ["emptyString": ""]) == expected)
     }
 
     @Test func testIsEmptyFalseCase() throws {
@@ -162,7 +162,7 @@ struct TagTests {
                 This is not an empty string.
 
             """
-        #expect(render(template, ["nonEmptyString": "I'm not empty."]) == expected)
+        try #expect(render(template, ["nonEmptyString": "I'm not empty."]) == expected)
     }
 
     @Test func testContainsTagWithHTML() throws {
@@ -177,7 +177,7 @@ struct TagTests {
                 Tanner is in the core team!
 
             """
-        #expect(render(template, ["core": ["<h1>Tanner</h1>", "Logan", "Gwynne", "Siemen", "Tim"]]) == expected)
+        try #expect(render(template, ["core": ["<h1>Tanner</h1>", "Logan", "Gwynne", "Siemen", "Tim"]]) == expected)
     }
 
     @Test func testDate() throws {
@@ -195,7 +195,7 @@ struct TagTests {
         let date = formatter.date(from: "2020-11-09T14:30:00")!
         let now = Int(date.timeIntervalSince1970)
 
-        #expect(render(template, ["now": .int(now)]) == expected)
+        try #expect(render(template, ["now": .int(now)]) == expected)
     }
 
     @Test func testDateWithCustomFormat() throws {
@@ -213,7 +213,7 @@ struct TagTests {
         let date = formatter.date(from: "2020-11-09T14:30:00")!
         let now = Int(date.timeIntervalSince1970)
 
-        #expect(render(template, ["now": .int(now)]) == expected)
+        try #expect(render(template, ["now": .int(now)]) == expected)
     }
 
     @Test func testDateWithCustomFormatWithHTML() throws {
@@ -231,7 +231,7 @@ struct TagTests {
         let date = formatter.date(from: "2020-11-09T14:30:00")!
         let now = Int(date.timeIntervalSince1970)
 
-        #expect(render(template, ["now": .int(now)]) == expected)
+        try #expect(render(template, ["now": .int(now)]) == expected)
     }
 
     @Test func testDateWithCustomFormatAndTimeZone() throws {
@@ -249,7 +249,7 @@ struct TagTests {
             The date is 2020-11-09T09:30
             """
 
-        #expect(render(templateNewYork, ["now": .int(now)]) == expectedNewYork)
+        #expect(try render(templateNewYork, ["now": .int(now)]) == expectedNewYork)
 
         let templateCalifornia = """
             The date is #date(now, "yyyy-MM-dd'T'HH:mm", "America/Los_Angeles")
@@ -259,7 +259,7 @@ struct TagTests {
             The date is 2020-11-09T06:30
             """
 
-        try #expect(render(templateCalifornia, ["now": .int(now)]) == expectedCalifornia)
+        #expect(try render(templateCalifornia, ["now": .int(now)]) == expectedCalifornia)
     }
 
     @Test func testDumpContext() throws {

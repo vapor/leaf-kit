@@ -3,7 +3,7 @@ public import struct NIOCore.ByteBuffer
 public import protocol NIOCore.EventLoop
 public import class NIOCore.EventLoopFuture
 import _NIOFileSystem
-public import struct NIOPosix.NonBlockingFileIO
+public import NIOFileSystem
 
 /// Reference and default implementation of `LeafSource` adhering object that provides a non-blocking
 /// file reader for `LeafRenderer`

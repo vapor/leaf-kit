@@ -1,5 +1,11 @@
 import Testing
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else 
+import Foundation
+#endif
+
 @testable import LeafKit
 
 @Suite
@@ -15,25 +21,25 @@ struct HTMLEscapeTests {
         let quoteWithCombining = "\u{0022}\u{0301}"  // "́
         let escaped = quoteWithCombining.htmlEscaped()
 
-        XCTAssertEqual(escaped, "&quot;\u{0301}")
+        #expect(escaped == "&quot;\u{0301}")
 
         let maliciousInput = "\"\u{0301}=1 autofocus tabindex=0 onfocus=alert(1)"
         let escapedMalicious = maliciousInput.htmlEscaped()
 
-        XCTAssertFalse(escapedMalicious.contains("\"\u{0301}"))
-        XCTAssertTrue(escapedMalicious.unicodeScalars.starts(with: "&quot;".unicodeScalars))
+        #expect(escapedMalicious.contains("\"\u{0301}") == false)
+        #expect(escapedMalicious.unicodeScalars.starts(with: "&quot;".unicodeScalars))
 
         let ampersandWithCombining = "&\u{0301}"  // &́
-        XCTAssertEqual(ampersandWithCombining.htmlEscaped(), "&amp;\u{0301}")
+        #expect(ampersandWithCombining.htmlEscaped() == "&amp;\u{0301}")
 
         let lessThanWithCombining = "<\u{0301}"  // <́
-        XCTAssertEqual(lessThanWithCombining.htmlEscaped(), "&lt;\u{0301}")
+        #expect(lessThanWithCombining.htmlEscaped() == "&lt;\u{0301}")
 
         let greaterThanWithCombining = ">\u{0301}"  // >́
-        XCTAssertEqual(greaterThanWithCombining.htmlEscaped(), "&gt;\u{0301}")
+        #expect(greaterThanWithCombining.htmlEscaped() == "&gt;\u{0301}")
 
         let apostropheWithCombining = "'\u{0301}"  // '́
-        XCTAssertEqual(apostropheWithCombining.htmlEscaped(), "&#39;\u{0301}")
+        #expect(apostropheWithCombining.htmlEscaped() == "&#39;\u{0301}")
     }
 
     #if !os(Android)

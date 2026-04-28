@@ -1,6 +1,7 @@
 import NIOCore
 import NIOPosix
 import Testing
+import NIOFileSystem
 
 @testable import LeafKit
 

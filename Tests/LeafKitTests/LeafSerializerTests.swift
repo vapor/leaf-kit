@@ -1,4 +1,5 @@
 import Testing
+import NIOCore
 
 @testable import LeafKit
 
