@@ -224,7 +224,7 @@ struct LeafLexer {
             let next = self.src.peek()!
             let peekRaw = String(current) + (self.src.peekWhile { $0.isValidInNumeric })
             var peekNum =
-                if #available(macOS 13, *) {
+                if #available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *) {
                     peekRaw.replacing(String(.underscore), with: "")
                 } else {
                     peekRaw.replacingOccurrences(of: String(.underscore), with: "")

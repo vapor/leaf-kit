@@ -1,4 +1,4 @@
-import Foundation
+public import struct Foundation.Data
 import NIOCore
 
 /// `LeafData` is a "pseudo-protocol" wrapping the physically storable Swift data types
@@ -74,7 +74,7 @@ public struct LeafData:
         }
         // If either side is nil, false - storage == would have returned false
         if lhs.isNil || rhs.isNil {
-            return true
+            return false
         }
         // Fuzzy comparison by string casting
         guard lhs.isCastable(to: .string),
@@ -320,7 +320,7 @@ public struct LeafData:
 
     /// Return a HTML-escaped version of this data if it can be converted to a string.
     func htmlEscaped() -> LeafData {
-        guard let string = self.string else {
+        guard let string = self.convert(to: .string, .ambiguous).string else {
             return self
         }
 
@@ -334,7 +334,7 @@ public struct LeafData:
 enum DataConvertible: Int, Equatable, Comparable {
     /// Not implicitly convertible automatically
     case ambiguous = 0
-    /// A coercioni with a clear meaning in one direction
+    /// A coercion with a clear meaning in one direction
     case coercible = 1
     /// A conversion with a well-defined bi-directional casting possibility
     case castable = 2

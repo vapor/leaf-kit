@@ -14,6 +14,18 @@ struct TagTests {
             """
         #expect(render(template, ["name": "<h1>Alex</h1>\"\'"]) == expected)
     }
+  
+    func testOtherThingsWithHTMLEntities() throws {
+        try #expect(render("#(foo)", ["foo": .data(Data([0x3c, 0x3e, 0xc3, 0xff]))]) == "")
+        try #expect(render("#(foo)", ["foo": .data(Data([0x3c, 0x3e, 0xc3, 0xb7]))]) == "&lt;&gt;÷")
+        try #expect(render("#(foo)", ["foo": ["<img src=x onerror=alert(1337)>"]]) == "[&quot;&lt;img src=x onerror=alert(1337)&gt;&quot;]")
+        try #expect(render("#(foo)", ["foo": ["<img src=x onerror=alert(1337)>": "<img src=x onerror=alert(1337)>"]]) == "[&lt;img src=x onerror=alert(1337)&gt;: &quot;&lt;img src=x onerror=alert(1337)&gt;&quot;]")
+
+        try #expect(throws: (any Error).self) { render("#unsafeHTML(foo)", ["foo": .data(Data([0x3c, 0x3e, 0xc3, 0xff]))]) }
+        try #expect(render("#unsafeHTML(foo)", ["foo": .data(Data([0x3c, 0x3e, 0xc3, 0xb7]))]) == "<>÷")
+        try #expect(throws: (any Error).self) { render("#unsafeHTML(foo)", ["foo": ["<img src=x onerror=alert(1337)>"]]) }
+        try #expect(throws: (any Error).self) { render("#unsafeHTML(foo)", ["foo": ["<img src=x onerror=alert(1337)>": "<img src=x onerror=alert(1337)>"]]) }
+    }
 
     @Test func testUnsafeTag() throws {
         let template = """
@@ -257,7 +269,7 @@ struct TagTests {
             """
 
         let expected = """
-            dumpContext should output debug description [value: "12345"]
+            dumpContext should output debug description [value: &quot;12345&quot;]
             """
 
         try #expect(render(template, data) == expected)

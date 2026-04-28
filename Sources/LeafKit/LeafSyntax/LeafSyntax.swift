@@ -1,4 +1,4 @@
-import NIOCore
+public import struct NIOCore.ByteBuffer
 
 public indirect enum Syntax: Sendable {
     // MARK: .raw - Makeable, Entirely Readable

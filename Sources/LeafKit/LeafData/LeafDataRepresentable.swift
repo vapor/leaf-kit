@@ -1,4 +1,5 @@
-import Foundation
+public import struct Foundation.Date
+public import struct Foundation.UUID
 
 /// Capable of being encoded as `LeafData`.
 public protocol LeafDataRepresentable {

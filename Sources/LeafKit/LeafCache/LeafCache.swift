@@ -1,4 +1,5 @@
-import NIOCore
+public import protocol NIOCore.EventLoop
+public import class NIOCore.EventLoopFuture
 
 /// `LeafCache` provides blind storage for compiled `LeafAST` objects.
 ///

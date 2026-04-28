@@ -1,4 +1,6 @@
-import NIOCore
+public import protocol NIOCore.EventLoop
+public import class NIOCore.EventLoopFuture
+public import struct NIOCore.ByteBuffer
 
 // MARK: - `LeafRenderer` Summary
 

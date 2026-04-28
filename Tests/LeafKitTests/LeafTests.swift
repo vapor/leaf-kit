@@ -35,6 +35,20 @@ struct LeafTests {
         #expect(rendered == expectation)
     }
 
+    func testNilIf() throws {
+        let template = """
+        #if(a != nil): not nil #else: nil #endif
+        """
+
+        let expectation = """
+         not nil 
+        """
+
+        let rendered = try render(template, ["a": .string("hello")])
+
+        #expect(rendered == expectation)
+    }
+  
     @Test func testRaw() throws {
         let template = "Hello!"
         #expect(try render(template) == "Hello!")

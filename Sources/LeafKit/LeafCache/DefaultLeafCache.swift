@@ -1,5 +1,5 @@
-import NIOConcurrencyHelpers
-import NIOCore
+public import protocol NIOCore.EventLoop
+public import class NIOCore.EventLoopFuture
 
 public actor DefaultLeafCache: LeafCache {
     // MARK: - Public - `LeafCache` Protocol Conformance

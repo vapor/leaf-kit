@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation // there is no syntax to allow importing only String.Encoding 
 import NIOConcurrencyHelpers
 
 /// General configuration of Leaf
