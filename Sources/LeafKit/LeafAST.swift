@@ -3,7 +3,7 @@ import NIOCore
 /// `LeafAST` represents a "compiled," grammatically valid Leaf template (which may or may not be fully resolvable or erroring)
 public struct LeafAST: Hashable, Sendable {
     // MARK: - Public
-    
+
     public func hash(into hasher: inout Hasher) {
         hasher.combine(self.name)
     }
@@ -23,7 +23,7 @@ public struct LeafAST: Hashable, Sendable {
 
         self.updateRefs([:])
     }
-    
+
     init(from: LeafAST, referencing externals: [String: LeafAST]) {
         self.name = from.name
         self.ast = from.ast
@@ -39,9 +39,9 @@ public struct LeafAST: Hashable, Sendable {
     private(set) var externalRefs = Set<String>()
     private(set) var unresolvedRefs = Set<String>()
     private(set) var flat: Bool
-    
+
     // MARK: - Private Only
-    
+
     private var rawAST: [Syntax]?
 
     mutating private func updateRefs(_ externals: [String: LeafAST]) {
@@ -69,7 +69,7 @@ public struct LeafAST: Hashable, Sendable {
                 pos = self.ast.index(after: pos)
                 continue
             }
-            
+
             // replace the original Syntax with the results of inlining, potentially 1...n
             let replacementSyntax = self.ast[pos].inlineRefs(providedExts, [:])
             self.ast.replaceSubrange(pos...pos, with: replacementSyntax)

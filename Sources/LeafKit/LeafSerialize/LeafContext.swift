@@ -19,14 +19,14 @@ public struct LeafContext {
     /// Throws an error if the parameter count does not equal the supplied number `n`.
     public func requireParameterCount(_ n: Int) throws {
         guard self.parameters.count == n else {
-            throw LeafError(.unknownError("Invalid parameter count: \(self.parameters.count)/\(n)"))
+            throw LeafError.unknownError("Invalid parameter count: \(self.parameters.count)/\(n)")
         }
     }
 
     /// Throws an error if this tag does not include a body.
     public func requireBody() throws -> [Syntax] {
         guard let body, !body.isEmpty else {
-            throw LeafError(.unknownError("Missing body"))
+            throw LeafError.unknownError("Missing body")
         }
 
         return body
@@ -35,7 +35,7 @@ public struct LeafContext {
     /// Throws an error if this tag includes a body.
     public func requireNoBody() throws {
         if let body, !body.isEmpty {
-            throw LeafError(.unknownError("Extraneous body"))
+            throw LeafError.unknownError("Extraneous body")
         }
     }
 }

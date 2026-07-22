@@ -1,4 +1,4 @@
-// swift-tools-version:6.0
+// swift-tools-version:6.1
 import PackageDescription
 
 let package = Package(
@@ -13,7 +13,7 @@ let package = Package(
         .library(name: "LeafKit", targets: ["LeafKit"])
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.81.0"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.81.0")
     ],
     targets: [
         .target(
@@ -28,10 +28,10 @@ let package = Package(
         .testTarget(
             name: "LeafKitTests",
             dependencies: [
-                .target(name: "LeafKit"),
+                .target(name: "LeafKit")
             ],
             exclude: [
-                "Templates",
+                "Templates"
             ],
             swiftSettings: swiftSettings
         ),

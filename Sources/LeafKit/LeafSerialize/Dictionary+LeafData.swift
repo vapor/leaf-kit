@@ -1,10 +1,10 @@
-public extension Dictionary where Key == String, Value == LeafData {
-    subscript(keyPath keyPath: String) -> LeafData? {
+extension Dictionary where Key == String, Value == LeafData {
+    public subscript(keyPath keyPath: String) -> LeafData? {
         let comps = keyPath.split(separator: ".").map(String.init)
         return self[keyPath: comps]
     }
 
-    subscript(keyPath comps: [String]) -> LeafData? {
+    public subscript(keyPath comps: [String]) -> LeafData? {
         if comps.isEmpty {
             return nil
         } else if comps.count == 1 {

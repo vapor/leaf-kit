@@ -1,4 +1,5 @@
 extension String {
+    // swift-format-ignore
     /// Escapes HTML entities in a `String`.
     public func htmlEscaped() -> String {
         self.unicodeScalars.reduce(into: "") { result, scalar in

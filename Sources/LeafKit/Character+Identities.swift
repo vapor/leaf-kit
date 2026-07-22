@@ -1,3 +1,4 @@
+// swift-format-ignore
 /// Various helper identities for convenience
 extension Character {
 
@@ -6,7 +7,7 @@ extension Character {
     var isValidInTagName: Bool {
         self.isLowercaseLetter || self.isUppercaseLetter
     }
-    
+
     var isValidInParameter: Bool {
         self.isValidInTagName ||
         self.isValidOperator ||
@@ -45,9 +46,9 @@ extension Character {
             false
         }
     }
-    
+
     // MARK: - General group-membership identities (Internal)
-    
+
     var isHexadecimal: Bool {
         (.zero ... .nine).contains(self) ||
         (.A ... .F).contains(self) ||
@@ -70,7 +71,7 @@ extension Character {
     var isLowercaseLetter: Bool {
         (.a ... .z).contains(self)
     }
-    
+
     // MARK: - General helpers
 
     static let newLine: Self = "\n"

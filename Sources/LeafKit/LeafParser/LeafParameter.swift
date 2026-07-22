@@ -8,29 +8,29 @@ public indirect enum ParameterDeclaration: CustomStringConvertible, Sendable {
     public var description: String {
         switch self {
         case .parameter(let p): p.description
-        case .expression(_):    self.short
-        case .tag(let t):       "tag(\(t.name): \(t.params.describe(",")))"
+        case .expression(_): self.short
+        case .tag(let t): "tag(\(t.name): \(t.params.describe(",")))"
         }
     }
 
     var short: String {
         switch self {
-        case .parameter(let p):  p.short
+        case .parameter(let p): p.short
         case .expression(let p): "[\(p.describe())]"
-        case .tag(let t):        "\(t.name)(\(t.params.describe(",")))"
+        case .tag(let t): "\(t.name)(\(t.params.describe(",")))"
         }
     }
 
     var name: String {
         switch self {
-        case .parameter:  "parameter"
+        case .parameter: "parameter"
         case .expression: "expression"
-        case .tag:        "tag"
+        case .tag: "tag"
         }
     }
-    
+
     // MARK: - Internal Only
-    
+
     func imports() -> Set<String> {
         switch self {
         case .parameter(_):
@@ -42,17 +42,17 @@ public indirect enum ParameterDeclaration: CustomStringConvertible, Sendable {
                 return t.imports()
             }
             guard let parameter = t.params.first,
-                  case .parameter(let p) = parameter,
-                  case .stringLiteral(let key) = p,
-                  !key.isEmpty
+                case .parameter(let p) = parameter,
+                case .stringLiteral(let key) = p,
+                !key.isEmpty
             else {
                 return .init()
             }
             return .init(arrayLiteral: key)
         }
     }
-    
-    func inlineImports(_ imports: [String : Syntax.Export]) -> ParameterDeclaration {
+
+    func inlineImports(_ imports: [String: Syntax.Export]) -> ParameterDeclaration {
         switch self {
         case .parameter(_):
             return self
@@ -61,12 +61,12 @@ public indirect enum ParameterDeclaration: CustomStringConvertible, Sendable {
                 return .tag(.init(name: t.name, params: t.params.inlineImports(imports)))
             }
             guard let parameter = t.params.first,
-                  case .parameter(let p) = parameter,
-                  case .stringLiteral(let key) = p,
-                  let export = imports[key]?.body.first,
-                  case .expression(let exp) = export,
-                  exp.count == 1,
-                  let e = exp.first
+                case .parameter(let p) = parameter,
+                case .stringLiteral(let key) = p,
+                let export = imports[key]?.body.first,
+                case .expression(let exp) = export,
+                exp.count == 1,
+                let e = exp.first
             else {
                 return self
             }
@@ -144,7 +144,7 @@ extension Array where Element == ParameterDeclaration {
     // could be smarter and check param types beyond verifying non-op but we're lazy here
     fileprivate mutating func wrapBinaryOp(_ i: Int) {
         // can't wrap unless there's a lhs and rhs
-        guard self.indices.contains(i - 1), self.indices.contains(i+1) else {
+        guard self.indices.contains(i - 1), self.indices.contains(i + 1) else {
             return
         }
         let lhs = self[i - 1]
@@ -175,9 +175,11 @@ extension Array where Element == ParameterDeclaration {
     }
 
     func reduceOpWhere(_ check: (LeafOperator) -> Bool) -> Int {
-        self.reduce(0, { count, pD  in
-            count + (pD.operator().map { check($0) ? 1 : 0 } ?? 0)
-        })
+        self.reduce(
+            0,
+            { count, pD in
+                count + (pD.operator().map { check($0) ? 1 : 0 } ?? 0)
+            })
     }
 
     func findLastOpWhere(_ check: (LeafOperator) -> Bool) -> Int? {
@@ -188,24 +190,24 @@ extension Array where Element == ParameterDeclaration {
         }
         return nil
     }
-    
+
     func describe(_ joinBy: String = " ") -> String {
         self.map { $0.short }.joined(separator: joinBy)
     }
-    
+
     func imports() -> Set<String> {
         var result = Set<String>()
         self.forEach { result.formUnion($0.imports()) }
         return result
     }
-    
-    func inlineImports(_ imports: [String : Syntax.Export]) -> [ParameterDeclaration] {
+
+    func inlineImports(_ imports: [String: Syntax.Export]) -> [ParameterDeclaration] {
         guard !self.isEmpty, !imports.isEmpty else {
             return self
         }
         return self.map { $0.inlineImports(imports) }
     }
-    
+
     func atomicRaw() -> Syntax? {
         // only atomic expressions can be converted
         guard self.count < 2 else {

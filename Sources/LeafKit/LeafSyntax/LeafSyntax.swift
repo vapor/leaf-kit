@@ -27,7 +27,7 @@ public enum ConditionalSyntax: Sendable {
     case `if`([ParameterDeclaration])
     case `elseif`([ParameterDeclaration])
     case `else`
-    
+
     func imports() -> Set<String> {
         switch self {
         case .if(let pDA), .elseif(let pDA):
@@ -38,15 +38,15 @@ public enum ConditionalSyntax: Sendable {
             return .init()
         }
     }
-    
-    func inlineImports(_ imports: [String : Syntax.Export]) -> ConditionalSyntax {
+
+    func inlineImports(_ imports: [String: Syntax.Export]) -> ConditionalSyntax {
         switch self {
         case .else: self
         case .if(let pDA): .if(pDA.inlineImports(imports))
         case .elseif(let pDA): .elseif(pDA.inlineImports(imports))
         }
     }
-    
+
     func expression() -> [ParameterDeclaration] {
         switch self {
         case .else: [.parameter(.keyword(.true))]
@@ -54,7 +54,7 @@ public enum ConditionalSyntax: Sendable {
         case .if(let i): i
         }
     }
-    
+
     var naturalType: ConditionalSyntax.NaturalType {
         switch self {
         case .if: .if
@@ -62,12 +62,12 @@ public enum ConditionalSyntax: Sendable {
         case .else: .else
         }
     }
-    
+
     enum NaturalType: Int, CustomStringConvertible {
         case `if` = 0
         case `elseif` = 1
         case `else` = 2
-        
+
         var description: String {
             switch self {
             case .else: "else"
@@ -79,38 +79,38 @@ public enum ConditionalSyntax: Sendable {
 }
 
 // temporary addition
-extension Syntax: BodiedSyntax  {
+extension Syntax: BodiedSyntax {
     func externals() -> Set<String> {
         switch self {
         case .conditional(let bS as any BodiedSyntax),
-             .custom(let bS as any BodiedSyntax),
-             .export(let bS as any BodiedSyntax),
-             .extend(let bS as any BodiedSyntax),
-             .with(let bS as any BodiedSyntax),
-             .loop(let bS as any BodiedSyntax):
+            .custom(let bS as any BodiedSyntax),
+            .export(let bS as any BodiedSyntax),
+            .extend(let bS as any BodiedSyntax),
+            .with(let bS as any BodiedSyntax),
+            .loop(let bS as any BodiedSyntax):
             bS.externals()
         default:
             .init()
         }
     }
-    
+
     func imports() -> Set<String> {
         switch self {
         case .import(let i):
             .init(arrayLiteral: i.key)
         case .conditional(let bS as any BodiedSyntax),
-             .custom(let bS as any BodiedSyntax),
-             .export(let bS as any BodiedSyntax),
-             .extend(let bS as any BodiedSyntax),
-             .expression(let bS as any BodiedSyntax),
-             .loop(let bS as any BodiedSyntax):
+            .custom(let bS as any BodiedSyntax),
+            .export(let bS as any BodiedSyntax),
+            .extend(let bS as any BodiedSyntax),
+            .expression(let bS as any BodiedSyntax),
+            .loop(let bS as any BodiedSyntax):
             bS.imports()
         // .variable, .raw
         default:
             .init()
         }
     }
-    
+
     func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Export]) -> [Syntax] {
         if case .extend(let extend) = self, let context = extend.context {
             let inner = extend.inlineRefs(externals, imports)
@@ -129,11 +129,11 @@ extension Syntax: BodiedSyntax  {
             }
         // Recursively inline single Syntaxes
         case .conditional(let bS as any BodiedSyntax),
-             .custom(let bS as any BodiedSyntax),
-             .export(let bS as any BodiedSyntax),
-             .extend(let bS as any BodiedSyntax),
-             .with(let bS as any BodiedSyntax),
-             .loop(let bS as any BodiedSyntax):
+            .custom(let bS as any BodiedSyntax),
+            .export(let bS as any BodiedSyntax),
+            .extend(let bS as any BodiedSyntax),
+            .with(let bS as any BodiedSyntax),
+            .loop(let bS as any BodiedSyntax):
             result += bS.inlineRefs(externals, imports)
         case .expression(let pDA):
             result.append(.expression(pDA.inlineImports(imports)))
@@ -154,13 +154,13 @@ protocol BodiedSyntax: Sendable {
 extension Array: BodiedSyntax where Element == Syntax {
     func externals() -> Set<String> {
         var result = Set<String>()
-        _ = self.map { result.formUnion( $0.externals()) }
+        _ = self.map { result.formUnion($0.externals()) }
         return result
     }
-    
+
     func imports() -> Set<String> {
         var result = Set<String>()
-        _ = self.map { result.formUnion( $0.imports() ) }
+        _ = self.map { result.formUnion($0.imports()) }
         return result
     }
 
@@ -185,13 +185,13 @@ extension Syntax {
         public let key: String
         public init(_ params: [ParameterDeclaration]) throws {
             guard params.count == 1 else {
-                throw LeafError(.unknownError("import only supports single param \(params)"))
+                throw LeafError.unknownError("import only supports single param \(params)")
             }
             guard case .parameter(let p) = params[0] else {
-                throw LeafError(.unknownError("expected parameter"))
+                throw LeafError.unknownError("expected parameter")
             }
             guard case .stringLiteral(let s) = p else {
-                throw LeafError(.unknownError("import only supports string literals"))
+                throw LeafError.unknownError("import only supports string literals")
             }
             self.key = s
         }
@@ -210,19 +210,19 @@ extension Syntax {
 
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard params.count == 1 || params.count == 2 else {
-                throw LeafError(.unknownError("extend only supports one or two parameters \(params)"))
+                throw LeafError.unknownError("extend only supports one or two parameters \(params)")
             }
             if params.count == 2 {
                 guard let context = With.extract(params: Array(params[1...])) else {
-                    throw LeafError(.unknownError("#extend's context requires a single expression"))
+                    throw LeafError.unknownError("#extend's context requires a single expression")
                 }
                 self.context = context
             }
             guard case .parameter(let p) = params[0] else {
-                throw LeafError(.unknownError("extend expected parameter type, got \(params[0])"))
+                throw LeafError.unknownError("extend expected parameter type, got \(params[0])")
             }
             guard case .stringLiteral(let s) = p else {
-                throw LeafError(.unknownError("import only supports string literals"))
+                throw LeafError.unknownError("import only supports string literals")
             }
             self.key = s
             self.externalsSet = .init(arrayLiteral: self.key)
@@ -236,37 +236,37 @@ extension Syntax {
                     break
                 case .export(let export):
                     guard !export.externals().contains(self.key) else {
-                        throw LeafError(.cyclicalReference(self.key, [self.key]))
+                        throw LeafError.cyclicalReference(self.key, chain: [self.key])
                     }
                     self.exports[export.key] = export
                     self.externalsSet.formUnion(export.externals())
                     self.importSet.formUnion(export.imports())
                 default:
-                    throw LeafError(.unknownError("unexpected token in extend body: \(syntax).. use raw space and `export` only"))
+                    throw LeafError.unknownError("unexpected token in extend body: \(syntax).. use raw space and `export` only")
                 }
             }
         }
-        
-        init(key: String, exports: [String : Syntax.Export], externalsSet: Set<String>, importSet: Set<String>) {
+
+        init(key: String, exports: [String: Syntax.Export], externalsSet: Set<String>, importSet: Set<String>) {
             self.key = key
             self.exports = exports
             self.externalsSet = externalsSet
             self.importSet = importSet
         }
-        
+
         func externals() -> Set<String> {
             self.externalsSet
         }
         func imports() -> Set<String> {
             self.importSet
         }
-        
-        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax] {
             var newExports = [String: Export]()
             var newImports = imports
             var newExternalsSet = Set<String>()
             var newImportSet = Set<String>()
-            
+
             // In the case where #exports themselves contain #extends or #imports, rebuild those
             for (key, value) in self.exports {
                 guard !value.externals().isEmpty || !value.imports().isEmpty else {
@@ -280,14 +280,14 @@ extension Syntax {
                 newExternalsSet.formUnion(e.externals())
                 newImportSet.formUnion(e.imports())
             }
-            
+
             // Now add this extend's exports onto the passed imports
             newExports.forEach {
                 newImports[$0.key] = $0.value
             }
-            
+
             var results = [Syntax]()
-            
+
             // Either return a rebuilt #extend or an inlined and (potentially partially) resolved extended syntax
             if !externals.keys.contains(self.key) {
                 let resolvedExtend = Syntax.Extend(
@@ -305,7 +305,7 @@ extension Syntax {
                 newAst.ast.forEach {
                     // Add each external syntax, resolving with the current available
                     // exports and passing this extend's exports to the syntax's imports
-                    
+
                     results += $0.inlineRefs(externals, newImports)
                     // expressions may have been created by imports, convert
                     // single parameter static values to .raw
@@ -315,10 +315,10 @@ extension Syntax {
                     }
                 }
             }
-            
+
             return results
         }
-        
+
         func availableExports() -> Set<String> {
             .init(self.exports.keys)
         }
@@ -331,7 +331,7 @@ extension Syntax {
                 print += "extend(" + self.key.debugDescription + ")"
             }
             if !self.exports.isEmpty {
-                print += ":\n" + self.exports.sorted { $0.key < $1.key } .map { $0.1.print(depth: depth + 1) } .joined(separator: "\n")
+                print += ":\n" + self.exports.sorted { $0.key < $1.key }.map { $0.1.print(depth: depth + 1) }.joined(separator: "\n")
             }
             return print
         }
@@ -345,50 +345,50 @@ extension Syntax {
 
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             guard (1...2).contains(params.count) else {
-                throw LeafError(.unknownError("export expects 1 or 2 params"))
+                throw LeafError.unknownError("export expects 1 or 2 params")
             }
             guard case .parameter(let p) = params[0] else {
-                throw LeafError(.unknownError("expected parameter"))
+                throw LeafError.unknownError("expected parameter")
             }
             guard case .stringLiteral(let s) = p else {
-                throw LeafError(.unknownError("export only supports string literals"))
+                throw LeafError.unknownError("export only supports string literals")
             }
             self.key = s
 
             if params.count == 2 {
-            //    guard case .parameter(let _) = params[1] else { throw LeafError(.unknownError("expected parameter")) }
+                //    guard case .parameter(let _) = params[1] else { throw LeafError(.unknownError("expected parameter")) }
                 guard body.isEmpty else {
-                    throw LeafError(.unknownError("extend w/ two args requires NO body"))
+                    throw LeafError.unknownError("extend w/ two args requires NO body")
                 }
                 self.body = [.expression([params[1]])]
                 self.externalsSet = .init()
                 self.importSet = .init()
             } else {
                 guard !body.isEmpty else {
-                    throw LeafError(.unknownError("export requires body or secondary arg"))
+                    throw LeafError.unknownError("export requires body or secondary arg")
                 }
                 self.body = body
                 self.externalsSet = body.externals()
                 self.importSet = body.imports()
             }
         }
-        
+
         init(key: String, body: [Syntax]) {
             self.key = key
             self.body = body
             self.externalsSet = body.externals()
             self.importSet = body.imports()
         }
-        
+
         func externals() -> Set<String> {
             self.externalsSet
         }
-        
+
         func imports() -> Set<String> {
             self.importSet
         }
-        
-        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax] {
             guard !self.externalsSet.isEmpty || !self.importSet.isEmpty else {
                 return [.export(self)]
             }
@@ -399,18 +399,19 @@ extension Syntax {
             var print = indent(depth)
             print += "export(" + self.key.debugDescription + ")"
             if !self.body.isEmpty {
-                print += ":\n" + self.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+                print += ":\n" + self.body.map { $0.print(depth: depth + 1) }.joined(separator: "\n")
             }
             return print
         }
     }
 
     public struct Conditional: BodiedSyntax {
-        public internal(set) var chain: [(
-            condition: ConditionalSyntax,
-            body: [Syntax]
-        )]
-        
+        public internal(set) var chain:
+            [(
+                condition: ConditionalSyntax,
+                body: [Syntax]
+            )]
+
         private var externalsSet: Set<String>
         private var importSet: Set<String>
 
@@ -421,7 +422,7 @@ extension Syntax {
             self.importSet = body.imports()
             self.importSet.formUnion(condition.imports())
         }
-        
+
         init(chain: [(condition: ConditionalSyntax, body: [Syntax])], externalsSet: Set<String>, importSet: Set<String>) {
             self.chain = chain
             self.externalsSet = externalsSet
@@ -440,27 +441,27 @@ extension Syntax {
                     self.externalsSet.formUnion(new.externalsSet)
                     self.importSet.formUnion(new.importSet)
                 } else {
-                    throw LeafError(.unknownError("\(next.description) can't follow \(state.description)"))
+                    throw LeafError.unknownError("\(next.description) can't follow \(state.description)")
                 }
             }
         }
-        
+
         func externals() -> Set<String> {
             self.externalsSet
         }
-        
+
         func imports() -> Set<String> {
             self.importSet
         }
-        
-        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax] {
             guard !self.externalsSet.isEmpty || !self.importSet.isEmpty else {
                 return [.conditional(self)]
             }
             var newChain = [(ConditionalSyntax, [Syntax])]()
             var newImportSet = Set<String>()
             var newExternalsSet = Set<String>()
-            
+
             self.chain.forEach {
                 if !$0.body.externals().isEmpty || !$0.body.imports().isEmpty || !$0.condition.imports().isEmpty {
                     newChain.append(($0.0.inlineImports(imports), $0.1.inlineRefs(externals, imports)))
@@ -471,7 +472,7 @@ extension Syntax {
                     newChain.append($0)
                 }
             }
-            
+
             return [.conditional(.init(chain: newChain, externalsSet: newExternalsSet, importSet: newImportSet))]
         }
 
@@ -485,21 +486,21 @@ extension Syntax {
             let buffer = indent(depth)
 
             var print = ""
-            
+
             for index in self.chain.indices {
                 switch self.chain[index].condition {
-                    case .if(let params):
-                        print += buffer + "if(" + params.map { $0.description } .joined(separator: ", ") + ")"
-                    case .elseif(let params):
-                        print += buffer + "elseif(" + params.map { $0.description } .joined(separator: ", ") + ")"
-                    case .else:
-                        print += buffer + "else"
+                case .if(let params):
+                    print += buffer + "if(" + params.map { $0.description }.joined(separator: ", ") + ")"
+                case .elseif(let params):
+                    print += buffer + "elseif(" + params.map { $0.description }.joined(separator: ", ") + ")"
+                case .else:
+                    print += buffer + "else"
                 }
 
                 if !self.chain[index].body.isEmpty {
-                    print += ":\n" + self.chain[index].body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+                    print += ":\n" + self.chain[index].body.map { $0.print(depth: depth + 1) }.joined(separator: "\n")
                 }
-                
+
                 if index != self.chain.index(before: self.chain.endIndex) { print += "\n" }
             }
 
@@ -522,7 +523,7 @@ extension Syntax {
             self.importSet
         }
 
-        func inlineRefs(_ externals: [String : LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax] {
             guard !self.externalsSet.isEmpty || !self.importSet.isEmpty else { return [.with(self)] }
             return [.with(.init(context: self.context, body: self.body.inlineRefs(externals, imports)))]
         }
@@ -547,10 +548,10 @@ extension Syntax {
         public init(_ params: [ParameterDeclaration], body: [Syntax]) throws {
             Swift.print(params)
             guard let params = With.extract(params: params) else {
-                throw LeafError(.unknownError("with statements expect a single expression"))
+                throw LeafError.unknownError("with statements expect a single expression")
             }
             guard !body.isEmpty else {
-                throw LeafError(.unknownError("with statements require a body"))
+                throw LeafError.unknownError("with statements require a body")
             }
             self.body = body
             self.context = params
@@ -561,7 +562,7 @@ extension Syntax {
         func print(depth: Int) -> String {
             var print = indent(depth)
             print += "with(\(self.context)):\n"
-            print += self.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+            print += self.body.map { $0.print(depth: depth + 1) }.joined(separator: "\n")
             return print
         }
     }
@@ -576,7 +577,7 @@ extension Syntax {
 
         /// the body of the looop
         public internal(set) var body: [Syntax]
-        
+
         private var externalsSet: Set<String>
         private var importSet: Set<String>
 
@@ -594,7 +595,8 @@ extension Syntax {
                     case .parameter(let right) = list[2],
                     case .variable(let array) = right
                 else {
-                    throw LeafError(.unknownError("for loops expect one of the following expressions: 'name in names' or 'nameIndex, name in names'"))
+                    throw LeafError.unknownError(
+                        "for loops expect one of the following expressions: 'name in names' or 'nameIndex, name in names'")
                 }
                 self.item = item
                 self.array = array
@@ -613,7 +615,8 @@ extension Syntax {
                     case .parameter(let right) = list[2],
                     case .variable(let array) = right
                 else {
-                    throw LeafError(.unknownError("for loops expect one of the following expressions: 'name in names' or 'nameIndex, name in names'"))
+                    throw LeafError.unknownError(
+                        "for loops expect one of the following expressions: 'name in names' or 'nameIndex, name in names'")
                 }
                 self.item = item
                 self.array = array
@@ -621,13 +624,13 @@ extension Syntax {
             }
 
             guard !body.isEmpty else {
-                throw LeafError(.unknownError("for loops require a body"))
+                throw LeafError.unknownError("for loops require a body")
             }
             self.body = body
             self.externalsSet = body.externals()
             self.importSet = body.imports()
         }
-        
+
         init(item: String, array: String, index: String, body: [Syntax]) {
             self.item = item
             self.array = array
@@ -636,26 +639,26 @@ extension Syntax {
             self.externalsSet = body.externals()
             self.importSet = body.imports()
         }
-        
+
         func externals() -> Set<String> {
             self.externalsSet
         }
-        
+
         func imports() -> Set<String> {
             self.importSet
         }
 
-        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax] {
             guard !self.externalsSet.isEmpty || !self.importSet.isEmpty else {
                 return [.loop(self)]
             }
             return [.loop(.init(item: self.item, array: self.array, index: self.index, body: self.body.inlineRefs(externals, imports)))]
         }
-        
+
         func print(depth: Int) -> String {
             var print = indent(depth)
             print += "for(" + (index == "index" ? "" : "\(self.index), ") + self.item + " in " + self.array + "):\n"
-            print += self.body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+            print += self.body.map { $0.print(depth: depth + 1) }.joined(separator: "\n")
             return print
         }
     }
@@ -666,7 +669,7 @@ extension Syntax {
         public internal(set) var body: [Syntax]?
         private var externalsSet: Set<String>
         private var importSet: Set<String>
-        
+
         init(name: String, params: [ParameterDeclaration], body: [Syntax]? = nil) {
             self.name = name
             self.params = params
@@ -678,16 +681,16 @@ extension Syntax {
                 self.importSet.formUnion(b.imports())
             }
         }
-        
+
         func externals() -> Set<String> {
             self.externalsSet
         }
-        
+
         func imports() -> Set<String> {
             self.importSet
         }
-        
-        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String : Syntax.Export]) -> [Syntax] {
+
+        func inlineRefs(_ externals: [String: LeafAST], _ imports: [String: Syntax.Export]) -> [Syntax] {
             guard !self.importSet.isEmpty || !self.externalsSet.isEmpty else {
                 return [.custom(self)]
             }
@@ -698,9 +701,9 @@ extension Syntax {
 
         func print(depth: Int) -> String {
             var print = indent(depth)
-            print += self.name + "(" + self.params.map { $0.description } .joined(separator: ", ") + ")"
+            print += self.name + "(" + self.params.map { $0.description }.joined(separator: ", ") + ")"
             if let body = self.body, !body.isEmpty {
-                print += ":\n" + body.map { $0.print(depth: depth + 1) } .joined(separator: "\n")
+                print += ":\n" + body.map { $0.print(depth: depth + 1) }.joined(separator: "\n")
             }
             return print
         }
@@ -715,14 +718,14 @@ extension Syntax: CustomStringConvertible {
     func print(depth: Int) -> String {
         switch self {
         case .expression(let exp): return indent(depth) + "expression\(exp.description)"
-//           case .variable(let v):     return v.print(depth: depth)
-        case .custom(let custom):  return custom.print(depth: depth)
-        case .conditional(let c):  return c.print(depth: depth)
-        case .loop(let loop):      return loop.print(depth: depth)
-        case .import(let imp):     return imp.print(depth: depth)
-        case .extend(let ext):     return ext.print(depth: depth)
-        case .export(let export):  return export.print(depth: depth)
-        case .with(let with):      return with.print(depth: depth)
+        //           case .variable(let v):     return v.print(depth: depth)
+        case .custom(let custom): return custom.print(depth: depth)
+        case .conditional(let c): return c.print(depth: depth)
+        case .loop(let loop): return loop.print(depth: depth)
+        case .import(let imp): return imp.print(depth: depth)
+        case .extend(let ext): return ext.print(depth: depth)
+        case .export(let export): return export.print(depth: depth)
+        case .with(let with): return with.print(depth: depth)
         case .raw(var bB):
             let string = bB.readString(length: bB.readableBytes) ?? ""
             return indent(depth) + "raw(\(string.debugDescription))"

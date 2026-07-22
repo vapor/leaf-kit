@@ -11,7 +11,7 @@ extension ParameterDeclaration {
 
 struct ParameterResolver {
     // MARK: - Internal Only
-    
+
     let params: [ParameterDeclaration]
     let data: [String: LeafData]
     let tags: [String: any LeafTag]
@@ -25,30 +25,30 @@ struct ParameterResolver {
         let param: ParameterDeclaration
         let result: LeafData
     }
-    
+
     // MARK: - Private Only
 
     private func resolve(_ param: ParameterDeclaration) throws -> ResolvedParameter {
         let result: LeafData
         switch param {
-            case .expression(let e):
-                result = try self.resolve(expression: e)
-            case .parameter(let p):
-                result = try self.resolve(param: p)
-            case .tag(let t):
-                let resolver = ParameterResolver(
-                    params: t.params,
-                    data: self.data,
-                    tags: self.tags,
-                    userInfo: self.userInfo
-                )
-                let ctx = try LeafContext(
-                    parameters: resolver.resolve().map { $0.result },
-                    data: data,
-                    body: t.body,
-                    userInfo: self.userInfo
-                )
-                result = try self.tags[t.name]?.render(ctx) ?? .trueNil
+        case .expression(let e):
+            result = try self.resolve(expression: e)
+        case .parameter(let p):
+            result = try self.resolve(param: p)
+        case .tag(let t):
+            let resolver = ParameterResolver(
+                params: t.params,
+                data: self.data,
+                tags: self.tags,
+                userInfo: self.userInfo
+            )
+            let ctx = try LeafContext(
+                parameters: resolver.resolve().map { $0.result },
+                data: data,
+                body: t.body,
+                userInfo: self.userInfo
+            )
+            result = try self.tags[t.name]?.render(ctx) ?? .trueNil
         }
         return .init(param: param, result: result)
     }
@@ -68,17 +68,17 @@ struct ParameterResolver {
             self.data[keyPath: v] ?? .trueNil
         case .keyword(let k):
             switch k {
-                case .this: .init(.dictionary(self.data))
-                case .nil: .trueNil
-                case .true, .yes: .init(.bool(true))
-                case .false, .no: .init(.bool(false))
-                default: throw LeafError(.unknownError("unexpected keyword"))
+            case .this: .init(.dictionary(self.data))
+            case .nil: .trueNil
+            case .true, .yes: .init(.bool(true))
+            case .false, .no: .init(.bool(false))
+            default: throw LeafError.unknownError("unexpected keyword")
             }
         // these should all have been removed in processing
         case .tag:
-            throw LeafError(.unknownError("unexpected tag"))
+            throw LeafError.unknownError("unexpected tag")
         case .operator:
-            throw LeafError(.unknownError("unexpected operator"))
+            throw LeafError.unknownError("unexpected operator")
         }
     }
 
@@ -90,10 +90,10 @@ struct ParameterResolver {
             if let lho = expression[0].operator() {
                 let rhs = try self.resolve(expression[1]).result
                 return try self.resolve(op: lho, rhs: rhs)
-            } else if let _ = expression[1].operator() {
-                throw LeafError(.unknownError("right hand expressions not currently supported"))
+            } else if expression[1].operator() != nil {
+                throw LeafError.unknownError("right hand expressions not currently supported")
             } else {
-                throw LeafError(.unknownError("two part expression expected to include at least one operator"))
+                throw LeafError.unknownError("two part expression expected to include at least one operator")
             }
         } else if expression.count == 3 {
             // file == name + ".jpg"
@@ -102,13 +102,13 @@ struct ParameterResolver {
             // based on priorities in such a way that each expression
             // is 3 variables, lhs, functor, rhs
             guard expression.count == 3 else {
-                throw LeafError(.unknownError("multiple expressions not currently supported: \(expression)"))
+                throw LeafError.unknownError("multiple expressions not currently supported: \(expression)")
             }
             let lhs = try self.resolve(expression[0]).result
             let functor = expression[1]
             let rhs = try self.resolve(expression[2]).result
             guard case .parameter(let p) = functor else {
-                throw LeafError(.unknownError("expected keyword or operator"))
+                throw LeafError.unknownError("expected keyword or operator")
             }
             switch p {
             case .keyword(let k):
@@ -116,10 +116,10 @@ struct ParameterResolver {
             case .operator(let o):
                 return try self.resolve(lhs: lhs, op: o, rhs: rhs)
             default:
-                throw LeafError(.unknownError("unexpected parameter: \(p)"))
+                throw LeafError.unknownError("unexpected parameter: \(p)")
             }
         } else {
-            throw LeafError(.unknownError("unsupported expression, expected 2 or 3 components: \(expression)"))
+            throw LeafError.unknownError("unsupported expression, expected 2 or 3 components: \(expression)")
         }
     }
 
@@ -131,14 +131,14 @@ struct ParameterResolver {
         case .minus:
             return try self.resolve(lhs: -1, op: .multiply, rhs: rhs)
         default:
-            throw LeafError(.unknownError("unexpected left hand operator not supported: \(op)"))
+            throw LeafError.unknownError("unexpected left hand operator not supported: \(op)")
         }
     }
 
     private func resolve(lhs: LeafData, op: LeafOperator, rhs: LeafData) throws -> LeafData {
         switch op {
         case .not:
-            throw LeafError(.unknownError("single expression operator"))
+            throw LeafError.unknownError("single expression operator")
         case .and:
             let lhs = lhs.bool ?? !lhs.isNil
             let rhs = rhs.bool ?? !rhs.isNil
@@ -189,13 +189,13 @@ struct ParameterResolver {
             return try self.divide(lhs: lhs, rhs: rhs)
         case .modulo:
             return try self.modulo(lhs: lhs, rhs: rhs)
-        case .assignment: throw LeafError(.unknownError("Future feature"))
-        case .nilCoalesce: throw LeafError(.unknownError("Future feature"))
-        case .evaluate: throw LeafError(.unknownError("Future feature"))
-        case .scopeRoot: throw LeafError(.unknownError("Future feature"))
-        case .scopeMember: throw LeafError(.unknownError("Future feature"))
-        case .subOpen: throw LeafError(.unknownError("Future feature"))
-        case .subClose: throw LeafError(.unknownError("Future feature"))
+        case .assignment: throw LeafError.unknownError("Future feature")
+        case .nilCoalesce: throw LeafError.unknownError("Future feature")
+        case .evaluate: throw LeafError.unknownError("Future feature")
+        case .scopeRoot: throw LeafError.unknownError("Future feature")
+        case .scopeMember: throw LeafError.unknownError("Future feature")
+        case .subOpen: throw LeafError.unknownError("Future feature")
+        case .subClose: throw LeafError.unknownError("Future feature")
         }
     }
 
@@ -219,7 +219,7 @@ struct ParameterResolver {
                 let rhs = rhs.int ?? 0
                 let added = i.addingReportingOverflow(rhs)
                 guard !added.overflow else {
-                    throw LeafError(.unknownError("Integer overflow"))
+                    throw LeafError.unknownError("Integer overflow")
                 }
                 return .int(added.partialValue)
             }
@@ -234,16 +234,16 @@ struct ParameterResolver {
             return .init(.dictionary(rhs))
 
         case .optional(_, _):
-            throw LeafError(.unknownError("Optional unwrapping not possible yet"))
+            throw LeafError.unknownError("Optional unwrapping not possible yet")
         case .bool(let b):
-            throw LeafError(.unknownError("unable to concatenate bool `\(b)` with `\(rhs)', maybe you meant &&"))
+            throw LeafError.unknownError("unable to concatenate bool `\(b)` with `\(rhs)', maybe you meant &&")
         }
     }
 
     private func minus(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
         case .optional(_, _):
-            throw LeafError(.unknownError("Optional unwrapping not possible yet"))
+            throw LeafError.unknownError("Optional unwrapping not possible yet")
         case .array(let arr):
             let rhs = rhs.array ?? []
             let new = arr.filter { !rhs.contains($0) }
@@ -257,7 +257,7 @@ struct ParameterResolver {
                 let rhs = rhs.int ?? 0
                 let subtracted = i.subtractingReportingOverflow(rhs)
                 guard !subtracted.overflow else {
-                    throw LeafError(.unknownError("Integer underflow"))
+                    throw LeafError.unknownError("Integer underflow")
                 }
                 return .int(subtracted.partialValue)
             }
@@ -265,14 +265,14 @@ struct ParameterResolver {
             let rhs = rhs.double ?? 0
             return .double(d - rhs)
         case .data, .string, .dictionary, .bool:
-            throw LeafError(.unknownError("unable to subtract from \(lhs)"))
+            throw LeafError.unknownError("unable to subtract from \(lhs)")
         }
     }
 
     private func multiply(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
         case .optional(_, _):
-            throw LeafError(.unknownError("Optional unwrapping not possible yet"))
+            throw LeafError.unknownError("Optional unwrapping not possible yet")
         case .int(let i):
             // if either is double, be double
             if case .double(let d) = rhs.storage {
@@ -286,14 +286,14 @@ struct ParameterResolver {
             let rhs = rhs.double ?? 0
             return .double(d * rhs)
         case .data, .array, .string, .dictionary, .bool:
-            throw LeafError(.unknownError("unable to multiply this type `\(lhs)`"))
+            throw LeafError.unknownError("unable to multiply this type `\(lhs)`")
         }
     }
 
     private func divide(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
         case .optional(_, _):
-            throw LeafError(.unknownError("Optional unwrapping not possible yet"))
+            throw LeafError.unknownError("Optional unwrapping not possible yet")
         case .int(let i):
             // if either is double, be double
             if case .double(let d) = rhs.storage {
@@ -307,14 +307,14 @@ struct ParameterResolver {
             let rhs = rhs.double ?? 0
             return .double(d / rhs)
         case .data, .array, .string, .dictionary, .bool:
-            throw LeafError(.unknownError("unable to divide this type `\(lhs)`"))
+            throw LeafError.unknownError("unable to divide this type `\(lhs)`")
         }
     }
-    
+
     private func modulo(lhs: LeafData, rhs: LeafData) throws -> LeafData {
         switch lhs.storage {
         case .optional(_, _):
-            throw LeafError(.unknownError("Optional unwrapping not possible yet"))
+            throw LeafError.unknownError("Optional unwrapping not possible yet")
         case .int(let i):
             // if either is double, be double
             if case .double(let d) = rhs.storage {
@@ -328,7 +328,7 @@ struct ParameterResolver {
             let rhs = rhs.double ?? 0
             return .double(d.truncatingRemainder(dividingBy: rhs))
         case .data, .array, .string, .dictionary, .bool:
-            throw LeafError(.unknownError("unable to apply modulo on this type `\(lhs)`"))
+            throw LeafError.unknownError("unable to apply modulo on this type `\(lhs)`")
         }
     }
 
